@@ -1,0 +1,192 @@
+schema_version: classic_strategy_backtest_dag_v1
+name: classic_strategy_backtest_agent
+description: |
+  经典交易策略匹配与回测工作流。
+
+  定位：
+    State / iFinD / Pattern Lifecycle 是事实底座，只读消费，不在本工作流中重算含义。
+    经典策略是验证层，用已有底座匹配 VCP、2560、布林强盗、ATR 吊灯等规则，
+    通过回测发现哪些策略和哪些底座状态组合更有效。
+
+  计算边界：
+    - D1 视角 State 以 p116_foundation.duckdb 为唯一事实源。
+    - 入选证据表只使用 VCP/2560，不把完整经典策略混入推荐底座。
+    - 回测使用 composite/classic 模式，允许完整入场/离场规则。
+    - 回测产物 research_only，不写回基础事实表。
+
+defaults:
+  python: python3
+  research_only: true
+  rhythm: on_demand
+  llm_context: config/deepseek_context.md
+  strategy: composite
+  backtest_lookback_days: 252
+  max_positions: 10
+  min_ef: 2
+  initial_capital: 1000000
+
+inputs:
+  date: YYYY-MM-DD
+  foundation_db: outputs/p116_foundation_YYYYMMDD/p116_foundation.duckdb
+  strategy: composite
+  backtest_lookback_days: 252
+  max_positions: 10
+  min_ef: 2
+  initial_capital: 1000000
+
+phases:
+  base_check:
+    - id: validate_foundation
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - validate_foundation
+        - --date
+        - "{date}"
+        - --foundation-db
+        - "{foundation_db}"
+
+    - id: build_state_cache
+      depends_on:
+        - validate_foundation
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - build_state_cache
+        - --date
+        - "{date}"
+        - --foundation-db
+        - "{foundation_db}"
+
+  evidence:
+    - id: build_strategy_evidence
+      depends_on:
+        - build_state_cache
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - build_strategy_evidence
+        - --date
+        - "{date}"
+        - --foundation-db
+        - "{foundation_db}"
+
+    - id: build_strategy_signal_ledger
+      depends_on:
+        - build_state_cache
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - build_strategy_signal_ledger
+        - --date
+        - "{date}"
+        - --foundation-db
+        - "{foundation_db}"
+
+    - id: run_pattern_scan
+      depends_on:
+        - build_state_cache
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - run_pattern_scan
+        - --date
+        - "{date}"
+        - --foundation-db
+        - "{foundation_db}"
+
+    - id: run_pattern_cross
+      depends_on:
+        - run_pattern_scan
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - run_pattern_cross
+        - --date
+        - "{date}"
+
+    - id: evaluate_strategy_evidence
+      depends_on:
+        - build_strategy_evidence
+        - build_strategy_signal_ledger
+        - run_pattern_cross
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - evaluate_strategy_evidence
+        - --date
+        - "{date}"
+
+    - id: build_strategy_reminder
+      depends_on:
+        - build_strategy_signal_ledger
+        - evaluate_strategy_evidence
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - build_strategy_reminder
+        - --date
+        - "{date}"
+
+  backtest:
+    - id: run_classic_backtest
+      depends_on:
+        - validate_foundation
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - run_classic_backtest
+        - --date
+        - "{date}"
+        - --foundation-db
+        - "{foundation_db}"
+        - --strategy
+        - "{strategy}"
+        - --backtest-lookback-days
+        - "{backtest_lookback_days}"
+        - --max-positions
+        - "{max_positions}"
+        - --min-ef
+        - "{min_ef}"
+        - --initial-capital
+        - "{initial_capital}"
+
+    - id: calibrate_strategy_evidence
+      depends_on:
+        - evaluate_strategy_evidence
+        - run_classic_backtest
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - calibrate_strategy_evidence
+        - --date
+        - "{date}"
+
+outputs:
+  state_duration_json: outputs/state_cache/state_duration_YYYYMMDD.json
+  strategy_evidence_json: outputs/strategy_evidence/strategy_evidence_YYYYMMDD.json
+  strategy_signal_ledger_json: outputs/strategy_signals/strategy_signal_daily_YYYYMMDD.json
+  strategy_evidence_html: public/strategy_evidence_YYYYMMDD.html
+  strategy_evaluation_json: outputs/strategy_evaluation/strategy_evaluation_YYYYMMDD.json
+  strategy_evaluation_html: public/strategy_evaluation_YYYYMMDD.html
+  strategy_reminder_json: outputs/strategy_reminders/reminder_YYYYMMDD.json
+  strategy_reminder_html: public/strategy_reminder_YYYYMMDD.html
+  backtest_json: outputs/backtest_composite_YYYYMMDD/backtest_result.json
+  backtest_html: public/classic_strategy_backtest_composite_YYYYMMDD.html
+  calibration_json: outputs/strategy_evaluation/strategy_evidence_calibration_YYYYMMDD.json
+
+guardrails:
+  - State calculation stays D1 perspective: D1 close vs each timeframe SR.
+  - State and fundamental facts are evidence, not trading recommendations.
+  - Classic strategy results are validation signals only; do not overwrite base facts.
+  - Compare strategies by repeatable backtest metrics before changing recommendation weights.

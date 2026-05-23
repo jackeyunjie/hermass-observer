@@ -1,0 +1,69 @@
+# P116 Observer Product Configuration
+
+# Data Sources
+blackwolf:
+  base_url: "https://api.fxyz.site"
+  endpoints:
+    daily: "/v1/market/ashare/daily"
+    intraday: "/v1/market/ashare/5m"
+  
+# State Calculation
+state:
+  # D1 perspective: all timeframes use D1 close vs their own SR
+  perspective: "D1"
+  
+  # MT4-like trend calculation
+  trend:
+    method: "adx_di"
+    adx_period: 14
+    adx_slope_window: 3
+
+  compression:
+    method: "bb_width_quantile"
+    bb_period: 20
+    quantile_window: 20
+
+  volatility:
+    method: "atr_ratio_dynamic_compare"
+    atr_period: 14
+    compare_window: 60
+    
+  # SR calculation
+  sr:
+    lookback: 120  # bars needed for SR
+    fractal_period: 5
+    
+  # State score components
+  score:
+    base_expansion: 8
+    base_contraction: 0
+    trend_weight: 4
+    position_weight: 2
+    volatility_weight: 1
+
+# Screening Criteria
+screening:
+  min_ef_count: 2
+  max_stocks: 100
+  days_per_stock: 3
+  daily_all_three_ef:
+    required_states: ["E", "F"]
+    require_mn1: true
+    require_w1: true
+    require_d1: true
+    max_stocks: null
+    compare_previous_snapshot: true
+    sign_priority: "sr_position_over_trend_conflict"
+    quality_gate:
+      exclude_w1_3bar_close_decline: true
+      exclude_w1_close_below_ama10: true
+
+# LLM defaults for standalone report / skill workflows
+llm:
+  default_model: "deepseekV4"
+  require_cli_runnable: true
+
+# Output
+output:
+  csv_encoding: "utf-8-sig"
+  html_title: "P116 每日观察池"

@@ -1,0 +1,53 @@
+{
+  "version": "2026-05-22.v1",
+  "rule_id": "ma2560_state_market_match_conditional_v1",
+  "status": "conditional_established",
+  "research_only": true,
+  "description": "2560 适合组合与 P116 state / 行业市场支持的条件成立规则。该规则是候选质量证据，不是无条件买入或卖出信号。",
+  "technical_combo": {
+    "vol5_gt_vol60": true,
+    "low_touch_ma25_pct": 2.0,
+    "close_near_ma25_pct": 2.0,
+    "allow_close_not_near_if_strong_score_gte": 6,
+    "require_stop_fall_proxy": true
+  },
+  "p116_state_match": {
+    "latest_2560_signal": "ma2560_strong_hold",
+    "allowed_states": ["E/E/F", "E/F/F", "E/F/E"]
+  },
+  "market_match": {
+    "preferred": "macro_etf_ef_count >= 2",
+    "missing_macro_etf_policy": "stock_rule_only_not_market_confirmed",
+    "unsupported_market_policy": "do_not_call_full_match"
+  },
+  "evidence_20260521": {
+    "top20": {
+      "samples": 20,
+      "vol5_gt_vol60": "20/20",
+      "low_touch_ma25_2pct": "20/20",
+      "close_near_ma25_2pct": "17/20",
+      "ma25_up": "17/20",
+      "strong_score_gte_6": "19/20"
+    },
+    "recommendation_ma2560_strong_hold": {
+      "samples": 30,
+      "state_distribution": {
+        "E/E/F": 17,
+        "E/F/F": 11,
+        "E/F/E": 2
+      },
+      "market_ef_count_gte_2": "24/30",
+      "missing_macro_etf": "5/30"
+    }
+  },
+  "boundaries": [
+    "data/project 历史 Top20 文件没有历史买入日正式 MN1/W1/D1 state 字段。",
+    "正式 state/市场匹配需要结合 recommendation/outputs 和 outputs/market_assets_state 快照。",
+    "行业 ETF 字段缺失时只能认定个股规则成立，不能认定完整市场匹配成立。"
+  ],
+  "reproduce": {
+    "script": "scripts/analyze_2560_state_market_match.py",
+    "command": "python3 scripts/analyze_2560_state_market_match.py --date 20260521",
+    "report": "outputs/project/2560_state_market_match.md"
+  }
+}

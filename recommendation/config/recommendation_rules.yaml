@@ -1,0 +1,32 @@
+schema_version: p116_recommendation_rules_v1
+
+llm:
+  default_model: deepseekV4
+
+inputs:
+  all_three_ef_snapshot: outputs/p116_daily_all_three_ef/p116_all_three_ef_YYYYMMDD.json
+  all_three_ef_diff: outputs/p116_daily_all_three_ef/p116_all_three_ef_diff_YYYYMMDD.json
+  moneyflow_optional: public/p116_moneyflow_enhanced_top10_YYYYMMDD.csv
+
+portfolio:
+  target_size: 10
+  watchlist_size: 30
+  max_per_sw_l1: 3
+  max_per_sw_l2: 2
+
+score_weights:
+  state_score_sum: 1.0
+  ef_strength: 4.0
+  d1_adx14: 0.08
+  breakout_count: 3.0
+  new_entry_bonus: 4.0
+  w1_quality_bonus: 4.0
+  moneyflow_score: 2.0
+
+risk_filters:
+  require_quality_gate_pass: true
+  exclude_quality_flags: true
+  exclude_negative_state: true
+
+output:
+  research_only_notice: "Research-Only：本结果仅为量化观察与组合研究，不构成任何投资建议。"

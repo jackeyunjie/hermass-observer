@@ -1,0 +1,16 @@
+{
+  "schema_version": "p116d_ashare_omni_cycle_alignment_v0_1",
+  "generated_at": "2026-05-19T02:46:19+00:00",
+  "source_state_db": "outputs/p116_ashare_d1_native_state_20260518/p116_ashare_d1_native_state.duckdb",
+  "source_sr_db": "outputs/p116c_ashare_native_timeframe_official_sr_states_20260518/p116c_ashare_native_timeframe_official_sr_states.duckdb",
+  "output_duckdb": "outputs/p116d_ashare_omni_cycle_alignment_20260518/p116d_ashare_omni_cycle_alignment.duckdb",
+  "data_level": "L2_OMNI_CYCLE_ALIGNMENT_SMOKE",
+  "d1_observer_rows": 8470142,
+  "w1_observer_rows": 1787036,
+  "mn1_observer_rows": 419886,
+  "omni_rows": 8470142,
+  "latest_sync_date": "2026-05-18",
+  "symbol_count": 5524,
+  "d1_w1_lead_mn1_pending_rows": 162632,
+  "research_only_flag": true
+}

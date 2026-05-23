@@ -1,0 +1,84 @@
+# FIXED Column Order - DO NOT CHANGE
+# This defines the exact column order for all output files
+
+columns:
+  # Core info (leftmost)
+  - stock_code
+  - stock_name
+  - date
+  - ef_count
+  
+  # Core states (easy to see)
+  - MN1_state_hex
+  - MN1_state_score
+  - W1_state_hex
+  - W1_state_score
+  - D1_state_hex
+  - D1_state_score
+  
+  # MN1 details
+  - MN1_base
+  - MN1_trend_bit
+  - MN1_position_bit
+  - MN1_volatility_bit
+  - MN1_comp_label
+  - MN1_trend_label
+  - MN1_position_label
+  - MN1_volatility_label
+  
+  # W1 details
+  - W1_base
+  - W1_trend_bit
+  - W1_position_bit
+  - W1_volatility_bit
+  - W1_comp_label
+  - W1_trend_label
+  - W1_position_label
+  - W1_volatility_label
+  
+  # D1 details
+  - D1_base
+  - D1_trend_bit
+  - D1_position_bit
+  - D1_volatility_bit
+  - D1_comp_label
+  - D1_trend_label
+  - D1_position_label
+  - D1_volatility_label
+
+# Chinese headers for display
+display_names:
+  stock_code: "股票代码"
+  stock_name: "股票简称"
+  date: "日期"
+  ef_count: "EF周期数"
+  MN1_state_hex: "MN1_state_hex"
+  MN1_state_score: "MN1_state_score"
+  W1_state_hex: "W1_state_hex"
+  W1_state_score: "W1_state_score"
+  D1_state_hex: "D1_state_hex"
+  D1_state_score: "D1_state_score"
+  MN1_base: "MN1_base"
+  MN1_trend_bit: "MN1_trend_bit"
+  MN1_position_bit: "MN1_position_bit"
+  MN1_volatility_bit: "MN1_volatility_bit"
+  MN1_comp_label: "MN1_comp_label"
+  MN1_trend_label: "MN1_trend_label"
+  MN1_position_label: "MN1_position_label"
+  MN1_volatility_label: "MN1_volatility_label"
+  W1_base: "W1_base"
+  W1_trend_bit: "W1_trend_bit"
+  W1_position_bit: "W1_position_bit"
+  W1_volatility_bit: "W1_volatility_bit"
+  W1_comp_label: "W1_comp_label"
+  W1_trend_label: "W1_trend_label"
+  W1_position_label: "W1_position_label"
+  W1_volatility_label: "W1_volatility_label"
+  D1_base: "D1_base"
+  D1_trend_bit: "D1_trend_bit"
+  D1_position_bit: "D1_position_bit"
+  D1_volatility_bit: "D1_volatility_bit"
+  D1_comp_label: "D1_comp_label"
+  D1_trend_label: "D1_trend_label"
+  D1_position_label: "D1_position_label"
+  D1_volatility_label: "D1_volatility_label"

@@ -1,0 +1,4 @@
+﻿stock_code,stock_name,date,d1_close,mn1_sr_support,mn1_sr_resistance,mn1_sr_period_start,mn1_trend,mn1_volatility,old_fixture_mn1,foundation_mn1,foundation_score,foundation_calc,w1_sr_support,w1_sr_resistance,w1,d1_sr_support,d1_sr_resistance,d1,ef_count
+688107,安路科技,2026-05-20,48.4,24.66,35.5,2026-04-01,bull_trend,atr_contracting,8,E,14,扩+牛+上突+稳=14,26.19,33.47,E,29.7,32.18,E,3
+688107,安路科技,2026-05-19,45.88,24.66,35.5,2026-04-01,bull_trend,atr_contracting,8,E,14,扩+牛+上突+稳=14,26.19,33.47,E,29.7,32.18,E,3
+688107,安路科技,2026-05-18,44.5,24.66,35.5,2026-04-01,bull_trend,atr_contracting,8,E,14,扩+牛+上突+稳=14,26.19,33.47,E,29.7,32.18,E,3

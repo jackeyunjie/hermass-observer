@@ -1,0 +1,81 @@
+# OS / editor
+.DS_Store
+.AppleDouble
+.LSOverride
+.vscode/
+.idea/
+.qoder/
+.claude/settings.local.json
+
+# Python runtime
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+env/
+
+# local secrets
+config/secrets/
+*.env
+.env*
+!.env.example
+
+# raw / large local data
+data/**/*.csv
+data/**/*.xlsx
+data/**/*.xls
+data/**/*.xlsm
+data/**/*.docx
+data/**/*.zip
+data/**/*.png
+data/**/*.jpg
+data/**/*.jpeg
+data/**/*.parquet
+data/**/*.duckdb
+data/blackwolf_market_assets/
+data/blackwolf_moneyflow_recent/
+data/Kimi_Agent_股票服务升级/
+data/kimi_agent_2560战法最佳交易/
+data/ifind_excel_exports/
+data/raw/
+data/processed/
+data/project/
+data/sr/
+data/state/
+
+# generated outputs and reports
+outputs/
+public/
+reports/
+recommendation/outputs/
+
+# databases / binary data anywhere
+*.duckdb
+*.duckdb.wal
+*.db
+*.sqlite
+*.sqlite3
+*.parquet
+*.zip
+*.csv.gz
+*.xlsx
+*.xls
+*.xlsm
+
+# temporary scratch
+.tmp_*
+tmp/
+temp/
+
+# oversized local fixtures
+fixtures/all_products_d1_view_6_rows_20260519.json
+fixtures/all_products_d1_view_6_rows_20260520.json
+fixtures/all_products_d1_view_6_rows_foundation_20260520.json
+fixtures/anlu_688107_h1_terminal_views_20260201_20260519.json
+fixtures/anlu_boundary_state_views_20260415_20260519.json
+fixtures/w_mn1_ef_d1_ef_6_rows.json

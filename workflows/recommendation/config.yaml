@@ -1,0 +1,35 @@
+# Quantitative Trading Portfolio Recommendation Config
+strategy:
+  # Size of the recommended daily observation portfolio
+  max_portfolio_size: 10
+  
+  # Fundamental filters (requires fetching from Black Wolf API)
+  enable_fundamental_filter: true
+  min_roe_pct: 8.0
+  min_net_profit_growth_pct: 0.0
+
+# DeepSeek LLM configuration
+llm:
+  model: "deepseek-chat"
+  temperature: 0.3
+  max_tokens: 1500
+
+# Compliance guidelines (PRODUCT_PRD.md requirements)
+compliance:
+  strictly_forbidden_words:
+    - "买入"
+    - "卖出"
+    - "建仓"
+    - "加仓"
+    - "减仓"
+    - "止盈"
+    - "止损"
+    - "荐股"
+    - "收益承诺"
+    - "策略已验证赚钱"
+  allowed_replacements:
+    "推荐/信号": "观察池/观察名单/值得复核"
+    "买入信号": "状态共振突破/进入重点关注"
+    "卖出信号/继续持有": "移出观察池/状态仍在观察中"
+    "止损价": "关键防守位/支撑参考价"
+    "保本/必涨": "历史路径同状态相似度高"

@@ -1,0 +1,281 @@
+{
+  "schema_version": "sr_relation_state_tables_v0_2",
+  "symbol": "688107.SH",
+  "symbol_name": "688107.SH 安路科技",
+  "downloaded_daily": {
+    "stock_code": "688107.SH",
+    "date": "2026-05-19",
+    "open": 44.1,
+    "high": 46.13,
+    "low": 43.3,
+    "close": 45.88,
+    "volume": 132052.0,
+    "amount": 589355300.0
+  },
+  "formula_id": "SQFRACTAL_5__SQSR_MTF_ELI_2__SR_RELATION_OBSERVER",
+  "state_mapping": {
+    "above_resistance": "E",
+    "inside_range": "4",
+    "below_support": "-E"
+  },
+  "views": {
+    "D1": [
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-05-19",
+        "name": "安路科技",
+        "MN1state": "E",
+        "W1state": "E",
+        "D1state": "E"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-05-18",
+        "name": "安路科技",
+        "MN1state": "E",
+        "W1state": "E",
+        "D1state": "E"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-05-15",
+        "name": "安路科技",
+        "MN1state": "E",
+        "W1state": "E",
+        "D1state": "E"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-05-14",
+        "name": "安路科技",
+        "MN1state": "E",
+        "W1state": "E",
+        "D1state": "E"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-05-13",
+        "name": "安路科技",
+        "MN1state": "E",
+        "W1state": "E",
+        "D1state": "E"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-05-12",
+        "name": "安路科技",
+        "MN1state": "E",
+        "W1state": "E",
+        "D1state": "E"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-05-11",
+        "name": "安路科技",
+        "MN1state": "E",
+        "W1state": "E",
+        "D1state": "E"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-05-08",
+        "name": "安路科技",
+        "MN1state": "E",
+        "W1state": "E",
+        "D1state": "E"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-05-07",
+        "name": "安路科技",
+        "MN1state": "E",
+        "W1state": "E",
+        "D1state": "E"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-05-06",
+        "name": "安路科技",
+        "MN1state": "E",
+        "W1state": "E",
+        "D1state": "E"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-04-30",
+        "name": "安路科技",
+        "MN1state": "4",
+        "W1state": "E",
+        "D1state": "E"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-04-29",
+        "name": "安路科技",
+        "MN1state": "4",
+        "W1state": "4",
+        "D1state": "4"
+      }
+    ],
+    "W1": [
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-05-19",
+        "name": "安路科技",
+        "MN1state": "E",
+        "W1state": "E"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-05-15",
+        "name": "安路科技",
+        "MN1state": "E",
+        "W1state": "E"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-05-08",
+        "name": "安路科技",
+        "MN1state": "E",
+        "W1state": "E"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-04-30",
+        "name": "安路科技",
+        "MN1state": "4",
+        "W1state": "E"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-04-24",
+        "name": "安路科技",
+        "MN1state": "4",
+        "W1state": "4"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-04-17",
+        "name": "安路科技",
+        "MN1state": "4",
+        "W1state": "4"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-04-10",
+        "name": "安路科技",
+        "MN1state": "4",
+        "W1state": "4"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-04-03",
+        "name": "安路科技",
+        "MN1state": "4",
+        "W1state": "-E"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-03-27",
+        "name": "安路科技",
+        "MN1state": "4",
+        "W1state": "4"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-03-20",
+        "name": "安路科技",
+        "MN1state": "4",
+        "W1state": "4"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-03-13",
+        "name": "安路科技",
+        "MN1state": "4",
+        "W1state": "E"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-03-06",
+        "name": "安路科技",
+        "MN1state": "4",
+        "W1state": "E"
+      }
+    ],
+    "MN1": [
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-05-19",
+        "name": "安路科技",
+        "MN1state": "E"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-04-30",
+        "name": "安路科技",
+        "MN1state": "4"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-03-31",
+        "name": "安路科技",
+        "MN1state": "4"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-02-27",
+        "name": "安路科技",
+        "MN1state": "4"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2026-01-30",
+        "name": "安路科技",
+        "MN1state": "4"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2025-12-31",
+        "name": "安路科技",
+        "MN1state": "4"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2025-11-28",
+        "name": "安路科技",
+        "MN1state": "4"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2025-10-31",
+        "name": "安路科技",
+        "MN1state": "4"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2025-09-30",
+        "name": "安路科技",
+        "MN1state": "4"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2025-08-29",
+        "name": "安路科技",
+        "MN1state": "4"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2025-07-31",
+        "name": "安路科技",
+        "MN1state": "4"
+      },
+      {
+        "stock_code": "688107.SH",
+        "time": "2025-06-30",
+        "name": "安路科技",
+        "MN1state": "4"
+      }
+    ]
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "schema_version": "industry_rotation_assets_v1",
+  "index_assets": [
+    {"symbol": "000001.SH", "name": "上证指数", "asset_type": "broad_index", "benchmark_group": "market"},
+    {"symbol": "399001.SZ", "name": "深证成指", "asset_type": "broad_index", "benchmark_group": "market"},
+    {"symbol": "399006.SZ", "name": "创业板指", "asset_type": "broad_index", "benchmark_group": "market"},
+    {"symbol": "000300.SH", "name": "沪深300", "asset_type": "broad_index", "benchmark_group": "market"},
+    {"symbol": "000905.SH", "name": "中证500", "asset_type": "broad_index", "benchmark_group": "market"},
+    {"symbol": "000852.SH", "name": "中证1000", "asset_type": "broad_index", "benchmark_group": "market"}
+  ],
+  "industry_etf_assets": [
+    {"symbol": "512480.SH", "name": "半导体ETF", "asset_type": "industry_etf", "sw_l1": "电子"},
+    {"symbol": "515050.SH", "name": "5GETF", "asset_type": "industry_etf", "sw_l1": "通信"},
+    {"symbol": "512880.SH", "name": "证券ETF", "asset_type": "industry_etf", "sw_l1": "非银金融"},
+    {"symbol": "512800.SH", "name": "银行ETF", "asset_type": "industry_etf", "sw_l1": "银行"},
+    {"symbol": "512660.SH", "name": "军工ETF", "asset_type": "industry_etf", "sw_l1": "国防军工"},
+    {"symbol": "512010.SH", "name": "医药ETF", "asset_type": "industry_etf", "sw_l1": "医药生物"},
+    {"symbol": "515790.SH", "name": "光伏ETF", "asset_type": "industry_etf", "sw_l1": "电力设备"},
+    {"symbol": "516160.SH", "name": "新能源ETF", "asset_type": "industry_etf", "sw_l1": "电力设备"},
+    {"symbol": "515700.SH", "name": "新能车ETF", "asset_type": "industry_etf", "sw_l1": "汽车"},
+    {"symbol": "159996.SZ", "name": "家电ETF", "asset_type": "industry_etf", "sw_l1": "家用电器"},
+    {"symbol": "159928.SZ", "name": "消费ETF", "asset_type": "industry_etf", "sw_l1": "食品饮料"},
+    {"symbol": "159825.SZ", "name": "农业ETF", "asset_type": "industry_etf", "sw_l1": "农林牧渔"},
+    {"symbol": "516970.SH", "name": "基建ETF", "asset_type": "industry_etf", "sw_l1": "建筑装饰"},
+    {"symbol": "516020.SH", "name": "化工ETF", "asset_type": "industry_etf", "sw_l1": "基础化工"},
+    {"symbol": "512400.SH", "name": "有色金属ETF", "asset_type": "industry_etf", "sw_l1": "有色金属"},
+    {"symbol": "515220.SH", "name": "煤炭ETF", "asset_type": "industry_etf", "sw_l1": "煤炭"}
+  ]
+}

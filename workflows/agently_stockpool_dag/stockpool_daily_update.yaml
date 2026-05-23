@@ -1,0 +1,391 @@
+schema_version: stockpool_daily_update_dag_v2
+name: stockpool_daily_update
+description: |
+  Daily P116 股票池四层架构 DAG。
+  
+  层级定义：
+    Layer 1 宏观/市场层：指数 State、行业 ETF State、行业资金流、行业集中度
+    Layer 2 个股底座层：D1 视角 MN1/W1/D1 State、三周期 E/F 标准池、进入/离开变化
+    Layer 3 个股增强层：资金流、VCP、2560、质量门槛、行业映射
+    Layer 4 策略/交易层：组合构建、布林强盗、ATR 吊灯、持仓提醒、回测验证
+
+defaults:
+  model: deepseekV4
+  python: python3
+  research_only: true
+  llm_context: config/deepseek_context.md
+
+inputs:
+  date: YYYY-MM-DD
+  previous_date: YYYY-MM-DD
+  foundation_db: outputs/p116_foundation_YYYYMMDD/p116_foundation.duckdb
+
+phases:
+  # ═══════════════════════════════════════════════════════════
+  # Layer 0: 数据下载（黑狼基础数据）
+  # ═══════════════════════════════════════════════════════════
+  download:
+    - id: preflight_freshness
+      layer: 0
+      layer_cn: 数据下载
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/preflight_freshness.py
+        - --date
+        - "{date}"
+        - --previous-date
+        - "{previous_date}"
+
+    - id: download_daily
+      layer: 0
+      layer_cn: 数据下载
+      depends_on:
+        - preflight_freshness
+      action_type: python_cli
+      command:
+        - python3
+        - blackwolf_actions/download_daily.py
+        - --date
+        - "{date}"
+        - --base-date
+        - "{previous_date}"
+
+    - id: download_market_assets
+      layer: 0
+      layer_cn: 数据下载
+      depends_on:
+        - download_daily
+      action_type: python_cli
+      command:
+        - python3
+        - blackwolf_actions/download_market_assets.py
+        - --date
+        - "{date}"
+
+    - id: download_moneyflow_recent
+      layer: 0
+      layer_cn: 数据下载
+      depends_on:
+        - download_daily
+      action_type: python_cli
+      command:
+        - python3
+        - blackwolf_actions/download_moneyflow_recent.py
+        - --end-date
+        - "{date}"
+        - --days
+        - "1"
+        - --workers
+        - "16"
+
+    - id: import_moneyflow_duckdb
+      layer: 0
+      layer_cn: 数据下载
+      depends_on:
+        - download_moneyflow_recent
+      action_type: python_cli
+      command:
+        - python3
+        - blackwolf_actions/import_moneyflow_duckdb.py
+        - --date
+        - "{date}"
+
+    - id: import_market_assets_duckdb
+      layer: 0
+      layer_cn: 数据下载
+      depends_on:
+        - download_market_assets
+      action_type: python_cli
+      command:
+        - python3
+        - blackwolf_actions/import_market_assets_duckdb.py
+        - --date
+        - "{date}"
+
+    - id: validate_foundation
+      layer: 0
+      layer_cn: 数据下载
+      depends_on:
+        - download_daily
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - validate_foundation
+        - --date
+        - "{date}"
+        - --foundation-db
+        - "{foundation_db}"
+
+  # ═══════════════════════════════════════════════════════════
+  # Layer 1: 宏观/市场层
+  # 指数 State → 行业 ETF State → 行业资金流 → 行业集中度
+  # ═══════════════════════════════════════════════════════════
+  macro:
+    - id: build_market_assets_state
+      layer: 1
+      layer_cn: 宏观/市场层
+      depends_on:
+        - import_market_assets_duckdb
+      action_type: python_cli
+      command:
+        - python3
+        - scripts/build_market_assets_state.py
+        - --date
+        - "{date}"
+
+    - id: build_moneyflow_evidence
+      layer: 1
+      layer_cn: 宏观/市场层
+      depends_on:
+        - import_moneyflow_duckdb
+      action_type: python_cli
+      command:
+        - python3
+        - blackwolf_actions/build_moneyflow_evidence.py
+        - --date
+        - "{date}"
+        - --days
+        - "5"
+        - --no-csv-fallback
+
+  # ═══════════════════════════════════════════════════════════
+  # Layer 2: 个股底座层
+  # 三周期 E/F 标准池 → 每日进入/离开变化
+  # ═══════════════════════════════════════════════════════════
+  stock_base:
+    - id: export_all_three_ef
+      layer: 2
+      layer_cn: 个股底座层
+      depends_on:
+        - validate_foundation
+      action_type: python_cli
+      command:
+        - python3
+        - scripts/export_daily_all_three_ef.py
+        - --date
+        - "{date}"
+        - --previous-date
+        - "{previous_date}"
+        - --foundation-db
+        - "{foundation_db}"
+
+    - id: build_state_cache
+      layer: 2
+      layer_cn: 个股底座缓存层
+      depends_on:
+        - export_all_three_ef
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - build_state_cache
+        - --date
+        - "{date}"
+        - --foundation-db
+        - "{foundation_db}"
+
+  # ═══════════════════════════════════════════════════════════
+  # Layer 3: 个股增强层
+  # 资金流 → VCP → 2560 → 质量门槛 → 行业映射
+  # ═══════════════════════════════════════════════════════════
+  stock_enhance:
+    - id: build_strategy_evidence
+      layer: 3
+      layer_cn: 个股增强层
+      depends_on:
+        - build_state_cache
+      action_type: python_cli
+      command:
+        - python3
+        - scripts/build_strategy_evidence.py
+        - --date
+        - "{date}"
+        - --foundation-db
+        - "{foundation_db}"
+
+    - id: build_strategy_signal_ledger
+      layer: 3
+      layer_cn: 个股增强层
+      depends_on:
+        - build_state_cache
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - build_strategy_signal_ledger
+        - --date
+        - "{date}"
+        - --foundation-db
+        - "{foundation_db}"
+
+    # 慢变量 — 长期形态观察
+    - id: run_pattern_scan
+      layer: 3
+      layer_cn: 个股增强层
+      depends_on:
+        - build_strategy_evidence
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - run_pattern_scan
+        - --date
+        - "{date}"
+        - --foundation-db
+        - "{foundation_db}"
+
+    - id: run_pattern_cross
+      layer: 3
+      layer_cn: 个股增强层
+      depends_on:
+        - run_pattern_scan
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - run_pattern_cross
+        - --date
+        - "{date}"
+
+    - id: evaluate_strategy_evidence
+      layer: 3
+      layer_cn: 个股增强层
+      depends_on:
+        - build_state_cache
+        - build_strategy_evidence
+        - build_strategy_signal_ledger
+        - run_pattern_cross
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - evaluate_strategy_evidence
+        - --date
+        - "{date}"
+
+    - id: build_strategy_reminder
+      layer: 3
+      layer_cn: 个股增强层
+      depends_on:
+        - build_strategy_signal_ledger
+        - evaluate_strategy_evidence
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - build_strategy_reminder
+        - --date
+        - "{date}"
+
+  # ═══════════════════════════════════════════════════════════
+  # Layer 4: 策略/交易层
+  # 组合构建 → 行业轮动 → 可分享物料
+  # ═══════════════════════════════════════════════════════════
+  strategy:
+    - id: build_recommendation
+      layer: 4
+      layer_cn: 策略/交易层
+      depends_on:
+        - export_all_three_ef
+        - build_moneyflow_evidence
+        - build_strategy_evidence
+        - evaluate_strategy_evidence
+        - build_market_assets_state
+        - build_state_cache
+      action_type: python_cli
+      command:
+        - python3
+        - recommendation/run_recommendation_workflow.py
+        - --date
+        - "{date}"
+
+    - id: build_industry_rotation
+      layer: 4
+      layer_cn: 策略/交易层
+      depends_on:
+        - build_recommendation
+      action_type: python_cli
+      command:
+        - python3
+        - recommendation/build_industry_rotation_evidence.py
+        - --date
+        - "{date}"
+
+    - id: build_shareable_table
+      layer: 4
+      layer_cn: 策略/交易层
+      depends_on:
+        - build_industry_rotation
+      action_type: python_cli
+      command:
+        - python3
+        - recommendation/build_shareable_table.py
+        - --date
+        - "{date}"
+
+  # ═══════════════════════════════════════════════════════════
+  # Close: 校验
+  # ═══════════════════════════════════════════════════════════
+  close:
+    - id: verify_public_outputs
+      depends_on:
+        - build_shareable_table
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - verify_public_outputs
+        - --date
+        - "{date}"
+
+outputs:
+  # Layer 1: 宏观/市场层
+  market_assets_state_html: public/market_assets_state_YYYYMMDD.html
+  market_assets_state_csv:  outputs/market_assets_state/market_assets_state_YYYYMMDD.csv
+  moneyflow_evidence_csv:   outputs/moneyflow_evidence/moneyflow_evidence_YYYYMMDD.csv
+  # Layer 2: 个股底座层
+  all_three_ef_html:       public/p116_all_three_ef_YYYYMMDD.html
+  state_cache_db:          outputs/state_cache/state_cache.duckdb
+  state_ef_json:           outputs/state_cache/state_ef_YYYYMMDD.json
+  state_distribution_json: outputs/state_cache/state_distribution_YYYYMMDD.json
+  state_transition_json:   outputs/state_cache/state_transition_YYYYMMDD.json
+  sr_boundary_json:        outputs/state_cache/sr_boundary_YYYYMMDD.json
+  state_duration_json:     outputs/state_cache/state_duration_YYYYMMDD.json
+  # Layer 3: 个股增强层
+  strategy_evidence_html:  public/strategy_evidence_YYYYMMDD.html
+  strategy_evidence_csv:   outputs/strategy_evidence/strategy_evidence_YYYYMMDD.csv
+  strategy_signal_ledger_db: outputs/strategy_signals/strategy_signals.duckdb
+  strategy_signal_ledger_json: outputs/strategy_signals/strategy_signal_daily_YYYYMMDD.json
+  strategy_reminder_json: outputs/strategy_reminders/reminder_YYYYMMDD.json
+  strategy_reminder_html: public/strategy_reminder_YYYYMMDD.html
+  strategy_evaluation_html: public/strategy_evaluation_YYYYMMDD.html
+  strategy_evaluation_csv:  outputs/strategy_evaluation/strategy_evaluation_YYYYMMDD.csv
+  pattern_cross_html:      public/pattern_cross_ef_YYYYMMDD.html
+  pattern_cross_csv:       outputs/pattern_lifecycle/pattern_cross_ef_YYYYMMDD.csv
+  # Layer 4: 策略/交易层
+  recommendation_html:     public/p116_recommendation_YYYYMMDD.html
+  industry_rotation_html:  public/industry_rotation_YYYYMMDD.html
+  shareable_html:          public/p116_recommendation_shareable_YYYYMMDD.html
+  shareable_xlsx:          public/p116_recommendation_shareable_YYYYMMDD.xlsx
+
+future_actions:
+  build_raw_duckdb:
+    layer: 0
+    layer_cn: 数据下载
+    command:
+      - python3
+      - agently_adapter/stockpool_daily_runner.py
+      - build_raw_db
+      - --date
+      - "{date}"
+  build_foundation:
+    layer: 2
+    layer_cn: 个股底座层
+    command:
+      - python3
+      - agently_adapter/stockpool_daily_runner.py
+      - build_foundation
+      - --date
+      - "{date}"

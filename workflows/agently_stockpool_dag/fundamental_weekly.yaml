@@ -1,0 +1,244 @@
+schema_version: fundamental_weekly_dag_v2
+name: fundamental_weekly_agent
+description: |
+  基本面慢 Agent 周级工作流。
+  
+  目标：为股票池中每只股票建立可长期复用的基本面账本，
+  用 iFinD/DuckDB 做事实层，用 Python 做 L2 派生，用 DeepSeek 做证据约束解释。
+
+  三层架构：
+    L1 事实层：iFinD GUI Excel / iFinD API / 产业链画像入库
+    L2 派生层：Python 计算主业纯度、现金含金量、盈利质量、资产安全、质量分
+    L3 解释层：DeepSeek 只基于 SQL 筛选数据和证据包做研究解释，不直接编事实
+
+  节奏：
+    - Excel/API 事实入库：周级或财报更新后运行
+    - L2 评分：事实更新后运行
+    - AI Research Loop：周级运行
+    - 个股研究台账：每次 L2/L3 后刷新
+
+defaults:
+  model: deepseekV4
+  python: python3
+  research_only: true
+  rhythm: slow
+  llm_context: config/deepseek_context.md
+
+inputs:
+  date: YYYY-MM-DD
+  universe: tracking_pool
+  limit: 50
+  income_core_excel: data/ifind_stock_income_core_mrq_YYYYMMDD.xlsx
+  balance_core_excel: data/ifind_stock_balance_core_mrq_YYYYMMDD.xlsx
+  cashflow_core_excel: data/ifind_stock_cashflow_core_mrq_YYYYMMDD.xlsx
+  industry_chain_excel: data/ifind_stock_industry_chain_profile_YYYYMMDD.xlsx
+
+phases:
+  # ═══════════════════════════════════════════════════════════
+  # Phase 0: 本地 iFinD 基本面跟踪池
+  # ═══════════════════════════════════════════════════════════
+  pool:
+    - id: run_ifind_pool
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - run_ifind_pool
+        - --date
+        - "{date}"
+        - --limit
+        - "{limit}"
+
+  # ═══════════════════════════════════════════════════════════
+  # Phase 1: DeepSeek 字段规划（API 字段补充用；GUI Excel 主链路不依赖它）
+  # ═══════════════════════════════════════════════════════════
+  plan:
+    - id: run_fundamental_plan
+      depends_on:
+        - run_ifind_pool
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - run_fundamental_plan
+        - --date
+        - "{date}"
+
+  # ═══════════════════════════════════════════════════════════
+  # Phase 2A: iFinD GUI Excel L1 事实入库
+  # 利润表 / 资产负债表 / 现金流量表 / 产业链画像
+  # 这些文件由 iFinD 数据浏览器导出，导入后长期留在 DuckDB。
+  # ═══════════════════════════════════════════════════════════
+  import_excel:
+    - id: import_income_core_excel
+      depends_on:
+        - run_ifind_pool
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - run_ifind_excel_import
+        - --date
+        - "{date}"
+        - --excel-file
+        - "{income_core_excel}"
+        - --statement-type
+        - income_core
+
+    - id: import_balance_core_excel
+      depends_on:
+        - run_ifind_pool
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - run_ifind_excel_import
+        - --date
+        - "{date}"
+        - --excel-file
+        - "{balance_core_excel}"
+        - --statement-type
+        - balance_core
+
+    - id: import_cashflow_core_excel
+      depends_on:
+        - run_ifind_pool
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - run_ifind_excel_import
+        - --date
+        - "{date}"
+        - --excel-file
+        - "{cashflow_core_excel}"
+        - --statement-type
+        - cashflow_core
+
+    - id: import_industry_chain_excel
+      depends_on:
+        - run_ifind_pool
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - run_ifind_chain_import
+        - --date
+        - "{date}"
+        - --excel-file
+        - "{industry_chain_excel}"
+
+  # ═══════════════════════════════════════════════════════════
+  # Phase 2B: iFind API 取证 + iFinD Agent 事件/行业补充
+  # API/Agent 是补充链路；Excel 导入是当前主事实链路。
+  # ═══════════════════════════════════════════════════════════
+  collect_api:
+    - id: run_fundamental_collect
+      depends_on:
+        - run_fundamental_plan
+        - run_ifind_pool
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - run_fundamental_collect
+        - --date
+        - "{date}"
+        - --universe
+        - "{universe}"
+        - --limit
+        - "{limit}"
+
+    - id: run_event_radar
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - run_event_radar
+        - --date
+        - "{date}"
+
+    - id: run_industry_chain
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - run_industry_chain
+        - --date
+        - "{date}"
+
+  # ═══════════════════════════════════════════════════════════
+  # Phase 3: Python L2 质量评分
+  # ═══════════════════════════════════════════════════════════
+  score:
+    - id: run_fundamental_score
+      depends_on:
+        - import_income_core_excel
+        - import_balance_core_excel
+        - import_cashflow_core_excel
+        - import_industry_chain_excel
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - run_fundamental_score
+        - --date
+        - "{date}"
+
+  # ═══════════════════════════════════════════════════════════
+  # Phase 4: DeepSeek L3 证据约束分析（交叉验证 + Research Loop）
+  # ═══════════════════════════════════════════════════════════
+  analyze:
+    - id: run_fundamental_analyze
+      depends_on:
+        - run_fundamental_score
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - run_fundamental_analyze
+        - --date
+        - "{date}"
+        - --limit
+        - "{limit}"
+
+    - id: run_ai_research_loop
+      depends_on:
+        - run_fundamental_score
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - run_ai_research_loop
+        - --date
+        - "{date}"
+
+  # ═══════════════════════════════════════════════════════════
+  # Phase 5: 个股研究台账（券商首席式长期跟踪页）
+  # ═══════════════════════════════════════════════════════════
+  ledger:
+    - id: run_stock_ledger
+      depends_on:
+        - run_fundamental_analyze
+        - run_ai_research_loop
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - run_stock_ledger
+        - --date
+        - "{date}"
+        - --limit
+        - "{limit}"
+
+outputs:
+  tracking_pool:       ifind_tracking_pool
+  field_plan:          outputs/fundamental/fundamental_field_plan_YYYYMMDD.json
+  fundamental_db:      outputs/fundamental/fundamental_evidence.duckdb
+  quality_score_table: fundamental_quality_score
+  ai_research_input:   outputs/fundamental/ai_research_loop_input_YYYYMMDD.md
+  ai_research_report:  outputs/fundamental/ai_research_loop_YYYYMMDD.md
+  event_digest_db:     outputs/event_digest/ifind_event_digest.duckdb
+  chain_evidence_db:   outputs/industry_chain/industry_chain_evidence.duckdb
+  stock_ledger_json:   outputs/fundamental/stock_research_ledger_YYYYMMDD.json
+  stock_ledger_html:   public/stock_research_ledger_YYYYMMDD.html

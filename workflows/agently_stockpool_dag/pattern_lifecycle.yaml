@@ -1,0 +1,59 @@
+schema_version: pattern_lifecycle_dag_v1
+name: pattern_lifecycle_agent
+description: |
+  慢节奏长期形态观察 Agent。
+  
+  善建者不拔，善抱者不脱。
+  
+  不追求每天「发现很多」，每天只做四件事：
+    1. 更新全市场 VCP 潜在池
+    2. 更新全市场 2560 潜在池
+    3. 标记形态成熟 / 失效 / 突破事件
+    4. 与 P116 E/F 标准池交叉输出
+
+  不替代每日推荐，作为推荐系统的「慢变量」。
+  每日推荐看今天，长期观察 Agent 看结构。
+
+defaults:
+  model: deepseekV4
+  python: python3
+  research_only: true
+
+inputs:
+  date: YYYY-MM-DD
+  foundation_db: outputs/p116_foundation_YYYYMMDD/p116_foundation.duckdb
+
+phases:
+  # ═══════════════════════════════════════════════════════════
+  # Phase 1: 全市场日常观测 + 形态池更新
+  # ═══════════════════════════════════════════════════════════
+  scan:
+    - id: run_pattern_scan
+      action_type: python_cli
+      command:
+        - python3
+        - scripts/pattern_scanner.py
+        - --date
+        - "{date}"
+        - --foundation-db
+        - "{foundation_db}"
+
+  # ═══════════════════════════════════════════════════════════
+  # Phase 2: 与 P116 E/F 池交叉
+  # ═══════════════════════════════════════════════════════════
+  cross:
+    - id: run_pattern_cross
+      depends_on:
+        - run_pattern_scan
+      action_type: python_cli
+      command:
+        - python3
+        - scripts/pattern_cross_p116.py
+        - --date
+        - "{date}"
+
+outputs:
+  lifecycle_db:       outputs/pattern_lifecycle/pattern_lifecycle.duckdb
+  cross_json:         outputs/pattern_lifecycle/pattern_cross_ef_YYYYMMDD.json
+  cross_csv:          outputs/pattern_lifecycle/pattern_cross_ef_YYYYMMDD.csv
+  cross_html:         public/pattern_cross_ef_YYYYMMDD.html
