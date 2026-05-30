@@ -24,7 +24,7 @@
       <section class="panel span-2 hero-panel">
         <div class="panel-head">
           <h2>{{ stock_code }}</h2>
-          <span>{{ research_lane.lead_name }} / {{ cards.as_of_date }}</span>
+          <span>{{ resonance_label or '❄️无共振' }}{% if state_prior_view %} | {{ state_prior_view }}{% endif %} / {{ cards.as_of_date }}</span>
         </div>
         <p class="hero-copy">{{ research_lane.lead_signal or "当前查看研究卡主入口。" }}</p>
         <form method="get" action="/research" class="form">
@@ -42,6 +42,31 @@
           </label>
           <button type="submit">加载研究</button>
         </form>
+      </section>
+
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>多周期定位</h2>
+          <span>MN1 / W1 / D1 共振度（展开见 Hex）</span>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+          <span class="status ok">{{ resonance_label or '❄️无共振' }}</span>
+        </div>
+        <details>
+          <summary>周期详情</summary>
+          <p class="muted">
+            MN1: <code>{{ mn1_label or '-' }}</code> /
+            W1: <code>{{ w1_label or '-' }}</code> /
+            D1: <code>{{ d1_label or '-' }}</code>
+            <br />
+            Hex: MN1=<code>{{ state_core.mn1_state_hex or '-' }}</code> /
+            W1=<code>{{ state_core.w1_state_hex or '-' }}</code> /
+            D1=<code>{{ state_core.d1_state_hex or '-' }}</code>
+            {% if state_prior_view %}
+            <br />结构解读：{{ state_prior_view }}
+            {% endif %}
+          </p>
+        </details>
       </section>
 
       {% if research_warnings %}
@@ -202,33 +227,45 @@
         {% endif %}
       </section>
 
+      {% set quick_text = cards.quick or cards.error %}
+      {% if quick_text and quick_text not in ('暂无', '—') %}
       <section class="panel span-2">
         <div class="panel-head">
           <h2>快速卡</h2>
         </div>
-        <pre>{{ cards.quick or cards.error }}</pre>
+        <pre>{{ quick_text }}</pre>
       </section>
+      {% endif %}
 
+      {% set deep_text = cards.deep or cards.error %}
+      {% if deep_text and deep_text not in ('暂无', '—') %}
       <section class="panel span-2">
         <div class="panel-head">
           <h2>深度卡</h2>
         </div>
-        <pre>{{ cards.deep or cards.error }}</pre>
+        <pre>{{ deep_text }}</pre>
       </section>
+      {% endif %}
 
+      {% set evidence_text = cards.evidence or cards.error %}
+      {% if evidence_text and evidence_text not in ('暂无', '—') %}
       <section class="panel span-2">
         <div class="panel-head">
           <h2>证据卡</h2>
         </div>
-        <pre>{{ cards.evidence or cards.error }}</pre>
+        <pre>{{ evidence_text }}</pre>
       </section>
+      {% endif %}
 
+      {% set payload_text = cards.payload or cards.error %}
+      {% if payload_text and payload_text not in ('暂无', '—') %}
       <section class="panel span-2">
         <details>
           <summary>底层载荷调试</summary>
-          <pre>{{ cards.payload or cards.error }}</pre>
+          <pre>{{ payload_text }}</pre>
         </details>
       </section>
+      {% endif %}
     </main>
     {% set ai_page_context = '/research' %}
     {% include '_ai_assistant.html' %}

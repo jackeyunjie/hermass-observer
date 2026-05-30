@@ -238,7 +238,29 @@ systemctl restart nginx
 systemctl enable nginx
 
 # ═══════════════════════════════════════════════════════════════
-# 8. 验证
+# 8. 批量创建内测用户（可选）
+# ═══════════════════════════════════════════════════════════════
+# 内测阶段需要区分 8 个用户身份，但共用同一个测试账号密码不方便管理。
+# 以下示例为每个内测成员创建独立 Basic Auth 账号：
+#
+#   sudo htpasswd -b /etc/nginx/.htpasswd_hermass 用户名 密码
+#
+# 然后把所有用户名写入环境变量 HERMASS_HTPASSWD_USERS（逗号分隔），
+# 这样后端启动时会自动为每个用户初始化 profile：
+#
+#   export HERMASS_HTPASSWD_USERS="admin,user1,user2,user3,user4,user5,user6,user7"
+#
+# 建议把 export 语句写入 /etc/systemd/system/hermass-console.service 的 [Service] 段：
+#
+#   Environment="HERMASS_HTPASSWD_USERS=admin,user1,user2,user3,user4,user5,user6,user7"
+#
+# 然后 systemctl daemon-reload && systemctl restart hermass-console
+
+info "Basic Auth 密码文件路径: $HTPASSWD_FILE"
+info "当前已有用户: $(htpasswd -b -v "$HTPASSWD_FILE" dummy dummy 2>/dev/null || true)"
+
+# ═══════════════════════════════════════════════════════════════
+# 9. 验证
 # ═══════════════════════════════════════════════════════════════
 echo ""
 echo "═══════════════════════════════════════════════════════════════"
@@ -255,6 +277,12 @@ echo "  常用命令:"
 echo "    sudo systemctl start|stop|restart|status hermass-console"
 echo "    sudo systemctl reload nginx"
 echo "    sudo htpasswd /etc/nginx/.htpasswd_hermass 新用户名"
+echo ""
+echo "  内测用户管理:"
+echo "    1. 添加用户: sudo htpasswd -b /etc/nginx/.htpasswd_hermass 用户名 密码"
+echo "    2. 更新环境变量: sudo systemctl edit hermass-console"
+echo "       添加: [Service] 段 Environment=HERMASS_HTPASSWD_USERS=用户名1,用户名2,..."
+echo "    3. 重启服务: sudo systemctl daemon-reload && sudo systemctl restart hermass-console"
 echo ""
 
 # 本地健康检查

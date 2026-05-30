@@ -26,34 +26,29 @@
           <h2>{{ mode_summary.label }}</h2>
           <span>多周期相互影响观察 + 单周期运行观察 + 概率与盈亏比验证</span>
         </div>
-        <p class="hero-copy">{{ mode_summary.headline }}</p>
-        <div class="mode-switch">
-          <a class="mode-pill {% if mode == 'direction' %}active{% endif %}" href="/?mode=direction">方向</a>
-          <a class="mode-pill {% if mode == 'research' %}active{% endif %}" href="/?mode=research">研究</a>
-          <a class="mode-pill {% if mode == 'execution' %}active{% endif %}" href="/?mode=execution">执行</a>
+        <div class="daily-brief-card">
+          <h2>今日判断</h2>
+          <p class="hero-copy">{{ daily_brief.conclusion }}</p>
+          <p class="hero-note">有疑问？<a href="javascript:void(0)" onclick="window.aiAsk('{{ daily_brief.conclusion }}')">问观象 →</a></p>
         </div>
-        <ul class="focus-list">
-          {% for line in mode_summary.focus %}
-            <li>{{ line }}</li>
-          {% endfor %}
-        </ul>
-        <table>
-          <tbody>
-            <tr><td>当前结论</td><td>{{ mode_summary.judgment }}</td></tr>
-            <tr><td>为什么</td><td>{{ mode_summary.why }}</td></tr>
-            <tr><td>先做什么</td><td>{{ mode_summary.next_step }}</td></tr>
-          </tbody>
-        </table>
-        <div class="starter-box">
-          <h3>{{ mode_summary.starter_title }}</h3>
-          <ol class="starter-list">
-            {% for line in mode_summary.starter_steps %}
-              <li>{{ line }}</li>
-            {% endfor %}
-          </ol>
-        </div>
-        <p class="hero-link"><a href="{{ mode_summary.primary_cta }}">{{ mode_summary.primary_label }}</a></p>
       </section>
+
+      {% if daily_brief.top_industries %}
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>重点行业速览</h2>
+          <span>{{ daily_brief.date }}</span>
+        </div>
+        <div class="starter-grid" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
+          {% for item in daily_brief.top_industries %}
+          <a class="starter-card" href="/industry">
+            <strong>{{ item.name }}</strong>
+            <span>{{ item.resonance }} | 资金{{ item.capital }}</span>
+          </a>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
 
       <section class="metric-strip span-2">
         <div>

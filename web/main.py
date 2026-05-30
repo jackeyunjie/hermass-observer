@@ -28,12 +28,16 @@ import contextlib
 import io
 
 from hermass_platform.agents.base_agent import find_foundation_db
+from hermass_platform.api.user_profiles import get_current_profile, init_profiles
 from hermass_platform.research import (
     build_external_research_evidence,
     format_deep_research_card,
     format_evidence_card,
     format_quick_research_card,
 )
+
+# 启动时初始化用户 profile（读取环境变量 HERMASS_HTPASSWD_USERS 中的逗号分隔用户名）
+init_profiles([u.strip() for u in os.environ.get("HERMASS_HTPASSWD_USERS", "").split(",") if u.strip()])
 
 from backtest.engine import run_backtest
 from backtest.config import BacktestConfig
@@ -244,6 +248,28 @@ def _strategy_signal_total(strategy_counts: dict[str, Any], strategy_id: str) ->
             except Exception:
                 continue
     return total
+
+
+
+def _hex_to_human_label(hex_str: str) -> str:
+    raw = str(hex_str or "").strip()
+    if not raw or raw == "-":
+        return "-"
+    mapping = _read_json(ROOT / "config/state_human_mapping.json") or {}
+    name_map = {str(k).upper(): str(v) for k, v in mapping.get("hex_to_name", {}).items()}
+    negative_name = str(mapping.get("negative_hex_to_name", "逆位"))
+    emoji_map = {"天时": "🔥", "地利": "☀️", "人和": "🌤", "蓄力": "🌥", "冬眠": "🌧"}
+    is_negative = raw.startswith("-")
+    text = raw[1:] if is_negative else raw
+    try:
+        key = str(int(text, 16))
+    except Exception:
+        key = text.upper()
+    name = name_map.get(key, "未知")
+    if is_negative:
+        return f"⚡{negative_name}{name}"
+    emoji = emoji_map.get(name, "")
+    return f"{emoji}{name}" if emoji else name
 
 
 def _latest_existing_path(patterns: list[str]) -> Path | None:
@@ -471,6 +497,69 @@ def _latest_industry_rotation_map() -> tuple[dict[str, dict[str, Any]], str]:
     return mapping, str(payload.get("date", "-"))
 
 
+def _daily_brief() -> dict[str, Any]:
+    daily_snapshot = _read_json(ROOT / "outputs/daily_snapshot.json") or {}
+    market = daily_snapshot.get("market", {}) if isinstance(daily_snapshot, dict) else {}
+    ef2_count = int(market.get("ef2_count", 0) or 0)
+    ef2_pct = float(market.get("ef2_pct", 0) or 0)
+    if ef2_pct > 15:
+        env_label = "进攻环境"
+    elif ef2_pct >= 8:
+        env_label = "震荡选择环境"
+    else:
+        env_label = "防守等待环境"
+
+    industry_payload = _read_json(_latest_path("outputs/industry_rotation/industry_rotation_*.json"))
+    top_industries: list[dict[str, Any]] = []
+    if isinstance(industry_payload, dict):
+        for item in (industry_payload.get("top_industries") or [])[:5]:
+            name = str(item.get("sw_l1") or "").strip()
+            if not name:
+                continue
+            score = item.get("rotation_score")
+            confirm_rate = item.get("moneyflow_confirm_rate")
+            divergence_count = item.get("moneyflow_divergence_count")
+            if isinstance(score, (int, float)) and score >= 70:
+                resonance = "强势"
+            elif isinstance(score, (int, float)) and score >= 50:
+                resonance = "中性"
+            else:
+                resonance = "偏弱"
+            if isinstance(confirm_rate, (int, float)) and confirm_rate >= 0.6:
+                capital = "流入"
+            elif isinstance(divergence_count, (int, float)) and divergence_count >= 1:
+                capital = "流出"
+            else:
+                capital = "中性"
+            top_industries.append({
+                "name": name,
+                "resonance": resonance,
+                "capital": capital,
+            })
+
+    macro_prior = _read_json(ROOT / "outputs/macro_chain_prior" / "macro_chain_prior_latest.json")
+    macro_bg = ""
+    if isinstance(macro_prior, dict):
+        macro_bg = str(macro_prior.get("quadrant", {}).get("name") or macro_prior.get("summary") or "").strip()
+
+    top_names = [item["name"] for item in top_industries[:2]]
+    industry_text = "、".join(top_names) if top_names else "当前暂无明确行业"
+    conclusion = (
+        f"今日 {ef2_count} 只股票 ef≥2，全市场 {ef2_pct:.1f}%——{env_label}。"
+        f"先看 {industry_text}。"
+    )
+    return {
+        "date": str(daily_snapshot.get("date") or date.today()),
+        "ef2_count": ef2_count,
+        "ef2_pct": ef2_pct,
+        "total_stocks": int(market.get("stocks", 0) or 0),
+        "env_label": env_label,
+        "conclusion": conclusion,
+        "top_industries": top_industries[:5],
+        "macro_bg": macro_bg,
+    }
+
+
 def _boolish(value: Any) -> bool:
     text = str(value).strip().lower()
     return text in {"1", "true", "yes", "y"}
@@ -489,12 +578,24 @@ def _strategy_rows_for_stock(stock_code: str) -> list[dict[str, Any]]:
     latest_signals = _signal_payload_context()["payload"]
     rows = latest_signals.get("rows", []) if isinstance(latest_signals, dict) else []
     target = stock_code.strip().upper()
-    selected = [row for row in rows if str(row.get("stock_code", "")).upper() == target]
-    enriched: list[dict[str, Any]] = []
+    fit_rank = {"最佳适配": 0, "待观察": 1, "弱适配": 2, "未标注": 3}
+    selected = [
+        row for row in rows
+        if str(row.get("stock_code", "")).upper() == target
+    ]
+    selected.sort(key=lambda row: (
+        fit_rank.get(str(row.get("strategy_environment_fit") or "未标注"), 99),
+        -(row.get("ef_count") or 0),
+    ))
+    deduped: list[dict[str, Any]] = []
+    seen_strategies: set[str] = set()
     for row in selected:
         strategy_id = row.get("strategy_id", "")
+        if strategy_id in seen_strategies:
+            continue
+        seen_strategies.add(strategy_id)
         definition = _strategy_definition(strategy_id)
-        enriched.append(
+        deduped.append(
             {
                 "strategy_id": strategy_id,
                 "strategy_label": definition["label"],
@@ -511,9 +612,10 @@ def _strategy_rows_for_stock(stock_code: str) -> list[dict[str, Any]]:
                 "how": definition["how"],
                 "when": definition["when"],
                 "avoid": definition["avoid"],
+                "ef_count": row.get("ef_count"),
             }
         )
-    return enriched
+    return deduped
 
 
 def _market_analysis_data() -> dict[str, Any]:
@@ -1339,6 +1441,25 @@ def _execution_lane() -> dict[str, Any]:
         item["allocation_tier"] = allocation_tier
         item["queue_reason"] = f"{fit} / {stage}。{reason}"
         item["next_action"] = action
+        mn1_label = _hex_to_human_label(item.get("mn1_state") or "")
+        w1_label = _hex_to_human_label(item.get("w1_state") or "")
+        d1_label = _hex_to_human_label(item.get("d1_state") or "")
+        ef_count = item.get("ef_count")
+        resonance_label = "❄️无共振"
+        if isinstance(ef_count, int):
+            if ef_count == 3:
+                resonance_label = "🔥天时共振"
+            elif ef_count == 2:
+                resonance_label = "☀️地利共振"
+            elif ef_count == 1:
+                resonance_label = "🌤单一周期"
+            elif ef_count == 0 and (str(item.get("mn1_state") or "").startswith("-") or str(item.get("w1_state") or "").startswith("-") or str(item.get("d1_state") or "").startswith("-")):
+                resonance_label = "⚡逆位共振"
+        item["resonance_label"] = resonance_label
+        item["mn1_label"] = mn1_label
+        item["w1_label"] = w1_label
+        item["d1_label"] = d1_label
+        item["current_state_label"] = resonance_label
         # 修复4：构建合一的 transition_note
         transition_notes = {
             "fresh_breakout": "价格已越过阻力但仅刚站稳。等待 1-3 天内资金流是否确认方向。若资金流出现背离，优先按假突破复核。",
@@ -1407,30 +1528,50 @@ def _research_lane(default_code: str) -> dict[str, Any]:
     lead = signals[0] if signals else {}
     lead_strategy_id = lead.get("strategy_id", "")
     lead_definition = _strategy_definition(lead_strategy_id)
+    fit_rank = {"最佳适配": 0, "待观察": 1, "弱适配": 2, "未标注": 3}
+    ordered = sorted(
+        [row for row in signals if row.get("stock_code")],
+        key=lambda row: (
+            fit_rank.get(str(row.get("strategy_environment_fit") or "未标注"), 99),
+            -(row.get("ef_count") or 0),
+            str(row.get("stock_code") or ""),
+        ),
+    )
+    seen_codes: set[str] = set()
+    recent_research: list[dict[str, Any]] = []
+    for row in ordered:
+        code = str(row.get("stock_code", "")).strip()
+        if not code or code in seen_codes:
+            continue
+        seen_codes.add(code)
+        strategy_id = row.get("strategy_id", "")
+        recent_research.append(
+            {
+                "stock_code": code,
+                "stock_name": row.get("stock_name", ""),
+                "strategy_id": strategy_id,
+                "strategy_label": _strategy_definition(strategy_id).get("label", strategy_id),
+                "path_label": _strategy_definition(strategy_id).get("path_label", strategy_id),
+                "signal_name": row.get("signal_name", ""),
+                "fit": row.get("strategy_environment_fit", ""),
+                "signal_read": _signal_interpretation(
+                    strategy_id,
+                    row.get("signal_name", ""),
+                    row.get("lifecycle_stage", ""),
+                    row.get("strategy_environment_fit", ""),
+                ),
+            }
+        )
+        if len(recent_research) >= 6:
+            break
+
     return {
         "lead_code": lead.get("stock_code", default_code),
         "lead_name": lead.get("stock_name", ""),
         "lead_strategy": lead_strategy_id,
         "lead_strategy_label": lead_definition["label"],
         "lead_signal": lead.get("signal_name", ""),
-        "recent_research": [
-            {
-                "stock_code": row.get("stock_code", ""),
-                "stock_name": row.get("stock_name", ""),
-                "strategy_id": row.get("strategy_id", ""),
-                "strategy_label": _strategy_definition(row.get("strategy_id", "")).get("label", row.get("strategy_id", "")),
-                "path_label": _strategy_definition(row.get("strategy_id", "")).get("path_label", row.get("strategy_id", "")),
-                "signal_name": row.get("signal_name", ""),
-                "fit": row.get("strategy_environment_fit", ""),
-                "signal_read": _signal_interpretation(
-                    row.get("strategy_id", ""),
-                    row.get("signal_name", ""),
-                    row.get("lifecycle_stage", ""),
-                    row.get("strategy_environment_fit", ""),
-                ),
-            }
-            for row in signals[:6]
-        ],
+        "recent_research": recent_research,
     }
 
 
@@ -1466,6 +1607,22 @@ def _research_page_context(stock_code: str, render_profile: str) -> dict[str, An
             payload = json.loads(cards["payload"])
         except Exception:
             payload = {}
+    state_core = payload.get("state_core", {}) if isinstance(payload, dict) else {}
+    mn1_hex = str(state_core.get("mn1_state_hex") or "")
+    w1_hex = str(state_core.get("w1_state_hex") or "")
+    d1_hex = str(state_core.get("d1_state_hex") or "")
+    ef_count = state_core.get("ef_count")
+    resonance_label = "❄️无共振"
+    if isinstance(ef_count, int):
+        if ef_count == 3:
+            resonance_label = "🔥天时共振"
+        elif ef_count == 2:
+            resonance_label = "☀️地利共振"
+        elif ef_count == 1:
+            resonance_label = "🌤单一周期"
+        elif ef_count == 0 and (mn1_hex.startswith("-") or w1_hex.startswith("-") or d1_hex.startswith("-")):
+            resonance_label = "⚡逆位共振"
+    state_prior_view = str(state_core.get("state_prior_view") or "").strip()
     summary = {
         "conclusion": "当前更适合研究跟踪，不直接外推为执行结论。",
         "why": "先看 State 结构、策略适配和证据完整度，再决定是否进入执行队列。",
@@ -1648,6 +1805,12 @@ def _research_page_context(stock_code: str, render_profile: str) -> dict[str, An
                 overlay.get("strategy_environment_fit", "") if isinstance(overlay, dict) else "",
             ),
         },
+        "state_core": state_core,
+        "mn1_label": _hex_to_human_label(mn1_hex),
+        "w1_label": _hex_to_human_label(w1_hex),
+        "d1_label": _hex_to_human_label(d1_hex),
+        "resonance_label": resonance_label,
+        "state_prior_view": state_prior_view,
     }
 
 
@@ -1868,7 +2031,12 @@ def health() -> dict[str, str]:
 
 
 @app.get("/", response_class=HTMLResponse)
-def index(request: Request, mode: str = "direction") -> HTMLResponse:
+def index(request: Request, mode: str = "") -> HTMLResponse:
+    profile = get_current_profile(request)
+    user_type = profile.get("user_type", "执行型")
+    # 若未传 mode，按 user_type 映射到对应首页视角
+    mode_map = {"方向型": "direction", "研究型": "research", "执行型": "execution"}
+    mode = mode or mode_map.get(user_type, "direction")
     return templates.TemplateResponse(
         request,
         "index.html",
@@ -1887,6 +2055,8 @@ def index(request: Request, mode: str = "direction") -> HTMLResponse:
             "cards": None,
             "stock_code": "000021.SZ",
             "render_profile": "full",
+            "daily_brief": _daily_brief(),
+            "current_user": profile,
         },
     )
 
@@ -1898,6 +2068,7 @@ def preview_cards(
     render_profile: str = Form("full"),
     mode: str = Form("direction"),
 ) -> HTMLResponse:
+    profile = get_current_profile(request)
     cards = _render_cards(stock_code, render_profile)
     return templates.TemplateResponse(
         request,
@@ -1917,12 +2088,14 @@ def preview_cards(
             "cards": cards,
             "stock_code": stock_code,
             "render_profile": render_profile,
+            "current_user": profile,
         },
     )
 
 
 @app.get("/industry", response_class=HTMLResponse)
 def industry_page(request: Request) -> HTMLResponse:
+    profile = get_current_profile(request)
     return templates.TemplateResponse(
         request,
         "industry.html",
@@ -1930,12 +2103,14 @@ def industry_page(request: Request) -> HTMLResponse:
             "request": request,
             "today": str(date.today()),
             "industry": _industry_rotation_data(),
+            "current_user": profile,
         },
     )
 
 
 @app.get("/market", response_class=HTMLResponse)
 def market_page(request: Request) -> HTMLResponse:
+    profile = get_current_profile(request)
     return templates.TemplateResponse(
         request,
         "market.html",
@@ -1943,12 +2118,14 @@ def market_page(request: Request) -> HTMLResponse:
             "request": request,
             "today": str(date.today()),
             "market": _market_analysis_data(),
+            "current_user": profile,
         },
     )
 
 
 @app.get("/watchlist", response_class=HTMLResponse)
 def watchlist_page(request: Request) -> HTMLResponse:
+    profile = get_current_profile(request)
     return templates.TemplateResponse(
         request,
         "watchlist.html",
@@ -1956,6 +2133,7 @@ def watchlist_page(request: Request) -> HTMLResponse:
             "request": request,
             "today": str(date.today()),
             "execution": _execution_lane(),
+            "current_user": profile,
         },
     )
 
@@ -1966,14 +2144,15 @@ def research_page(
     stock_code: str = "000021.SZ",
     render_profile: str = "full",
 ) -> HTMLResponse:
+    profile = get_current_profile(request)
+    ctx = _research_page_context(stock_code, render_profile)
+    ctx["request"] = request
+    ctx["today"] = str(date.today())
+    ctx["current_user"] = profile
     return templates.TemplateResponse(
         request,
         "research.html",
-        {
-            "request": request,
-            "today": str(date.today()),
-            **_research_page_context(stock_code, render_profile),
-        },
+        ctx,
     )
 
 
@@ -2051,6 +2230,7 @@ def _run_backtest_safe(params: dict[str, Any]) -> dict[str, Any]:
 
 @app.get("/backtest", response_class=HTMLResponse)
 def backtest_page(request: Request) -> HTMLResponse:
+    profile = get_current_profile(request)
     defaults = _backtest_form_defaults()
     return templates.TemplateResponse(
         request,
@@ -2069,6 +2249,7 @@ def backtest_page(request: Request) -> HTMLResponse:
                 "runtime_note": "Foundation DB 较大时，单次运行可能需要更久，请优先用 30 天窗口做快速验证。",
                 "runtime_seconds": None,
             },
+            "current_user": profile,
         },
     )
 
@@ -2083,6 +2264,7 @@ def backtest_run(
     min_ef: str = Form("2"),
     initial_capital: str = Form("1000000"),
 ) -> HTMLResponse:
+    profile = get_current_profile(request)
     params = {
         "strategy": strategy,
         "end_date": end_date or _latest_research_as_of_date(),
@@ -2103,6 +2285,7 @@ def backtest_run(
             "error": outcome.get("error"),
             "logs": outcome.get("logs", ""),
             "advisory": outcome.get("advisory"),
+            "current_user": profile,
         },
     )
 
@@ -2919,11 +3102,14 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
 
 
 @app.post("/api/chat/query")
-def chat_query(query: ChatQuery) -> JSONResponse:
+def chat_query(request: Request, query: ChatQuery) -> JSONResponse:
+    profile = get_current_profile(request)
+    user_id = profile.get("username", "web_user")
     try:
         result = _chat_answer(query)
         result.setdefault("provider", "rule_based")
         result.setdefault("enhancement_used", False)
+        result["user_id"] = user_id  # 绑定会话到当前用户
         return JSONResponse(content=result)
     except Exception as exc:
         return JSONResponse(
@@ -2942,6 +3128,7 @@ def chat_query(query: ChatQuery) -> JSONResponse:
                 "mode_used": str(query.mode or "chat").lower(),
                 "provider": "rule_based",
                 "enhancement_used": False,
+                "user_id": user_id,
                 "error": str(exc),
             },
         )
