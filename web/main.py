@@ -793,6 +793,219 @@ def _market_analysis_data() -> dict[str, Any]:
     }
 
 
+# ── MECE 状态层 + 转移方向 + 启发式后验概率 ──────────────────────────
+
+# 状态必须 MECE：同一只股票、同一时点，只能给一个当前状态
+MECE_STATES = [
+    "收缩蓄力",
+    "刚突破待确认",
+    "推进中段",
+    "高位延展",
+    "失效回落",
+    "等待修复",
+]
+
+# 每个状态对应的转移候选库
+TRANSITION_CANDIDATES: dict[str, list[str]] = {
+    "收缩蓄力": ["收缩释放延续", "横盘再确认", "假突破回落"],
+    "刚突破待确认": ["真突破延续", "假突破回落", "横盘再确认"],
+    "推进中段": ["趋势推进接力", "板块承接增强", "资金背离转弱"],
+    "高位延展": ["趋势推进接力", "资金背离转弱", "横盘再确认"],
+    "失效回落": ["等待修复", "横盘再确认"],
+    "等待修复": ["收缩蓄力", "横盘再确认"],
+}
+
+
+def _derive_current_state(item: dict[str, Any]) -> str:
+    """从现有字段推导唯一的 MECE 当前状态。"""
+    direction = str(item.get("sr_boundary_direction") or "").strip()
+    sr_distance_pct = item.get("sr_distance_pct")
+    fit = str(item.get("strategy_environment_fit") or "").strip()
+    stage = str(item.get("lifecycle_stage") or "").strip()
+    mf_divergence = bool(item.get("moneyflow_divergence"))
+    d1_duration = item.get("d1_ef_duration")
+
+    # 1. 失效回落 — 跌破支撑 或 弱适配 + 资金背离
+    if direction == "below_support":
+        return "失效回落"
+    if fit == "弱适配" and mf_divergence:
+        return "失效回落"
+
+    # 2. 刚突破待确认 — 刚突破阻力且距离很近
+    if direction == "above_resistance" and isinstance(sr_distance_pct, (int, float)):
+        if sr_distance_pct <= 0.015:
+            return "刚突破待确认"
+
+    # 3. 推进中段 — 已突破但距离适中，或趋势推进阶段
+    if direction == "above_resistance" and isinstance(sr_distance_pct, (int, float)):
+        if sr_distance_pct <= 0.05:
+            return "推进中段"
+
+    # 4. 高位延展 — 已突破很远 或 D1 活跃持续 > 5天
+    if direction == "above_resistance":
+        if isinstance(sr_distance_pct, (int, float)) and sr_distance_pct > 0.05:
+            return "高位延展"
+    if isinstance(d1_duration, (int, float)) and d1_duration >= 5 and fit in ("最佳适配", "待观察"):
+        return "高位延展"
+
+    # 5. 收缩蓄力 — 收缩阶段 或 靠近支撑
+    if stage in ("收缩蓄力", "蓄力") or "收缩" in stage:
+        return "收缩蓄力"
+    if direction in ("near_support", "at_support"):
+        return "收缩蓄力"
+
+    # 6. 等待修复 — 弱适配且无明确方向
+    if fit == "弱适配":
+        return "等待修复"
+
+    # 兜底：看阶段
+    if stage in ("突破确认", "释放"):
+        return "推进中段"
+    if stage in ("推进", "延展"):
+        return "高位延展"
+
+    return "收缩蓄力"
+
+
+def _derive_transitions(state: str, item: dict[str, Any]) -> list[str]:
+    """基于当前状态和数据特征，筛选并排序最相关的转移候选。"""
+    candidates = list(TRANSITION_CANDIDATES.get(state, []))
+    if not candidates:
+        return ["横盘再确认"]
+
+    direction = str(item.get("sr_boundary_direction") or "").strip()
+    mf_confirmed = bool(item.get("moneyflow_confirmed"))
+    mf_divergence = bool(item.get("moneyflow_divergence"))
+    confirm_rate = item.get("industry_rotation_confirm_rate")
+    sr_distance_pct = item.get("sr_distance_pct")
+    d1_duration = item.get("d1_ef_duration")
+
+    # 根据数据特征调整候选排序
+    scored = []
+    for cand in candidates:
+        score = 0.0
+        if cand in ("真突破延续", "趋势推进接力", "收缩释放延续", "板块承接增强"):
+            if mf_confirmed:
+                score += 0.3
+            if isinstance(confirm_rate, (int, float)) and confirm_rate >= 0.7:
+                score += 0.2
+            if direction == "above_resistance":
+                score += 0.15
+        if cand in ("假突破回落", "资金背离转弱"):
+            if mf_divergence:
+                score += 0.35
+            if isinstance(sr_distance_pct, (int, float)) and sr_distance_pct <= 0.01:
+                score += 0.1
+        if cand == "横盘再确认":
+            score += 0.05  # 中性保底
+        if cand == "等待修复" and state == "失效回落":
+            score += 0.1
+        scored.append((score, cand))
+
+    scored.sort(reverse=True)
+    return [cand for _, cand in scored]
+
+
+def _compute_posterior_probs(
+    state: str, transitions: list[str], item: dict[str, Any]
+) -> dict[str, Any]:
+    """启发式后验概率。不要求学术级精确，但和为 1 且可解释。"""
+    if not transitions:
+        return {"primary": ("横盘再确认", 1.0), "alternates": []}
+
+    direction = str(item.get("sr_boundary_direction") or "").strip()
+    sr_distance_pct = item.get("sr_distance_pct")
+    mf_confirmed = bool(item.get("moneyflow_confirmed"))
+    mf_divergence = bool(item.get("moneyflow_divergence"))
+    confirm_rate = item.get("industry_rotation_confirm_rate")
+    d1_duration = item.get("d1_ef_duration")
+    rr_ratio = item.get("rr_ratio")
+    confidence = item.get("confidence")
+    fit = str(item.get("strategy_environment_fit") or "").strip()
+
+    # 基础概率分配
+    base_probs: dict[str, float] = {}
+    n = len(transitions)
+    for i, t in enumerate(transitions):
+        base_probs[t] = max(0.05, 1.0 / n - i * 0.08)
+
+    # 用数据特征调整
+    adjustments: dict[str, float] = {t: 0.0 for t in transitions}
+
+    # 资金流确认 → 延续类 +0.15
+    if mf_confirmed:
+        for t in transitions:
+            if t in ("真突破延续", "趋势推进接力", "收缩释放延续"):
+                adjustments[t] += 0.15
+            elif t in ("假突破回落", "资金背离转弱"):
+                adjustments[t] -= 0.08
+
+    # 资金流背离 → 转弱类 +0.20
+    if mf_divergence:
+        for t in transitions:
+            if t in ("假突破回落", "资金背离转弱"):
+                adjustments[t] += 0.20
+            elif t in ("真突破延续", "趋势推进接力", "收缩释放延续"):
+                adjustments[t] -= 0.10
+
+    # 板块确认率高 → 延续类 +0.10
+    if isinstance(confirm_rate, (int, float)) and confirm_rate >= 0.75:
+        for t in transitions:
+            if t in ("真突破延续", "趋势推进接力", "收缩释放延续", "板块承接增强"):
+                adjustments[t] += 0.10
+
+    # 刚突破 → 假突破 +0.10，真突破 -0.05
+    if direction == "above_resistance" and isinstance(sr_distance_pct, (int, float)) and sr_distance_pct <= 0.01:
+        for t in transitions:
+            if "假突破" in t:
+                adjustments[t] += 0.10
+            if "真突破" in t:
+                adjustments[t] -= 0.05
+
+    # D1 活跃久 → 延续 +0.08
+    if isinstance(d1_duration, (int, float)) and d1_duration >= 5:
+        for t in transitions:
+            if t in ("趋势推进接力", "高位延展"):
+                adjustments[t] += 0.08
+
+    # D1 活跃短 → 假突破/脉冲 +0.08
+    if isinstance(d1_duration, (int, float)) and d1_duration <= 2:
+        for t in transitions:
+            if t in ("假突破回落", "横盘再确认"):
+                adjustments[t] += 0.08
+
+    # 高 RR + 高置信度 → 延续 +0.08
+    if isinstance(rr_ratio, (int, float)) and rr_ratio >= 10 and isinstance(confidence, (int, float)) and confidence >= 0.8:
+        for t in transitions:
+            if t in ("真突破延续", "趋势推进接力"):
+                adjustments[t] += 0.08
+
+    # 弱适配 → 转弱/修复类 +0.10
+    if fit == "弱适配":
+        for t in transitions:
+            if t in ("资金背离转弱", "等待修复", "横盘再确认"):
+                adjustments[t] += 0.10
+
+    # 合并并归一化
+    raw = {t: max(0.01, base_probs[t] + adjustments[t]) for t in transitions}
+    total = sum(raw.values())
+    normalized = {t: round(raw[t] / total, 2) for t in transitions}
+
+    # 修正舍入误差，确保和为 1.0
+    diff = 1.0 - sum(normalized.values())
+    if transitions:
+        normalized[transitions[0]] = round(normalized[transitions[0]] + diff, 2)
+
+    sorted_items = sorted(normalized.items(), key=lambda x: x[1], reverse=True)
+    primary = sorted_items[0]
+    alternates = sorted_items[1:]
+
+    return {
+        "primary": primary,
+        "alternates": alternates,
+    }
+
+
 def _execution_lane() -> dict[str, Any]:
     forward_ctx = _latest_nonempty_payload_context(
         "outputs/forward_observation/forward_observation_*.json",
@@ -839,12 +1052,13 @@ def _execution_lane() -> dict[str, Any]:
         enriched_row["strategy_label"] = definition["label"]
         enriched_row["path_label"] = definition["path_label"]
         rr_map[row.get("stock_code", "")] = enriched_row
+    raw_items: list[dict[str, Any]] = []
     for row in forward_rows:
         rr_row = rr_map.get(row.get("stock_code", ""), {})
         unified_row = unified_map.get(str(row.get("stock_code", "")).upper(), {}) if unified_freshness["usable"] else {}
         sw_l1 = str(unified_row.get("sw_l1", "")).strip()
         industry_rotation = industry_rotation_map.get(sw_l1, {}) if sw_l1 and industry_rotation_freshness["usable"] else {}
-        item = {
+        raw_items.append({
             "stock_code": row.get("stock_code", ""),
             "stock_name": row.get("stock_name", ""),
             "strategy_id": row.get("strategy_id", ""),
@@ -886,15 +1100,97 @@ def _execution_lane() -> dict[str, Any]:
             "industry_rotation_confirm_rate": _floatish(industry_rotation.get("moneyflow_confirm_rate")),
             "industry_rotation_divergence_count": _floatish(industry_rotation.get("moneyflow_divergence_count")),
             "industry_rotation_score": _floatish(industry_rotation.get("rotation_score")),
-        }
-        if item["stock_code"] in high_rr_codes or item["strategy_environment_fit"] == "最佳适配":
-            buckets["priority"].append(item)
-        elif item["strategy_environment_fit"] == "待观察":
-            buckets["observe"].append(item)
-        else:
-            buckets["queue"].append(item)
+        })
+
+    fit_rank = {"最佳适配": 0, "待观察": 1, "弱适配": 2}
+    grouped_items: dict[str, dict[str, Any]] = {}
+    for item in raw_items:
+        stock_code = str(item.get("stock_code") or "").strip()
+        if not stock_code:
+            continue
+        existing = grouped_items.get(stock_code)
+        if existing is None:
+            definition = _strategy_definition(item.get("strategy_id", ""))
+            merged = dict(item)
+            merged["strategy_ids"] = [item.get("strategy_id", "")]
+            merged["signal_names"] = [item.get("signal_name", "")]
+            merged["path_labels"] = [definition["path_label"]]
+            merged["fit_reason_list"] = [_humanize_fit_reasons(item.get("fit_reasons"))]
+            merged["local_stat_notes"] = [str(item.get("local_stat_note", "")).strip()]
+            merged["strategy_environment_fits"] = [item.get("strategy_environment_fit", "")]
+            grouped_items[stock_code] = merged
+            continue
+
+        current_rank = fit_rank.get(str(item.get("strategy_environment_fit") or ""), 99)
+        existing_rank = fit_rank.get(str(existing.get("strategy_environment_fit") or ""), 99)
+        if current_rank < existing_rank:
+            preserved = {
+                "strategy_ids": existing.get("strategy_ids", []),
+                "signal_names": existing.get("signal_names", []),
+                "path_labels": existing.get("path_labels", []),
+                "fit_reason_list": existing.get("fit_reason_list", []),
+                "local_stat_notes": existing.get("local_stat_notes", []),
+                "strategy_environment_fits": existing.get("strategy_environment_fits", []),
+            }
+            existing.update(item)
+            for key, value in preserved.items():
+                existing[key] = value
+
+        definition = _strategy_definition(item.get("strategy_id", ""))
+        for key, value in (
+            ("strategy_ids", item.get("strategy_id", "")),
+            ("signal_names", item.get("signal_name", "")),
+            ("path_labels", definition["path_label"]),
+            ("fit_reason_list", _humanize_fit_reasons(item.get("fit_reasons"))),
+            ("local_stat_notes", str(item.get("local_stat_note", "")).strip()),
+            ("strategy_environment_fits", item.get("strategy_environment_fit", "")),
+        ):
+            if value and value not in existing[key]:
+                existing[key].append(value)
+
+    for item in grouped_items.values():
+        path_labels = [label for label in item.get("path_labels", []) if label]
+        signal_names = [label for label in item.get("signal_names", []) if label]
+        fit_reasons = [label for label in item.get("fit_reason_list", []) if label]
+        stat_notes = [label for label in item.get("local_stat_notes", []) if label]
+        fits = [f for f in item.get("strategy_environment_fits", []) if f]
+        # 修复2：多策略命中 → 单选 primary_path
+        primary_path = ""
+        alternate_transitions: list[dict[str, str]] = []
+        if fits:
+            best_fit = min(fits, key=lambda f: fit_rank.get(f, 99))
+            primary_path = best_fit
+            for f in fits:
+                if f != best_fit:
+                    alternate_transitions.append({"path_label": f, "fit_level": f})
+        item["primary_path"] = primary_path
+        item["alternate_transitions"] = alternate_transitions
+        if path_labels:
+            # 只保留 primary_path 对应的路径标签
+            primary_idx = fits.index(primary_path) if primary_path in fits else 0
+            item["path_label"] = path_labels[primary_idx] if primary_idx < len(path_labels) else path_labels[0]
+        if signal_names:
+            item["signal_name"] = " / ".join(signal_names)
+        if fit_reasons:
+            if len(fit_reasons) == 1:
+                item["fit_reasons"] = fit_reasons[0]
+            else:
+                item["fit_reasons"] = "同一对象同时命中多条路径：" + "；".join(fit_reasons)
+        if stat_notes:
+            item["local_stat_note"] = "；".join(dict.fromkeys(stat_notes))
 
     def enrich(item: dict[str, Any], bucket: str) -> dict[str, Any]:
+        # MECE 状态推导 + 转移方向 + 启发式后验概率
+        current_state = _derive_current_state(item)
+        transitions = _derive_transitions(current_state, item)
+        posterior = _compute_posterior_probs(current_state, transitions, item)
+
+        item["current_state"] = current_state
+        item["primary_transition"] = posterior["primary"][0]
+        item["primary_transition_prob"] = posterior["primary"][1]
+        item["alternate_transitions"] = posterior["alternates"]
+        item["posterior_probs"] = posterior
+
         definition = _strategy_definition(item.get("strategy_id", ""))
         fit = item.get("strategy_environment_fit") or "未标注"
         stage = item.get("lifecycle_stage") or "未标注"
@@ -909,7 +1205,7 @@ def _execution_lane() -> dict[str, Any]:
         d1_duration = item.get("d1_ef_duration")
         if d1_duration:
             state_reason += f"，D1 活跃已持续 {d1_duration} 天"
-        strategy_reason = _humanize_fit_reasons(item.get("fit_reasons")) or f"{fit}，生命周期={stage}"
+        strategy_reason = item.get("fit_reasons") or f"{fit}，生命周期={stage}"
         rr_reason = item.get("local_stat_note") or "当前没有额外的历史统计说明。"
         support_hint = "D1 支撑位暂缺，不能据此判断回踩质量。"
         nearest_support = item.get("nearest_support")
@@ -996,12 +1292,13 @@ def _execution_lane() -> dict[str, Any]:
         confidence = item.get("confidence")
         allocation_tier = "仅观察"
         phase_position = "等待确认"
+        # 分桶逻辑切换为 current_state 驱动
         if bucket == "priority":
             phase_position = "顺风跟踪"
             allocation_tier = "标准跟踪"
             if isinstance(rr_ratio, (int, float)) and rr_ratio >= 10 and isinstance(confidence, (int, float)) and confidence >= 0.8:
                 allocation_tier = "重点关注"
-            elif direction == "above_resistance" and isinstance(sr_distance_pct, (int, float)) and sr_distance_pct <= 0.01:
+            elif current_state == "刚突破待确认":
                 allocation_tier = "小额试错"
                 phase_position = "刚突破待确认"
         elif bucket == "observe":
@@ -1020,7 +1317,7 @@ def _execution_lane() -> dict[str, Any]:
             reason = "已进入常规处理队列，但优先级暂不高。"
             action = "快速过一遍研究卡，确认是否需要上调或暂缓。"
         item["strategy_label"] = definition["label"]
-        item["path_label"] = definition["path_label"]
+        item["path_label"] = item.get("path_label") or definition["path_label"]
         item["strategy_what"] = definition["what"]
         item["signal_read"] = _signal_interpretation(
             item.get("strategy_id", ""),
@@ -1042,7 +1339,40 @@ def _execution_lane() -> dict[str, Any]:
         item["allocation_tier"] = allocation_tier
         item["queue_reason"] = f"{fit} / {stage}。{reason}"
         item["next_action"] = action
+        # 修复4：构建合一的 transition_note
+        transition_notes = {
+            "fresh_breakout": "价格已越过阻力但仅刚站稳。等待 1-3 天内资金流是否确认方向。若资金流出现背离，优先按假突破复核。",
+            "extension": "结构+资金双重确认。当前更适合跟踪是否延续，不宜把它当早期突破做高赔率。",
+            "charging": "结构处于收缩蓄力阶段。当前不是突破点，适合观察结构和波动率是否继续收窄。",
+            "trending": "多周期共振已确立，结构背景较稳。持续性取决于板块承接是否继续同向。",
+            "broken": "当前不支持按执行优先级处理。等到价格回到关键支撑上方后再重新评估。",
+            "none": "暂无明确状态匹配，建议先观察结构变化。",
+        }
         return item
+
+    # 分桶逻辑：基于 MECE 当前状态
+    state_bucket_map = {
+        "刚突破待确认": "priority",
+        "推进中段": "priority",
+        "高位延展": "priority",
+        "收缩蓄力": "observe",
+        "失效回落": "queue",
+        "等待修复": "queue",
+    }
+    for item in grouped_items.values():
+        # 先计算状态，用于分桶
+        state = _derive_current_state(item)
+        item["current_state"] = state
+        bucket = state_bucket_map.get(state, "queue")
+        buckets[bucket].append(item)
+
+    # 桶内排序：priority 按主转移概率降序，其余保持原序
+    for bucket_name in buckets:
+        if bucket_name == "priority":
+            buckets[bucket_name].sort(
+                key=lambda it: it.get("primary_transition_prob", 0),
+                reverse=True,
+            )
 
     for bucket_name in buckets:
         buckets[bucket_name] = [enrich(item, bucket_name) for item in buckets[bucket_name]]

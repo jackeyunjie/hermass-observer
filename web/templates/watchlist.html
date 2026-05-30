@@ -53,8 +53,8 @@
         </div>
         {% endif %}
         <div class="warning-panel" style="margin-top: 14px;">
-          <strong>多因子共振说明</strong>
-          <p>本页弱化单一策略名称，优先看 State 共振、D1 支撑、资金流确认、板块承接、真/假突破与持续性。</p>
+          <strong>MECE 状态说明</strong>
+          <p>本页每只股票只出现一次。当前状态唯一，路径仅作转移候选，不再混写。</p>
           <p class="muted">个股资金流来源：{{ execution.unified_date }}；行业承接来源：{{ execution.industry_rotation_date }}。</p>
         </div>
         {% if execution.stale_rows %}
@@ -69,7 +69,7 @@
         {% endif %}
         <div class="warning-panel" style="margin-top: 14px;">
           <strong>缩写说明</strong>
-          <p>State = 结构状态；EF = 多周期强结构共振数；RR = 风报比（Risk / Reward），表示潜在风险与潜在收益的对比。</p>
+          <p>State = 结构状态；EF = 多周期强结构共振数；RR = 风报比（Risk / Reward）。</p>
         </div>
       </section>
 
@@ -80,23 +80,36 @@
         </div>
         <table>
           <thead>
-            <tr><th>代码</th><th>名称</th><th>共振路径</th><th>State</th><th>环境/结构</th><th>D1 支撑</th><th>资金流确认</th><th>资金背离</th><th>板块承接</th><th>真假突破/持续性</th><th>阶段位置</th><th>投入层级</th><th>下一步</th></tr>
+            <tr>
+              <th>代码</th>
+              <th>名称</th>
+              <th>当前状态</th>
+              <th>主转移方向</th>
+              <th>备选转移方向</th>
+              <th>后验概率</th>
+              <th>资金/板块确认</th>
+              <th>当前动作</th>
+            </tr>
           </thead>
           <tbody>
           {% for row in execution.priority_queue %}
             <tr>
               <td><a href="/research?stock_code={{ row.stock_code }}">{{ row.stock_code }}</a></td>
               <td>{{ row.stock_name }}</td>
-              <td>{{ row.path_label }}</td>
-              <td>{{ row.state_reason }}</td>
-              <td>{{ row.strategy_reason }}</td>
-              <td>{{ row.support_hint }}</td>
-              <td>{{ row.moneyflow_confirmation }}</td>
-              <td>{{ row.moneyflow_divergence_text }}</td>
-              <td>{{ row.sector_followthrough }}</td>
-              <td><strong>{{ row.breakout_view }}</strong><br /><span class="muted">{{ row.persistence_view }} {{ row.fake_breakout_risk }}</span></td>
-              <td>{{ row.phase_position }}</td>
-              <td>{{ row.allocation_tier }}</td>
+              <td><strong>{{ row.current_state }}</strong></td>
+              <td>{{ row.primary_transition }} ({{ "%.0f%%"|format(row.primary_transition_prob*100) }})</td>
+              <td>
+                {% for alt in row.alternate_transitions %}
+                  {{ alt.0 }} ({{ "%.0f%%"|format(alt.1*100) }}){% if not loop.last %}<br/>{% endif %}
+                {% endfor %}
+              </td>
+              <td>
+                主：{{ row.primary_transition }} {{ row.primary_transition_prob }}<br/>
+                {% for alt in row.alternate_transitions %}
+                  备：{{ alt.0 }} {{ alt.1 }}{% if not loop.last %}<br/>{% endif %}
+                {% endfor %}
+              </td>
+              <td>{{ row.moneyflow_confirmation }}<br/><span class="muted">{{ row.sector_followthrough }}</span></td>
               <td>{{ row.next_action }}</td>
             </tr>
           {% endfor %}
@@ -114,23 +127,36 @@
         </div>
         <table>
           <thead>
-            <tr><th>代码</th><th>名称</th><th>共振路径</th><th>State</th><th>环境/结构</th><th>D1 支撑</th><th>资金流确认</th><th>资金背离</th><th>板块承接</th><th>真假突破/持续性</th><th>阶段位置</th><th>投入层级</th><th>下一步</th></tr>
+            <tr>
+              <th>代码</th>
+              <th>名称</th>
+              <th>当前状态</th>
+              <th>主转移方向</th>
+              <th>备选转移方向</th>
+              <th>后验概率</th>
+              <th>资金/板块确认</th>
+              <th>当前动作</th>
+            </tr>
           </thead>
           <tbody>
           {% for row in execution.observe_queue %}
             <tr>
               <td><a href="/research?stock_code={{ row.stock_code }}">{{ row.stock_code }}</a></td>
               <td>{{ row.stock_name }}</td>
-              <td>{{ row.path_label }}</td>
-              <td>{{ row.state_reason }}</td>
-              <td>{{ row.strategy_reason }}</td>
-              <td>{{ row.support_hint }}</td>
-              <td>{{ row.moneyflow_confirmation }}</td>
-              <td>{{ row.moneyflow_divergence_text }}</td>
-              <td>{{ row.sector_followthrough }}</td>
-              <td><strong>{{ row.breakout_view }}</strong><br /><span class="muted">{{ row.persistence_view }} {{ row.fake_breakout_risk }}</span></td>
-              <td>{{ row.phase_position }}</td>
-              <td>{{ row.allocation_tier }}</td>
+              <td><strong>{{ row.current_state }}</strong></td>
+              <td>{{ row.primary_transition }} ({{ "%.0f%%"|format(row.primary_transition_prob*100) }})</td>
+              <td>
+                {% for alt in row.alternate_transitions %}
+                  {{ alt.0 }} ({{ "%.0f%%"|format(alt.1*100) }}){% if not loop.last %}<br/>{% endif %}
+                {% endfor %}
+              </td>
+              <td>
+                主：{{ row.primary_transition }} {{ row.primary_transition_prob }}<br/>
+                {% for alt in row.alternate_transitions %}
+                  备：{{ alt.0 }} {{ alt.1 }}{% if not loop.last %}<br/>{% endif %}
+                {% endfor %}
+              </td>
+              <td>{{ row.moneyflow_confirmation }}<br/><span class="muted">{{ row.sector_followthrough }}</span></td>
               <td>{{ row.next_action }}</td>
             </tr>
           {% endfor %}
@@ -148,23 +174,36 @@
         </div>
         <table>
           <thead>
-            <tr><th>代码</th><th>名称</th><th>共振路径</th><th>State</th><th>环境/结构</th><th>D1 支撑</th><th>资金流确认</th><th>资金背离</th><th>板块承接</th><th>真假突破/持续性</th><th>阶段位置</th><th>投入层级</th><th>下一步</th></tr>
+            <tr>
+              <th>代码</th>
+              <th>名称</th>
+              <th>当前状态</th>
+              <th>主转移方向</th>
+              <th>备选转移方向</th>
+              <th>后验概率</th>
+              <th>资金/板块确认</th>
+              <th>当前动作</th>
+            </tr>
           </thead>
           <tbody>
           {% for row in execution.recent_queue %}
             <tr>
               <td><a href="/research?stock_code={{ row.stock_code }}">{{ row.stock_code }}</a></td>
               <td>{{ row.stock_name }}</td>
-              <td>{{ row.path_label }}</td>
-              <td>{{ row.state_reason }}</td>
-              <td>{{ row.strategy_reason }}</td>
-              <td>{{ row.support_hint }}</td>
-              <td>{{ row.moneyflow_confirmation }}</td>
-              <td>{{ row.moneyflow_divergence_text }}</td>
-              <td>{{ row.sector_followthrough }}</td>
-              <td><strong>{{ row.breakout_view }}</strong><br /><span class="muted">{{ row.persistence_view }} {{ row.fake_breakout_risk }}</span></td>
-              <td>{{ row.phase_position }}</td>
-              <td>{{ row.allocation_tier }}</td>
+              <td><strong>{{ row.current_state }}</strong></td>
+              <td>{{ row.primary_transition }} ({{ "%.0f%%"|format(row.primary_transition_prob*100) }})</td>
+              <td>
+                {% for alt in row.alternate_transitions %}
+                  {{ alt.0 }} ({{ "%.0f%%"|format(alt.1*100) }}){% if not loop.last %}<br/>{% endif %}
+                {% endfor %}
+              </td>
+              <td>
+                主：{{ row.primary_transition }} {{ row.primary_transition_prob }}<br/>
+                {% for alt in row.alternate_transitions %}
+                  备：{{ alt.0 }} {{ alt.1 }}{% if not loop.last %}<br/>{% endif %}
+                {% endfor %}
+              </td>
+              <td>{{ row.moneyflow_confirmation }}<br/><span class="muted">{{ row.sector_followthrough }}</span></td>
               <td>{{ row.next_action }}</td>
             </tr>
           {% endfor %}
@@ -182,14 +221,14 @@
         </div>
         <table>
           <thead>
-            <tr><th>代码</th><th>名称</th><th>共振路径</th><th>RR（风报比）</th><th>置信度</th></tr>
+            <tr><th>代码</th><th>名称</th><th>当前状态</th><th>RR（风报比）</th><th>置信度</th></tr>
           </thead>
           <tbody>
           {% for row in execution.high_rr %}
             <tr>
               <td><a href="/research?stock_code={{ row.stock_code }}">{{ row.stock_code }}</a></td>
               <td>{{ row.stock_name }}</td>
-              <td>{{ row.path_label }}</td>
+              <td>{{ row.current_state or "—" }}</td>
               <td>{{ row.rr_ratio }}</td>
               <td>{{ row.confidence }}</td>
             </tr>
