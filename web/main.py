@@ -1965,6 +1965,13 @@ def _deepseek_prompt_contract() -> str:
     return contract_path.read_text(encoding="utf-8")
 
 
+def _coze_value_prompt_pack() -> str:
+    path = ROOT / "config" / "prompts" / "coze_value_research_prompt_pack.md"
+    if not path.exists():
+        return ""
+    return path.read_text(encoding="utf-8")
+
+
 def _deepseek_system_prompt() -> str:
     system_prompt = (
         "你是 Hermass 网站内的 AI 助手。你只做解释、翻译和导航，不做投资建议。"
@@ -1972,6 +1979,19 @@ def _deepseek_system_prompt() -> str:
         "输出必须是 JSON，且字段必须包含 answer, why, multi_cycle_view, single_cycle_position, avoid, next_actions, sources, freshness_note。"
     )
     return with_deepseek_context(system_prompt + "\n\n" + _deepseek_prompt_contract())
+
+
+def _deepseek_value_system_prompt() -> str:
+    system_prompt = (
+        "你是 Hermass 网站内的价值研究增强助手。你只做价值研究解释、翻译和导航，不做投资建议。"
+        "你必须坚持 Research-Only 边界，并把多周期环境、单周期位置与价值分析并行表达。"
+        "输出必须是 JSON，且字段必须包含 answer, why, multi_cycle_view, single_cycle_position, avoid, next_actions, sources, freshness_note。"
+    )
+    prompt_pack = _coze_value_prompt_pack()
+    combined = system_prompt + "\n\n" + _deepseek_prompt_contract()
+    if prompt_pack:
+        combined += "\n\n---\n\n以下是价值研究增强的专业输出提示词资产，仅用于解释层增强，不代表投资建议：\n\n" + prompt_pack
+    return with_deepseek_context(combined)
 
 
 def _deepseek_call(payload: dict[str, Any]) -> dict[str, Any] | None:
@@ -2001,6 +2021,47 @@ def _deepseek_call(payload: dict[str, Any]) -> dict[str, Any] | None:
                 ],
                 "temperature": 0.3,
                 "max_tokens": 1200,
+                "response_format": {"type": "json_object"},
+            },
+            timeout=25,
+        )
+        response.raise_for_status()
+        content = response.json()["choices"][0]["message"]["content"]
+        parsed = json.loads(content)
+        if not isinstance(parsed, dict):
+            return None
+        return parsed
+    except Exception:
+        return None
+
+
+def _deepseek_value_call(payload: dict[str, Any]) -> dict[str, Any] | None:
+    api_key = os.environ.get("HERMASS_DEEPSEEK_API_KEY", "").strip() or os.environ.get("DEEPSEEK_API_KEY", "").strip()
+    if not api_key:
+        return None
+    api_base = os.environ.get("HERMASS_DEEPSEEK_BASE_URL", "").strip() or os.environ.get("DEEPSEEK_API_BASE", "https://api.deepseek.com").strip()
+    model = os.environ.get("HERMASS_DEEPSEEK_MODEL", "").strip() or os.environ.get("HERMASS_LLM_MODEL", "deepseekV4").strip()
+    try:
+        response = requests.post(
+            f"{api_base}/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": model if model != "deepseekV4" else "deepseek-chat",
+                "messages": [
+                    {"role": "system", "content": _deepseek_value_system_prompt()},
+                    {
+                        "role": "user",
+                        "content": (
+                            "请根据以下价值研究结构化输入回答，并严格输出 JSON，不要输出 Markdown。\n"
+                            + json.dumps(payload, ensure_ascii=False, indent=2)
+                        ),
+                    },
+                ],
+                "temperature": 0.3,
+                "max_tokens": 1400,
                 "response_format": {"type": "json_object"},
             },
             timeout=25,
@@ -2052,6 +2113,43 @@ def _agently_deepseek_call(payload: dict[str, Any]) -> dict[str, Any] | None:
         return None
 
 
+def _agently_value_deepseek_call(payload: dict[str, Any]) -> dict[str, Any] | None:
+    if not _agently_enabled():
+        return None
+    try:
+        from agently import Agent
+
+        model = os.environ.get("HERMASS_DEEPSEEK_MODEL", "").strip() or os.environ.get("HERMASS_LLM_MODEL", "deepseekV4").strip()
+        model = model if model != "deepseekV4" else "deepseek-chat"
+        agent = Agent()
+        agent.system(_deepseek_value_system_prompt())
+        agent.instruct("你只做价值研究解释与导航，不做投资建议，必须严格输出 JSON。")
+        agent.input(
+            "请根据以下价值研究结构化输入回答，并严格输出 JSON，不要输出 Markdown。\n"
+            + json.dumps(payload, ensure_ascii=False, indent=2)
+        )
+        agent.output({
+            "answer": "string",
+            "why": "string",
+            "multi_cycle_view": "string",
+            "single_cycle_position": "string",
+            "avoid": "string",
+            "next_actions": [{"label": "string", "url": "string"}],
+            "sources": ["string"],
+            "freshness_note": "string",
+        })
+        response = agent.start(model=model)
+        if isinstance(response, dict):
+            return response
+        if isinstance(response, str):
+            parsed = json.loads(response)
+            if isinstance(parsed, dict):
+                return parsed
+        return None
+    except Exception:
+        return None
+
+
 def _enhance_result_defaults(
     result: dict[str, Any],
     query: ChatQuery,
@@ -2077,6 +2175,32 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
     if mode != "chat":
         return None
     msg = query.message.strip().lower()
+    if any(k in msg for k in ("价值分析", "价值投研", "深度价值", "基本面深度", "8 大块", "八大块")):
+        code = _chat_stock_code(query)
+        payload = {
+            "question_type": "value_research",
+            "message": query.message,
+            "page_context": query.page_context,
+            "stock_code": code,
+            "research_view": f"/research?stock_code={code}&render_profile=value" if code else "/research?render_profile=value",
+            "freshness_note": "价值分析将复用当前已加载的研究证据、财务趋势、估值参考和公开市场观点数据。",
+        }
+        result = _agently_value_deepseek_call(payload)
+        provider = "agently_deepseek"
+        if not result:
+            result = _deepseek_value_call(payload)
+            provider = "managed_deepseek"
+        if result:
+            return _enhance_result_defaults(
+                result,
+                query,
+                next_actions=[
+                    {"label": "打开价值研究组合", "url": f"/research?stock_code={code or '000021.SZ'}&render_profile=value"},
+                    {"label": "打开标准研究页", "url": f"/research?stock_code={code or '000021.SZ'}"},
+                ],
+                sources=["coze_value_prompt_pack", "research_evidence"],
+                provider=provider,
+            )
     if any(k in msg for k in ("方向", "行业", "先看什么", "哪些", "顺风")):
         industry = _industry_rotation_data()
         payload = {

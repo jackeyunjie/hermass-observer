@@ -376,11 +376,10 @@ def _business_model_section(profile: dict[str, Any], latest_row: dict[str, Any])
         moat = "当前证据层缺少明确 peer 对标字段，竞争壁垒判断需谨慎。"
     return [
         "### 2.1 商业模式与核心竞争力",
-        f"- 收入来源：{profile.get('main_business') or '暂无'}",
-        f"- 成本结构：{operation_model}。",
-        f"- 客户类型：{customer_profile}。",
-        f"- 竞争壁垒：{moat}",
-        f"- 产品结构：{product_mix}。",
+        f"- 商业模式拆解：主营收入主要来自 {profile.get('main_business') or '暂无'}，客户侧更接近 {customer_profile}，运营组织方式 {operation_model}。",
+        f"- 产品与解决方案：{product_mix}。",
+        f"- 核心竞争力判断：{moat}",
+        "- 阅读方式：这里不是简单判断“好不好”，而是回答公司究竟靠什么赚钱、靠什么守住利润、靠什么和同行拉开差距。",
         *_competitiveness_lines(profile, latest_row),
     ]
 
@@ -660,7 +659,8 @@ def _value_combo_research_card(
         f"## {shared['stock_name']} 价值研究组合卡",
         "",
         "### 1. 研究说明",
-        "- 当前输出不是恢复 8 大块长报告，而是把其中可保留、可降级的价值投研模块按合规边界组合进研究卡。",
+        "- 当前输出不是机械拼接字段，而是沿用你们原有价值投研工作流里可复用的行业/公司/财务框架，把它们按当前数据边界重新组织进研究卡。",
+        "- 它不是恢复 8 大块长报告，也不是直接给投资建议；更像把原来长报告中真正有研究价值的骨架抽出来，放回当前 Hermass 链路里。",
         f"- 当前 State 组合：{shared['state_combo']}；结构解读：{_state_structure_explanation(state_core)}。",
         "",
         "### 2. 公司概况",
@@ -783,13 +783,19 @@ def _financial_quality_section(evidence: dict[str, Any], company_profile: dict[s
             debt_text = f"{debt_val:.1f}%"
         except Exception:
             debt_text = str(debt_ratio)
+    net_margin = latest.get("net_margin")
+    gross_margin = latest.get("gross_margin")
+    margin_bits: list[str] = []
+    if gross_margin not in (None, ""):
+        margin_bits.append(f"毛利率 {_fmt_percent(gross_margin)}")
+    if net_margin not in (None, ""):
+        margin_bits.append(f"净利率 {_fmt_percent(net_margin)}")
+    margin_text = "，".join(margin_bits) if margin_bits else "利润率细项当前覆盖不足"
     lines = [
         "### 3.1 盈利质量与财务健康",
-        f"- 收入趋势：最近 3 个可比报告期口径下，营收表现 {revenue_dir}。",
-        f"- 利润趋势：最近 3 个可比报告期口径下，净利润表现 {profit_dir}。",
-        f"- 现金流观察：经营现金流表现 {cashflow_dir}，最新值 {_fmt_yi(latest.get('operating_cashflow'))}。",
-        f"- 杠杆水平：最新资产负债率 {debt_text}。",
-        f"- 每股收益：最新 EPS {_fmt_num(latest.get('eps'), 4)}；ROE {_fmt_percent(latest.get('roe'))}。",
+        f"- 成长性观察：最近 3 个可比报告期口径下，营收表现 {revenue_dir}，净利润表现 {profit_dir}。如果两者同向改善，说明经营扩张与利润兑现相对一致；若利润明显弱于收入，则后续更要看成本、费用与需求质量。",
+        f"- 盈利质量观察：最新口径下 {margin_text}，EPS {_fmt_num(latest.get('eps'), 4)}，ROE {_fmt_percent(latest.get('roe'))}。这一组指标更适合回答“赚得多不多、赚得稳不稳、回报是否够厚”。",
+        f"- 现金流与财务健康：经营现金流表现 {cashflow_dir}，最新值 {_fmt_yi(latest.get('operating_cashflow'))}；资产负债率 {debt_text}。如果利润改善但现金流迟迟跟不上，就要对利润含金量保持谨慎。",
     ]
     lines.extend(_same_quarter_commentary(evidence, company_profile))
     return lines
@@ -814,10 +820,13 @@ def _industry_competition_section(profile: dict[str, Any], industry: dict[str, A
     comparable = _split_csv_like(profile.get("comparable_companies"), limit=4)
     competitors = _split_csv_like(profile.get("competitor_companies"), limit=4)
 
+    competition_regime = "更像集中度较高、关键环节话语权更重要的赛道"
+    if comparable or competitors:
+        competition_regime = "至少已有一组可比公司或竞争对手可用于横向观察"
     lines = [
         "### 4.1 产业链与竞争格局",
-        f"- 产业链定位：公司当前归属 {sw_l1} / {sw_l2} / {sw_l3}，本地产业链位置标记为 {chain_position}。",
-        f"- 行业景气：当前景气分 {prosperity_text}，ETF State {industry.get('etf_state_hex') or '暂无'}。",
+        f"- 产业链定位：公司当前归属 {sw_l1} / {sw_l2} / {sw_l3}，本地产业链位置标记为 {chain_position}。这决定了它更像赚“技术溢价”、制造效率，还是下游渠道与品牌的钱。",
+        f"- 行业景气：当前景气分 {prosperity_text}，ETF State {industry.get('etf_state_hex') or '暂无'}。从结构上看，当前赛道{competition_regime}。",
     ]
     if industry.get("sector_resonance") is True:
         lines.append(
@@ -826,14 +835,14 @@ def _industry_competition_section(profile: dict[str, Any], industry: dict[str, A
     elif industry.get("sector_resonance") is False:
         lines.append("- 板块共振：当前未形成明显行业共振，竞争格局更应回到公司自身经营与产品位置。")
     if comparable:
-        lines.append(f"- 可比公司：{', '.join(comparable)}。")
+        lines.append(f"- 可比公司：{', '.join(comparable)}。后续理解竞争壁垒时，应优先看它与这些 Peer 在产品定位、成本结构和执行效率上的差异。")
     elif competitors:
-        lines.append(f"- 竞争对手：{', '.join(competitors)}。")
+        lines.append(f"- 竞争对手：{', '.join(competitors)}。当前更适合把竞争判断放在具体细分环节里，而不是只看泛行业标签。")
     else:
-        lines.append("- 可比/竞争公司：本地证据层覆盖不足，行业对标结论需谨慎。")
+        lines.append("- 可比/竞争公司：本地证据层覆盖不足，因此当前只能先给出产业链位置判断，不能把竞争格局说得过满。")
     if concepts:
         lines.append(f"- 相关概念：{', '.join(concepts)}。")
-    lines.append("- 说明：当前竞争格局判断以本地结构化证据为主，后续可叠加外部联网检索做补充，但不替代本地证据层。")
+    lines.append("- 说明：这里优先继承“产业链全景 + 价值分布 + 核心玩家对标”的研究框架，但当前输出仍以本地结构化证据为底，不把缺失数据硬补成结论。")
     return lines
 
 
