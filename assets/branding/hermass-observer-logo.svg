@@ -1,0 +1,23 @@
+<svg width="1200" height="320" viewBox="0 0 1200 320" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>Hermass Observer Logo</title>
+  <desc>Hermass Observer wordmark with a state-and-observation inspired symbol.</desc>
+
+  <g transform="translate(32 32)">
+    <rect x="0" y="0" width="256" height="256" rx="56" fill="#F5F1E8"/>
+    <path d="M61 128C61 91.5492 91.1878 62 128.421 62H159.5" stroke="#14323D" stroke-width="18" stroke-linecap="round"/>
+    <path d="M195 128C195 164.451 164.812 194 127.579 194H96.5" stroke="#14323D" stroke-width="18" stroke-linecap="round"/>
+    <rect x="79" y="79" width="28" height="98" rx="14" fill="#0E7C66"/>
+    <rect x="149" y="79" width="28" height="98" rx="14" fill="#0E7C66"/>
+    <path d="M105 149C124.313 136.063 139.646 126.431 161 107" stroke="#0E7C66" stroke-width="24" stroke-linecap="round"/>
+    <path d="M78 165.5C94.6667 161.167 109.755 154.325 123.266 144.973C136.778 135.621 148.689 124.963 159 113" stroke="#8AD2C0" stroke-width="8" stroke-linecap="round"/>
+    <circle cx="184" cy="82" r="13" fill="#D98A1A"/>
+    <path d="M72 206H184" stroke="#14323D" stroke-width="10" stroke-linecap="round" opacity="0.18"/>
+  </g>
+
+  <g transform="translate(336 56)">
+    <text x="0" y="92" fill="#14323D" font-family="Avenir Next, Montserrat, Poppins, Arial, sans-serif" font-size="88" font-weight="700" letter-spacing="6">HERMASS</text>
+    <text x="4" y="156" fill="#0E7C66" font-family="Avenir Next, Montserrat, Poppins, Arial, sans-serif" font-size="48" font-weight="600" letter-spacing="2">Observer</text>
+    <rect x="0" y="186" width="118" height="10" rx="5" fill="#D98A1A"/>
+    <text x="0" y="236" fill="#4A5C63" font-family="Avenir Next, Montserrat, Poppins, Arial, sans-serif" font-size="26" font-weight="500" letter-spacing="1.2">A-share state intelligence</text>
+  </g>
+</svg>

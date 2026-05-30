@@ -13,6 +13,8 @@ from typing import Any
 
 import duckdb
 
+from agently_adapter import a_share_core
+
 
 ROOT = Path(__file__).resolve().parents[1]
 RESEARCH_ROOT = Path("/Users/lv111101/Documents/hongrun-chaos-trading-system")
@@ -212,25 +214,7 @@ def build_industry_rotation(date_str: str) -> dict[str, Any]:
 
 
 def build_strategy_evidence(date_str: str, foundation_db: str | None = None, lookback_days: int = 20) -> dict[str, Any]:
-    cmd = [
-        sys.executable,
-        "scripts/build_strategy_evidence.py",
-        "--date",
-        date_str,
-        "--lookback-days",
-        str(lookback_days),
-    ]
-    if foundation_db:
-        cmd.extend(["--foundation-db", foundation_db])
-    run(cmd)
-    date_ymd = ymd(date_str)
-    return {
-        "ok": True,
-        "date": date_str,
-        "strategy_evidence_json": str(ROOT / "outputs" / "strategy_evidence" / f"strategy_evidence_{date_ymd}.json"),
-        "strategy_evidence_csv": str(ROOT / "outputs" / "strategy_evidence" / f"strategy_evidence_{date_ymd}.csv"),
-        "strategy_evidence_html": str(ROOT / "public" / f"strategy_evidence_{date_ymd}.html"),
-    }
+    return a_share_core.build_strategy_evidence(date_str, foundation_db=foundation_db, lookback_days=lookback_days)
 
 
 def evaluate_strategy_evidence(date_str: str, top_n: int = 80) -> dict[str, Any]:
@@ -368,6 +352,207 @@ def build_market_assets_state(date_str: str) -> dict[str, Any]:
         "market_assets_state_db": str(ROOT / "outputs" / f"market_assets_state_{ymd(date_str)}" / "market_assets_state.duckdb"),
         "market_assets_state_html": str(ROOT / "public" / f"market_assets_state_{ymd(date_str)}.html"),
         "market_assets_state_csv": str(ROOT / "outputs" / "market_assets_state" / f"market_assets_state_{ymd(date_str)}.csv"),
+    }
+
+
+def build_industry_etf_coverage(date_str: str) -> dict[str, Any]:
+    run(
+        [
+            sys.executable,
+            "scripts/build_industry_etf_coverage.py",
+            "--date",
+            date_str,
+        ]
+    )
+    date_ymd = ymd(date_str)
+    return {
+        "ok": True,
+        "date": date_str,
+        "json": str(ROOT / "outputs" / "etf_coverage" / f"industry_etf_coverage_{date_ymd}.json"),
+        "csv": str(ROOT / "outputs" / "etf_coverage" / f"industry_etf_coverage_{date_ymd}.csv"),
+        "html": str(ROOT / "public" / f"industry_etf_coverage_{date_ymd}.html"),
+        "expanded_config": str(ROOT / "config" / f"industry_rotation_assets.expanded_{date_ymd}.json"),
+        "direct_additions_config": str(ROOT / "config" / f"industry_rotation_assets.direct_additions_{date_ymd}.json"),
+        "latest_json": str(ROOT / "outputs" / "etf_coverage" / "industry_etf_coverage_latest.json"),
+        "latest_html": str(ROOT / "public" / "industry_etf_coverage_latest.html"),
+        "research_only": True,
+    }
+
+
+def build_industry_etf_config(date_str: str, apply_config: bool = False, include_proxy: bool = False) -> dict[str, Any]:
+    cmd = [
+        sys.executable,
+        "scripts/build_industry_etf_config.py",
+        "--date",
+        date_str,
+    ]
+    if include_proxy:
+        cmd.append("--include-proxy")
+    if apply_config:
+        cmd.append("--apply")
+    run(cmd)
+    date_ymd = ymd(date_str)
+    return {
+        "ok": True,
+        "date": date_str,
+        "json": str(ROOT / "outputs" / "etf_config" / f"industry_etf_config_{date_ymd}.json"),
+        "csv": str(ROOT / "outputs" / "etf_config" / f"industry_etf_config_{date_ymd}.csv"),
+        "candidates_json": str(ROOT / "outputs" / "etf_config" / f"industry_etf_candidates_{date_ymd}.json"),
+        "candidates_csv": str(ROOT / "outputs" / "etf_config" / f"industry_etf_candidates_{date_ymd}.csv"),
+        "gap_json": str(ROOT / "outputs" / "etf_config" / f"industry_etf_gap_report_{date_ymd}.json"),
+        "gap_csv": str(ROOT / "outputs" / "etf_config" / f"industry_etf_gap_report_{date_ymd}.csv"),
+        "html": str(ROOT / "public" / f"industry_etf_config_{date_ymd}.html"),
+        "generated_config": str(ROOT / "config" / f"industry_rotation_assets.auto_{date_ymd}.json"),
+        "proxy_whitelist": str(ROOT / "config" / "industry_etf_proxy_whitelist.json"),
+        "latest_html": str(ROOT / "public" / "industry_etf_config_latest.html"),
+        "applied": apply_config,
+        "include_proxy": include_proxy,
+        "research_only": True,
+    }
+
+
+def build_ifind_macro(date_str: str, import_file: str | None = None) -> dict[str, Any]:
+    cmd = [
+        sys.executable,
+        "scripts/build_ifind_macro_db.py",
+        "--date",
+        date_str,
+        "--allow-missing-token",
+    ]
+    if import_file:
+        cmd.extend(["--import-file", import_file])
+        cmd.append("--skip-api")
+    run(cmd)
+    date_ymd = ymd(date_str)
+    output_json = ROOT / "outputs" / "macro" / f"macro_snapshot_{date_ymd}.json"
+    summary: dict[str, Any] = {}
+    if output_json.exists():
+        try:
+            payload = json.loads(output_json.read_text(encoding="utf-8"))
+            summary = {
+                "auth_status": payload.get("collection", {}).get("auth_status"),
+                "collected_rows": payload.get("collection", {}).get("collected_rows"),
+                "db_row_count": payload.get("collection", {}).get("db_row_count"),
+                "coverage_status": payload.get("regime", {}).get("coverage_status"),
+                "needs_code_count": payload.get("regime", {}).get("needs_code_count"),
+                "one_sentence": payload.get("regime", {}).get("one_sentence"),
+            }
+        except json.JSONDecodeError:
+            summary = {"status": "invalid_json"}
+    return {
+        "ok": True,
+        "date": date_str,
+        **summary,
+        "json": str(output_json),
+        "csv": str(ROOT / "outputs" / "macro" / f"macro_snapshot_{date_ymd}.csv"),
+        "html": str(ROOT / "public" / f"macro_snapshot_{date_ymd}.html"),
+        "latest_json": str(ROOT / "outputs" / "macro" / "macro_snapshot_latest.json"),
+        "latest_html": str(ROOT / "public" / "macro_snapshot_latest.html"),
+        "import_file": import_file,
+        "research_only": True,
+    }
+
+
+def collect_macro_multisource(date_str: str) -> dict[str, Any]:
+    cmd = [
+        sys.executable,
+        "scripts/collect_macro_multisource.py",
+        "--date",
+        date_str,
+    ]
+    run(cmd)
+    date_ymd = ymd(date_str)
+    output_json = ROOT / "outputs" / "macro" / f"macro_multisource_collection_{date_ymd}.json"
+    summary: dict[str, Any] = {}
+    if output_json.exists():
+        try:
+            payload = json.loads(output_json.read_text(encoding="utf-8"))
+            summary = {
+                "row_count": payload.get("row_count"),
+                "inserted_rows": payload.get("inserted_rows"),
+                "sources": {
+                    source: {
+                        "status": meta.get("status"),
+                        "rows": meta.get("rows"),
+                    }
+                    for source, meta in (payload.get("sources") or {}).items()
+                    if isinstance(meta, dict)
+                },
+            }
+        except json.JSONDecodeError:
+            summary = {"status": "invalid_json"}
+    return {
+        "ok": True,
+        "date": date_str,
+        **summary,
+        "json": str(output_json),
+        "csv": str(ROOT / "outputs" / "macro" / f"macro_multisource_collection_{date_ymd}.csv"),
+        "macro_snapshot_json": str(ROOT / "outputs" / "macro" / f"macro_snapshot_{date_ymd}.json"),
+        "macro_snapshot_html": str(ROOT / "public" / f"macro_snapshot_{date_ymd}.html"),
+        "latest_json": str(ROOT / "outputs" / "macro" / "macro_multisource_collection_latest.json"),
+        "research_only": True,
+    }
+
+
+def build_macro_chain_prior(date_str: str) -> dict[str, Any]:
+    cmd = [
+        sys.executable,
+        "scripts/build_macro_chain_prior.py",
+        "--date",
+        date_str,
+    ]
+    run(cmd)
+    date_ymd = ymd(date_str)
+    output_json = ROOT / "outputs" / "macro_chain_prior" / f"macro_chain_prior_{date_ymd}.json"
+    summary: dict[str, Any] = {}
+    if output_json.exists():
+        try:
+            payload = json.loads(output_json.read_text(encoding="utf-8"))
+            summary = {
+                "macro_score": payload.get("macro_prior", {}).get("score_0_10"),
+                "risk_appetite_score": payload.get("market_style_prior", {}).get("risk_appetite_score"),
+                "growth_style_score": payload.get("market_style_prior", {}).get("growth_style_score"),
+                "industry_count": len(payload.get("industry_priors", []) or []),
+            }
+        except json.JSONDecodeError:
+            summary = {"status": "invalid_json"}
+    return {
+        "ok": True,
+        "date": date_str,
+        **summary,
+        "json": str(output_json),
+        "csv": str(ROOT / "outputs" / "macro_chain_prior" / f"macro_chain_prior_{date_ymd}.csv"),
+        "html": str(ROOT / "public" / f"macro_chain_prior_{date_ymd}.html"),
+        "latest_json": str(ROOT / "outputs" / "macro_chain_prior" / "macro_chain_prior_latest.json"),
+        "latest_html": str(ROOT / "public" / "macro_chain_prior_latest.html"),
+        "research_only": True,
+    }
+
+
+def build_recommendation(date_str: str) -> dict[str, Any]:
+    run([sys.executable, "recommendation/run_recommendation_workflow.py", "--date", date_str])
+    date_ymd = ymd(date_str)
+    return {
+        "ok": True,
+        "date": date_str,
+        "json": str(ROOT / "recommendation" / "outputs" / f"p116_recommendation_{date_ymd}.json"),
+        "csv": str(ROOT / "recommendation" / "outputs" / f"p116_recommendation_{date_ymd}.csv"),
+        "html": str(ROOT / "public" / f"p116_recommendation_{date_ymd}.html"),
+        "public_csv": str(ROOT / "public" / f"p116_recommendation_{date_ymd}.csv"),
+        "latest_html": str(ROOT / "public" / "p116_recommendation_latest.html"),
+    }
+
+
+def build_shareable_table(date_str: str) -> dict[str, Any]:
+    run([sys.executable, "recommendation/build_shareable_table.py", "--date", date_str])
+    date_ymd = ymd(date_str)
+    return {
+        "ok": True,
+        "date": date_str,
+        "html": str(ROOT / "public" / f"p116_recommendation_shareable_{date_ymd}.html"),
+        "csv": str(ROOT / "public" / f"p116_recommendation_shareable_{date_ymd}.csv"),
+        "xlsx": str(ROOT / "public" / f"p116_recommendation_shareable_{date_ymd}.xlsx"),
+        "latest_html": str(ROOT / "public" / "p116_recommendation_shareable_latest.html"),
     }
 
 
@@ -765,30 +950,7 @@ def build_state_cache(
     foundation_db: str | None = None,
     boundary_pct: float = 0.03,
 ) -> dict[str, Any]:
-    cmd = [
-        sys.executable,
-        "scripts/state_cache_builder.py",
-        "--date",
-        date_str,
-        "--boundary-pct",
-        str(boundary_pct),
-    ]
-    if foundation_db:
-        cmd.extend(["--foundation-db", foundation_db])
-    run(cmd)
-    date_ymd = ymd(date_str)
-    return {
-        "ok": True,
-        "date": date_str,
-        "boundary_pct": boundary_pct,
-        "cache_db": str(ROOT / "outputs" / "state_cache" / "state_cache.duckdb"),
-        "manifest": str(ROOT / "outputs" / "state_cache" / f"state_cache_manifest_{date_ymd}.json"),
-        "state_ef_json": str(ROOT / "outputs" / "state_cache" / f"state_ef_{date_ymd}.json"),
-        "state_distribution_json": str(ROOT / "outputs" / "state_cache" / f"state_distribution_{date_ymd}.json"),
-        "state_transition_json": str(ROOT / "outputs" / "state_cache" / f"state_transition_{date_ymd}.json"),
-        "sr_boundary_json": str(ROOT / "outputs" / "state_cache" / f"sr_boundary_{date_ymd}.json"),
-        "state_duration_json": str(ROOT / "outputs" / "state_cache" / f"state_duration_{date_ymd}.json"),
-    }
+    return a_share_core.build_state_cache(date_str, foundation_db=foundation_db, boundary_pct=boundary_pct)
 
 
 def build_strategy_signal_ledger(
@@ -796,25 +958,7 @@ def build_strategy_signal_ledger(
     foundation_db: str | None = None,
     min_ef: int = 2,
 ) -> dict[str, Any]:
-    cmd = [
-        sys.executable,
-        "scripts/strategy_signal_ledger.py",
-        "--date",
-        date_str,
-        "--min-ef",
-        str(min_ef),
-    ]
-    if foundation_db:
-        cmd.extend(["--foundation-db", foundation_db])
-    run(cmd)
-    date_ymd = ymd(date_str)
-    return {
-        "ok": True,
-        "date": date_str,
-        "min_ef": min_ef,
-        "ledger_db": str(ROOT / "outputs" / "strategy_signals" / "strategy_signals.duckdb"),
-        "ledger_json": str(ROOT / "outputs" / "strategy_signals" / f"strategy_signal_daily_{date_ymd}.json"),
-    }
+    return a_share_core.build_strategy_signal_ledger(date_str, foundation_db=foundation_db, min_ef=min_ef)
 
 
 def build_strategy_reminder(date_str: str) -> dict[str, Any]:
@@ -835,44 +979,206 @@ def build_strategy_reminder(date_str: str) -> dict[str, Any]:
 
 
 def forward_sim(date_str: str, foundation_db: str | None = None, windows: str = "5,10,20") -> dict[str, Any]:
+    return a_share_core.build_forward_observation(date_str, foundation_db=foundation_db, windows=windows)
+
+
+def search_2560_optimal_state(
+    date_str: str,
+    start_date: str | None,
+    foundation_db: str | None = None,
+    raw_signal: str = "ma2560_golden_cross",
+    min_samples: int = 20,
+    primary_window: int = 20,
+    min_ef_count: int | None = None,
+    max_ef_count: int | None = None,
+) -> dict[str, Any]:
+    if not start_date:
+        raise ValueError("search_2560_optimal_state requires --start-date")
     cmd = [
         sys.executable,
-        "scripts/forward_observation_ledger.py",
-        "--date",
+        "scripts/search_2560_optimal_state.py",
+        "--start-date",
+        start_date,
+        "--end-date",
         date_str,
-        "--windows",
-        windows,
+        "--raw-signal",
+        raw_signal,
+        "--primary-window",
+        str(primary_window),
+        "--min-samples",
+        str(min_samples),
     ]
     if foundation_db:
         cmd.extend(["--foundation-db", foundation_db])
+    if min_ef_count is not None:
+        cmd.extend(["--min-ef-count", str(min_ef_count)])
+    if max_ef_count is not None:
+        cmd.extend(["--max-ef-count", str(max_ef_count)])
     run(cmd)
+
+    tag_signal = raw_signal.replace("ma2560_", "")
+    scope = "all"
+    if min_ef_count is not None or max_ef_count is not None:
+        scope = f"ef{'' if min_ef_count is None else min_ef_count}to{'' if max_ef_count is None else max_ef_count}"
     date_ymd = ymd(date_str)
-    output_json = ROOT / "outputs" / "forward_observation" / f"forward_observation_{date_ymd}.json"
-    summary: dict[str, Any] = {}
-    if output_json.exists():
-        try:
-            payload = json.loads(output_json.read_text(encoding="utf-8"))
-            summary = {
-                "total": payload.get("total"),
-                "labeled": payload.get("labeled"),
-                "pending": payload.get("pending"),
-                "status_distribution": payload.get("status_distribution"),
-                "strategy_distribution": payload.get("strategy_distribution"),
-            }
-        except json.JSONDecodeError:
-            summary = {"status": "invalid_json"}
     return {
         "ok": True,
-        "mode": "observation_ledger",
-        "date": date_str,
-        "windows": windows,
-        **summary,
-        "json": str(output_json),
-        "csv": str(ROOT / "outputs" / "forward_observation" / f"forward_observation_{date_ymd}.csv"),
-        "html": str(ROOT / "public" / f"forward_observation_{date_ymd}.html"),
-        "latest_json": str(ROOT / "outputs" / "forward_observation" / "forward_observation_latest.json"),
-        "latest_html": str(ROOT / "public" / "forward_observation_latest.html"),
         "research_only": True,
+        "date": date_str,
+        "start_date": start_date,
+        "raw_signal": raw_signal,
+        "json": str(ROOT / "outputs" / "strategy_evaluation" / f"ma2560_optimal_state_search_{date_ymd}_{tag_signal}_{scope}.json"),
+        "markdown": str(ROOT / "outputs" / "strategy_evaluation" / f"ma2560_optimal_state_search_{date_ymd}_{tag_signal}_{scope}.md"),
+    }
+
+
+def search_bollinger_optimal_state(
+    date_str: str,
+    start_date: str | None,
+    foundation_db: str | None = None,
+    min_samples: int = 30,
+    primary_window: int = 20,
+    min_ef_count: int | None = None,
+    max_ef_count: int | None = None,
+) -> dict[str, Any]:
+    if not start_date:
+        raise ValueError("search_bollinger_optimal_state requires --start-date")
+    cmd = [
+        sys.executable,
+        "scripts/search_bollinger_optimal_state.py",
+        "--start-date",
+        start_date,
+        "--end-date",
+        date_str,
+        "--primary-window",
+        str(primary_window),
+        "--min-samples",
+        str(min_samples),
+    ]
+    if foundation_db:
+        cmd.extend(["--foundation-db", foundation_db])
+    if min_ef_count is not None:
+        cmd.extend(["--min-ef-count", str(min_ef_count)])
+    if max_ef_count is not None:
+        cmd.extend(["--max-ef-count", str(max_ef_count)])
+    run(cmd)
+
+    scope = "all"
+    if min_ef_count is not None or max_ef_count is not None:
+        scope = f"ef{'' if min_ef_count is None else min_ef_count}to{'' if max_ef_count is None else max_ef_count}"
+    date_ymd = ymd(date_str)
+    return {
+        "ok": True,
+        "research_only": True,
+        "date": date_str,
+        "start_date": start_date,
+        "json": str(ROOT / "outputs" / "strategy_evaluation" / f"bollinger_optimal_state_search_{date_ymd}_entry_{scope}.json"),
+        "markdown": str(ROOT / "outputs" / "strategy_evaluation" / f"bollinger_optimal_state_search_{date_ymd}_entry_{scope}.md"),
+        "project_markdown": str(ROOT / "outputs" / "project" / "bollinger_optimal_state_search.md"),
+    }
+
+
+def search_vcp_optimal_state(
+    date_str: str,
+    start_date: str | None,
+    foundation_db: str | None = None,
+    raw_signal: str | None = None,
+    min_samples: int = 30,
+    primary_window: int = 20,
+    min_ef_count: int | None = None,
+    max_ef_count: int | None = None,
+) -> dict[str, Any]:
+    if not start_date:
+        raise ValueError("search_vcp_optimal_state requires --start-date")
+    cmd = [
+        sys.executable,
+        "scripts/search_vcp_optimal_state.py",
+        "--start-date",
+        start_date,
+        "--end-date",
+        date_str,
+        "--primary-window",
+        str(primary_window),
+        "--min-samples",
+        str(min_samples),
+    ]
+    if raw_signal:
+        cmd.extend(["--raw-signal", raw_signal])
+    if foundation_db:
+        cmd.extend(["--foundation-db", foundation_db])
+    if min_ef_count is not None:
+        cmd.extend(["--min-ef-count", str(min_ef_count)])
+    if max_ef_count is not None:
+        cmd.extend(["--max-ef-count", str(max_ef_count)])
+    run(cmd)
+
+    scope = "all"
+    if min_ef_count is not None or max_ef_count is not None:
+        scope = f"ef{'' if min_ef_count is None else min_ef_count}to{'' if max_ef_count is None else max_ef_count}"
+    signal_tag = (raw_signal or "breakout_breakout_no_vol_breakout_weak_vol").replace("vcp_", "")
+    date_ymd = ymd(date_str)
+    return {
+        "ok": True,
+        "research_only": True,
+        "date": date_str,
+        "start_date": start_date,
+        "json": str(ROOT / "outputs" / "strategy_evaluation" / f"vcp_optimal_state_search_{date_ymd}_{signal_tag}_{scope}.json"),
+        "markdown": str(ROOT / "outputs" / "strategy_evaluation" / f"vcp_optimal_state_search_{date_ymd}_{signal_tag}_{scope}.md"),
+        "project_markdown": str(ROOT / "outputs" / "project" / "vcp_optimal_state_search.md"),
+    }
+
+
+def verify_strategy_environment(
+    date_str: str,
+    start_date: str | None,
+    foundation_db: str | None,
+    verify_strategy: str = "all",
+    raw_signal: str | None = None,
+    min_samples: int = 30,
+    primary_window: int = 20,
+    min_ef_count: int | None = None,
+    max_ef_count: int | None = None,
+    macro_snapshot: str | None = None,
+) -> dict[str, Any]:
+    if not start_date:
+        raise ValueError("verify_strategy_environment requires --start-date")
+    if not foundation_db:
+        foundation_db = str(foundation_path(date_str, None))
+    cmd = [
+        sys.executable,
+        "scripts/strategy_environment_verifier.py",
+        "--strategy",
+        verify_strategy,
+        "--start-date",
+        start_date,
+        "--end-date",
+        date_str,
+        "--foundation-db",
+        foundation_db,
+        "--primary-window",
+        str(primary_window),
+        "--min-samples",
+        str(min_samples),
+    ]
+    if raw_signal:
+        cmd.extend(["--raw-signal", raw_signal])
+    if min_ef_count is not None:
+        cmd.extend(["--min-ef-count", str(min_ef_count)])
+    if max_ef_count is not None:
+        cmd.extend(["--max-ef-count", str(max_ef_count)])
+    if macro_snapshot:
+        cmd.extend(["--macro-snapshot", macro_snapshot])
+    run(cmd)
+
+    date_ymd = ymd(date_str)
+    return {
+        "ok": True,
+        "research_only": True,
+        "date": date_str,
+        "start_date": start_date,
+        "strategy": verify_strategy,
+        "json": str(ROOT / "outputs" / "project" / f"strategy_environment_verification_{verify_strategy}_{date_ymd}.json"),
+        "markdown": str(ROOT / "outputs" / "project" / f"strategy_environment_verification_{verify_strategy}_{date_ymd}.md"),
     }
 
 
@@ -943,25 +1249,28 @@ def process_ifind_data(date_str: str) -> dict[str, Any]:
 
 
 def generate_daily_brief(date_str: str) -> dict[str, Any]:
+    return a_share_core.build_daily_brief(date_str)
+
+
+def analyze_ma2560_market_match_forward(date_str: str, foundation_db: str | None = None) -> dict[str, Any]:
     cmd = [
         sys.executable,
-        "scripts/daily_research_brief.py",
+        "scripts/analyze_ma2560_market_match_forward.py",
         "--date",
         date_str,
     ]
+    if foundation_db:
+        cmd.extend(["--foundation-db", foundation_db])
     run(cmd)
     date_ymd = ymd(date_str)
-    output_json = ROOT / "outputs" / "daily_research_brief" / f"daily_research_brief_{date_ymd}.json"
+    output_json = ROOT / "outputs" / "ma2560_market_match_forward" / f"ma2560_market_match_forward_{date_ymd}.json"
     summary: dict[str, Any] = {}
     if output_json.exists():
         try:
             payload = json.loads(output_json.read_text(encoding="utf-8"))
             summary = {
-                "total_reminders": payload.get("signal_stats", {}).get("total_reminders"),
-                "display_count": len(payload.get("display_rows", []) or []),
-                "fit_counts": payload.get("signal_stats", {}).get("fit_counts"),
-                "lifecycle_counts": payload.get("signal_stats", {}).get("lifecycle_counts"),
-                "calibration": payload.get("calibration"),
+                "total": payload.get("total"),
+                "summary": payload.get("summary"),
             }
         except json.JSONDecodeError:
             summary = {"status": "invalid_json"}
@@ -970,10 +1279,46 @@ def generate_daily_brief(date_str: str) -> dict[str, Any]:
         "date": date_str,
         **summary,
         "json": str(output_json),
-        "markdown": str(ROOT / "outputs" / "daily_research_brief" / f"daily_research_brief_{date_ymd}.md"),
-        "html": str(ROOT / "public" / f"daily_research_brief_{date_ymd}.html"),
-        "latest_json": str(ROOT / "outputs" / "daily_research_brief" / "daily_research_brief_latest.json"),
-        "latest_html": str(ROOT / "public" / "daily_research_brief_latest.html"),
+        "csv": str(ROOT / "outputs" / "ma2560_market_match_forward" / f"ma2560_market_match_forward_{date_ymd}.csv"),
+        "markdown": str(ROOT / "outputs" / "ma2560_market_match_forward" / f"ma2560_market_match_forward_{date_ymd}.md"),
+        "html": str(ROOT / "public" / f"ma2560_market_match_forward_{date_ymd}.html"),
+        "latest_json": str(ROOT / "outputs" / "ma2560_market_match_forward" / "ma2560_market_match_forward_latest.json"),
+        "latest_html": str(ROOT / "public" / "ma2560_market_match_forward_latest.html"),
+        "research_only": True,
+    }
+
+
+def audit_ma2560_stock_only_gap(date_str: str) -> dict[str, Any]:
+    run(
+        [
+            sys.executable,
+            "scripts/audit_ma2560_stock_only_industry_gap.py",
+            "--date",
+            date_str,
+        ]
+    )
+    date_ymd = ymd(date_str)
+    output_json = ROOT / "outputs" / "ma2560_market_match_forward" / f"ma2560_stock_only_gap_audit_{date_ymd}.json"
+    summary: dict[str, Any] = {}
+    if output_json.exists():
+        try:
+            payload = json.loads(output_json.read_text(encoding="utf-8"))
+            summary = {
+                "total": payload.get("total"),
+                "gap_counts": payload.get("gap_counts"),
+                "industry_counts": payload.get("industry_counts"),
+            }
+        except json.JSONDecodeError:
+            summary = {"status": "invalid_json"}
+    return {
+        "ok": True,
+        "date": date_str,
+        **summary,
+        "json": str(output_json),
+        "csv": str(ROOT / "outputs" / "ma2560_market_match_forward" / f"ma2560_stock_only_gap_audit_{date_ymd}.csv"),
+        "html": str(ROOT / "public" / f"ma2560_stock_only_gap_audit_{date_ymd}.html"),
+        "latest_json": str(ROOT / "outputs" / "ma2560_market_match_forward" / "ma2560_stock_only_gap_audit_latest.json"),
+        "latest_html": str(ROOT / "public" / "ma2560_stock_only_gap_audit_latest.html"),
         "research_only": True,
     }
 
@@ -1361,60 +1706,129 @@ def build_moneyflow_evidence(date_str: str, days: int = 5) -> dict[str, Any]:
 
 
 def preflight(date_str: str, previous_date: str) -> dict[str, Any]:
+    return a_share_core.preflight(date_str, previous_date)
+
+
+def build_foundation(date_str: str, raw_db: str | None = None, foundation_db: str | None = None) -> dict[str, Any]:
+    return a_share_core.build_foundation(date_str, raw_db=raw_db, foundation_db=foundation_db)
+
+
+def validate_foundation(date_str: str, foundation_db: str | None) -> dict[str, Any]:
+    return a_share_core.validate_foundation(date_str, foundation_db)
+
+
+def verify_public_outputs(date_str: str, foundation_db: str | None = None) -> dict[str, Any]:
+    return a_share_core.verify_public_outputs(date_str, foundation_db=foundation_db)
+
+
+def _append_step(steps: list[dict[str, Any]], name: str, result: dict[str, Any]) -> None:
+    steps.append({name: result})
+
+
+def _run_export_all_three_ef(date_str: str, previous_date: str, foundation_db: str) -> dict[str, Any]:
     run(
         [
             sys.executable,
-            "agently_adapter/preflight_freshness.py",
+            "scripts/export_daily_all_three_ef.py",
             "--date",
             date_str,
             "--previous-date",
             previous_date,
+            "--foundation-db",
+            foundation_db,
         ]
     )
-    return {"ok": True, "date": date_str, "previous_date": previous_date}
+    return {"ok": True, "date": date_str, "foundation_db": foundation_db}
 
 
-def build_foundation(date_str: str, raw_db: str | None = None, foundation_db: str | None = None) -> dict[str, Any]:
-    out_db = foundation_path(date_str, foundation_db)
-    raw = Path(raw_db) if raw_db else raw_db_path(date_str)
-    run(
-        [
-            sys.executable,
-            "scripts/build_p116_foundation.py",
-            "--date",
-            date_str,
-            "--raw-db",
-            str(raw),
-            "--out-db",
-            str(out_db),
-        ]
+def _run_optional_data_prep(
+    steps: list[dict[str, Any]],
+    *,
+    date_str: str,
+    previous_date: str,
+    download: bool,
+    build_raw: bool,
+    download_moneyflow_flag: bool,
+    moneyflow_days: int,
+    test_download: bool,
+) -> None:
+    if download:
+        _append_step(steps, "download_daily", download_daily(date_str, previous_date, test_download))
+    if build_raw:
+        _append_step(steps, "build_raw_db", build_raw_db(date_str, test=test_download))
+    if not download_moneyflow_flag:
+        return
+    _append_step(steps, "download_moneyflow_recent", download_moneyflow(date_str, days=moneyflow_days))
+    if moneyflow_days > 1:
+        _append_step(steps, "import_moneyflow_db_range", import_moneyflow_db_range(date_str, moneyflow_days))
+    else:
+        _append_step(steps, "import_moneyflow_db", import_moneyflow_db(date_str))
+    _append_step(steps, "build_moneyflow_evidence", build_moneyflow_evidence(date_str, days=5))
+    _append_step(steps, "download_market_assets", download_market_assets(date_str, days=1))
+    _append_step(steps, "import_market_assets_db", import_market_assets_db(date_str))
+    _append_step(steps, "build_market_assets_state", build_market_assets_state(date_str))
+
+
+def _run_base_macro_prep(
+    steps: list[dict[str, Any]],
+    *,
+    date_str: str,
+    foundation_db: str | None,
+    build_foundation_flag: bool,
+) -> str:
+    _append_step(steps, "build_ifind_macro", build_ifind_macro(date_str))
+    _append_step(steps, "collect_macro_multisource", collect_macro_multisource(date_str))
+    if build_foundation_flag:
+        _append_step(steps, "build_foundation", build_foundation(date_str, foundation_db=foundation_db))
+    validation = validate_foundation(date_str, foundation_db)
+    return validation["foundation_db"]
+
+
+def _run_core_public_lane(
+    steps: list[dict[str, Any]],
+    *,
+    date_str: str,
+    previous_date: str,
+    foundation_db: str,
+) -> None:
+    _append_step(steps, "export_all_three_ef", _run_export_all_three_ef(date_str, previous_date, foundation_db))
+    _append_step(steps, "build_industry_etf_coverage", build_industry_etf_coverage(date_str))
+    _append_step(steps, "build_industry_etf_config_pre_audit", build_industry_etf_config(date_str))
+    _append_step(steps, "build_macro_chain_prior", build_macro_chain_prior(date_str))
+    core_steps = a_share_core.run_core_steps_from_foundation(
+        date_str,
+        foundation_db,
+        steps=["build_state_cache", "build_strategy_evidence"],
     )
-    return {"ok": True, "foundation_db": str(out_db), "raw_db": str(raw)}
+    _append_step(steps, "build_state_cache", core_steps["build_state_cache"])
+    _append_step(steps, "build_strategy_evidence", core_steps["build_strategy_evidence"])
+    _append_step(steps, "run_pattern_scan", run_pattern_scan(date_str, foundation_db))
+    _append_step(steps, "run_pattern_cross", run_pattern_cross(date_str))
+    _append_step(steps, "evaluate_strategy_evidence", evaluate_strategy_evidence(date_str))
+    _append_step(steps, "build_recommendation", build_recommendation(date_str))
+    _append_step(steps, "build_industry_rotation", build_industry_rotation(date_str))
+    _append_step(steps, "build_shareable_table", build_shareable_table(date_str))
+    post_recommendation_core_steps = a_share_core.run_core_steps_from_foundation(
+        date_str,
+        foundation_db,
+        steps=["build_strategy_signal_ledger", "build_forward_observation", "build_daily_brief"],
+    )
+    _append_step(steps, "build_strategy_signal_ledger", post_recommendation_core_steps["build_strategy_signal_ledger"])
+    _append_step(steps, "build_strategy_reminder", build_strategy_reminder(date_str))
+    _append_step(steps, "forward_sim", post_recommendation_core_steps["build_forward_observation"])
+    _append_step(steps, "run_strategy_fit_observer", run_strategy_fit_observer(date_str))
+    _append_step(steps, "generate_daily_brief", post_recommendation_core_steps["build_daily_brief"])
 
 
-def validate_foundation(date_str: str, foundation_db: str | None) -> dict[str, Any]:
-    db_path = foundation_path(date_str, foundation_db)
-    if not db_path.exists():
-        raise FileNotFoundError(f"foundation DB not found: {db_path}")
-    return {"ok": True, "foundation_db": str(db_path)}
-
-
-def verify_public_outputs(date_str: str) -> dict[str, Any]:
-    date_ymd = ymd(date_str)
-    required = [
-        ROOT / "public" / f"p116_all_three_ef_{date_ymd}.html",
-        ROOT / "public" / f"p116_recommendation_{date_ymd}.html",
-        ROOT / "public" / f"strategy_evidence_{date_ymd}.html",
-        ROOT / "public" / f"market_assets_state_{date_ymd}.html",
-        ROOT / "public" / f"industry_rotation_{date_ymd}.html",
-        ROOT / "public" / f"p116_recommendation_shareable_{date_ymd}.html",
-        ROOT / "public" / f"p116_recommendation_shareable_{date_ymd}.xlsx",
-        ROOT / "public" / f"pattern_cross_ef_{date_ymd}.html",
-    ]
-    missing = [str(path) for path in required if not path.exists()]
-    if missing:
-        raise FileNotFoundError("missing outputs: " + ", ".join(missing))
-    return {"ok": True, "outputs": [str(path) for path in required]}
+def _run_diagnostics_lane(
+    steps: list[dict[str, Any]],
+    *,
+    date_str: str,
+    foundation_db: str,
+) -> None:
+    _append_step(steps, "analyze_ma2560_market_match_forward", analyze_ma2560_market_match_forward(date_str, foundation_db))
+    _append_step(steps, "audit_ma2560_stock_only_gap", audit_ma2560_stock_only_gap(date_str))
+    _append_step(steps, "build_industry_etf_config", build_industry_etf_config(date_str, apply_config=True))
 
 
 def run_full_workflow(
@@ -1430,44 +1844,35 @@ def run_full_workflow(
     test_download: bool = False,
 ) -> dict[str, Any]:
     steps: list[dict[str, Any]] = []
-    steps.append({"preflight_freshness": preflight(date_str, previous_date)})
-    if download:
-        steps.append({"download_daily": download_daily(date_str, previous_date, test_download)})
-    if build_raw:
-        steps.append({"build_raw_db": build_raw_db(date_str, test=test_download)})
-    if download_moneyflow_flag:
-        steps.append({"download_moneyflow_recent": download_moneyflow(date_str, days=moneyflow_days)})
-        if moneyflow_days > 1:
-            steps.append({"import_moneyflow_db_range": import_moneyflow_db_range(date_str, moneyflow_days)})
-        else:
-            steps.append({"import_moneyflow_db": import_moneyflow_db(date_str)})
-        steps.append({"build_moneyflow_evidence": build_moneyflow_evidence(date_str, days=5)})
-        steps.append({"download_market_assets": download_market_assets(date_str, days=1)})
-        steps.append({"import_market_assets_db": import_market_assets_db(date_str)})
-        steps.append({"build_market_assets_state": build_market_assets_state(date_str)})
-    if build_foundation_flag:
-        steps.append({"build_foundation": build_foundation(date_str, foundation_db=foundation_db)})
-    validation = validate_foundation(date_str, foundation_db)
-    db_path = validation["foundation_db"]
-    run(
-        [
-            sys.executable,
-            "scripts/export_daily_all_three_ef.py",
-            "--date",
-            date_str,
-            "--previous-date",
-            previous_date,
-            "--foundation-db",
-            db_path,
-        ]
+    _append_step(steps, "preflight_freshness", preflight(date_str, previous_date))
+    _run_optional_data_prep(
+        steps,
+        date_str=date_str,
+        previous_date=previous_date,
+        download=download,
+        build_raw=build_raw,
+        download_moneyflow_flag=download_moneyflow_flag,
+        moneyflow_days=moneyflow_days,
+        test_download=test_download,
     )
-    steps.append({"build_strategy_evidence": build_strategy_evidence(date_str, db_path)})
-    steps.append({"run_pattern_scan": run_pattern_scan(date_str, db_path)})
-    steps.append({"run_pattern_cross": run_pattern_cross(date_str)})
-    run([sys.executable, "recommendation/run_recommendation_workflow.py", "--date", date_str])
-    run([sys.executable, "recommendation/build_industry_rotation_evidence.py", "--date", date_str])
-    run([sys.executable, "recommendation/build_shareable_table.py", "--date", date_str])
-    verification = verify_public_outputs(date_str)
+    db_path = _run_base_macro_prep(
+        steps,
+        date_str=date_str,
+        foundation_db=foundation_db,
+        build_foundation_flag=build_foundation_flag,
+    )
+    _run_core_public_lane(
+        steps,
+        date_str=date_str,
+        previous_date=previous_date,
+        foundation_db=db_path,
+    )
+    _run_diagnostics_lane(
+        steps,
+        date_str=date_str,
+        foundation_db=db_path,
+    )
+    verification = verify_public_outputs(date_str, foundation_db=db_path)
     return {
         "date": date_str,
         "previous_date": previous_date,
@@ -1504,6 +1909,7 @@ def main() -> int:
         p.add_argument("--limit", type=int, default=0, help="Limit rows/stocks for smoke tests.")
         p.add_argument("--refresh", action="store_true", help="Force same-day iFind re-collection for fundamental collector.")
         p.add_argument("--excel-file", help="iFinD GUI Excel export path for fundamental facts import.")
+        p.add_argument("--macro-import-file", help="iFinD GUI macro export path for build_ifind_macro.")
         p.add_argument("--statement-type", default="financial_statement", help="Statement/fact group name for iFinD Excel import.")
         p.add_argument("--income-core-excel", help="iFinD GUI Excel path for core income statement facts.")
         p.add_argument("--balance-core-excel", help="iFinD GUI Excel path for core balance sheet facts.")
@@ -1528,6 +1934,15 @@ def main() -> int:
         p.add_argument("--min-samples-per-grade", type=int, help="Minimum labeled samples per grade for calibration.")
         p.add_argument("--windows", default="5,10,20", help="Comma-separated forward observation windows in trading days.")
         p.add_argument("--signal-date", help="Signal/reminder date for strategy outcome reports.")
+        p.add_argument("--raw-signal", help="Raw strategy signal id for research commands.")
+        p.add_argument("--verify-strategy", default="all", help="Strategy id for verify_strategy_environment: all, vcp, bollinger_bandit, ma2560.")
+        p.add_argument("--macro-snapshot", help="Optional macro snapshot JSON for verify_strategy_environment quadrant metadata/splitting.")
+        p.add_argument("--primary-window", type=int, default=20, help="Primary future-return window for research diagnostics.")
+        p.add_argument("--min-samples", type=int, default=20, help="Minimum samples per discovered State combo.")
+        p.add_argument("--min-ef-count", type=int, help="Optional minimum ef_count filter for State combo searches.")
+        p.add_argument("--max-ef-count", type=int, help="Optional maximum ef_count filter for State combo searches.")
+        p.add_argument("--apply-industry-etf-config", action="store_true", help="Apply generated industry ETF config to config/industry_rotation_assets.json.")
+        p.add_argument("--include-proxy-industry-etf", action="store_true", help="Include proxy ETF candidates in generated industry ETF config.")
 
     add_common(sub.add_parser("validate_foundation"))
     add_common(sub.add_parser("verify_public_outputs"))
@@ -1542,6 +1957,13 @@ def main() -> int:
     add_common(sub.add_parser("import_market_assets_db"))
     add_common(sub.add_parser("import_market_assets_db_range"))
     add_common(sub.add_parser("build_market_assets_state"))
+    add_common(sub.add_parser("build_ifind_macro"))
+    add_common(sub.add_parser("collect_macro_multisource"))
+    add_common(sub.add_parser("build_macro_chain_prior"))
+    add_common(sub.add_parser("build_industry_etf_coverage"))
+    add_common(sub.add_parser("build_industry_etf_config"))
+    add_common(sub.add_parser("build_recommendation"))
+    add_common(sub.add_parser("build_shareable_table"))
     add_common(sub.add_parser("build_strategy_evidence"))
     add_common(sub.add_parser("evaluate_strategy_evidence"))
     add_common(sub.add_parser("calibrate_strategy_evidence"))
@@ -1567,8 +1989,14 @@ def main() -> int:
     add_common(sub.add_parser("run_strategy_fit_observer"))
     add_common(sub.add_parser("process_ifind_data"))
     add_common(sub.add_parser("generate_daily_brief"))
+    add_common(sub.add_parser("analyze_ma2560_market_match_forward"))
+    add_common(sub.add_parser("audit_ma2560_stock_only_gap"))
     add_common(sub.add_parser("generate_strategy_outcome_report"))
     add_common(sub.add_parser("generate_strategy_outcome_range_report"))
+    add_common(sub.add_parser("search_2560_optimal_state"))
+    add_common(sub.add_parser("search_bollinger_optimal_state"))
+    add_common(sub.add_parser("search_vcp_optimal_state"))
+    add_common(sub.add_parser("verify_strategy_environment"))
     add_common(sub.add_parser("replay_history"))
     add_common(sub.add_parser("run_fundamental_analyze"))
     add_common(sub.add_parser("run_stock_ledger"))
@@ -1603,6 +2031,20 @@ def main() -> int:
         result = import_market_assets_db_range(args.date, days=max(1, args.moneyflow_days))
     elif args.command == "build_market_assets_state":
         result = build_market_assets_state(args.date)
+    elif args.command == "build_ifind_macro":
+        result = build_ifind_macro(args.date, args.macro_import_file)
+    elif args.command == "collect_macro_multisource":
+        result = collect_macro_multisource(args.date)
+    elif args.command == "build_macro_chain_prior":
+        result = build_macro_chain_prior(args.date)
+    elif args.command == "build_industry_etf_coverage":
+        result = build_industry_etf_coverage(args.date)
+    elif args.command == "build_industry_etf_config":
+        result = build_industry_etf_config(args.date, args.apply_industry_etf_config, args.include_proxy_industry_etf)
+    elif args.command == "build_recommendation":
+        result = build_recommendation(args.date)
+    elif args.command == "build_shareable_table":
+        result = build_shareable_table(args.date)
     elif args.command == "build_strategy_evidence":
         result = build_strategy_evidence(args.date, args.foundation_db, args.lookback_days)
     elif args.command == "evaluate_strategy_evidence":
@@ -1677,6 +2119,10 @@ def main() -> int:
         result = process_ifind_data(args.date)
     elif args.command == "generate_daily_brief":
         result = generate_daily_brief(args.date)
+    elif args.command == "analyze_ma2560_market_match_forward":
+        result = analyze_ma2560_market_match_forward(args.date, args.foundation_db)
+    elif args.command == "audit_ma2560_stock_only_gap":
+        result = audit_ma2560_stock_only_gap(args.date)
     elif args.command == "generate_strategy_outcome_report":
         result = generate_strategy_outcome_report(args.signal_date or args.previous_date, args.date, args.foundation_db)
     elif args.command == "generate_strategy_outcome_range_report":
@@ -1687,6 +2133,51 @@ def main() -> int:
             args.end_date or args.date,
             args.date,
             args.foundation_db,
+        )
+    elif args.command == "search_2560_optimal_state":
+        result = search_2560_optimal_state(
+            args.end_date or args.date,
+            args.start_date,
+            args.foundation_db,
+            args.raw_signal or "ma2560_golden_cross",
+            args.min_samples,
+            args.primary_window,
+            args.min_ef_count,
+            args.max_ef_count,
+            args.macro_snapshot,
+        )
+    elif args.command == "search_bollinger_optimal_state":
+        result = search_bollinger_optimal_state(
+            args.end_date or args.date,
+            args.start_date,
+            args.foundation_db,
+            args.min_samples,
+            args.primary_window,
+            args.min_ef_count,
+            args.max_ef_count,
+        )
+    elif args.command == "search_vcp_optimal_state":
+        result = search_vcp_optimal_state(
+            args.end_date or args.date,
+            args.start_date,
+            args.foundation_db,
+            args.raw_signal,
+            args.min_samples,
+            args.primary_window,
+            args.min_ef_count,
+            args.max_ef_count,
+        )
+    elif args.command == "verify_strategy_environment":
+        result = verify_strategy_environment(
+            args.end_date or args.date,
+            args.start_date,
+            args.foundation_db,
+            args.verify_strategy,
+            args.raw_signal,
+            args.min_samples,
+            args.primary_window,
+            args.min_ef_count,
+            args.max_ef_count,
         )
     elif args.command == "replay_history":
         if not args.start_date:

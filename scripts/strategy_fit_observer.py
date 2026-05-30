@@ -61,6 +61,8 @@ def create_tables(con: duckdb.DuckDBPyConnection) -> None:
             fit_reasons VARCHAR NOT NULL,
             source_module VARCHAR NOT NULL,
             params_json VARCHAR NOT NULL,
+            matched_pattern VARCHAR DEFAULT '',
+            pattern_boost DOUBLE DEFAULT 0.0,
             observed_at VARCHAR NOT NULL,
             research_only BOOLEAN NOT NULL,
             PRIMARY KEY (signal_date, stock_code, strategy_id, raw_signal)
@@ -99,6 +101,8 @@ def normalize_row(row: dict[str, Any], observed_at: str) -> dict[str, Any]:
         "fit_reasons": row.get("fit_reasons") or "",
         "source_module": row.get("source_module") or "",
         "params_json": row.get("params_json") or "{}",
+        "matched_pattern": row.get("matched_pattern") or "",
+        "pattern_boost": row.get("pattern_boost") or 0.0,
         "observed_at": observed_at,
         "research_only": True,
     }
@@ -137,8 +141,8 @@ def build_strategy_fit_observer(date_str: str, fit_db: Path = FIT_DB) -> dict[st
             (signal_date, stock_code, stock_code_6, strategy_id, signal_type,
              signal_name, raw_signal, signal_strength, reminder_eligible,
              display_scope, lifecycle_stage, strategy_environment_fit,
-             fit_reasons, source_module, params_json, observed_at, research_only)
-            VALUES (CAST(? AS DATE), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             fit_reasons, source_module, params_json, matched_pattern, pattern_boost, observed_at, research_only)
+            VALUES (CAST(? AS DATE), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 (
@@ -157,6 +161,8 @@ def build_strategy_fit_observer(date_str: str, fit_db: Path = FIT_DB) -> dict[st
                     row["fit_reasons"],
                     row["source_module"],
                     row["params_json"],
+                    row["matched_pattern"],
+                    row["pattern_boost"],
                     row["observed_at"],
                     row["research_only"],
                 )

@@ -1,0 +1,229 @@
+skill_version: "1.0"
+skill_name: strategy_backtest
+description: |
+  三策略（VCP / MA2560 / Bollinger Bandit）完整回测与监控的唯一强制入口。
+
+  核心约束：
+    - 本 Skill 是 Agent 讨论策略回测时的唯一合法入口。
+    - Agent 禁止自行编写回测代码、禁止简化策略规则、禁止绕过本 Skill。
+    - 所有策略执行必须调用本 Skill 定义的固定命令，参数不可修改。
+
+  策略完整定义来源：
+    - VCP: docs/STRATEGY_EXECUTION_SPEC.md + scripts/vcp_exit_manager.py
+    - MA2560: docs/STRATEGY_EXECUTION_2560_BOLLINGER_DETAIL.md + scripts/ma2560_execution_manager.py
+    - Bollinger Bandit: docs/STRATEGY_EXECUTION_SPEC.md + scripts/bollinger_execution_manager.py
+
+commands:
+  # ────────────────────────────────────────────────────────────────────────────
+  # 命令1: 完整策略回测（信号 + 出入场 + 量价 + 回踩）
+  # ────────────────────────────────────────────────────────────────────────────
+  run_strategy_backtest:
+    description: |
+      运行指定策略的完整历史回测。回测引擎强制使用完整的出入场规则：
+        - VCP: 假突破检测 → 硬止损(-6%) → ATR止损(2x) → 技术止损 → 时间退出 → 移动止损
+        - MA2560: 跌破MA60清仓 → 跌破MA25止损 → 盈利≥10%清仓 → 盈利5-10%减仓50%
+        - Bollinger Bandit: ATR异常 → 中轨跌破 → 递减MA止损 → 上轨回落减仓 → 时间退出
+      回测包含 entry_confirmation（量价确认）和 pullback counting（回踩次数）。
+    mandatory: true
+    agent_may_not_modify: true
+    entry_point:
+      type: python_cli
+      script: agently_adapter/stockpool_daily_runner.py
+      subcommand: run_classic_backtest
+    fixed_args:
+      - name: date
+        type: string
+        format: "YYYY-MM-DD"
+        description: 回测结束日期
+        required: true
+      - name: foundation_db
+        type: path
+        description: Foundation DB 路径
+        required: true
+      - name: strategy
+        type: enum
+        values: [composite, ef, vcp, ma2560, bollinger_bandit]
+        default: composite
+        description: |
+          策略模式。composite 使用完整三策略组合信号，
+          ef 仅使用 E/F State 信号，
+          vcp/ma2560/bollinger_bandit 为单策略回测（仅用于研究对比）。
+      - name: lookback_days
+        type: integer
+        default: 252
+        description: 回测历史天数
+      - name: max_positions
+        type: integer
+        default: 10
+        description: 最大同时持仓数
+      - name: min_ef
+        type: integer
+        default: 2
+        description: 最低 E/F 周期数
+      - name: initial_capital
+        type: float
+        default: 1000000
+        description: 初始资金
+    outputs:
+      - backtest_json
+      - backtest_html
+    guardrails:
+      - 禁止 Agent 修改 lookback_days / max_positions / min_ef 的默认值。
+      - 禁止 Agent 自行实现简化版回测逻辑。
+      - 回测结果必须包含 research_only: true 标记。
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 命令2: 今日最佳适配信号
+  # ────────────────────────────────────────────────────────────────────────────
+  get_today_top_signals:
+    description: |
+      获取今日最佳策略适配信号。信号生成必须经过完整的策略环境验证：
+        - 调用 strategy_environment_verifier.py 验证宏观象限匹配
+        - 调用各策略的 entry_confirmation 确认量价条件
+        - 计算 pullback_count 确认回踩次数合规
+      返回的信号包含完整的 entry_type、exit_rules、position_sizing 参数。
+    mandatory: true
+    agent_may_not_modify: true
+    entry_point:
+      type: python_cli
+      script: agently_adapter/stockpool_daily_runner.py
+      subcommand: build_strategy_signal_ledger
+    fixed_args:
+      - name: date
+        type: string
+        format: "YYYY-MM-DD"
+        description: 信号日期
+        required: true
+      - name: foundation_db
+        type: path
+        description: Foundation DB 路径
+        required: true
+    outputs:
+      - strategy_signal_ledger_json
+      - strategy_signal_ledger_db
+    guardrails:
+      - 禁止 Agent 跳过 entry_confirmation 步骤。
+      - 禁止 Agent 忽略 pullback_count 限制。
+      - 返回的信号必须标注 strategy_id 和完整的 exit_rules_reference。
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 命令3: 当前持仓监控
+  # ────────────────────────────────────────────────────────────────────────────
+  get_position_monitor:
+    description: |
+      监控当前持仓的出场条件触发状态。使用真实的出场检查函数：
+        - VCP: vcp_exit_manager.vcp_exit_check()
+        - MA2560: ma2560_execution_manager.ma2560_exit_check()
+        - Bollinger Bandit: bollinger_execution_manager.bb_full_exit_check()
+      返回每个持仓的当前状态（正常持有 / 接近触发 / 已触发）。
+    mandatory: true
+    agent_may_not_modify: true
+    entry_point:
+      type: python_cli
+      script: scripts/monitor_positions.py
+      subcommand: monitor
+    fixed_args:
+      - name: positions_json
+        type: path
+        description: 持仓数据文件路径
+        required: true
+      - name: foundation_db
+        type: path
+        description: Foundation DB 路径
+        required: true
+    outputs:
+      - position_monitor_html
+      - position_monitor_json
+    guardrails:
+      - 禁止 Agent 使用固定持有期替代真实出场检查。
+      - 禁止 Agent 简化出场规则（如仅检查单一止损线）。
+      - 输出必须包含 Research-Only 声明。
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 策略规则引用契约（Agent 必须遵守）
+# ──────────────────────────────────────────────────────────────────────────────
+strategy_rule_contract:
+  vcp:
+    full_name: "Volatility Contraction Pattern"
+    entry_rules:
+      - "ATR 连续收缩（3段下降）"
+      - "价格振幅收窄（5日振幅 < 20日振幅 × 60%）"
+      - "突破确认：收盘 > 10日最高 + 成交量 > 50日均量 × 1.5"
+    exit_rules:
+      - "假突破离场（3日内收盘 < pivot_point）"
+      - "硬止损 -6%"
+      - "ATR止损（2x ATR）"
+      - "技术止损（收缩低点 × 0.99）"
+      - "时间退出（20日未达5%盈利）"
+      - "移动止损（盈利回吐至成本）"
+    forbidden_simplifications:
+      - "禁止描述为'波动收缩后买入'"
+      - "禁止省略 entry_confirmation 中的 volume grading A/B/C"
+      - "禁止省略假突破检测"
+
+  ma2560:
+    full_name: "25/60 Moving Average Trend System"
+    entry_rules:
+      - "MA25 向上斜率"
+      - "价格在 MA25 ±2% 区间内或上方"
+      - "量能确认（冲量/做量/缩量分级 S/A/B/C）"
+      - "回踩次数 < 3"
+      - "非涨停状态"
+    exit_rules:
+      - "跌破 MA60：强制清仓"
+      - "跌破 MA25：止损"
+      - "盈利 ≥ 10%：全部清仓"
+      - "盈利 5-10%：减仓 50%"
+    forbidden_simplifications:
+      - "禁止描述为'均线交叉策略'或'金叉买入'"
+      - "禁止省略 volume confirmation（冲量/做量/缩量）"
+      - "禁止省略 pullback counting（回踩次数控制）"
+      - "禁止省略 MA25 向上斜率要求"
+
+  bollinger_bandit:
+    full_name: "John Hill Bollinger Bandit"
+    entry_rules:
+      - "收盘突破上轨（MA50 + 1σ）"
+      - "动量过滤：收盘 > 30周期前收盘"
+      - "上影线过滤（上影线 < 实体 × 2）"
+      - "量能分级 S/A/B"
+    exit_rules:
+      - "ATR 异常（当前 ATR > 2×入场 ATR）：减半"
+      - "中轨跌破（收盘 < 50日 SMA）：清仓"
+      - "递减 MA 止损（MA50 → MA10）"
+      - "上轨回落减仓（跌破布林上轨）"
+      - "时间退出（10日未达5%盈利）"
+    forbidden_simplifications:
+      - "禁止描述为'布林带突破策略'"
+      - "禁止省略 momentum filter（close > close_30_ago）"
+      - "禁止省略 degrading MA exit（动态递减均线）"
+      - "禁止省略 fake-breakout detection"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 全局约束
+# ──────────────────────────────────────────────────────────────────────────────
+global_guardrails:
+  - id: no_simplified_backtest
+    severity: critical
+    description: |
+      Agent 讨论任何策略回测时，必须调用 strategy_backtest skill 的 run_strategy_backtest 命令。
+      禁止自行编写回测代码，禁止简化出入场规则，禁止修改固定参数。
+
+  - id: no_strategy_simplification
+    severity: critical
+    description: |
+      Agent 讨论策略规则时，必须引用本 Skill 中 strategy_rule_contract 的完整定义。
+      禁止将 MA2560 描述为"均线交叉策略"，禁止将 VCP 描述为"波动收缩后买入"，
+      禁止将 Bollinger Bandit 描述为"布林带突破策略"。
+
+  - id: no_bypass_exit_rules
+    severity: critical
+    description: |
+      Agent 讨论持仓监控或出场决策时，必须调用 strategy_backtest skill 的 get_position_monitor 命令。
+      禁止使用固定持有期替代真实出场规则，禁止仅检查单一止损线。
+
+  - id: research_only
+    severity: warning
+    description: |
+      所有策略回测和信号输出必须包含 research_only: true 标记。
+      禁止输出 buy/sell 指令，禁止提供具体交易建议。

@@ -17,11 +17,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from w1_mn1_env_label import compute_w1_mn1_env_label
+
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_ROOT = ROOT / "outputs"
 REMINDER_DIR = OUTPUT_ROOT / "strategy_reminders"
 PUBLIC_DIR = ROOT / "public"
+VCP_RULE_PATH = ROOT / "config" / "vcp_state_market_match_rule.json"
 
 ALLOWED_MATURITY_LABELS = {"趋势新生", "趋势行进", "趋势延展", "防守参考线", "状态值得复核"}
 ENTRY_MATURITY = "趋势新生"
@@ -31,6 +34,24 @@ MA2560_MATCH_LABELS = {
     "market_unsupported": "2560 market_unsupported",
     "not_match": "2560 not_match",
 }
+VCP_VALIDATED_SUMMARY_FALLBACK = "本地验证有效：D1近20日收缩后释放；10日平均超额+2.30%，20日平均超额+4.69%，20日胜率56.16%。"
+BOLLINGER_VOL_STABLE_NOTE = "本地统计提示：波动稳定环境下，布林强盗信号历史表现优于波动活跃环境（+0.59% vs -0.49%）"
+BOLLINGER_VOL_ACTIVE_NOTE = "当前波动活跃，历史上此环境下布林强盗信号表现较弱"
+
+# Mark Minervini 外部验证数据（来自 MARK_MINERVINI_STATE_MATCH_ANALYSIS.md）
+MINERVINI_ENV_MATCH_TEXT = (
+    "外部验证：该环境与 Mark Minervini 72.4% 的交易选择一致"
+)
+
+# Nicolas Darvas 外部验证数据（来自 DARVAS_2560_STATE_MATCH_ANALYSIS.md）
+DARVAS_ENV_MATCH_TEXT = (
+    "外部验证：该环境与 Nicolas Darvas 79.3% 的交易选择一致"
+)
+
+# John Bollinger 外部验证数据（来自 BOLLINGER_BANDIT_STATE_MATCH_ANALYSIS.md）
+BOLLINGER_ENV_MATCH_TEXT = (
+    "外部验证：该环境与 John Bollinger 73.5% 的交易选择一致"
+)
 
 
 def ymd(date_str: str) -> str:
@@ -57,6 +78,21 @@ def load_json(path: Path, required: bool = False) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _parse_matched_pattern(raw: Any) -> dict[str, Any] | None:
+    if not raw:
+        return None
+    if isinstance(raw, dict):
+        return raw
+    try:
+        return json.loads(str(raw))
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+
+def load_vcp_rule(path: Path = VCP_RULE_PATH) -> dict[str, Any]:
+    return load_json(path, required=False)
+
+
 def default_paths(date_str: str) -> dict[str, Path]:
     date_ymd = ymd(date_str)
     return {
@@ -69,6 +105,9 @@ def default_paths(date_str: str) -> dict[str, Path]:
         "calibration": OUTPUT_ROOT / "strategy_evaluation" / f"strategy_evidence_calibration_{date_ymd}.json",
         "ifind_financial": OUTPUT_ROOT / "ifind" / f"financial_{date_ymd}.json",
         "ifind_industry": OUTPUT_ROOT / "ifind" / f"industry_{date_ymd}.json",
+        "macro_chain_prior": OUTPUT_ROOT / "macro_chain_prior" / f"macro_chain_prior_{date_ymd}.json",
+        # "reward_risk": OUTPUT_ROOT / "reward_risk" / f"reward_risk_{date_str}.json",
+        # NOTE: reward_risk 已降级为只读分析，不再作为排序/过滤依据
     }
 
 
@@ -103,10 +142,25 @@ def build_state_map(state_ef_path: Path, duration_path: Path) -> dict[str, dict[
         item = out.setdefault(key, {"stock_code": row.get("stock_code")})
         item.update(
             {
+                "stock_code": item.get("stock_code") or row.get("stock_code"),
+                "d1_close": item.get("d1_close") or row.get("d1_close"),
+                "mn1_state": item.get("mn1_state") or row.get("mn1_state_hex"),
+                "w1_state": item.get("w1_state") or row.get("w1_state_hex"),
+                "d1_state": item.get("d1_state") or row.get("d1_state_hex"),
+                "ef_count": item.get("ef_count") if item.get("ef_count") is not None else row.get("ef_count"),
                 "mn1_ef_duration": row.get("mn1_ef_duration"),
                 "w1_ef_duration": row.get("w1_ef_duration"),
                 "d1_ef_duration": row.get("d1_ef_duration"),
                 "all_three_ef_duration": row.get("all_three_ef_duration"),
+                "mn1_contraction_duration": row.get("mn1_contraction_duration"),
+                "w1_contraction_duration": row.get("w1_contraction_duration"),
+                "d1_contraction_duration": row.get("d1_contraction_duration"),
+                "mn1_days_since_contraction_exit": row.get("mn1_days_since_contraction_exit"),
+                "w1_days_since_contraction_exit": row.get("w1_days_since_contraction_exit"),
+                "d1_days_since_contraction_exit": row.get("d1_days_since_contraction_exit"),
+                "mn1_prev_contraction_duration": row.get("mn1_prev_contraction_duration"),
+                "w1_prev_contraction_duration": row.get("w1_prev_contraction_duration"),
+                "d1_prev_contraction_duration": row.get("d1_prev_contraction_duration"),
             }
         )
     return out
@@ -170,6 +224,16 @@ def build_evaluation_map(path: Path) -> dict[str, dict[str, Any]]:
     return out
 
 
+def build_prior_map(path: Path) -> dict[str, Any]:
+    payload = load_json(path, required=False)
+    return {
+        "macro_prior": payload.get("macro_prior") or {},
+        "market_style_prior": payload.get("market_style_prior") or {},
+        "strategy_priors": payload.get("strategy_priors") or {},
+        "by_industry": payload.get("by_industry") or {},
+    }
+
+
 def calibration_status(path: Path) -> dict[str, Any]:
     payload = load_json(path, required=False)
     status = payload.get("status")
@@ -209,8 +273,52 @@ def sr_note(sr: dict[str, Any] | None) -> str | None:
     return None
 
 
+def safe_int(value: Any, default: int | None = None) -> int | None:
+    try:
+        if value in (None, ""):
+            return default
+        return int(float(value))
+    except (TypeError, ValueError):
+        return default
+
+
+def decode_volatility_bit(state_score: Any) -> int | None:
+    value = safe_int(state_score)
+    if value is None:
+        return None
+    return abs(value) & 1
+
+
+def decode_state_hex_value(value: Any) -> int | None:
+    if value in (None, ""):
+        return None
+    text = str(value).strip().upper()
+    if not text:
+        return None
+    sign = -1 if text.startswith("-") else 1
+    text = text.lstrip("+-")
+    try:
+        return sign * int(text, 16)
+    except ValueError:
+        return safe_int(value)
+
+
+def decode_state_volatility_bit(state_score: Any, state_hex: Any = None) -> int | None:
+    bit = decode_volatility_bit(state_score)
+    if bit is not None:
+        return bit
+    value = decode_state_hex_value(state_hex)
+    if value is None:
+        return None
+    return abs(value) & 1
+
+
 def percent(value: Any) -> str:
     if value is None:
+        return "-"
+    try:
+        return f"{float(value) * 100:.2f}%"
+    except (TypeError, ValueError):
         return "-"
 
 
@@ -221,10 +329,77 @@ def ma2560_environment(signal: dict[str, Any]) -> dict[str, Any]:
         "market_match_level": signal.get("ma2560_market_match_level") or "not_match",
         "state_combo": signal.get("ma2560_state_combo") or "",
     }
-    try:
-        return f"{float(value) * 100:.2f}%"
-    except (TypeError, ValueError):
-        return "-"
+
+
+def ma2560_match_tag(signal: dict[str, Any]) -> str | None:
+    if signal.get("strategy_id") != "ma2560":
+        return None
+    level = signal.get("ma2560_market_match_level") or "not_match"
+    return MA2560_MATCH_LABELS.get(level, f"2560 {level}")
+
+
+def bollinger_local_stat_note(signal: dict[str, Any], state: dict[str, Any]) -> str:
+    if signal.get("strategy_id") != "bollinger_bandit":
+        return ""
+    d1_vol_bit = decode_state_volatility_bit(
+        state.get("d1_state_score") or signal.get("d1_state_score"),
+        state.get("d1_state") or signal.get("d1_state"),
+    )
+    if d1_vol_bit == 0:
+        return BOLLINGER_VOL_STABLE_NOTE
+    if d1_vol_bit == 1:
+        return BOLLINGER_VOL_ACTIVE_NOTE
+    return ""
+
+
+def vcp_environment(signal: dict[str, Any], state: dict[str, Any], rule: dict[str, Any]) -> dict[str, Any]:
+    if signal.get("strategy_id") != "vcp":
+        return {
+            "path_match": False,
+            "status": "not_vcp",
+            "validated_summary": "",
+            "d1_days_since_contraction_exit": None,
+            "d1_prev_contraction_duration": None,
+        }
+    strategy_rule = rule.get("strategy") if isinstance(rule.get("strategy"), dict) else {}
+    allowed = set(strategy_rule.get("allowed_raw_signals") or rule.get("allowed_raw_signals") or [])
+    if allowed and signal.get("raw_signal") not in allowed:
+        return {
+            "path_match": False,
+            "status": "raw_signal_not_in_rule",
+            "validated_summary": "",
+            "d1_days_since_contraction_exit": state.get("d1_days_since_contraction_exit"),
+            "d1_prev_contraction_duration": state.get("d1_prev_contraction_duration"),
+        }
+    d1_since_exit = safe_int(state.get("d1_days_since_contraction_exit"))
+    d1_prev_contraction = safe_int(state.get("d1_prev_contraction_duration"), 0) or 0
+    path = rule.get("state_path_match") if isinstance(rule.get("state_path_match"), dict) else {}
+    optimal_path = rule.get("optimal_path") if isinstance(rule.get("optimal_path"), dict) else {}
+    window = (
+        safe_int(path.get("required_recent_d1_contraction_window_days"))
+        or safe_int(optimal_path.get("lookback_trading_days"))
+        or 20
+    )
+    path_match = d1_since_exit is not None and 1 <= d1_since_exit <= window and d1_prev_contraction > 0
+    evidence = rule.get("evidence") if isinstance(rule.get("evidence"), dict) else {}
+    evidence_20260501 = rule.get("evidence_20260501") if isinstance(rule.get("evidence_20260501"), dict) else {}
+    summary = evidence.get("display_summary") or evidence_20260501.get("display_summary") or VCP_VALIDATED_SUMMARY_FALLBACK
+    return {
+        "path_match": path_match,
+        "status": "local_validated" if path_match else "not_path_match",
+        "path_rule": "D1近20日收缩后释放",
+        "validated_summary": summary if path_match else "",
+        "d1_days_since_contraction_exit": d1_since_exit,
+        "d1_prev_contraction_duration": d1_prev_contraction,
+    }
+
+
+def build_environment_tags(signal: dict[str, Any], evaluation: dict[str, Any] | None) -> list[str]:
+    tags = parse_tags((evaluation or {}).get("environment_tags"))
+    match_tag = ma2560_match_tag(signal)
+    if match_tag and match_tag not in tags:
+        tags.append(match_tag)
+    return tags
 
 
 def build_card(
@@ -234,16 +409,23 @@ def build_card(
     fundamental: dict[str, Any] | None,
     ifind: dict[str, Any] | None,
     evaluation: dict[str, Any] | None,
+    prior_map: dict[str, Any],
     cal: dict[str, Any],
+    vcp_rule: dict[str, Any],
+    rr: dict[str, Any] | None,
 ) -> dict[str, Any]:
     label = maturity_label(signal)
     if label not in ALLOWED_MATURITY_LABELS:
         raise ValueError(f"unsupported reminder label: {label}")
 
+    industry = (evaluation or {}).get("sw_l1") or ((ifind or {}).get("industry") or {}).get("sw_l1") or "未分类"
+    strategy_id = signal.get("strategy_id")
+    industry_prior = (prior_map.get("by_industry") or {}).get(industry) or {}
+    strategy_prior = (prior_map.get("strategy_priors") or {}).get(strategy_id) or {}
     return {
         "stock_code": signal.get("stock_code"),
         "stock_code_6": code6(signal.get("stock_code")),
-        "stock_name": (evaluation or {}).get("stock_name") or (fundamental or {}).get("stock_name"),
+        "stock_name": (evaluation or {}).get("stock_name") or (fundamental or {}).get("stock_name") or signal.get("stock_name"),
         "maturity": label,
         "strategy": {
             "strategy_id": signal.get("strategy_id"),
@@ -258,6 +440,7 @@ def build_card(
         "strategy_environment_fit": signal.get("strategy_environment_fit") or "待观察",
         "fit_reasons": signal.get("fit_reasons") or "",
         "ma2560_environment": ma2560_environment(signal),
+        "local_stat_note": bollinger_local_stat_note(signal, state),
         "state_environment": {
             "mn1_state": state.get("mn1_state"),
             "w1_state": state.get("w1_state"),
@@ -273,6 +456,15 @@ def build_card(
             "w1_ef_duration": state.get("w1_ef_duration"),
             "d1_ef_duration": state.get("d1_ef_duration"),
             "all_three_ef_duration": state.get("all_three_ef_duration"),
+            "mn1_contraction_duration": state.get("mn1_contraction_duration"),
+            "w1_contraction_duration": state.get("w1_contraction_duration"),
+            "d1_contraction_duration": state.get("d1_contraction_duration"),
+            "mn1_days_since_contraction_exit": state.get("mn1_days_since_contraction_exit"),
+            "w1_days_since_contraction_exit": state.get("w1_days_since_contraction_exit"),
+            "d1_days_since_contraction_exit": state.get("d1_days_since_contraction_exit"),
+            "mn1_prev_contraction_duration": state.get("mn1_prev_contraction_duration"),
+            "w1_prev_contraction_duration": state.get("w1_prev_contraction_duration"),
+            "d1_prev_contraction_duration": state.get("d1_prev_contraction_duration"),
         },
         "sr_position": {
             "boundary_period": (sr or {}).get("boundary_period"),
@@ -286,11 +478,25 @@ def build_card(
         }
         if sr
         else None,
+        # NOTE: reward_risk removed — 阻力位止盈违背"让利润奔跑"原则
         "fundamental": fundamental,
         "ifind": ifind,
+        "macro_chain_prior": {
+            "macro_prior": prior_map.get("macro_prior") or {},
+            "market_style_prior": prior_map.get("market_style_prior") or {},
+            "strategy_prior": strategy_prior,
+            "industry_prior": industry_prior,
+        },
         "scene_tags": build_scene_tags(signal, ifind, evaluation),
         "strategy_evaluation": evaluation,
-        "environment_tags": parse_tags((evaluation or {}).get("environment_tags")),
+        "environment_tags": build_environment_tags(signal, evaluation),
+        "vcp_environment": vcp_environment(signal, state, vcp_rule),
+        "vcp_entry_confirmation": signal.get("vcp_entry_confirmation"),
+        "vcp_stop_prices": signal.get("vcp_stop_prices"),
+        "matched_pattern": _parse_matched_pattern(signal.get("matched_pattern")),
+        "w1_mn1_env": compute_w1_mn1_env_label(
+            state.get("mn1_state_score"), state.get("w1_state_score")
+        ),
         "calibration": cal,
         "research_only": True,
     }
@@ -309,13 +515,20 @@ def build_scene_tags(signal: dict[str, Any], ifind: dict[str, Any] | None, evalu
     if cash in {"现金流健康", "现金流谨慎"}:
         tags.append(cash)
     strategy_id = signal.get("strategy_id")
-    if strategy_id == "ma2560":
-        level = signal.get("ma2560_market_match_level") or "not_match"
-        tags.append(MA2560_MATCH_LABELS.get(level, f"2560 {level}"))
     env_tags = parse_tags((evaluation or {}).get("environment_tags"))
     if env_tags and strategy_id:
         tags.append(f"{env_tags[0]} + {strategy_id}")
     return tags
+
+
+def apply_prior_scene_tag(card: dict[str, Any]) -> None:
+    industry_prior = ((card.get("macro_chain_prior") or {}).get("industry_prior") or {})
+    label = industry_prior.get("posterior_adjustment_label")
+    if not label:
+        return
+    tags = card.setdefault("scene_tags", [])
+    if label not in tags:
+        tags.append(label)
 
 
 def parse_tags(value: Any) -> list[str]:
@@ -327,10 +540,17 @@ def parse_tags(value: Any) -> list[str]:
 
 
 def card_sort_key(card: dict[str, Any]) -> tuple[Any, ...]:
+    """Sort by: 适配度 > 大周期背景 > 证据分数 > State分数 > 共振持续 > 代码"""
     state = card.get("state_environment") or {}
     duration = card.get("state_duration") or {}
     evaluation = card.get("strategy_evaluation") or {}
+    fit = card.get("strategy_environment_fit") or "待观察"
+    w1_mn1 = card.get("w1_mn1_env") or {}
+    env_priority = {"大周期共振": 0, "大周期过渡": 1, "双重收缩": 2}
+    fit_order = {"最佳适配": 0, "适配": 1, "弱适配": 2, "待观察": 3}
     return (
+        fit_order.get(fit, 99),
+        env_priority.get(w1_mn1.get("label", ""), 99),
         -(float(evaluation.get("evidence_score") or 0.0)),
         -(int(state.get("state_score_sum") or 0)),
         -(int(duration.get("all_three_ef_duration") or 0)),
@@ -352,16 +572,71 @@ def generate_html(payload: dict[str, Any]) -> str:
         duration = card.get("state_duration") or {}
         strategy = card.get("strategy") or {}
         sr = card.get("sr_position") or {}
+        rr = card.get("reward_risk") or {}
         fundamental = card.get("fundamental") or {}
         ifind = card.get("ifind") or {}
+        prior = card.get("macro_chain_prior") or {}
+        industry_prior = prior.get("industry_prior") or {}
         ifind_financial = ifind.get("financial") or {}
         ifind_industry = ifind.get("industry") or {}
         evaluation = card.get("strategy_evaluation") or {}
         tags = " / ".join(card.get("environment_tags") or []) or "-"
         scene_tags = " / ".join(card.get("scene_tags") or []) or "-"
+        w1_mn1_env = card.get("w1_mn1_env") or {}
+        w1_mn1_line = (
+            f'<br><span style="color:{esc(w1_mn1_env.get("color", "#6b7280"))};font-size:12px;">'
+            f'大周期背景：{esc(w1_mn1_env.get("label", "大周期过渡"))}'
+            f' <span style="color:#999;">— {esc(w1_mn1_env.get("description", ""))}</span></span>'
+        ) if w1_mn1_env else ""
+        founder_line = ""
+        sid = strategy.get("strategy_id") or ""
+        if sid == "vcp":
+            vcp_env = card.get("vcp_environment") or {}
+            if vcp_env.get("path_match"):
+                founder_line = (
+                    f'<br><span style="color:#059669;font-size:12px;">'
+                    f'{esc(MINERVINI_ENV_MATCH_TEXT)}'
+                    f'</span>'
+                )
+        elif sid == "ma2560":
+            ma2560_env = card.get("ma2560_environment") or {}
+            if ma2560_env.get("market_match_level") == "full_match":
+                founder_line = (
+                    f'<br><span style="color:#059669;font-size:12px;">'
+                    f'{esc(DARVAS_ENV_MATCH_TEXT)}'
+                    f'</span>'
+                )
+        elif sid == "bollinger_bandit":
+            local_note = card.get("local_stat_note") or ""
+            state = card.get("state_environment") or {}
+            # volatility_bit=0 对应波动稳定环境（D1 state E = 扩张有趋势，波动稳定）
+            is_vol_stable = "波动稳定" in str(local_note) or state.get("d1_state") == "E"
+            if is_vol_stable:
+                founder_line = (
+                    f'<br><span style="color:#059669;font-size:12px;">'
+                    f'{esc(BOLLINGER_ENV_MATCH_TEXT)}'
+                    f'</span>'
+                )
+        pattern_info = card.get("matched_pattern")
+        pattern_line = ""
+        if pattern_info and pattern_info.get("pattern_status") == "verified":
+            boost = pattern_info.get("pattern_boost", 0)
+            pattern_line = (
+                f'<br><span style="color:#059669;font-size:12px;">'
+                f'跃迁模式：D1{esc(pattern_info.get("pattern_description",""))} | '
+                f'历史{pattern_info.get("pattern_mean_excess",0):+.1%} | '
+                f'n={pattern_info.get("pattern_n",0)} | '
+                f'加成{boost:+.1%}'
+                f'</span>'
+            )
+        strategy = card.get("strategy") or {}
+        conviction = strategy.get("conviction_level", "")
+        if conviction == "highest":
+            pattern_line += ' <span style="color:#d97706;font-weight:bold;">★ 四维共振</span>'
         fit = card.get("strategy_environment_fit") or "待观察"
         lifecycle = card.get("lifecycle_stage") or card.get("maturity")
         fit_reasons = card.get("fit_reasons") or "-"
+        local_stat_note = card.get("local_stat_note") or ""
         ma2560 = card.get("ma2560_environment") or {}
         ma2560_level = ma2560.get("market_match_level") or "not_match"
         ma2560_line = ""
@@ -370,6 +645,11 @@ def generate_html(payload: dict[str, Any]) -> str:
                 f"<br><span>{esc(MA2560_MATCH_LABELS.get(ma2560_level, f'2560 {ma2560_level}'))} "
                 f"{esc(ma2560.get('state_combo') or '')}</span>"
             )
+        vcp = card.get("vcp_environment") or {}
+        vcp_line = ""
+        if (strategy.get("strategy_id") or "") == "vcp" and vcp.get("path_match"):
+            vcp_line = f"<br><span>{esc(vcp.get('path_rule'))} | {esc(vcp.get('validated_summary'))}</span>"
+        local_stat_line = f"<br><span>{esc(local_stat_note)}</span>" if local_stat_note else ""
         ifind_text = ifind_financial.get("summary") or "-"
         industry_text = ifind_industry.get("summary") or "-"
         return f"""
@@ -377,12 +657,12 @@ def generate_html(payload: dict[str, Any]) -> str:
           <td><strong>{esc(card.get("stock_code"))}</strong><br><span>{esc(card.get("stock_name") or "")}</span></td>
           <td>{esc(lifecycle)}<br><span>{esc(card.get("maturity"))}</span></td>
           <td>{esc(strategy.get("strategy_id"))}<br><span>{esc(strategy.get("signal_name"))}</span></td>
-          <td>{esc(fit)}<br><span>{esc(fit_reasons)}</span>{ma2560_line}</td>
+          <td>{esc(fit)}<br><span>{esc(fit_reasons)}</span>{ma2560_line}{vcp_line}{local_stat_line}{pattern_line}</td>
           <td>MN1 {esc(state.get("mn1_state"))} / W1 {esc(state.get("w1_state"))} / D1 {esc(state.get("d1_state"))}<br><span>score {esc(state.get("state_score_sum"))}, ef {esc(state.get("ef_count"))}</span></td>
           <td>D1 {esc(duration.get("d1_ef_duration"))}<br><span>all-three {esc(duration.get("all_three_ef_duration"))}</span></td>
           <td>{esc(sr.get("boundary_direction") or "-")}<br><span>{esc(sr.get("boundary_period") or "")} {esc(sr.get("boundary_type") or "")} {percent(sr.get("distance_pct"))}</span></td>
-          <td>{esc(tags)}</td>
-          <td>{esc(ifind_text)}<br><span>{esc(industry_text)}</span><br><span>{esc(scene_tags)}</span></td>
+          <td>{esc(tags)}{w1_mn1_line}{founder_line}</td>
+          <td>{esc(ifind_text)}<br><span>{esc(industry_text)}</span><br><span>{esc(scene_tags)}</span><br><span>{esc(industry_prior.get("posterior_adjustment_label") or "")} {esc(industry_prior.get("chain_prior_score") or "")}</span></td>
           <td>{esc(evaluation.get("evidence_tier") or "-")}<br><span>{esc(evaluation.get("evidence_score") or "")}</span></td>
           <td>{esc((fundamental.get("summary") or "")[:120])}</td>
           <td>{esc((card.get("calibration") or {}).get("status"))}</td>
@@ -441,6 +721,8 @@ def generate_html(payload: dict[str, Any]) -> str:
     th {{ background: #f0f3f8; color: #344054; font-weight: 650; }}
     td span {{ color: #667085; font-size: 12px; }}
     tr:last-child td {{ border-bottom: 0; }}
+    tr.high-value-rr {{ background: #ecfdf5; }}
+    tr.high-value-rr td {{ border-left: 3px solid #16a34a; }}
   </style>
 </head>
 <body>
@@ -463,7 +745,12 @@ def build_reminder_brief(date_str: str) -> dict[str, Any]:
     fundamental_map = build_fundamental_map(paths["fundamental_ledger"])
     ifind_map = build_ifind_map(paths["ifind_financial"], paths["ifind_industry"])
     evaluation_map = build_evaluation_map(paths["strategy_evaluation"])
+    prior_map = build_prior_map(paths["macro_chain_prior"])
     cal = calibration_status(paths["calibration"])
+    vcp_rule = load_vcp_rule()
+
+    # rr_map = build_rr_map(paths.get("reward_risk", Path()))
+    # NOTE: RR 已降级，不再加载
 
     cards = []
     missing_state = 0
@@ -481,15 +768,19 @@ def build_reminder_brief(date_str: str) -> dict[str, Any]:
                 fundamental_map.get(key),
                 ifind_map.get(key),
                 evaluation_map.get(key),
+                prior_map,
                 cal,
+                vcp_rule,
+                None,  # rr_map removed
             )
         )
+        apply_prior_scene_tag(cards[-1])
     cards.sort(key=card_sort_key)
 
     maturity_counts = Counter(card["maturity"] for card in cards)
     strategy_counts = Counter((card.get("strategy") or {}).get("strategy_id") for card in cards)
     payload = {
-        "schema_version": "strategy_reminder_brief_v1",
+        "schema_version": "strategy_reminder_brief_v2",
         "date": date_str,
         "generated_at": generated_at,
         "total_signals_input": len(signals),

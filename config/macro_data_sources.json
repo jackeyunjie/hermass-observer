@@ -1,0 +1,274 @@
+{
+  "schema_version": "macro_data_sources_v1",
+  "research_only": true,
+  "policy": {
+    "raw_layer": "L0 source rows are stored with source_api/source_query evidence.",
+    "priority": [
+      "ifind_gui_or_api",
+      "akshare",
+      "tushare",
+      "blackwolf",
+      "tencent_finance",
+      "sina_finance"
+    ],
+    "token_policy": "Use environment variables only. Never write tokens into config or outputs."
+  },
+  "macro_indicators": [
+    {
+      "code": "BW:000001.SH",
+      "name": "上证指数",
+      "category": "market",
+      "frequency": "daily",
+      "unit": "点",
+      "use": "A股整体风险偏好代理",
+      "status": "external_active"
+    },
+    {
+      "code": "BW:000300.SH",
+      "name": "沪深300",
+      "category": "market",
+      "frequency": "daily",
+      "unit": "点",
+      "use": "大盘风格与核心资产风险偏好代理",
+      "status": "external_active"
+    },
+    {
+      "code": "BW:000905.SH",
+      "name": "中证500",
+      "category": "market",
+      "frequency": "daily",
+      "unit": "点",
+      "use": "中盘风格风险偏好代理",
+      "status": "external_active"
+    },
+    {
+      "code": "BW:000852.SH",
+      "name": "中证1000",
+      "category": "market",
+      "frequency": "daily",
+      "unit": "点",
+      "use": "小盘风格风险偏好代理",
+      "status": "external_active"
+    },
+    {
+      "code": "BW:399006.SZ",
+      "name": "创业板指",
+      "category": "style",
+      "frequency": "daily",
+      "unit": "点",
+      "use": "成长风格代理",
+      "status": "external_active"
+    },
+    {
+      "code": "BW:512480.SH",
+      "name": "半导体ETF",
+      "category": "style",
+      "frequency": "daily",
+      "unit": "元",
+      "use": "科技成长风险偏好代理",
+      "status": "external_active"
+    },
+    {
+      "code": "BW:512880.SH",
+      "name": "证券ETF",
+      "category": "style",
+      "frequency": "daily",
+      "unit": "元",
+      "use": "金融Beta与市场成交风险偏好代理",
+      "status": "external_active"
+    },
+    {
+      "code": "TENCENT:sh000001",
+      "name": "腾讯财经:上证指数",
+      "category": "market_vendor_crosscheck",
+      "frequency": "daily",
+      "unit": "点",
+      "use": "腾讯财经指数交叉校验",
+      "status": "external_active"
+    },
+    {
+      "code": "TENCENT:sz399006",
+      "name": "腾讯财经:创业板指",
+      "category": "market_vendor_crosscheck",
+      "frequency": "daily",
+      "unit": "点",
+      "use": "腾讯财经成长风格交叉校验",
+      "status": "external_active"
+    },
+    {
+      "code": "SINA:sh000001",
+      "name": "新浪财经:上证指数",
+      "category": "market_vendor_crosscheck",
+      "frequency": "daily",
+      "unit": "点",
+      "use": "新浪财经指数交叉校验",
+      "status": "external_active"
+    },
+    {
+      "code": "SINA:sz399006",
+      "name": "新浪财经:创业板指",
+      "category": "market_vendor_crosscheck",
+      "frequency": "daily",
+      "unit": "点",
+      "use": "新浪财经成长风格交叉校验",
+      "status": "external_active"
+    },
+    {
+      "code": "AK:macro_china_cpi_yearly",
+      "name": "AKShare:CPI同比",
+      "category": "inflation",
+      "frequency": "monthly",
+      "unit": "%",
+      "use": "消费端通胀压力旁路",
+      "status": "external_active"
+    },
+    {
+      "code": "AK:macro_china_ppi_yearly",
+      "name": "AKShare:PPI同比",
+      "category": "inflation",
+      "frequency": "monthly",
+      "unit": "%",
+      "use": "工业品价格周期旁路",
+      "status": "external_active"
+    },
+    {
+      "code": "AK:macro_china_pmi_yearly",
+      "name": "AKShare:制造业PMI",
+      "category": "growth",
+      "frequency": "monthly",
+      "unit": "%",
+      "use": "制造业景气旁路",
+      "status": "external_active"
+    },
+    {
+      "code": "TS:cn_m",
+      "name": "Tushare:货币供应量",
+      "category": "credit",
+      "frequency": "monthly",
+      "unit": "%",
+      "use": "M1/M2信用周期旁路",
+      "status": "external_active"
+    },
+    {
+      "code": "TS:sf_month",
+      "name": "Tushare:社会融资规模",
+      "category": "credit",
+      "frequency": "monthly",
+      "unit": "亿元",
+      "use": "社融信用周期旁路",
+      "status": "external_active"
+    }
+  ],
+  "blackwolf_market_assets": [
+    {
+      "indicator_code": "BW:000001.SH",
+      "symbol": "000001.SH",
+      "name": "上证指数",
+      "category": "market"
+    },
+    {
+      "indicator_code": "BW:000300.SH",
+      "symbol": "000300.SH",
+      "name": "沪深300",
+      "category": "market"
+    },
+    {
+      "indicator_code": "BW:000905.SH",
+      "symbol": "000905.SH",
+      "name": "中证500",
+      "category": "market"
+    },
+    {
+      "indicator_code": "BW:000852.SH",
+      "symbol": "000852.SH",
+      "name": "中证1000",
+      "category": "market"
+    },
+    {
+      "indicator_code": "BW:399006.SZ",
+      "symbol": "399006.SZ",
+      "name": "创业板指",
+      "category": "style"
+    },
+    {
+      "indicator_code": "BW:512480.SH",
+      "symbol": "512480.SH",
+      "name": "半导体ETF",
+      "category": "style"
+    },
+    {
+      "indicator_code": "BW:512880.SH",
+      "symbol": "512880.SH",
+      "name": "证券ETF",
+      "category": "style"
+    }
+  ],
+  "tencent_quotes": [
+    {
+      "indicator_code": "TENCENT:sh000001",
+      "symbol": "sh000001",
+      "name": "腾讯财经:上证指数",
+      "category": "market_vendor_crosscheck"
+    },
+    {
+      "indicator_code": "TENCENT:sz399006",
+      "symbol": "sz399006",
+      "name": "腾讯财经:创业板指",
+      "category": "market_vendor_crosscheck"
+    }
+  ],
+  "sina_quotes": [
+    {
+      "indicator_code": "SINA:sh000001",
+      "symbol": "sh000001",
+      "name": "新浪财经:上证指数",
+      "category": "market_vendor_crosscheck"
+    },
+    {
+      "indicator_code": "SINA:sz399006",
+      "symbol": "sz399006",
+      "name": "新浪财经:创业板指",
+      "category": "market_vendor_crosscheck"
+    }
+  ],
+  "akshare": [
+    {
+      "indicator_code": "AK:macro_china_cpi_yearly",
+      "function": "macro_china_cpi_yearly",
+      "name": "AKShare:CPI同比",
+      "date_candidates": ["月份", "日期", "时间"],
+      "value_candidates": ["今值", "当月同比", "同比", "值"]
+    },
+    {
+      "indicator_code": "AK:macro_china_ppi_yearly",
+      "function": "macro_china_ppi_yearly",
+      "name": "AKShare:PPI同比",
+      "date_candidates": ["月份", "日期", "时间"],
+      "value_candidates": ["今值", "当月同比", "同比", "值"]
+    },
+    {
+      "indicator_code": "AK:macro_china_pmi_yearly",
+      "function": "macro_china_pmi_yearly",
+      "name": "AKShare:制造业PMI",
+      "date_candidates": ["月份", "日期", "时间"],
+      "value_candidates": ["今值", "制造业PMI", "值"]
+    }
+  ],
+  "tushare": [
+    {
+      "indicator_code": "TS:cn_m",
+      "api": "cn_m",
+      "name": "Tushare:货币供应量",
+      "date_candidates": ["month", "m", "date", "period"],
+      "value_candidates": ["m2_yoy", "m1_yoy", "m0_yoy"]
+    },
+    {
+      "indicator_code": "TS:sf_month",
+      "api": "sf_month",
+      "name": "Tushare:社会融资规模",
+      "date_candidates": ["month", "date", "period"],
+      "value_candidates": ["inc_month", "inc_cumval", "stk_endval"]
+    }
+  ],
+  "tushare_min_interval_seconds": 61
+}

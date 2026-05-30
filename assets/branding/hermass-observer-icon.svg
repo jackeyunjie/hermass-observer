@@ -1,0 +1,14 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>Hermass Observer Icon</title>
+  <desc>Standalone Hermass Observer symbol.</desc>
+
+  <rect x="0" y="0" width="256" height="256" rx="56" fill="#F5F1E8"/>
+  <path d="M61 128C61 91.5492 91.1878 62 128.421 62H159.5" stroke="#14323D" stroke-width="18" stroke-linecap="round"/>
+  <path d="M195 128C195 164.451 164.812 194 127.579 194H96.5" stroke="#14323D" stroke-width="18" stroke-linecap="round"/>
+  <rect x="79" y="79" width="28" height="98" rx="14" fill="#0E7C66"/>
+  <rect x="149" y="79" width="28" height="98" rx="14" fill="#0E7C66"/>
+  <path d="M105 149C124.313 136.063 139.646 126.431 161 107" stroke="#0E7C66" stroke-width="24" stroke-linecap="round"/>
+  <path d="M78 165.5C94.6667 161.167 109.755 154.325 123.266 144.973C136.778 135.621 148.689 124.963 159 113" stroke="#8AD2C0" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="184" cy="82" r="13" fill="#D98A1A"/>
+  <path d="M72 206H184" stroke="#14323D" stroke-width="10" stroke-linecap="round" opacity="0.18"/>
+</svg>

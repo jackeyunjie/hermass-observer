@@ -98,7 +98,9 @@ def load_market_asset_support(date_str: str) -> dict[str, dict[str, Any]]:
         for row in csv.DictReader(f):
             sw_l1 = str(row.get("sw_l1") or "").strip()
             if row.get("asset_type") == "industry_etf" and sw_l1:
-                rows[sw_l1] = row
+                current = rows.get(sw_l1)
+                if current is None or fnum(row.get("ef_count"), -1.0) > fnum(current.get("ef_count"), -1.0):
+                    rows[sw_l1] = row
     return rows
 
 

@@ -123,6 +123,33 @@ phases:
   # 指数 State → 行业 ETF State → 行业资金流 → 行业集中度
   # ═══════════════════════════════════════════════════════════
   macro:
+    - id: build_ifind_macro
+      layer: 1
+      layer_cn: 宏观/市场层
+      depends_on:
+        - preflight_freshness
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - build_ifind_macro
+        - --date
+        - "{date}"
+
+    - id: collect_macro_multisource
+      layer: 1
+      layer_cn: 宏观/市场层
+      depends_on:
+        - build_ifind_macro
+        - download_market_assets
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - collect_macro_multisource
+        - --date
+        - "{date}"
+
     - id: build_market_assets_state
       layer: 1
       layer_cn: 宏观/市场层
@@ -132,6 +159,32 @@ phases:
       command:
         - python3
         - scripts/build_market_assets_state.py
+        - --date
+        - "{date}"
+
+    - id: build_industry_etf_coverage
+      layer: 1
+      layer_cn: 宏观/市场层
+      depends_on:
+        - build_market_assets_state
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - build_industry_etf_coverage
+        - --date
+        - "{date}"
+
+    - id: build_industry_etf_config_pre_audit
+      layer: 1
+      layer_cn: 宏观/市场层
+      depends_on:
+        - build_industry_etf_coverage
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - build_industry_etf_config
         - --date
         - "{date}"
 
@@ -149,6 +202,21 @@ phases:
         - --days
         - "5"
         - --no-csv-fallback
+
+    - id: build_macro_chain_prior
+      layer: 1
+      layer_cn: 宏观/市场层
+      depends_on:
+        - collect_macro_multisource
+        - build_market_assets_state
+        - build_industry_etf_config_pre_audit
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - build_macro_chain_prior
+        - --date
+        - "{date}"
 
   # ═══════════════════════════════════════════════════════════
   # Layer 2: 个股底座层
@@ -293,11 +361,14 @@ phases:
         - build_strategy_evidence
         - evaluate_strategy_evidence
         - build_market_assets_state
+        - build_industry_etf_config_pre_audit
+        - build_macro_chain_prior
         - build_state_cache
       action_type: python_cli
       command:
         - python3
-        - recommendation/run_recommendation_workflow.py
+        - agently_adapter/stockpool_daily_runner.py
+        - build_recommendation
         - --date
         - "{date}"
 
@@ -309,7 +380,8 @@ phases:
       action_type: python_cli
       command:
         - python3
-        - recommendation/build_industry_rotation_evidence.py
+        - agently_adapter/stockpool_daily_runner.py
+        - build_industry_rotation
         - --date
         - "{date}"
 
@@ -321,7 +393,143 @@ phases:
       action_type: python_cli
       command:
         - python3
-        - recommendation/build_shareable_table.py
+        - agently_adapter/stockpool_daily_runner.py
+        - build_shareable_table
+        - --date
+        - "{date}"
+
+    - id: rebuild_strategy_signal_ledger_after_recommendation
+      layer: 4
+      layer_cn: 策略/交易层
+      depends_on:
+        - build_shareable_table
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - build_strategy_signal_ledger
+        - --date
+        - "{date}"
+        - --foundation-db
+        - "{foundation_db}"
+
+    - id: rebuild_strategy_reminder_after_recommendation
+      layer: 4
+      layer_cn: 策略/交易层
+      depends_on:
+        - rebuild_strategy_signal_ledger_after_recommendation
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - build_strategy_reminder
+        - --date
+        - "{date}"
+
+    - id: forward_observation
+      layer: 4
+      layer_cn: 策略/交易层
+      depends_on:
+        - rebuild_strategy_reminder_after_recommendation
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - forward_sim
+        - --date
+        - "{date}"
+        - --foundation-db
+        - "{foundation_db}"
+
+    - id: strategy_fit_observer
+      layer: 4
+      layer_cn: 策略/交易层
+      depends_on:
+        - rebuild_strategy_signal_ledger_after_recommendation
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - run_strategy_fit_observer
+        - --date
+        - "{date}"
+
+    - id: daily_research_brief
+      layer: 4
+      layer_cn: 策略/交易层
+      depends_on:
+        - build_ifind_macro
+        - build_macro_chain_prior
+        - forward_observation
+        - strategy_fit_observer
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - generate_daily_brief
+        - --date
+        - "{date}"
+
+    - id: ma2560_market_match_forward
+      layer: 4
+      layer_cn: 策略/交易层
+      depends_on:
+        - rebuild_strategy_signal_ledger_after_recommendation
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - analyze_ma2560_market_match_forward
+        - --date
+        - "{date}"
+        - --foundation-db
+        - "{foundation_db}"
+
+    - id: ma2560_stock_only_gap_audit
+      layer: 4
+      layer_cn: 策略/交易层
+      depends_on:
+        - ma2560_market_match_forward
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - audit_ma2560_stock_only_gap
+        - --date
+        - "{date}"
+
+    - id: build_industry_etf_config
+      layer: 4
+      layer_cn: 策略/交易层
+      depends_on:
+        - ma2560_stock_only_gap_audit
+      action_type: python_cli
+      command:
+        - python3
+        - agently_adapter/stockpool_daily_runner.py
+        - build_industry_etf_config
+        - --date
+        - "{date}"
+        - --apply-industry-etf-config
+
+  # ═══════════════════════════════════════════════════════════
+  # Layer 5: 统一视图
+  # ═══════════════════════════════════════════════════════════
+  unified_view:
+    - id: build_unified_daily_view
+      layer: 5
+      layer_cn: 统一视图
+      depends_on:
+        - rebuild_strategy_signal_ledger_after_recommendation
+        - build_recommendation
+        - build_moneyflow_evidence
+        - build_macro_chain_prior
+        - build_state_cache
+        - build_industry_etf_config
+      action_type: python_cli
+      command:
+        - python3
+        - scripts/build_unified_daily_view.py
         - --date
         - "{date}"
 
@@ -331,7 +539,11 @@ phases:
   close:
     - id: verify_public_outputs
       depends_on:
-        - build_shareable_table
+        - build_ifind_macro
+        - build_macro_chain_prior
+        - daily_research_brief
+        - build_industry_etf_config
+        - build_unified_daily_view
       action_type: python_cli
       command:
         - python3
@@ -342,8 +554,17 @@ phases:
 
 outputs:
   # Layer 1: 宏观/市场层
+  macro_snapshot_html: public/macro_snapshot_YYYYMMDD.html
+  macro_snapshot_json: outputs/macro/macro_snapshot_YYYYMMDD.json
+  macro_chain_prior_html: public/macro_chain_prior_YYYYMMDD.html
+  macro_chain_prior_json: outputs/macro_chain_prior/macro_chain_prior_YYYYMMDD.json
   market_assets_state_html: public/market_assets_state_YYYYMMDD.html
   market_assets_state_csv:  outputs/market_assets_state/market_assets_state_YYYYMMDD.csv
+  industry_etf_coverage_html: public/industry_etf_coverage_YYYYMMDD.html
+  industry_etf_coverage_csv:  outputs/etf_coverage/industry_etf_coverage_YYYYMMDD.csv
+  industry_etf_config_html: public/industry_etf_config_YYYYMMDD.html
+  industry_etf_config_csv:  outputs/etf_config/industry_etf_config_YYYYMMDD.csv
+  industry_etf_gap_report_csv: outputs/etf_config/industry_etf_gap_report_YYYYMMDD.csv
   moneyflow_evidence_csv:   outputs/moneyflow_evidence/moneyflow_evidence_YYYYMMDD.csv
   # Layer 2: 个股底座层
   all_three_ef_html:       public/p116_all_three_ef_YYYYMMDD.html
@@ -360,6 +581,10 @@ outputs:
   strategy_signal_ledger_json: outputs/strategy_signals/strategy_signal_daily_YYYYMMDD.json
   strategy_reminder_json: outputs/strategy_reminders/reminder_YYYYMMDD.json
   strategy_reminder_html: public/strategy_reminder_YYYYMMDD.html
+  forward_observation_html: public/forward_observation_YYYYMMDD.html
+  daily_research_brief_html: public/daily_research_brief_YYYYMMDD.html
+  ma2560_market_match_forward_html: public/ma2560_market_match_forward_YYYYMMDD.html
+  ma2560_stock_only_gap_audit_html: public/ma2560_stock_only_gap_audit_YYYYMMDD.html
   strategy_evaluation_html: public/strategy_evaluation_YYYYMMDD.html
   strategy_evaluation_csv:  outputs/strategy_evaluation/strategy_evaluation_YYYYMMDD.csv
   pattern_cross_html:      public/pattern_cross_ef_YYYYMMDD.html
@@ -369,6 +594,8 @@ outputs:
   industry_rotation_html:  public/industry_rotation_YYYYMMDD.html
   shareable_html:          public/p116_recommendation_shareable_YYYYMMDD.html
   shareable_xlsx:          public/p116_recommendation_shareable_YYYYMMDD.xlsx
+  # Layer 5: 统一视图
+  unified_daily_view_db:   outputs/unified_view/unified_daily_snapshot.duckdb
 
 future_actions:
   build_raw_duckdb:

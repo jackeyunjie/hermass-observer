@@ -1,0 +1,207 @@
+{
+  "schema_version": "industry_rotation_assets_v1",
+  "index_assets": [
+    {
+      "symbol": "000001.SH",
+      "name": "上证指数",
+      "asset_type": "broad_index",
+      "benchmark_group": "market"
+    },
+    {
+      "symbol": "399001.SZ",
+      "name": "深证成指",
+      "asset_type": "broad_index",
+      "benchmark_group": "market"
+    },
+    {
+      "symbol": "399006.SZ",
+      "name": "创业板指",
+      "asset_type": "broad_index",
+      "benchmark_group": "market"
+    },
+    {
+      "symbol": "000300.SH",
+      "name": "沪深300",
+      "asset_type": "broad_index",
+      "benchmark_group": "market"
+    },
+    {
+      "symbol": "000905.SH",
+      "name": "中证500",
+      "asset_type": "broad_index",
+      "benchmark_group": "market"
+    },
+    {
+      "symbol": "000852.SH",
+      "name": "中证1000",
+      "asset_type": "broad_index",
+      "benchmark_group": "market"
+    }
+  ],
+  "industry_etf_assets": [
+    {
+      "symbol": "512480.SH",
+      "name": "半导体ETF",
+      "asset_type": "industry_etf",
+      "sw_l1": "电子"
+    },
+    {
+      "symbol": "515050.SH",
+      "name": "5GETF",
+      "asset_type": "industry_etf",
+      "sw_l1": "通信"
+    },
+    {
+      "symbol": "512880.SH",
+      "name": "证券ETF",
+      "asset_type": "industry_etf",
+      "sw_l1": "非银金融"
+    },
+    {
+      "symbol": "512800.SH",
+      "name": "银行ETF",
+      "asset_type": "industry_etf",
+      "sw_l1": "银行"
+    },
+    {
+      "symbol": "512660.SH",
+      "name": "军工ETF",
+      "asset_type": "industry_etf",
+      "sw_l1": "国防军工"
+    },
+    {
+      "symbol": "512010.SH",
+      "name": "医药ETF",
+      "asset_type": "industry_etf",
+      "sw_l1": "医药生物"
+    },
+    {
+      "symbol": "515790.SH",
+      "name": "光伏ETF",
+      "asset_type": "industry_etf",
+      "sw_l1": "电力设备"
+    },
+    {
+      "symbol": "516160.SH",
+      "name": "新能源ETF",
+      "asset_type": "industry_etf",
+      "sw_l1": "电力设备"
+    },
+    {
+      "symbol": "515700.SH",
+      "name": "新能车ETF",
+      "asset_type": "industry_etf",
+      "sw_l1": "汽车"
+    },
+    {
+      "symbol": "159996.SZ",
+      "name": "家电ETF",
+      "asset_type": "industry_etf",
+      "sw_l1": "家用电器"
+    },
+    {
+      "symbol": "159928.SZ",
+      "name": "消费ETF",
+      "asset_type": "industry_etf",
+      "sw_l1": "食品饮料"
+    },
+    {
+      "symbol": "159825.SZ",
+      "name": "农业ETF",
+      "asset_type": "industry_etf",
+      "sw_l1": "农林牧渔"
+    },
+    {
+      "symbol": "516970.SH",
+      "name": "基建ETF",
+      "asset_type": "industry_etf",
+      "sw_l1": "建筑装饰"
+    },
+    {
+      "symbol": "516020.SH",
+      "name": "化工ETF",
+      "asset_type": "industry_etf",
+      "sw_l1": "基础化工"
+    },
+    {
+      "symbol": "512400.SH",
+      "name": "有色金属ETF",
+      "asset_type": "industry_etf",
+      "sw_l1": "有色金属"
+    },
+    {
+      "symbol": "515220.SH",
+      "name": "煤炭ETF",
+      "asset_type": "industry_etf",
+      "sw_l1": "煤炭"
+    },
+    {
+      "symbol": "159666.SZ",
+      "name": "交通运输ETF华夏",
+      "asset_type": "industry_etf",
+      "sw_l1": "交通运输"
+    },
+    {
+      "symbol": "159805.SZ",
+      "name": "传媒ETF鹏华",
+      "asset_type": "industry_etf",
+      "sw_l1": "传媒"
+    },
+    {
+      "symbol": "159301.SZ",
+      "name": "公用事业ETF华夏",
+      "asset_type": "industry_etf",
+      "sw_l1": "公用事业"
+    },
+    {
+      "symbol": "159745.SZ",
+      "name": "建材ETF国泰",
+      "asset_type": "industry_etf",
+      "sw_l1": "建筑材料"
+    },
+    {
+      "symbol": "159768.SZ",
+      "name": "房地产ETF银华",
+      "asset_type": "industry_etf",
+      "sw_l1": "房地产"
+    },
+    {
+      "symbol": "159886.SZ",
+      "name": "机械ETF富国",
+      "asset_type": "industry_etf",
+      "sw_l1": "机械设备"
+    },
+    {
+      "symbol": "512580.SH",
+      "name": "环保ETF广发",
+      "asset_type": "industry_etf",
+      "sw_l1": "环保"
+    },
+    {
+      "symbol": "159588.SZ",
+      "name": "石油ETF景顺",
+      "asset_type": "industry_etf",
+      "sw_l1": "石油石化"
+    },
+    {
+      "symbol": "159586.SZ",
+      "name": "计算机ETF南方",
+      "asset_type": "industry_etf",
+      "sw_l1": "计算机"
+    },
+    {
+      "symbol": "515210.SH",
+      "name": "钢铁ETF国泰",
+      "asset_type": "industry_etf",
+      "sw_l1": "钢铁"
+    }
+  ],
+  "_meta": {
+    "last_auto_build": "2026-05-23T05:12:00+00:00",
+    "data_sources": [
+      "blackwolf_stock_list",
+      "ifind_industry_snapshot"
+    ],
+    "note": "Existing manual assets are preserved; generated candidates are append-only."
+  }
+}

@@ -33,6 +33,10 @@ help:
 	@echo "  make backtest-report  生成回测报告"
 	@echo "  make recommend        生成今日推荐组合"
 	@echo "  make serve            启动本地 HTTP 查看服务"
+	@echo "  make serve-lark       启动飞书 Bot 服务"
+	@echo "  make serve-dingtalk   启动钉钉 Bot 服务 (Stream 模式)"
+	@echo "  make serve-console    启动内部控制台 (开发模式, 127.0.0.1:8020)"
+	@echo "  make serve-console-prod  启动内部控制台 (生产模式, 0.0.0.0:8020)"
 	@echo "  make clean            清理临时文件"
 	@echo "  make verify           验证当日产物完整性"
 	@echo ""
@@ -43,7 +47,7 @@ help:
 .PHONY: install
 install:
 	@test -d $(VENV) || $(PYTHON) -m venv $(VENV)
-	$(PIP) install --quiet pyyaml numpy pandas requests duckdb jinja2
+	$(PIP) install --quiet pyyaml numpy pandas requests duckdb jinja2 pytest pytest-cov dingtalk-stream
 	@echo "✓ 依赖安装完成"
 
 # ─── 每日全流程 ──────────────────────────────────────
@@ -127,6 +131,60 @@ serve:
 	@echo "按 Ctrl+C 停止"
 	cd $(PUBLIC_DIR) && $(PYTHON) -m http.server 8080
 
+.PHONY: serve-lark
+serve-lark: install
+	@echo ""
+	@echo "Hermass Lark Bot 启动..."
+	@echo "  飞书回调: http://localhost:8080/lark/callback"
+	@echo "  健康检查: http://localhost:8080/health"
+	@echo ""
+	$(PYTHON_VENV) hermass_platform/api/lark_server.py --port 8080
+
+.PHONY: serve-dingtalk
+serve-dingtalk: install
+	@echo ""
+	@echo "Hermass DingTalk Bot 启动..."
+	@echo "  Stream 模式 — WebSocket 直连，无需公网 IP"
+	@echo ""
+	$(PYTHON_VENV) hermass_platform/api/dingtalk_server.py
+
+# ─── 内部控制台服务 ──────────────────────────────────
+.PHONY: serve-console
+serve-console: install
+	@echo ""
+	@echo "Hermass Internal Console 启动..."
+	@echo "  本地地址: http://127.0.0.1:8020"
+	@echo "  健康检查: http://127.0.0.1:8020/health"
+	@echo "  按 Ctrl+C 停止"
+	@echo ""
+	cd $(ROOT) && $(PYTHON_VENV) -m uvicorn web.main:app --host 127.0.0.1 --port 8020
+
+.PHONY: serve-console-prod
+serve-console-prod: install
+	@echo ""
+	@echo "Hermass Internal Console 生产模式启动..."
+	@echo "  监听: 0.0.0.0:8020"
+	@echo ""
+	cd $(ROOT) && $(PYTHON_VENV) -m uvicorn web.main:app --host 0.0.0.0 --port 8020 --workers 1
+
+.PHONY: daily-pipeline
+daily-pipeline: install
+	@echo "运行每日流水线..."
+	bash scripts/run_daily_pipeline.sh
+
+.PHONY: snapshot
+snapshot: install
+	$(PYTHON_VENV) scripts/build_daily_snapshot.py
+
+.PHONY: report-dry
+report-dry: install
+	$(PYTHON_VENV) scripts/send_daily_report.py --dry-run
+	@echo "HTML 已保存到: outputs/daily_report.html"
+
+.PHONY: report-send
+report-send: install
+	$(PYTHON_VENV) scripts/send_daily_report.py
+
 # ─── 验证 ────────────────────────────────────────────
 .PHONY: verify
 verify:
@@ -147,9 +205,33 @@ clean:
 lint:
 	$(PYTHON_VENV) -m py_compile backtest/engine.py
 	$(PYTHON_VENV) -m py_compile risk/position_sizer.py
-	$(PYTHON_VENV) -m py_compile signal/quality_score.py
+	@if [ -f "$(ROOT)/signal_module/quality_score.py" ]; then \
+		$(PYTHON_VENV) -m py_compile signal_module/quality_score.py; \
+	elif [ -f "$(ROOT)/signal/quality_score.py" ]; then \
+		$(PYTHON_VENV) -m py_compile signal/quality_score.py; \
+	fi
 	@echo "✓ 语法检查通过"
 
 .PHONY: test
-test:
-	$(PYTHON_VENV) -m pytest tests/ -v 2>/dev/null || $(PYTHON_VENV) -m unittest discover tests/ -v 2>/dev/null || echo "⚠ 无测试用例"
+test: install
+	$(PYTHON_VENV) -m pytest tests/unit/ -v
+
+.PHONY: test-all
+test-all: install
+	$(PYTHON_VENV) -m pytest tests/ -v --ignore=tests/stress --ignore=tests/regression
+
+.PHONY: test-cov
+test-cov: install
+	$(PYTHON_VENV) -m pytest tests/unit/ --cov=scripts/state_calc --cov=scripts/filter --cov-report=term
+
+.PHONY: test-cov-html
+test-cov-html: install
+	$(PYTHON_VENV) -m pytest tests/unit/ --cov=scripts/state_calc --cov=scripts/filter --cov-report=html
+
+.PHONY: test-stress
+test-stress: install
+	$(PYTHON_VENV) -m pytest tests/stress/ tests/regression/ -v -m slow -s
+
+.PHONY: test-full
+test-full: install
+	$(PYTHON_VENV) -m pytest tests/ -v

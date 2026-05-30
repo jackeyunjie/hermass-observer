@@ -1,14 +1,63 @@
 # Agently-Compatible Stockpool DAG
 
+> Scope: active production scope is A-share only. Archived MT5/US-related files are not part of this workflow.
+
 This folder defines the stock pool daily update as an Action/DAG style workflow.
 
 The production runner is pure Python and works without Agently installed:
 
 ```bash
 python3 agently_adapter/stockpool_daily_runner.py run \
-  --date 2026-05-20 \
-  --previous-date 2026-05-19 \
-  --foundation-db outputs/p116_foundation_20260520/p116_foundation.duckdb
+  --date 2026-05-22 \
+  --previous-date 2026-05-21 \
+  --foundation-db outputs/p116_foundation_20260522/p116_foundation.duckdb
+```
+
+The `run` command now executes the daily closed loop: all-three E/F pool,
+industry ETF coverage, State cache, VCP/2560 evidence, recommendation, strategy
+signal ledger, reminder brief, forward observation, daily research brief, and
+2560 market-match diagnostics.
+
+For the new A-share-only Agently core flow, use:
+
+```bash
+cd /tmp
+/Users/lv111101/Documents/hermass-observer-product/.venv/bin/python \
+  /Users/lv111101/Documents/hermass-observer-product/agently_adapter/agently_a_share_flow.py \
+  --date 2026-05-22 \
+  --previous-date 2026-05-21 \
+  --foundation-db /Users/lv111101/Documents/hermass-observer-product/outputs/p116_foundation_20260522/p116_foundation.duckdb
+```
+
+This core flow is the A-share-only Agently entry for the deterministic pipeline. It is the preferred entry for new integrations; the older `agently_daily_flow.py` remains as the full workflow compatibility flow:
+
+- `preflight`
+- `build_foundation`
+- `build_state_cache`
+- `build_strategy_evidence`
+- `build_strategy_signal_ledger`
+- `build_forward_observation`
+- `build_daily_brief`
+- `verify_core_outputs`
+
+Here `verify_core_outputs` only validates the minimal A-share core chain (core outputs). The older `verify_public_outputs` command validates the full closed-loop public-output for `stockpool_daily_runner.py run`, and is modeled as `core outputs + public extensions`.
+
+The shared implementation for this minimal A-share path now lives in
+`agently_adapter/a_share_core.py`. The runner compatibility layer,
+`a_share_actions.py`, and the FastAPI service should reuse this core module
+instead of duplicating shell-level command orchestration.
+
+The older `agently_daily_flow.py` is the full workflow compatibility flow — a wrapper around the larger `stockpool_daily_runner.py run` command. It is preserved for backward compatibility but is no longer the recommended main entry.
+
+To execute the full workflow compatibility flow through Agently `TriggerFlow`, run it from a directory outside the project root. The project contains a business package named `signal/`, so launching from outside the root avoids shadowing Python's stdlib `signal` module while Agently starts its event loop.
+
+```bash
+cd /tmp
+/Users/lv111101/Documents/hermass-observer-product/.venv/bin/python \
+  /Users/lv111101/Documents/hermass-observer-product/agently_adapter/agently_daily_flow.py \
+  --date 2026-05-22 \
+  --previous-date 2026-05-21 \
+  --foundation-db outputs/p116_foundation_20260522/p116_foundation.duckdb
 ```
 
 Full chain after the Blackwolf token is configured:
@@ -104,16 +153,41 @@ sending system prompts to DeepSeek. Agently DAG defaults also reference this
 file through `llm_context`.
 
 The context defines the Hermass State boundary: State is a deterministic,
-read-only D1-perspective calculation base; DeepSeek may explain and calibrate
+read-only A-share D1-Agent calculation base; DeepSeek may explain and calibrate
 upper-layer strategy evidence, but must not modify State formulas or invent
 facts.
 
 ## Outputs
 
 - `public/p116_all_three_ef_YYYYMMDD.html`
+- `public/macro_snapshot_YYYYMMDD.html`
+- `public/macro_chain_prior_YYYYMMDD.html`
+- `public/industry_etf_coverage_YYYYMMDD.html`
+- `public/industry_etf_config_YYYYMMDD.html`
+- `public/market_assets_state_YYYYMMDD.html`
 - `public/p116_recommendation_YYYYMMDD.html`
 - `public/p116_recommendation_shareable_YYYYMMDD.html`
 - `public/p116_recommendation_shareable_YYYYMMDD.xlsx`
+- `public/strategy_reminder_YYYYMMDD.html`
+- `public/forward_observation_YYYYMMDD.html`
+- `public/daily_research_brief_YYYYMMDD.html`
+- `public/ma2560_market_match_forward_YYYYMMDD.html`
+- `public/ma2560_stock_only_gap_audit_YYYYMMDD.html`
+
+Useful single-action commands:
+
+```bash
+python3 agently_adapter/stockpool_daily_runner.py build_industry_etf_coverage --date YYYY-MM-DD
+python3 agently_adapter/stockpool_daily_runner.py build_ifind_macro --date YYYY-MM-DD
+python3 agently_adapter/stockpool_daily_runner.py build_ifind_macro --date YYYY-MM-DD --macro-import-file data/ifind_macro_YYYYMMDD.xlsx
+python3 agently_adapter/stockpool_daily_runner.py build_macro_chain_prior --date YYYY-MM-DD
+python3 agently_adapter/stockpool_daily_runner.py build_industry_etf_config --date YYYY-MM-DD
+python3 agently_adapter/stockpool_daily_runner.py analyze_ma2560_market_match_forward --date YYYY-MM-DD
+python3 agently_adapter/stockpool_daily_runner.py audit_ma2560_stock_only_gap --date YYYY-MM-DD
+python3 agently_adapter/stockpool_daily_runner.py generate_daily_brief --date YYYY-MM-DD
+```
+
+Proxy ETF review lives in `config/industry_etf_proxy_whitelist.json`. Pending proxies stay in audit only; approved proxies are applied by the final ETF config node and become active after the next market-asset download/import/state build.
 
 ## iFinD Fundamental Weekly Agent
 

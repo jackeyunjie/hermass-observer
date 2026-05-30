@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hermass.dev/slice-contract/v1",
+  "title": "Hermass 切片数据契约 v1.0",
+  "description": "切片引擎输出的标准化数据契约。所有切片类型共用此外层结构，data 字段的 inner schema 随 slice_type 变化。",
+  "type": "object",
+  "required": [
+    "slice_type",
+    "slice_id",
+    "generated_at",
+    "contract_version",
+    "source",
+    "params",
+    "data",
+    "summary",
+    "integrity"
+  ],
+  "properties": {
+    "slice_type": {
+      "type": "string",
+      "enum": ["user", "strategy", "time", "industry", "cognitive"],
+      "description": "切片类型"
+    },
+    "slice_id": {
+      "type": "string",
+      "description": "唯一标识，如 'user_001_20260522'"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 生成时间"
+    },
+    "contract_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "source": {
+      "type": "object",
+      "required": ["foundation_db", "cache_date"],
+      "properties": {
+        "foundation_db": { "type": "string" },
+        "signal_db": { "type": "string" },
+        "cache_date": { "type": "string" }
+      }
+    },
+    "params": {
+      "type": "object",
+      "description": "本次切片的输入参数"
+    },
+    "data": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["row_count"],
+      "properties": {
+        "row_count": { "type": "integer", "minimum": 0 },
+        "ef_distribution": {
+          "type": "object",
+          "properties": {
+            "ef0": { "type": "integer" },
+            "ef1": { "type": "integer" },
+            "ef2": { "type": "integer" },
+            "ef3": { "type": "integer" }
+          }
+        },
+        "truncated": { "type": "boolean" }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "required": ["checksum", "row_count"],
+      "properties": {
+        "checksum": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "row_count": { "type": "integer" }
+      }
+    }
+  }
+}

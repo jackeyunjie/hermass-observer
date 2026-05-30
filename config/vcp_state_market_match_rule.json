@@ -1,0 +1,73 @@
+{
+  "version": "2026-05-23.v1",
+  "rule_id": "vcp_state_market_match_compression_release_v1",
+  "strategy": "vcp",
+  "rule_version": "1.0",
+  "status": "conditional_established",
+  "research_only": true,
+  "verified_by": "search_vcp_optimal_state.py",
+  "verification_period": "2025-06-01 to 2026-05-01",
+  "description": "VCP 适合环境以 D1 收缩后释放路径为核心。该规则是策略环境适配证据，不是买入、卖出或加仓指令。",
+  "primary_finding": "VCP entry 信号在'近20日D1收缩后释放'路径下表现显著优于'当前扩张但无收缩前兆'。",
+  "optimal_path": {
+    "name": "收缩后释放",
+    "definition": "信号前20个交易日内 D1 State 曾处于 base=0（abs(State) 0-7），且信号当日 D1 State 已进入扩张态（abs(State) >= 8；核心观测优先关注 abs(State) >= 10 的扩张/趋势确认区）。",
+    "lookback_trading_days": 20,
+    "contraction_condition": "abs(d1_state) < 8",
+    "release_condition": "abs(signal_day_d1_state) >= 8",
+    "core_release_zone": "abs(signal_day_d1_state) >= 10",
+    "avg_excess_20d": 0.0167,
+    "vs_no_contraction_path": 0.0045
+  },
+  "secondary_conditions": {
+    "w1_trend": "W1 State >= 12",
+    "mn1_not_full_ef": "MN1 State <= 12，避免三周期全F过热",
+    "state_sign_policy": "State 可带方向符号；本规则的 base/trend/position/volatility 判断使用 abs(State)，方向另行记录。"
+  },
+  "market_match": {
+    "preferred": "industry_etf_ef_count >= 2",
+    "field_priority": [
+      "recommendation.macro_etf_ef_count",
+      "ifind_industry.sw_l1 -> config.industry_rotation_assets -> market_assets_state.ef_count"
+    ],
+    "missing_industry_etf_policy": "stock_only",
+    "unsupported_market_policy": "market_unsupported"
+  },
+  "market_match_levels": {
+    "full_match": "满足收缩后释放路径 + W1趋势确认 + 行业ETF State支持",
+    "stock_only": "满足收缩后释放路径，行业ETF数据缺失",
+    "partial_match": "满足收缩后释放路径，但W1或MN1未达最优",
+    "market_unsupported": "满足个股路径，但行业ETF State 不支持",
+    "not_match": "当前扩张但无收缩前兆，或当前仍在收缩态"
+  },
+  "evidence": {
+    "source_report": "outputs/project/vcp_optimal_state_search.md",
+    "source_json": "outputs/strategy_evaluation/vcp_optimal_state_search_20260501_breakout_breakout_no_vol_breakout_weak_vol_all.json",
+    "history_start": "2025-06-01",
+    "history_end": "2026-05-01",
+    "selected_samples": 43262,
+    "labeled_samples": 43259,
+    "labeled_dates": 223,
+    "primary_window": 20,
+    "key_result": {
+      "contraction_release_20_avg_excess_20d": 0.0167,
+      "current_expansion_no_contraction_20_avg_excess_20d": 0.0045,
+      "kimi_static_combo_avg_excess_20d": 0.0047,
+      "static_d1_10_12_14_avg_excess_20d": 0.0064
+    },
+    "display_summary": "本地验证有效：D1近20日收缩后释放；20日平均超额+1.67%，无收缩路径+0.45%。"
+  },
+  "boundaries": [
+    "该规则只描述 VCP 信号出现时的 State 环境适配度，不重写 VCP 形态识别和突破确认逻辑。",
+    "VCP 的本地验证支持'经历收缩后释放'路径；KIMI 静态组合 D1 in {10,12,14}, W1 in {12,14}, MN1 in {4,12} 未升格为正式规则。",
+    "base=0 表示收缩，base=8 表示扩张；不得使用 KIMI 文档中的 base=1/base=0 口径污染本项目 State 编码。",
+    "行业 ETF 字段缺失时只能认定个股路径成立，不能认定完整市场匹配成立。",
+    "该规则仍为 research_only，正式提醒层只能展示适配事实和理由，不输出买卖建议。"
+  ],
+  "reproduce": {
+    "script": "scripts/search_vcp_optimal_state.py",
+    "command": "python3 agently_adapter/stockpool_daily_runner.py search_vcp_optimal_state --start-date 2025-06-01 --end-date 2026-05-01 --foundation-db outputs/p116_foundation_20260521/p116_foundation.duckdb --primary-window 20 --min-samples 30",
+    "generic_command": "python3 agently_adapter/stockpool_daily_runner.py verify_strategy_environment --verify-strategy vcp --start-date 2025-06-01 --end-date 2026-05-01 --foundation-db outputs/p116_foundation_20260521/p116_foundation.duckdb --primary-window 20 --min-samples 30",
+    "report": "outputs/project/vcp_optimal_state_search.md"
+  }
+}

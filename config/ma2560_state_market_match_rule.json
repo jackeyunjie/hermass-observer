@@ -1,5 +1,5 @@
 {
-  "version": "2026-05-22.v1",
+  "version": "2026-05-22.v3",
   "rule_id": "ma2560_state_market_match_conditional_v1",
   "status": "conditional_established",
   "research_only": true,
@@ -13,12 +13,20 @@
   },
   "p116_state_match": {
     "latest_2560_signal": "ma2560_strong_hold",
-    "allowed_states": ["E/E/F", "E/F/F", "E/F/E"]
+    "allowed_states": [
+      "E/E/F",
+      "E/F/F",
+      "E/F/E"
+    ]
   },
   "market_match": {
-    "preferred": "macro_etf_ef_count >= 2",
-    "missing_macro_etf_policy": "stock_rule_only_not_market_confirmed",
-    "unsupported_market_policy": "do_not_call_full_match"
+    "preferred": "industry_etf_ef_count >= 2",
+    "field_priority": [
+      "recommendation.macro_etf_ef_count",
+      "ifind_industry.sw_l1 -> config.industry_rotation_assets -> market_assets_state.ef_count"
+    ],
+    "missing_industry_etf_policy": "stock_only",
+    "unsupported_market_policy": "market_unsupported"
   },
   "evidence_20260521": {
     "top20": {
@@ -48,6 +56,42 @@
   "reproduce": {
     "script": "scripts/analyze_2560_state_market_match.py",
     "command": "python3 scripts/analyze_2560_state_market_match.py --date 20260521",
-    "report": "outputs/project/2560_state_market_match.md"
+    "report": "outputs/project/2560_state_market_match.md",
+    "forward_command": "python3 scripts/analyze_ma2560_market_match_forward.py --date 2026-05-22",
+    "forward_report": "outputs/ma2560_market_match_forward/ma2560_market_match_forward_20260522.md"
+  },
+  "evidence_20260522_full_ledger": {
+    "source": "outputs/strategy_signals/strategy_signal_daily_20260522.json",
+    "scope": "ma2560_strong_hold",
+    "samples": 686,
+    "market_match_distribution": {
+      "full_match": 62,
+      "stock_only": 8,
+      "market_unsupported": 97,
+      "not_match": 519
+    },
+    "stock_only_gap_audit": {
+      "industry_without_configured_etf": 8,
+      "top_gaps": {
+        "轻工制造": 4,
+        "社会服务": 2,
+        "商贸零售": 1,
+        "美容护理": 1
+      }
+    },
+    "industry_etf_coverage": {
+      "source": "outputs/etf_coverage/industry_etf_coverage_20260522.json",
+      "blackwolf_etf_candidates": 1517,
+      "direct_additions": 10,
+      "configured_industry_etf_assets_after_expansion": 26,
+      "remaining_proxy_or_missing_industries": [
+        "商贸零售",
+        "社会服务",
+        "纺织服饰",
+        "轻工制造",
+        "综合",
+        "美容护理"
+      ]
+    }
   }
 }

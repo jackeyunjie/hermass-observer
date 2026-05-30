@@ -1,0 +1,13 @@
+{
+  "_comment": "每月第一个交易日由 generate_daily_trading_sop.py 自动更新。记录沪深300 + 各行业ETF的月线MN1 State及对应系数。",
+  "schema_version": "macro_coeff_snapshot_v1",
+  "updated_at": "2026-05-22",
+  "hs300": {
+    "symbol": "000300.SH",
+    "mn1_state_hex": "E",
+    "mn1_state_score": 14,
+    "macro_coeff": 1.0,
+    "position_cap_pct": 100
+  },
+  "industry_coeffs": {}
+}

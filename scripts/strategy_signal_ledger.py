@@ -23,17 +23,31 @@ import duckdb
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+SCRIPTS = Path(__file__).resolve().parent
+if str(SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS))
 
 from backtest.engine import load_state_data_from_duckdb
 from backtest.strategy_signals.bollinger_bandit import bollinger_bandit_signal
 from backtest.strategy_signals.ma2560 import ma2560_signal
 from backtest.strategy_signals.vcp import vcp_signal
+from backtest.strategy_signals.atr_chandelier import atr_chandelier_signal
+
+from vcp_exit_manager import vcp_entry_confirmation, compute_vcp_stop_prices
+from ma2560_execution_manager import ma2560_volume_confirmation, ma2560_full_entry_check
+from bollinger_execution_manager import bb_entry_confirmation, bb_spike_filter
+from w1_mn1_env_label import compute_w1_mn1_env_label, compute_env_category_factor
+from opportunity_pattern_matcher import match_signal_to_pattern, identify_highest_conviction
 
 
 LEDGER_DB = ROOT / "outputs" / "strategy_signals" / "strategy_signals.duckdb"
 STATE_CACHE_DIR = ROOT / "outputs" / "state_cache"
 MA2560_RULE_PATH = ROOT / "config" / "ma2560_state_market_match_rule.json"
 RECOMMENDATION_DIR = ROOT / "recommendation" / "outputs"
+FIXTURE_DIR = ROOT / "fixtures"
+IFIND_DIR = ROOT / "outputs" / "ifind"
+MARKET_ASSETS_STATE_DIR = ROOT / "outputs" / "market_assets_state"
+INDUSTRY_ASSETS_PATH = ROOT / "config" / "industry_rotation_assets.json"
 
 
 SIGNAL_META = {
@@ -48,9 +62,10 @@ SIGNAL_META = {
     "ma2560_death_cross_exit": ("ma2560", "exit", "2560死叉风险"),
     "ma2560_bearish": ("ma2560", "risk", "2560空头排列"),
     "bb_bandit_long_entry": ("bollinger_bandit", "entry", "布林强盗多头触发"),
+    "atr_chandelier_entry": ("atr_chandelier", "entry", "ATR吊灯入场"),
 }
 
-REMINDER_ENTRY_STRATEGIES = {"vcp", "ma2560", "bollinger_bandit"}
+REMINDER_ENTRY_STRATEGIES = {"vcp", "ma2560", "bollinger_bandit", "atr_chandelier"}
 
 
 def ensure_column(con: duckdb.DuckDBPyConnection, table: str, column: str, definition: str) -> None:
@@ -124,6 +139,12 @@ def create_tables(con: duckdb.DuckDBPyConnection) -> None:
     ensure_column(con, "strategy_signal_daily", "ma2560_p116_state_match", "BOOLEAN DEFAULT false")
     ensure_column(con, "strategy_signal_daily", "ma2560_market_match_level", "VARCHAR DEFAULT 'not_match'")
     ensure_column(con, "strategy_signal_daily", "ma2560_state_combo", "VARCHAR DEFAULT ''")
+    ensure_column(con, "strategy_signal_daily", "env_category", "VARCHAR DEFAULT 'transition'")
+    ensure_column(con, "strategy_signal_daily", "w1_mn1_label", "VARCHAR DEFAULT ''")
+    ensure_column(con, "strategy_signal_daily", "env_category_factor", "DOUBLE DEFAULT 1.0")
+    ensure_column(con, "strategy_signal_daily", "matched_pattern", "VARCHAR DEFAULT ''")
+    ensure_column(con, "strategy_signal_daily", "pattern_boost", "DOUBLE DEFAULT 0.0")
+    ensure_column(con, "strategy_signal_daily", "conviction_level", "VARCHAR DEFAULT 'normal'")
     con.execute(
         """
         CREATE TABLE IF NOT EXISTS strategy_signal_manifest (
@@ -220,6 +241,20 @@ def recommendation_csv_for(date_str: str, override: Path | None = None) -> Path 
     return exact if exact.exists() else None
 
 
+def existing_daily_path(directory: Path, stem: str, date_str: str, suffix: str) -> Path | None:
+    exact = directory / f"{stem}_{ymd(date_str)}.{suffix}"
+    if exact.exists():
+        return exact
+    current = ymd(date_str)
+    candidates: list[tuple[str, Path]] = []
+    for path in directory.glob(f"{stem}_*.{suffix}"):
+        date_part = path.stem.removeprefix(f"{stem}_")
+        if date_part == "latest" or not date_part.isdigit() or date_part > current:
+            continue
+        candidates.append((date_part, path))
+    return sorted(candidates)[-1][1] if candidates else None
+
+
 def build_recommendation_context(date_str: str, recommendation_csv: Path | None = None) -> dict[str, dict[str, Any]]:
     path = recommendation_csv_for(date_str, recommendation_csv)
     if path is None:
@@ -233,11 +268,96 @@ def build_recommendation_context(date_str: str, recommendation_csv: Path | None 
     return out
 
 
+def load_ifind_industry_context(date_str: str) -> dict[str, dict[str, Any]]:
+    path = existing_daily_path(IFIND_DIR, "industry", date_str, "json")
+    if path is None:
+        return {}
+    payload = load_json(path)
+    out: dict[str, dict[str, Any]] = {}
+    for key, row in (payload.get("by_code") or {}).items():
+        code = code6(key or row.get("stock_code"))
+        if code:
+            out[code] = row
+    for row in payload.get("rows", []) or []:
+        code = code6(row.get("stock_code"))
+        if code:
+            out[code] = row
+    return out
+
+
+def build_industry_asset_name_map(path: Path = INDUSTRY_ASSETS_PATH) -> dict[str, str]:
+    payload = load_json(path)
+    out: dict[str, str] = {}
+    for row in payload.get("industry_etf_assets", []) or []:
+        sw_l1 = str(row.get("sw_l1") or "").strip()
+        name = str(row.get("name") or row.get("symbol") or "").strip()
+        if sw_l1 and name:
+            out.setdefault(sw_l1, name)
+    return out
+
+
+def load_market_asset_support(date_str: str) -> dict[str, dict[str, Any]]:
+    path = existing_daily_path(MARKET_ASSETS_STATE_DIR, "market_assets_state", date_str, "csv")
+    if path is None:
+        return {}
+    rows: dict[str, dict[str, Any]] = {}
+    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        for row in csv.DictReader(handle):
+            sw_l1 = str(row.get("sw_l1") or "").strip()
+            if row.get("asset_type") == "industry_etf" and sw_l1:
+                current = rows.get(sw_l1)
+                if current is None:
+                    rows[sw_l1] = row
+                    continue
+                row_ef = safe_float(row.get("ef_count"))
+                current_ef = safe_float(current.get("ef_count"))
+                if (row_ef if row_ef is not None else -1) > (current_ef if current_ef is not None else -1):
+                    rows[sw_l1] = row
+    return rows
+
+
+def parse_product_name(value: Any) -> tuple[str, str] | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    parts = text.split(maxsplit=1)
+    if not parts:
+        return None
+    code = code6(parts[0])
+    name = parts[1].strip() if len(parts) > 1 else ""
+    if not code or not name:
+        return None
+    return code, name
+
+
+def build_stock_name_context(recommendation_context: dict[str, dict[str, Any]]) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for key, row in recommendation_context.items():
+        name = str(row.get("stock_name") or "").strip()
+        if name:
+            out[key] = name
+
+    for path in sorted(FIXTURE_DIR.glob("all_products_d1_view_6_rows_*.json"), reverse=True):
+        payload = load_json(path)
+        for row in payload.get("rows", []) or []:
+            parsed = parse_product_name(row.get("品种"))
+            if parsed is None:
+                continue
+            code, name = parsed
+            out.setdefault(code, name)
+        if out:
+            break
+    return out
+
+
 def compute_ma2560_state_market_fields(
     row: dict[str, Any],
     strategy_id: str,
     raw_signal: str,
     recommendation_context: dict[str, dict[str, Any]],
+    industry_context: dict[str, dict[str, Any]],
+    market_support: dict[str, dict[str, Any]],
+    industry_asset_names: dict[str, str],
     ma2560_rule: dict[str, Any],
 ) -> dict[str, Any]:
     combo = state_combo(row)
@@ -253,24 +373,33 @@ def compute_ma2560_state_market_fields(
     state_rule = ma2560_rule.get("p116_state_match") or {}
     required_signal = str(state_rule.get("latest_2560_signal") or "ma2560_strong_hold")
     allowed_states = {str(item).upper().strip() for item in (state_rule.get("allowed_states") or [])}
-    local_combo_pass = raw_signal == required_signal
     p116_state_match = combo in allowed_states
+    local_combo_pass = raw_signal == required_signal and p116_state_match
 
     fields["ma2560_local_combo_pass"] = local_combo_pass
     fields["ma2560_p116_state_match"] = p116_state_match
-    if not (local_combo_pass and p116_state_match):
+    if not local_combo_pass:
         return fields
 
     rec = recommendation_context.get(code6(row.get("stock_code"))) or {}
+    industry = industry_context.get(code6(row.get("stock_code"))) or {}
+    sw_l1 = str(rec.get("sw_l1") or industry.get("sw_l1") or "").strip()
+    macro = market_support.get(sw_l1) or {}
     macro_ef = safe_float(rec.get("macro_etf_ef_count"))
+    if macro_ef is None:
+        macro_ef = safe_float(macro.get("ef_count"))
     macro_has_data = any(
         str(rec.get(key) or "").strip()
         for key in ["macro_etf_symbol", "macro_etf_name", "macro_etf_state", "macro_etf_ef_count"]
     )
+    macro_has_data = macro_has_data or bool(macro)
+    expected_etf_missing = bool(sw_l1 and sw_l1 not in industry_asset_names and not macro)
     if macro_ef is not None and macro_ef >= 2:
         fields["ma2560_market_match_level"] = "full_match"
     elif macro_has_data:
         fields["ma2560_market_match_level"] = "market_unsupported"
+    elif expected_etf_missing:
+        fields["ma2560_market_match_level"] = "stock_only"
     else:
         fields["ma2560_market_match_level"] = "stock_only"
     return fields
@@ -369,6 +498,7 @@ def compute_environment_fit(strategy_id: str, lifecycle_stage: str, reasons: lis
         "vcp": "新生",
         "ma2560": "行进",
         "bollinger_bandit": "延展",
+        "atr_chandelier": "行进",
     }.get(strategy_id)
 
     if lifecycle_stage == "未知" or not best_stage:
@@ -391,17 +521,23 @@ def signal_rows_for_state(
     duration_context: dict[str, dict[str, Any]],
     sr_context: dict[str, dict[str, Any]],
     recommendation_context: dict[str, dict[str, Any]],
+    stock_name_context: dict[str, str],
+    industry_context: dict[str, dict[str, Any]],
+    market_support: dict[str, dict[str, Any]],
+    industry_asset_names: dict[str, str],
     ma2560_rule: dict[str, Any],
 ) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     key = code6(row.get("stock_code"))
     duration = duration_context.get(key, {})
     sr = sr_context.get(key, {})
+    stock_name = row.get("stock_name") or (recommendation_context.get(key) or {}).get("stock_name") or stock_name_context.get(key) or ""
     lifecycle_stage, lifecycle_reasons = compute_lifecycle_stage(row, duration, sr)
     for source_module, fn in [
         ("backtest.strategy_signals.vcp", vcp_signal),
         ("backtest.strategy_signals.ma2560", ma2560_signal),
         ("backtest.strategy_signals.bollinger_bandit", bollinger_bandit_signal),
+        ("backtest.strategy_signals.atr_chandelier", atr_chandelier_signal),
     ]:
         result = fn(row, row)
         if not result:
@@ -413,19 +549,80 @@ def signal_rows_for_state(
         strategy_id, signal_type, signal_name = meta
         reminder_eligible = signal_type == "entry" and strategy_id in REMINDER_ENTRY_STRATEGIES
         display_scope = "reminder" if reminder_eligible else "research"
+
+        # ── VCP entry confirmation ──
+        vcp_entry_conf = None
+        vcp_stops = None
+        if strategy_id == "vcp" and signal_type == "entry":
+            vcp_entry_conf = vcp_entry_confirmation(row, row)
+            if not vcp_entry_conf["confirmed"]:
+                # Downgrade to structure, remove from reminders
+                signal_type = "structure"
+                signal_name = "VCP结构观察"
+                raw_signal = "vcp_contraction"
+                reminder_eligible = False
+                display_scope = "research"
+                strength = min(float(strength or 0.0) * 0.5, 0.45)
+            else:
+                vcp_stops = compute_vcp_stop_prices(float(row.get("close", 0) or 0), row)
+
+        # ── 2560 entry confirmation ──
+        ma2560_entry_conf = None
+        if strategy_id == "ma2560" and signal_type == "entry":
+            ma2560_entry_conf = ma2560_full_entry_check(row, row, pullback_count=0)
+            if not ma2560_entry_conf["confirmed"]:
+                # Downgrade to structure, remove from reminders
+                signal_type = "structure"
+                signal_name = "2560结构观察"
+                raw_signal = "ma2560_aligned"
+                reminder_eligible = False
+                display_scope = "research"
+                strength = min(float(strength or 0.0) * 0.5, 0.45)
+
+        # ── Bollinger Bandit entry confirmation ──
+        bollinger_entry_conf = None
+        if strategy_id == "bollinger_bandit" and signal_type == "entry":
+            bollinger_entry_conf = bb_entry_confirmation(row, row)
+            if bollinger_entry_conf["confirmed"]:
+                is_spike, spike_reason = bb_spike_filter(row)
+                if is_spike:
+                    bollinger_entry_conf["confirmed"] = False
+                    bollinger_entry_conf["rejection_reason"] = f"毛刺过滤：{spike_reason}"
+            if not bollinger_entry_conf["confirmed"]:
+                # Downgrade to structure, remove from reminders
+                signal_type = "structure"
+                signal_name = "布林强盗结构观察"
+                raw_signal = "bb_bandit_structure"
+                reminder_eligible = False
+                display_scope = "research"
+                strength = min(float(strength or 0.0) * 0.5, 0.45)
+
+        # ── ATR Chandelier entry confirmation ──
+        atr_chandelier_entry_conf = None
+        if strategy_id == "atr_chandelier" and signal_type == "entry":
+            # ATR Chandelier 是纯 State 过滤策略，无需额外技术指标确认
+            # 但要求 D1 State 在允许集合内（已在信号生成时过滤）
+            atr_chandelier_entry_conf = {"confirmed": True, "rejection_reason": ""}
+
         environment_fit, fit_reasons = compute_environment_fit(strategy_id, lifecycle_stage, lifecycle_reasons)
         ma2560_fields = compute_ma2560_state_market_fields(
             row,
             strategy_id,
             raw_signal,
             recommendation_context,
+            industry_context,
+            market_support,
+            industry_asset_names,
             ma2560_rule,
         )
+        mn1_score = row.get("mn1_state_score")
+        w1_score = row.get("w1_state_score")
+        env_label = compute_w1_mn1_env_label(mn1_score, w1_score)
         out.append(
             {
                 "signal_date": row["date"],
                 "stock_code": row["stock_code"],
-                "stock_name": row.get("stock_name") or "",
+                "stock_name": stock_name,
                 "strategy_id": strategy_id,
                 "signal_type": signal_type,
                 "signal_name": signal_name,
@@ -439,6 +636,14 @@ def signal_rows_for_state(
                 "lifecycle_stage": lifecycle_stage,
                 "strategy_environment_fit": environment_fit,
                 "fit_reasons": fit_reasons,
+                "env_category": env_label["env_category"],
+                "w1_mn1_label": env_label["label"],
+                "env_category_factor": compute_env_category_factor(env_label["env_category"], strategy_id),
+                "vcp_entry_confirmation": vcp_entry_conf,
+                "vcp_stop_prices": vcp_stops,
+                "ma2560_entry_confirmation": ma2560_entry_conf,
+                "bollinger_entry_confirmation": bollinger_entry_conf,
+                "atr_chandelier_entry_confirmation": atr_chandelier_entry_conf,
                 **ma2560_fields,
             }
         )
@@ -464,13 +669,104 @@ def build_ledger(
     sr_context = build_sr_context(date_str)
     recommendation_path = recommendation_csv_for(date_str, recommendation_csv)
     recommendation_context = build_recommendation_context(date_str, recommendation_csv)
+    stock_name_context = build_stock_name_context(recommendation_context)
+    industry_context = load_ifind_industry_context(date_str)
+    market_support = load_market_asset_support(date_str)
+    industry_asset_names = build_industry_asset_name_map()
     ma2560_rule = load_ma2560_rule(ma2560_rule_path)
     created_at = datetime.now(timezone.utc).isoformat()
     rows: list[dict[str, Any]] = []
     for state in states:
         if int(state.get("ef_count") or 0) < min_ef:
             continue
-        rows.extend(signal_rows_for_state(state, duration_context, sr_context, recommendation_context, ma2560_rule))
+        rows.extend(
+            signal_rows_for_state(
+                state,
+                duration_context,
+                sr_context,
+                recommendation_context,
+                stock_name_context,
+                industry_context,
+                market_support,
+                industry_asset_names,
+                ma2560_rule,
+            )
+        )
+
+    # ── 机会模式匹配 ──
+    pattern_con = None
+    try:
+        state_cache_db = ROOT / "outputs" / "state_cache" / "state_cache.duckdb"
+        if state_cache_db.exists():
+            pattern_con = duckdb.connect(str(state_cache_db))
+            transitions = pattern_con.execute(f"""
+                SELECT t.stock_code, t.from_state, t.to_state
+                FROM state_transition_daily t
+                JOIN (
+                    SELECT stock_code, MAX(obs_date) as last_date
+                    FROM state_transition_daily
+                    WHERE period = 'd1' AND obs_date <= DATE '{date_str}'
+                    GROUP BY stock_code
+                ) latest ON t.stock_code = latest.stock_code AND t.obs_date = latest.last_date
+                WHERE t.period = 'd1'
+            """).fetchall()
+            trans_map = {r[0]: (str(r[1] or ""), str(r[2] or "")) for r in transitions}
+            pattern_con.close()
+            pattern_con = None
+
+            for r in rows:
+                code = r["stock_code"]
+                t = trans_map.get(code)
+                if not t:
+                    r["matched_pattern"] = ""
+                    r["pattern_boost"] = 0.0
+                    r["conviction_level"] = "normal"
+                    continue
+
+                d1_from_hex = t[0]
+                d1_to_hex = t[1]
+
+                # 从 state 查询 w1/mn1 score
+                state = None
+                for s in states:
+                    if s.get("stock_code") == code:
+                        state = s
+                        break
+
+                w1_score = int(state.get("w1_state_score") or 0) if state else 0
+                mn1_score = int(state.get("mn1_state_score") or 0) if state else 0
+
+                match = match_signal_to_pattern(d1_from_hex, d1_to_hex, w1_score, mn1_score)
+                if match:
+                    r["matched_pattern"] = json.dumps(match, ensure_ascii=False)
+                    r["pattern_boost"] = match["pattern_boost"]
+                    conviction = identify_highest_conviction(
+                        macro_dir="neutral",
+                        chain_dir="neutral",
+                        state_dir="positive" if r.get("strategy_environment_fit") == "最佳适配" else "neutral",
+                        pattern_match=match,
+                    )
+                    r["conviction_level"] = conviction["conviction_level"]
+                else:
+                    r["matched_pattern"] = ""
+                    r["pattern_boost"] = 0.0
+                    r["conviction_level"] = "normal"
+        else:
+            for r in rows:
+                r["matched_pattern"] = ""
+                r["pattern_boost"] = 0.0
+                r["conviction_level"] = "normal"
+    except Exception:
+        for r in rows:
+            r["matched_pattern"] = ""
+            r["pattern_boost"] = 0.0
+            r["conviction_level"] = "normal"
+    finally:
+        if pattern_con:
+            try:
+                pattern_con.close()
+            except Exception:
+                pass
 
     if rows:
         con.executemany(
@@ -479,9 +775,11 @@ def build_ledger(
             (signal_date, stock_code, strategy_id, signal_type, signal_name,
              stock_name, signal_strength, params_json, raw_signal, source_module, research_only,
              reminder_eligible, display_scope, lifecycle_stage, strategy_environment_fit,
-             fit_reasons, ma2560_local_combo_pass, ma2560_p116_state_match,
-             ma2560_market_match_level, ma2560_state_combo, created_at)
-            VALUES (CAST(? AS DATE), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             fit_reasons, env_category, w1_mn1_label, env_category_factor,
+             ma2560_local_combo_pass, ma2560_p116_state_match,
+             ma2560_market_match_level, ma2560_state_combo,
+             matched_pattern, pattern_boost, conviction_level, created_at)
+            VALUES (CAST(? AS DATE), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 (
@@ -501,10 +799,16 @@ def build_ledger(
                     r["lifecycle_stage"],
                     r["strategy_environment_fit"],
                     r["fit_reasons"],
+                    r["env_category"],
+                    r["w1_mn1_label"],
+                    r["env_category_factor"],
                     r["ma2560_local_combo_pass"],
                     r["ma2560_p116_state_match"],
                     r["ma2560_market_match_level"],
                     r["ma2560_state_combo"],
+                    r.get("matched_pattern", ""),
+                    r.get("pattern_boost", 0.0),
+                    r.get("conviction_level", "normal"),
                     created_at,
                 )
                 for r in rows
@@ -524,9 +828,7 @@ def build_ledger(
             (date_str,),
         ).fetchall()
     }
-    unsupported = {
-        "atr_chandelier": "requires position context; no ledger signals emitted without real position/highest_since_entry data",
-    }
+    unsupported = {}
     con.execute(
         """
         INSERT OR REPLACE INTO strategy_signal_manifest

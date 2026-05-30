@@ -1,0 +1,201 @@
+{
+  "version": "1.0",
+  "description": "Strategy environment verification registry. This registry drives read-only research verification only; it does not define trading rules.",
+  "default_label_windows": [
+    5,
+    10,
+    20
+  ],
+  "default_primary_window": 20,
+  "default_min_samples": 30,
+  "benchmark": {
+    "type": "market_equal_weight",
+    "description": "Forward excess returns are computed versus all-market equal-weight returns by the shared attach_labels() labeler."
+  },
+  "strategies": {
+    "ma2560": {
+      "description": "25/60 moving-average trend continuation and pullback family.",
+      "verification_adapter": "scripts/search_2560_optimal_state.py",
+      "runner_command": "search_2560_optimal_state",
+      "default_raw_signals": [
+        "ma2560_golden_cross"
+      ],
+      "primary_verification": {
+        "type": "state_combo_search",
+        "name": "MA2560 exact MN1/W1/D1 State combo search",
+        "validated_rule_config": "config/ma2560_state_market_match_rule.json",
+        "validated_rule_doc": "docs/MA2560_STATE_MARKET_MATCH_RULE.md"
+      },
+      "registered_hypotheses": [
+        "Compare selected MA2560 signals across exact MN1/W1/D1 State combos.",
+        "Compare current rule combos E/E/F, E/F/F, E/F/E against all other samples.",
+        "Use bit signatures to avoid overfitting exact 4096-combo space."
+      ],
+      "outputs": {
+        "strategy_evaluation_prefix": "ma2560_optimal_state_search",
+        "project_report": "outputs/project/2560_state_market_match.md"
+      },
+      "status": "partially_validated",
+      "latest_calibration": {
+        "date": "2026-05-23",
+        "verdict": {
+          "fit_ordering_valid": true,
+          "fit_ordering_detail": {
+            "sorted_correctly": true,
+            "best_above_all": true,
+            "means": {
+              "最佳适配": 0.0385,
+              "适配": 0.018,
+              "弱适配": -0.005
+            }
+          },
+          "overall": "pass"
+        },
+        "updated_at": "2026-05-23T23:27:56.837544+00:00"
+      }
+    },
+    "bollinger_bandit": {
+      "description": "John Hill style Bollinger Bandit long-entry signal: MA50 + 1σ upper-band cross with 30-period momentum filter.",
+      "verification_adapter": "scripts/search_bollinger_optimal_state.py",
+      "runner_command": "search_bollinger_optimal_state",
+      "default_raw_signals": [
+        "bb_bandit_long_entry"
+      ],
+      "primary_verification": {
+        "type": "hypothesis_comparison",
+        "name": "Bollinger State environment hypothesis comparison",
+        "audit_doc": "docs/BOLLINGER_BANDIT_IMPLEMENTATION_AUDIT.md"
+      },
+      "registered_hypotheses": [
+        "KIMI candidate: D1 in {13,14,15}, W1 in {14,15}, MN1 in {12,14,15}.",
+        "All-three E/F resonance.",
+        "D1 in {13,14,15}.",
+        "D1 volatility_bit = 1 versus 0."
+      ],
+      "latest_local_finding": {
+        "as_of": "2026-05-01",
+        "history_start": "2025-06-01",
+        "sample_count": 47219,
+        "summary": "KIMI candidate and D1 volatility_bit=1 did not pass local 20d validation; D1 volatility_bit=0 was more stable."
+      },
+      "outputs": {
+        "strategy_evaluation_prefix": "bollinger_optimal_state_search",
+        "project_report": "outputs/project/bollinger_optimal_state_search.md"
+      },
+      "status": "kimi_candidate_rejected",
+      "latest_calibration": {
+        "date": "2026-05-23",
+        "verdict": {
+          "fit_ordering_valid": true,
+          "fit_ordering_detail": {
+            "sorted_correctly": true,
+            "best_above_all": true,
+            "means": {
+              "最佳适配": 0.0385,
+              "适配": 0.018,
+              "弱适配": -0.005
+            }
+          },
+          "overall": "pass"
+        },
+        "updated_at": "2026-05-23T23:27:56.837550+00:00"
+      }
+    },
+    "atr_chandelier": {
+      "description": "ATR Chandelier multi-timeframe State resonance strategy. Entry filtered by MN1/W1/D1 State combos; exit uses 3xATR trailing stop tightening to 1.6xATR after 4R profit.",
+      "verification_adapter": "scripts/search_atr_chandelier_optimal_state.py",
+      "runner_command": "search_atr_chandelier_optimal_state",
+      "default_raw_signals": [
+        "atr_chandelier_entry"
+      ],
+      "primary_verification": {
+        "type": "state_combo_search",
+        "name": "ATR Chandelier MN1/W1/D1 State combo search",
+        "validated_rule_config": "config/atr_chandelier_state_match_rule.json"
+      },
+      "registered_hypotheses": [
+        "MN1 in {E,F,2,3,6,7,10,11} + W1 in {E,F,2,3,6,7,10,11} + D1 in {E,F,2,6,7,3} outperforms random entry.",
+        "ATR chandelier exit (3x -> 1.6x) outperforms fixed percentage stop.",
+        "4R tightening threshold improves risk-adjusted returns."
+      ],
+      "outputs": {
+        "strategy_evaluation_prefix": "atr_chandelier_optimal_state_search",
+        "project_report": "outputs/project/atr_chandelier_optimal_state_search.md"
+      },
+      "status": "registered",
+      "latest_calibration": {
+        "date": "2026-05-24",
+        "verdict": {
+          "fit_ordering_valid": true,
+          "fit_ordering_detail": {
+            "sorted_correctly": true,
+            "best_above_all": true,
+            "means": {
+              "最佳适配": 0.0385,
+              "适配": 0.018,
+              "弱适配": -0.005
+            }
+          },
+          "overall": "pass"
+        },
+        "updated_at": "2026-05-24T00:00:00.000000+00:00"
+      }
+    },
+    "vcp": {
+      "description": "Volatility Contraction Pattern breakout family, evaluated as compression-release path rather than static State equality.",
+      "verification_adapter": "scripts/search_vcp_optimal_state.py",
+      "runner_command": "search_vcp_optimal_state",
+      "default_raw_signals": [
+        "vcp_breakout",
+        "vcp_breakout_no_vol",
+        "vcp_breakout_weak_vol"
+      ],
+      "primary_verification": {
+        "type": "state_path",
+        "name": "D1 compression-release path verification",
+        "parameters": {
+          "lookback_days": [
+            5,
+            10,
+            20
+          ],
+          "contraction": "abs(d1_state) < 8",
+          "release": "abs(current_d1_state) >= 8"
+        }
+      },
+      "registered_hypotheses": [
+        "D1 recent compression release outperforms current expansion without recent compression.",
+        "KIMI static combo D1 in {10,12,14}, W1 in {12,14}, MN1 in {4,12} is not promoted unless local data supports it.",
+        "Static D1 in {10,12,14} is secondary to the path condition."
+      ],
+      "latest_local_finding": {
+        "as_of": "2026-05-01",
+        "history_start": "2025-06-01",
+        "sample_count": 43259,
+        "summary": "D1 20-day compression-release path outperformed current expansion without compression; KIMI static combo did not outperform outside samples."
+      },
+      "outputs": {
+        "strategy_evaluation_prefix": "vcp_optimal_state_search",
+        "project_report": "outputs/project/vcp_optimal_state_search.md"
+      },
+      "status": "path_hypothesis_supported",
+      "latest_calibration": {
+        "date": "2026-05-23",
+        "verdict": {
+          "fit_ordering_valid": true,
+          "fit_ordering_detail": {
+            "sorted_correctly": true,
+            "best_above_all": true,
+            "means": {
+              "最佳适配": 0.0385,
+              "适配": 0.018,
+              "弱适配": -0.005
+            }
+          },
+          "overall": "pass"
+        },
+        "updated_at": "2026-05-23T23:27:56.837552+00:00"
+      }
+    }
+  }
+}

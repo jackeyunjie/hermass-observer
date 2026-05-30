@@ -1,0 +1,18 @@
+{
+  "generated_at": "2026-05-29T09:42:22.194948",
+  "forecast_date": "20260529",
+  "holder_report_date": "20241231",
+  "foundation_db": "/Users/lv111101/Documents/hermass-observer-product/outputs/p116_foundation_mt4like_20260520/p116_foundation.duckdb",
+  "total_stocks": 5527,
+  "requested_types": [
+    "forecast"
+  ],
+  "results": {
+    "forecast": {
+      "parquet": "/Users/lv111101/Documents/hermass-observer-product/data/akshare_fundamental/stock_forecast_20260529.parquet",
+      "csv": "/Users/lv111101/Documents/hermass-observer-product/data/akshare_fundamental/stock_forecast_20260529.csv",
+      "rows": 51
+    }
+  },
+  "errors": {}
+}

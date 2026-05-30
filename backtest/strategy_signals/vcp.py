@@ -45,6 +45,7 @@ def vcp_signal(
             contraction_score += 1
 
     # 2. 价格振幅收缩
+    range_20 = 0
     if all([high_5d, low_5d, high_20d, low_20d]):
         range_5 = (high_5d - low_5d) / close if close else 0
         range_20 = (high_20d - low_20d) / close if close else 1
