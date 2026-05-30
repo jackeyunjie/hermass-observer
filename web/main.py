@@ -1196,6 +1196,12 @@ def _research_page_context(stock_code: str, render_profile: str) -> dict[str, An
         ]
         missing_modules = ["company_profile", "financial_trend", "formatter_output"]
         not_needed_now = "当前不必等待完整卡片，先用结构与策略视图维持跟踪。"
+    ai_summary = {
+        "conclusion": summary["conclusion"],
+        "multi_cycle_view": "先看 MN1/W1/D1 是否互相支撑。若大周期并未同步，只把当前对象当成局部结构样本，不直接外推成全面进攻机会。",
+        "single_cycle_position": "当前优先判断它是刚突破、推进中段、高位延展，还是仍在等待确认。同样强结构，不同位置的概率和盈亏比完全不同。",
+        "next_step": summary["next_step"],
+    }
     sw_l1 = str(unified_row.get("sw_l1", "")).strip()
     industry_rotation = industry_rotation_map.get(sw_l1, {}) if sw_l1 and industry_rotation_freshness["usable"] else {}
     moneyflow_status = str(unified_row.get("moneyflow_status", "")).strip()
@@ -1286,6 +1292,7 @@ def _research_page_context(stock_code: str, render_profile: str) -> dict[str, An
         "research_lane": lead,
         "strategy_rows": strategy_rows,
         "summary": summary,
+        "ai_summary": ai_summary,
         "coverage": coverage,
         "missing_modules": missing_modules,
         "research_warnings": research_warnings,
@@ -1789,6 +1796,7 @@ class ChatResponse(BaseModel):
     freshness_note: str = ""
     remembered_stock_code: str = ""
     mode_used: str = "chat"
+    task_card: dict[str, Any] | None = None
 
 
 WATCH_COMMAND_LEDGER = ROOT / "outputs" / "alerts" / "watch_command_ledger.json"
@@ -1970,6 +1978,17 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
             "freshness_note": f"盯盘任务创建日期为 {record['valid_from']}，默认有效至 {record['valid_to']}。",
             "remembered_stock_code": record["stock_code"],
             "mode_used": "agent",
+            "task_card": {
+                "title": "任务确认",
+                "task_type": "盯盘提醒",
+                "stock_code": record["stock_code"],
+                "trigger_type": record["trigger_type"],
+                "email": record["email"],
+                "valid_from": record["valid_from"],
+                "valid_to": record["valid_to"],
+                "status": record["status"],
+                "note": record["note"],
+            },
         }
 
     if mode == "agent":

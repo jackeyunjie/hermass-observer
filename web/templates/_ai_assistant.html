@@ -95,6 +95,15 @@
           if (data.freshness_note) {
             html += '<div class="ai-section"><strong>数据日期提示</strong>' + escapeHtml(data.freshness_note) + '</div>';
           }
+          if (data.task_card) {
+            html += '<div class="ai-section"><strong>' + escapeHtml(data.task_card.title || '任务确认') + '</strong>';
+            html += '类型：' + escapeHtml(data.task_card.task_type || '-') + '<br>';
+            html += '股票：' + escapeHtml(data.task_card.stock_code || '-') + '<br>';
+            html += '条件：' + escapeHtml(data.task_card.note || data.task_card.trigger_type || '-') + '<br>';
+            html += '邮箱：' + escapeHtml(data.task_card.email || '-') + '<br>';
+            html += '有效期：' + escapeHtml(data.task_card.valid_from || '-') + ' → ' + escapeHtml(data.task_card.valid_to || '-') + '<br>';
+            html += '状态：' + escapeHtml(data.task_card.status || '-') + '</div>';
+          }
           if (data.next_actions && data.next_actions.length) {
             html += '<div class="ai-actions">';
             data.next_actions.forEach(function(a) {

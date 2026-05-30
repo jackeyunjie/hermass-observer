@@ -133,6 +133,21 @@
 
       <section class="panel span-2">
         <div class="panel-head">
+          <h2>AI 总结卡</h2>
+          <span>先用 AI 语言帮你收束，再决定是否深读</span>
+        </div>
+        <table>
+          <tbody>
+            <tr><td>当前结论</td><td>{{ ai_summary.conclusion }}</td></tr>
+            <tr><td>多周期环境</td><td>{{ ai_summary.multi_cycle_view }}</td></tr>
+            <tr><td>单周期位置</td><td>{{ ai_summary.single_cycle_position }}</td></tr>
+            <tr><td>下一步</td><td>{{ ai_summary.next_step }}</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="panel span-2">
+        <div class="panel-head">
           <h2>决策收束</h2>
           <span>先收束，再展开</span>
         </div>
