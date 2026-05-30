@@ -29,6 +29,10 @@ def load_state_data_from_duckdb(
     end_date: str,
 ) -> dict[str, list[dict]]:
     """从 DuckDB 加载每日 state 数据, 返回 {date: [state_dict]}."""
+    start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+    bars_start_date = (start_dt - timedelta(days=120)).strftime("%Y-%m-%d")
+    state_start_date = (start_dt - timedelta(days=30)).strftime("%Y-%m-%d")
+
     conn = duckdb.connect(str(foundation_db), read_only=True)
     rows = conn.execute(f"""
         WITH bars_base AS (
@@ -50,10 +54,12 @@ def load_state_data_from_duckdb(
                 max(high) OVER w20 AS high_20d,
                 min(low) OVER w20 AS low_20d,
                 max(high) OVER w10prev AS high_10d_prev,
+                avg(volume) OVER w20 AS avg_volume_20d,
                 avg(volume) OVER w50 AS avg_volume_50d,
                 lag(close, 1) OVER w AS prev_close,
                 lag(close, 30) OVER w AS close_30_ago
             FROM daily_bars
+            WHERE date BETWEEN '{bars_start_date}' AND '{end_date}'
             WINDOW
                 w AS (PARTITION BY stock_code ORDER BY date),
                 w5 AS (PARTITION BY stock_code ORDER BY date ROWS BETWEEN 4 PRECEDING AND CURRENT ROW),
@@ -120,6 +126,7 @@ def load_state_data_from_duckdb(
                 lag(d1_atr_ratio_pct * d1_close / 100.0, 5) OVER (PARTITION BY stock_code ORDER BY state_date) AS atr14_5d_ago,
                 lag(d1_atr_ratio_pct * d1_close / 100.0, 10) OVER (PARTITION BY stock_code ORDER BY state_date) AS atr14_10d_ago
             FROM d1_perspective_state
+            WHERE state_date BETWEEN '{state_start_date}' AND '{end_date}'
         )
         SELECT
             s.stock_code,
@@ -142,7 +149,7 @@ def load_state_data_from_duckdb(
             b.bb_mid_20, b.bb_upper_20_2, b.bb_upper_50_1, b.bb_upper_50_1_prev, b.close_30_ago,
             b.ma25, b.ma60, b.ma25_prev, b.ma60_prev,
             b.high_5d, b.low_5d, b.high_20d, b.low_20d,
-            b.high_10d_prev, b.avg_volume_50d, b.prev_close,
+            b.high_10d_prev, b.avg_volume_20d, b.avg_volume_50d, b.prev_close,
             b.ma10, b.ma11, b.ma12, b.ma13, b.ma14, b.ma15, b.ma16, b.ma17, b.ma18, b.ma19,
             b.ma20, b.ma21, b.ma22, b.ma23, b.ma24, b.ma25, b.ma26, b.ma27, b.ma28, b.ma29,
             b.ma30, b.ma31, b.ma32, b.ma33, b.ma34, b.ma35, b.ma36, b.ma37, b.ma38, b.ma39,
@@ -208,6 +215,7 @@ def load_state_data_from_duckdb(
             'high_20d': float(row['high_20d']) if row['high_20d'] else 0,
             'low_20d': float(row['low_20d']) if row['low_20d'] else 0,
             'high_10d_prev': float(row['high_10d_prev']) if row['high_10d_prev'] else 0,
+            'avg_volume_20d': float(row['avg_volume_20d']) if row['avg_volume_20d'] else 0,
             'avg_volume_50d': float(row['avg_volume_50d']) if row['avg_volume_50d'] else 0,
             'volume_ma_50': float(row['avg_volume_50d']) if row['avg_volume_50d'] else 0,
             'high_10d': float(row['high_10d_prev']) if row['high_10d_prev'] else 0,

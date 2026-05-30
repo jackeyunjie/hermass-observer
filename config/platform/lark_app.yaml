@@ -1,0 +1,85 @@
+# Hermass 飞书 Bot 配置
+# 版本: v1.1
+# 日期: 2026-05-27
+#
+# 使用方式:
+#   方式 A: HTTP 回调模式 (需要公网 URL)
+#     export LARK_VERIFICATION_TOKEN=your_token
+#     export LARK_APP_SECRET=your_secret
+#     python3 hermass_platform/api/lark_server.py --port 8080
+#
+#   方式 B: lark-cli 直接发消息 (无需回调，适合推送)
+#     lark-cli im +messages-send --chat-id oc_xxx --text "消息内容"
+#
+#   方式 C: hermes-agent 集成 (推荐)
+#     hermes-agent 已注册 5 个 Skills，通过飞书 Bot 身份调用
+#     运行时提示词统一参考:
+#       config/prompts/runtime_architecture_prompt.md
+#
+# 飞书开发者后台配置步骤:
+#   1. 创建企业自建应用 → 机器人 → 启用
+#   2. 事件订阅 → 请求地址 URL: http://<your-domain>:8080/lark/callback
+#   3. 订阅事件: im.message.receive_v1
+#   4. 权限申请: im:message, im:message.p2p_msg:readonly, im:message.group_msg:readonly
+#   5. 获取 Verification Token (Verification Token 页面)
+#      → 设置环境变量: export LARK_VERIFICATION_TOKEN=xxx
+#
+# hermes-agent Skills 清单:
+#   market-analyst   → 市场状态查询 (@Bot 市场怎么样)
+#   strategy-advisor → 策略信号/个股状态 (@Bot 600519 怎么样)
+#   coach            → 交易知识问答 (@Bot 什么是 VCP)
+#   daily-pipeline   → 运行数据流水线 (定时触发)
+#   sector-resonance → 板块共振检测 (@Bot 板块共振)
+#
+# 运行时架构规则:
+#   - shared core layer = agently_adapter/a_share_core.py
+#   - core flow = agently_adapter/agently_a_share_flow.py
+#   - full compatibility workflow = agently_adapter/agently_daily_flow.py
+#   - API service layer = hermass_platform/api/a_share_service.py
+#   - shell 脚本仅为过渡入口
+
+app:
+  name: "Hermass Observer Bot"
+  description: "AI 认知交易中台 — 对话式市场分析助手 (hermes-agent v0.14.0)"
+  version: "2.1"
+  hermes_agent_version: "0.14.0"
+  skills:
+    - market-analyst
+    - strategy-advisor
+    - coach
+    - daily-pipeline
+    - sector-resonance
+
+server:
+  default_port: 8080
+  callback_path: "/lark/callback"
+  health_path: "/health"
+
+events:
+  subscribe:
+    - im.message.receive_v1
+
+message:
+  max_length: 4000
+  reply_mode: "markdown"
+  compliance:
+    disclaimer: "本回答基于 Hermass Observer 系统输出，仅供研究参考，不构成投资建议。"
+
+rate_limit:
+  enabled: true
+  max_per_minute: 20
+  max_per_user_per_minute: 5
+
+# 推送配置 (用于每日流水线结果推送)
+push:
+  enabled: true
+  # 方式 1: Webhook (群机器人)
+  # webhook_url: "https://open.feishu.cn/open-apis/bot/v2/hook/xxx"
+  # 方式 2: Chat ID (通过 lark-cli 发送)
+  chat_id: "oc_293b33eabb4b4268e7f395a7ce821837"
+  # 方式 3: User ID (私信)
+  # user_id: "ou_xxx"
+  #
+  # 固定计划:
+  #   15:15 - run_daily_pipeline.sh 收盘后全量流水线
+  #   15:18 - send_daily_strategy_report_to_lark.sh 推送每日策略报告到飞书群

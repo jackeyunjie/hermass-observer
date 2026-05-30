@@ -1,0 +1,47 @@
+{
+  "description": "Hermass 日频流水线定时任务配置（hermes-agent cron 格式）",
+  "tasks": [
+    {
+      "name": "A股日频流水线",
+      "schedule": "15 15 * * 1-5",
+      "command": "cd /Users/lv111101/Documents/hermass-observer-product && bash scripts/run_daily_pipeline.sh $(date +%Y-%m-%d)",
+      "description": "每个交易日 15:15（收盘后）自动运行完整流水线",
+      "delivery": "terminal"
+    },
+    {
+      "name": "A股每日策略报告飞书推送",
+      "schedule": "18 15 * * 1-5",
+      "command": "cd /Users/lv111101/Documents/hermass-observer-product && bash scripts/send_daily_strategy_report_to_lark.sh $(date +%Y-%m-%d)",
+      "description": "每个交易日 15:18 将当日策略报告推送到配置好的飞书群",
+      "delivery": "lark"
+    },
+    {
+      "name": "A股主动State提醒",
+      "schedule": "25 15 * * 1-5",
+      "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python scripts/send_active_state_alerts_to_lark.py --date $(date +%Y-%m-%d)",
+      "description": "每个交易日 15:25 对最近 7 天关注标的发送极简 State / 行业共振提醒",
+      "delivery": "lark"
+    },
+    {
+      "name": "板块共振报告",
+      "schedule": "20 15 * * 1-5",
+      "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python -c \"from hermass_platform.slice.industry_slice import detect_sector_resonance; from hermass_platform.agents.base_agent import find_foundation_db; db=find_foundation_db(); results=detect_sector_resonance(str(db)) if db else []; print(f'{len(results)} 个行业共振')\"",
+      "description": "每个交易日 15:20 推送板块共振报告",
+      "delivery": "terminal"
+    },
+    {
+      "name": "周末仓库整理检查",
+      "schedule": "0 10 * * 6",
+      "command": "cd /Users/lv111101/Documents/hermass-observer-product && bash scripts/weekend_repo_hygiene_check.sh",
+      "description": "每周六 10:00 生成本地仓库整理检查报告，只审计不自动改 git 状态",
+      "delivery": "terminal"
+    },
+    {
+      "name": "每周认知复盘卡",
+      "schedule": "35 15 * * 5",
+      "command": "cd /Users/lv111101/Documents/hermass-observer-product && bash scripts/send_weekly_cognitive_recap_to_lark.sh $(date +%Y-%m-%d)",
+      "description": "每周五 15:35 推送群级认知复盘卡，回顾本周关注轨迹与 State 变化",
+      "delivery": "lark"
+    }
+  ]
+}

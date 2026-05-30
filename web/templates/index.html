@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hermass 多周期观察台</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Hermass 多周期观察</p>
+        <h1>多周期观察台</h1>
+      </div>
+      <div class="date">
+        <a href="/market">市场</a>
+        <a href="/industry">行业</a>
+        <a href="/backtest">回测</a>
+        <span>{{ today }}</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel span-2 hero-panel">
+        <div class="panel-head">
+          <h2>{{ mode_summary.label }}</h2>
+          <span>多周期相互影响观察 + 单周期运行观察 + 概率与盈亏比验证</span>
+        </div>
+        <p class="hero-copy">{{ mode_summary.headline }}</p>
+        <div class="mode-switch">
+          <a class="mode-pill {% if mode == 'direction' %}active{% endif %}" href="/?mode=direction">方向</a>
+          <a class="mode-pill {% if mode == 'research' %}active{% endif %}" href="/?mode=research">研究</a>
+          <a class="mode-pill {% if mode == 'execution' %}active{% endif %}" href="/?mode=execution">执行</a>
+        </div>
+        <ul class="focus-list">
+          {% for line in mode_summary.focus %}
+            <li>{{ line }}</li>
+          {% endfor %}
+        </ul>
+        <table>
+          <tbody>
+            <tr><td>当前结论</td><td>{{ mode_summary.judgment }}</td></tr>
+            <tr><td>为什么</td><td>{{ mode_summary.why }}</td></tr>
+            <tr><td>先做什么</td><td>{{ mode_summary.next_step }}</td></tr>
+          </tbody>
+        </table>
+        <div class="starter-box">
+          <h3>{{ mode_summary.starter_title }}</h3>
+          <ol class="starter-list">
+            {% for line in mode_summary.starter_steps %}
+              <li>{{ line }}</li>
+            {% endfor %}
+          </ol>
+        </div>
+        <p class="hero-link"><a href="{{ mode_summary.primary_cta }}">{{ mode_summary.primary_label }}</a></p>
+      </section>
+
+      <section class="metric-strip span-2">
+        <div>
+          <span>观察样本</span>
+          <strong>{{ quant.signals.count }}</strong>
+          <em>{{ quant.signals.date }}</em>
+        </div>
+        <div>
+          <span>待跟进样本</span>
+          <strong>{{ quant.forward.pending }}</strong>
+          <em>{{ quant.forward.date }}</em>
+        </div>
+        <div>
+          <span>高风报比</span>
+          <strong>{{ quant.reward_risk.high_value_count }}</strong>
+          <em>{{ quant.reward_risk.signal_date }}</em>
+        </div>
+      </section>
+
+      <section class="panel span-2 starter-links">
+        <div class="panel-head">
+          <h2>从这里开始</h2>
+          <span>不必先读全站，按你的当下问题进入</span>
+        </div>
+        <div class="starter-grid">
+          <a class="starter-card" href="/market">
+            <strong>我想先判断现在能不能做</strong>
+            <span>先看市场环境、阶段节奏和顺风方向。</span>
+          </a>
+          <a class="starter-card" href="/industry">
+            <strong>我想先知道看哪些方向</strong>
+            <span>先挑少数行业，不平均看全市场。</span>
+          </a>
+          <a class="starter-card" href="/watchlist">
+            <strong>我想直接看今天该跟踪什么</strong>
+            <span>先看优先队列、真假突破和资金流确认。</span>
+          </a>
+          <a class="starter-card" href="/research?stock_code={{ stock_code }}">
+            <strong>我想先研究一只票</strong>
+            <span>先看决策收束和多因子共振判断，再决定是否深挖。</span>
+          </a>
+        </div>
+      </section>
+
+      <section class="panel span-2 warning-panel">
+        <div class="panel-head">
+          <h2>术语说明</h2>
+          <span>保留少量缩写，但不让你自己猜</span>
+        </div>
+        <table>
+          <tbody>
+            <tr><td>State</td><td>结构状态，表示多周期结构环境，不等于直接买卖点。</td></tr>
+            <tr><td>EF</td><td>E/F 共振，表示多周期达到较强结构状态的数量，不等于盈利保证。</td></tr>
+            <tr><td>RR</td><td>Risk / Reward，风报比，表示潜在风险与潜在收益的对比。</td></tr>
+            <tr><td>Cron</td><td>定时任务规则，表示系统按什么时间计划自动运行。</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      {% if quant.signals.meta.used_fallback or quant.signals.meta.latest_is_empty %}
+      <section class="panel span-2 warning-panel">
+        <div class="panel-head">
+          <h2>信号数据提示</h2>
+          <span>当前展示口径说明</span>
+        </div>
+        <p class="hero-note">
+          最新信号产物 {{ quant.signals.meta.latest_date }} 为空，页面已自动回退到最近非空信号日 {{ quant.signals.meta.effective_date }}。
+        </p>
+        <p class="muted">实际使用：{{ quant.signals.meta.effective_relpath }} | 最新产物：{{ quant.signals.meta.latest_relpath }}</p>
+      </section>
+      {% endif %}
+
+      {% if mode_summary.stale_overview %}
+      <section class="panel span-2 warning-panel">
+        <div class="panel-head">
+          <h2>外围数据新鲜度</h2>
+          <span>低频背景不会冒充成今日主判断</span>
+        </div>
+        <ul class="focus-list">
+          {% for row in mode_summary.stale_overview %}
+            <li>{{ row.message }}</li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+
+      {% if mode == "direction" %}
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>方向重点</h2>
+          <span>少看个股，先看方向</span>
+        </div>
+        <table>
+          <thead>
+            <tr><th>行业</th><th>ETF 数量</th><th>代表样本</th></tr>
+          </thead>
+          <tbody>
+            {% for row in industry.top_industries[:5] %}
+            <tr>
+              <td>{{ row.industry }}</td>
+              <td>{{ row.asset_count }}</td>
+              <td class="path">{{ row.sample }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+      {% endif %}
+
+      {% if mode == "research" %}
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>研究队列</h2>
+          <span>先展开当前最值得看的对象</span>
+        </div>
+        <table>
+          <thead>
+            <tr><th>代码</th><th>名称</th><th>共振路径</th><th>信号解读</th><th>适配度</th></tr>
+          </thead>
+          <tbody>
+            {% for row in research_lane.recent_research %}
+            <tr>
+              <td><a href="/research?stock_code={{ row.stock_code }}">{{ row.stock_code }}</a></td>
+              <td>{{ row.stock_name }}</td>
+              <td>{{ row.path_label }}</td>
+              <td>{{ row.signal_read }}</td>
+              <td>{{ row.fit }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+      {% endif %}
+
+      {% if mode == "execution" %}
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>执行队列</h2>
+          <span>只看待处理对象</span>
+        </div>
+        <p class="hero-note">{{ execution.lane_hint }}</p>
+        <table>
+          <thead>
+            <tr><th>代码</th><th>名称</th><th>共振路径</th><th>原因</th><th>下一步</th></tr>
+          </thead>
+          <tbody>
+            {% for row in execution.priority_queue %}
+            <tr>
+              <td><a href="/research?stock_code={{ row.stock_code }}">{{ row.stock_code }}</a></td>
+              <td>{{ row.stock_name }}</td>
+              <td>{{ row.path_label }}</td>
+              <td>{{ row.queue_reason }}</td>
+              <td>{{ row.next_action }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% if not execution.priority_queue %}
+        <p class="muted">当前没有优先执行对象，先看观察队列即可。</p>
+        {% endif %}
+      </section>
+      {% endif %}
+
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>每日产物</h2>
+          <span>底座与公开产物状态</span>
+        </div>
+        <table>
+          <thead>
+            <tr><th>项目</th><th>状态</th><th>路径</th></tr>
+          </thead>
+          <tbody>
+            {% for row in outputs %}
+            <tr>
+              <td>{{ row.name }}</td>
+              <td><span class="status {{ row.status|lower }}">{{ row.status }}</span></td>
+              <td class="path">{{ row.path }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>数据概览</h2>
+          <span>先知道底座有没有正常工作</span>
+        </div>
+        <div class="quant-grid">
+          <div>
+            <h3>观察样本</h3>
+            <table>
+              <tbody>
+              {% for key, value in quant.signals.get('display_strategy_totals', {}).items() %}
+                <tr><td>{{ key }}</td><td>{{ value }}</td></tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <h3>前瞻观察</h3>
+            <table>
+              <tbody>
+                <tr><td>总数</td><td>{{ quant.forward.total }}</td></tr>
+                <tr><td>已标注</td><td>{{ quant.forward.labeled }}</td></tr>
+                <tr><td>待标注</td><td>{{ quant.forward.pending }}</td></tr>
+              {% for key, value in quant.forward.display_strategy_distribution.items() %}
+                <tr><td>{{ key }}</td><td>{{ value }}</td></tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <h3>风报比</h3>
+            <table>
+              <tbody>
+                <tr><td>总信号数</td><td>{{ quant.reward_risk.total_signals }}</td></tr>
+                <tr><td>可计算数</td><td>{{ quant.reward_risk.computable_rr }}</td></tr>
+                <tr><td>平均 RR</td><td>{{ quant.reward_risk.summary.avg_rr }}</td></tr>
+                <tr><td>最大 RR</td><td>{{ quant.reward_risk.summary.max_rr }}</td></tr>
+                <tr><td>中位 RR</td><td>{{ quant.reward_risk.summary.median_rr }}</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {% if quant.reward_risk.high_value_signals %}
+        <h3>高风报比样本</h3>
+        <table>
+          <thead>
+            <tr><th>代码</th><th>名称</th><th>共振路径</th><th>RR</th><th>置信度</th></tr>
+          </thead>
+          <tbody>
+          {% for row in quant.reward_risk.high_value_signals %}
+            <tr>
+              <td>{{ row.stock_code }}</td>
+              <td>{{ row.stock_name }}</td>
+              <td>{{ row.path_label }}</td>
+              <td>{{ row.rr_ratio }}</td>
+              <td>{{ row.confidence }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+      </section>
+
+      <section class="panel" id="research-preview">
+        <div class="panel-head">
+          <h2>研究预览</h2>
+          <span>快速卡 / 深度卡 / 证据卡</span>
+        </div>
+        <form method="post" class="form">
+          <input type="hidden" name="mode" value="{{ mode }}" />
+          <label>
+            股票代码
+            <input name="stock_code" value="{{ stock_code }}" />
+          </label>
+          <label>
+            展开深度
+            <select name="render_profile">
+              <option value="standard" {% if render_profile == "standard" %}selected{% endif %}>标准</option>
+              <option value="full" {% if render_profile == "full" %}selected{% endif %}>完整</option>
+            </select>
+          </label>
+          <button type="submit">生成研究卡</button>
+        </form>
+      </section>
+
+      <section class="panel" id="push-status">
+        <div class="panel-head">
+          <h2>推送状态</h2>
+          <span>主动提醒账本</span>
+        </div>
+        {% if mode == "execution" and execution.high_rr %}
+          <h3>高风报比优先级</h3>
+          <table>
+            <thead>
+              <tr><th>代码</th><th>名称</th><th>共振路径</th><th>RR</th></tr>
+            </thead>
+            <tbody>
+              {% for row in execution.high_rr %}
+              <tr>
+                <td>{{ row.stock_code }}</td>
+                <td>{{ row.stock_name }}</td>
+                <td>{{ row.path_label }}</td>
+                <td>{{ row.rr_ratio }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% elif alert_rows %}
+          <ul class="compact-list">
+          {% for row in alert_rows %}
+            <li>{{ row.key }}</li>
+          {% endfor %}
+          </ul>
+        {% else %}
+          <p class="muted">当前还没有主动提醒账本。</p>
+        {% endif %}
+      </section>
+
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>运行时</h2>
+          <span>定时任务配置</span>
+        </div>
+        <table>
+          <thead>
+            <tr><th>名称</th><th>Cron</th><th>投递</th><th>启用</th><th>命令</th></tr>
+          </thead>
+          <tbody>
+          {% for row in cron_rows %}
+            <tr>
+              <td>{{ row.name }}</td>
+              <td>{{ row.cron }}</td>
+              <td>{{ row.delivery }}</td>
+              <td>{{ row.enabled }}</td>
+              <td class="path">{{ row.command }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      {% if cards %}
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>快速卡</h2>
+        </div>
+        <pre>{{ cards.quick or cards.error }}</pre>
+      </section>
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>深度卡</h2>
+        </div>
+        <pre>{{ cards.deep or cards.error }}</pre>
+      </section>
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>证据卡</h2>
+        </div>
+        <pre>{{ cards.evidence or cards.error }}</pre>
+      </section>
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>底层载荷</h2>
+        </div>
+        <pre>{{ cards.payload or cards.error }}</pre>
+      </section>
+      {% endif %}
+    </main>
+  </body>
+</html>

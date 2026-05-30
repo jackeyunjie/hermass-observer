@@ -1,0 +1,25 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-v --tb=short --strict-markers"
+markers = [
+    "unit: 单元测试",
+    "integration: 集成测试",
+    "slow: 耗时测试",
+]
+
+[tool.coverage.run]
+source = ["scripts", "hermass_platform"]
+omit = [
+    "*/__init__.py",
+    "scripts/alpaca_trading/*",
+    "scripts/build_us_*.py",
+    "scripts/us_*.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+]
+precision = 2

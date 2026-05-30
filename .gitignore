@@ -71,6 +71,15 @@ recommendation/outputs/
 .tmp_*
 tmp/
 temp/
+logs/
+_batch*.log
+_batch*.txt
+
+# local research scratch / agent outputs
+data/Kimi_Agent_*/
+data/coze_workflow_extracted/
+data/project2560/
+data/positions.json
 
 # oversized local fixtures
 fixtures/all_products_d1_view_6_rows_20260519.json

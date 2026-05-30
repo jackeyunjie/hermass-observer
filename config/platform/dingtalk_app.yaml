@@ -1,0 +1,39 @@
+# Hermass 钉钉 Bot 配置
+# 版本: v1.0
+# 日期: 2026-05-25
+#
+# 使用方式:
+#   export DINGTALK_APP_KEY=your_app_key
+#   export DINGTALK_APP_SECRET=your_app_secret
+#   make serve-dingtalk
+#
+# 钉钉开发者后台配置步骤:
+#   1. 打开 https://open.dingtalk.com/document/isvapp-server/create-a-robot
+#   2. 创建企业内部应用 → 机器人 → 启用
+#   3. 获取 AppKey 和 AppSecret（凭证与基础信息页面）
+#   4. 设置环境变量后启动本服务
+#   5. 发布应用版本，群设置中添加机器人
+
+app:
+  name: "Hermass Observer Bot"
+  description: "AI 认知交易中台 — 钉钉对话助手"
+  version: "2.0"
+
+server:
+  mode: "stream"
+  protocol: "websocket"
+  # Stream 模式无需公网 IP/域名，内网机器直连钉钉服务器
+
+events:
+  subscribe:
+    - /v1.0/im/bot/messages/get
+
+message:
+  max_length: 4000
+  compliance:
+    disclaimer: "本回答基于 Hermass Observer 系统输出，仅供研究参考，不构成投资建议。"
+
+rate_limit:
+  enabled: true
+  max_per_minute: 20
+  max_per_user_per_minute: 5

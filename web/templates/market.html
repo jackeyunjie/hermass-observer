@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hermass 多周期市场观察</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Hermass 多周期观察</p>
+        <h1>市场观察</h1>
+      </div>
+      <div class="date">
+        <a href="/?mode=direction">首页</a>
+        <a href="/industry">行业</a>
+        <a href="/backtest">回测</a>
+        <span>{{ today }}</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel span-2 hero-panel">
+        <div class="panel-head">
+          <h2>{{ market.phase.label }}</h2>
+          <span>{{ market.phase.date }} / 置信度 {{ market.phase.confidence }}</span>
+        </div>
+        <p class="hero-copy">{{ market.phase.summary }}</p>
+        <p class="hero-note">
+          当前阶段已持续 {{ market.phase.current_phase_days }} 天，前一阶段为 {{ market.phase.previous_phase }}。
+          先看多周期结构、阶段节奏与概率环境，再决定是否下钻行业和个股。
+        </p>
+        <p class="hero-note">{{ market.stance }}</p>
+      </section>
+
+      <section class="panel span-2 warning-panel">
+        <div class="panel-head">
+          <h2>策略使用风险</h2>
+          <span>先看大节奏，再决定策略权重</span>
+        </div>
+        <p class="hero-note">{{ market.strategy_risk_banner }}</p>
+      </section>
+
+      {% if market.stale_rows %}
+      <section class="panel span-2 warning-panel">
+        <div class="panel-head">
+          <h2>数据新鲜度提示</h2>
+          <span>主判断与背景参考分开处理</span>
+        </div>
+        <ul class="focus-list">
+          {% for row in market.stale_rows %}
+            <li>{{ row.message }}</li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>当前重点</h2>
+          <span>先看什么</span>
+        </div>
+        <p class="hero-note">{{ market.focus_now }}</p>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>当前降权</h2>
+          <span>暂时少看什么</span>
+        </div>
+        <p class="hero-note">{{ market.avoid_now }}</p>
+      </section>
+
+      {% if market.signal_meta.used_fallback or market.signal_meta.latest_is_empty %}
+      <section class="panel span-2 warning-panel">
+        <div class="panel-head">
+          <h2>信号来源提示</h2>
+          <span>市场判断的信号口径</span>
+        </div>
+        <p class="hero-note">
+          当前策略气候和信号样本来自最近非空信号日 {{ market.signal_meta.effective_date }}，
+          因为最新信号产物 {{ market.signal_meta.latest_date }} 为空。
+        </p>
+        <p class="muted">实际使用：{{ market.signal_meta.effective_relpath }} | 最新产物：{{ market.signal_meta.latest_relpath }}</p>
+      </section>
+      {% endif %}
+
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>为什么这样看</h2>
+          <span>把统计翻译成判断</span>
+        </div>
+        <table>
+          <tbody>
+            <tr><td>宽基判断</td><td>{{ market.broad_summary }}</td></tr>
+            <tr><td>行业判断</td><td>{{ market.industry_summary }}</td></tr>
+            <tr><td>策略判断</td><td>{{ market.climate_summary }}</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="metric-strip span-2">
+        <div>
+          <span>EF2 宽度</span>
+          <strong>{{ market.breadth.ef2_pct }}%</strong>
+          <em>{{ market.breadth.ef2_count }} / {{ market.breadth.total }}</em>
+        </div>
+        <div>
+          <span>池子 5 日变化</span>
+          <strong>{{ "%.1f"|format(market.phase.pool_change_rate_5d * 100) }}%</strong>
+          <em>阶段池扩张</em>
+        </div>
+        <div>
+          <span>宏观先验</span>
+          <strong>{{ market.macro.score }}</strong>
+          <em>{{ market.macro.quadrant }}</em>
+        </div>
+      </section>
+
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>市场宽度</h2>
+          <span>全市场统计，不靠感觉</span>
+        </div>
+        <table>
+          <tbody>
+            <tr><td>样本总数</td><td>{{ market.breadth.total }}</td></tr>
+            <tr><td>EF≥2 数量</td><td>{{ market.breadth.ef2_count }}（EF=多周期强结构共振数）</td></tr>
+            <tr><td>EF≥2 占比</td><td>{{ market.breadth.ef2_pct }}%</td></tr>
+            <tr><td>D1 平均得分</td><td>{{ market.breadth.avg_d1_score }}</td></tr>
+            <tr><td>EF 分布</td><td>0={{ market.breadth.ef_dist["0"] }} / 1={{ market.breadth.ef_dist["1"] }} / 2={{ market.breadth.ef_dist["2"] }} / 3={{ market.breadth.ef_dist["3"] }}</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>阶段统计</h2>
+          <span>阶段不是一句话，是一组统计</span>
+        </div>
+        <table>
+          <tbody>
+            <tr><td>阶段代码</td><td>{{ market.phase.market_phase }}</td></tr>
+            <tr><td>全三 E/F 池规模</td><td>{{ market.phase.pool_size }}</td></tr>
+            <tr><td>5 日变化</td><td>{{ "%.1f"|format(market.phase.pool_change_rate_5d * 100) }}%</td></tr>
+            <tr><td>20 日变化</td><td>{{ "%.1f"|format(market.phase.pool_change_rate_20d * 100) }}%</td></tr>
+            <tr><td>收缩释放密度</td><td>{{ market.phase.release_density }}</td></tr>
+            <tr><td>行业离散度</td><td>{{ market.phase.industry_dispersion }}</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>策略气候</h2>
+          <span>三策略当前环境适配度</span>
+        </div>
+        <table>
+          <thead>
+            <tr><th>策略</th><th>当前适配</th><th>因子</th><th>信号数</th><th>含义</th><th>风险提示</th></tr>
+          </thead>
+          <tbody>
+          {% for row in market.strategy_climate %}
+            <tr>
+              <td>{{ row.label }}</td>
+              <td>{{ row.fit }}</td>
+              <td>{{ row.factor }}</td>
+              <td>{{ row.signal_count }}</td>
+              <td>{{ row.what }}</td>
+              <td>{{ row.risk }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>宏观先验</h2>
+          <span>宏观先验拆成四个维度看</span>
+        </div>
+        <table>
+          <thead>
+            <tr><th>维度</th><th>分数</th><th>状态</th><th>依据</th></tr>
+          </thead>
+          <tbody>
+          {% for row in market.macro.scores %}
+            <tr>
+              <td>{{ row.label }}</td>
+              <td>{{ row.score }}</td>
+              <td>{{ row.status }}</td>
+              <td>{{ row.evidence }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>宽基指数</h2>
+          <span>大盘风格先看宽基状态</span>
+        </div>
+        <table>
+          <thead>
+            <tr><th>代码</th><th>名称</th><th>State</th><th>EF 数</th><th>收盘价</th></tr>
+          </thead>
+          <tbody>
+          {% for row in market.broad_indices %}
+            <tr>
+              <td>{{ row.symbol }}</td>
+              <td>{{ row.name }}</td>
+              <td>{{ row.state_combo }}</td>
+              <td>{{ row.ef_count }}</td>
+              <td>{{ row.d1_close }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>顺风行业</h2>
+          <span>先看顺风方向</span>
+        </div>
+        <table>
+          <thead>
+            <tr><th>行业</th><th>ETF</th><th>State</th><th>EF</th></tr>
+          </thead>
+          <tbody>
+          {% for row in market.top_industries %}
+            <tr>
+              <td>{{ row.industry }}</td>
+              <td>{{ row.name }}</td>
+              <td>{{ row.state_combo }}</td>
+              <td>{{ row.ef_count }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>弱势行业</h2>
+          <span>这些方向先少看</span>
+        </div>
+        <table>
+          <thead>
+            <tr><th>行业</th><th>ETF</th><th>State</th><th>EF</th></tr>
+          </thead>
+          <tbody>
+          {% for row in market.weak_industries %}
+            <tr>
+              <td>{{ row.industry }}</td>
+              <td>{{ row.name }}</td>
+              <td>{{ row.state_combo }}</td>
+              <td>{{ row.ef_count }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </body>
+</html>

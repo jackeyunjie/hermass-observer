@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hermass 多周期行业观察</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Hermass 多周期观察</p>
+        <h1>行业观察</h1>
+      </div>
+      <div class="date">
+        <a href="/">首页</a>
+        <a href="/market">市场</a>
+        <a href="/backtest">回测</a>
+        <span>{{ today }}</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>行业漏斗</h2>
+          <span>先做方向缩圈，再决定下钻哪些行业</span>
+        </div>
+        <table>
+          <thead>
+            <tr><th>指标</th><th>数值</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>行业数量</td><td>{{ industry.industry_count }}</td></tr>
+            <tr><td>最新信号数</td><td>{{ industry.signal_count }}</td></tr>
+            <tr><td>快照日期</td><td>{{ industry.date }}</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>重点行业</h2>
+          <span>数量与代表 ETF</span>
+        </div>
+        <table>
+          <thead>
+            <tr><th>行业</th><th>ETF 数量</th><th>代表样本</th></tr>
+          </thead>
+          <tbody>
+          {% for row in industry.top_industries %}
+            <tr>
+              <td>{{ row.industry }}</td>
+              <td>{{ row.asset_count }}</td>
+              <td class="path">{{ row.sample }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>近期信号</h2>
+          <span>仅展示前 6 条</span>
+        </div>
+        <table>
+          <thead>
+            <tr><th>代码</th><th>名称</th><th>策略</th><th>信号解读</th></tr>
+          </thead>
+          <tbody>
+          {% for row in industry.top_signals %}
+            <tr>
+              <td>{{ row.stock_code }}</td>
+              <td>{{ row.stock_name }}</td>
+              <td>{{ row.strategy_label }}</td>
+              <td>{{ row.signal_read }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hermass 多周期执行观察</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Hermass 多周期观察</p>
+        <h1>执行观察</h1>
+      </div>
+      <div class="date">
+        <a href="/?mode=execution">首页</a>
+        <a href="/industry">行业</a>
+        <a href="/backtest">回测</a>
+        <span>{{ today }}</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="metric-strip span-2">
+        <div>
+          <span>待标注</span>
+          <strong>{{ execution.pending }}</strong>
+          <em>前瞻观察</em>
+        </div>
+        <div>
+          <span>总数</span>
+          <strong>{{ execution.total }}</strong>
+          <em>执行队列</em>
+        </div>
+        <div>
+          <span>高风报比</span>
+          <strong>{{ execution.high_rr|length }}</strong>
+          <em>优先子集</em>
+        </div>
+      </section>
+
+      <section class="panel span-2 hero-panel">
+        <div class="panel-head">
+          <h2>执行框架</h2>
+          <span>先知道今天该怎么排队</span>
+        </div>
+        <p class="hero-copy">{{ execution.lane_hint }}</p>
+        {% if execution.meta.used_fallback or execution.meta.latest_is_empty %}
+        <div class="warning-panel">
+          <strong>执行产物提示</strong>
+          <p>最新 forward observation 产物为空，当前页面已回退到最近非空日期 {{ execution.meta.effective_date }}。</p>
+          <p class="muted">当前展示来源：{{ execution.meta.effective_relpath }}</p>
+        </div>
+        {% endif %}
+        <div class="warning-panel" style="margin-top: 14px;">
+          <strong>多因子共振说明</strong>
+          <p>本页弱化单一策略名称，优先看 State 共振、D1 支撑、资金流确认、板块承接、真/假突破与持续性。</p>
+          <p class="muted">个股资金流来源：{{ execution.unified_date }}；行业承接来源：{{ execution.industry_rotation_date }}。</p>
+        </div>
+        {% if execution.stale_rows %}
+        <div class="warning-panel" style="margin-top: 14px;">
+          <strong>外围数据新鲜度</strong>
+          <ul class="focus-list">
+            {% for row in execution.stale_rows %}
+              <li>{{ row.message }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+        <div class="warning-panel" style="margin-top: 14px;">
+          <strong>缩写说明</strong>
+          <p>State = 结构状态；EF = 多周期强结构共振数；RR = 风报比（Risk / Reward），表示潜在风险与潜在收益的对比。</p>
+        </div>
+      </section>
+
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>优先队列</h2>
+          <span>先处理这些</span>
+        </div>
+        <table>
+          <thead>
+            <tr><th>代码</th><th>名称</th><th>共振路径</th><th>State</th><th>环境/结构</th><th>D1 支撑</th><th>资金流确认</th><th>资金背离</th><th>板块承接</th><th>真假突破/持续性</th><th>阶段位置</th><th>投入层级</th><th>下一步</th></tr>
+          </thead>
+          <tbody>
+          {% for row in execution.priority_queue %}
+            <tr>
+              <td><a href="/research?stock_code={{ row.stock_code }}">{{ row.stock_code }}</a></td>
+              <td>{{ row.stock_name }}</td>
+              <td>{{ row.path_label }}</td>
+              <td>{{ row.state_reason }}</td>
+              <td>{{ row.strategy_reason }}</td>
+              <td>{{ row.support_hint }}</td>
+              <td>{{ row.moneyflow_confirmation }}</td>
+              <td>{{ row.moneyflow_divergence_text }}</td>
+              <td>{{ row.sector_followthrough }}</td>
+              <td><strong>{{ row.breakout_view }}</strong><br /><span class="muted">{{ row.persistence_view }} {{ row.fake_breakout_risk }}</span></td>
+              <td>{{ row.phase_position }}</td>
+              <td>{{ row.allocation_tier }}</td>
+              <td>{{ row.next_action }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% if not execution.priority_queue %}
+        <p class="muted">当前没有优先处理对象。</p>
+        {% endif %}
+      </section>
+
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>观察队列</h2>
+          <span>先观察，不急于动作</span>
+        </div>
+        <table>
+          <thead>
+            <tr><th>代码</th><th>名称</th><th>共振路径</th><th>State</th><th>环境/结构</th><th>D1 支撑</th><th>资金流确认</th><th>资金背离</th><th>板块承接</th><th>真假突破/持续性</th><th>阶段位置</th><th>投入层级</th><th>下一步</th></tr>
+          </thead>
+          <tbody>
+          {% for row in execution.observe_queue %}
+            <tr>
+              <td><a href="/research?stock_code={{ row.stock_code }}">{{ row.stock_code }}</a></td>
+              <td>{{ row.stock_name }}</td>
+              <td>{{ row.path_label }}</td>
+              <td>{{ row.state_reason }}</td>
+              <td>{{ row.strategy_reason }}</td>
+              <td>{{ row.support_hint }}</td>
+              <td>{{ row.moneyflow_confirmation }}</td>
+              <td>{{ row.moneyflow_divergence_text }}</td>
+              <td>{{ row.sector_followthrough }}</td>
+              <td><strong>{{ row.breakout_view }}</strong><br /><span class="muted">{{ row.persistence_view }} {{ row.fake_breakout_risk }}</span></td>
+              <td>{{ row.phase_position }}</td>
+              <td>{{ row.allocation_tier }}</td>
+              <td>{{ row.next_action }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% if not execution.observe_queue %}
+        <p class="muted">当前没有单独观察对象。</p>
+        {% endif %}
+      </section>
+
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>常规积压队列</h2>
+          <span>常规处理队列</span>
+        </div>
+        <table>
+          <thead>
+            <tr><th>代码</th><th>名称</th><th>共振路径</th><th>State</th><th>环境/结构</th><th>D1 支撑</th><th>资金流确认</th><th>资金背离</th><th>板块承接</th><th>真假突破/持续性</th><th>阶段位置</th><th>投入层级</th><th>下一步</th></tr>
+          </thead>
+          <tbody>
+          {% for row in execution.recent_queue %}
+            <tr>
+              <td><a href="/research?stock_code={{ row.stock_code }}">{{ row.stock_code }}</a></td>
+              <td>{{ row.stock_name }}</td>
+              <td>{{ row.path_label }}</td>
+              <td>{{ row.state_reason }}</td>
+              <td>{{ row.strategy_reason }}</td>
+              <td>{{ row.support_hint }}</td>
+              <td>{{ row.moneyflow_confirmation }}</td>
+              <td>{{ row.moneyflow_divergence_text }}</td>
+              <td>{{ row.sector_followthrough }}</td>
+              <td><strong>{{ row.breakout_view }}</strong><br /><span class="muted">{{ row.persistence_view }} {{ row.fake_breakout_risk }}</span></td>
+              <td>{{ row.phase_position }}</td>
+              <td>{{ row.allocation_tier }}</td>
+              <td>{{ row.next_action }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% if not execution.recent_queue %}
+        <p class="muted">当前没有常规 backlog，执行压力较低。</p>
+        {% endif %}
+      </section>
+
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>高风报比参考</h2>
+          <span>高风报比样本单独查看</span>
+        </div>
+        <table>
+          <thead>
+            <tr><th>代码</th><th>名称</th><th>共振路径</th><th>RR（风报比）</th><th>置信度</th></tr>
+          </thead>
+          <tbody>
+          {% for row in execution.high_rr %}
+            <tr>
+              <td><a href="/research?stock_code={{ row.stock_code }}">{{ row.stock_code }}</a></td>
+              <td>{{ row.stock_name }}</td>
+              <td>{{ row.path_label }}</td>
+              <td>{{ row.rr_ratio }}</td>
+              <td>{{ row.confidence }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% if not execution.high_rr %}
+        <p class="muted">当前没有高风报比样本。</p>
+        {% endif %}
+      </section>
+    </main>
+  </body>
+</html>

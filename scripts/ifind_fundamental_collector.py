@@ -277,7 +277,7 @@ def load_universe(date_str: str, universe: str) -> list[str]:
         if not path.exists():
             raise FileNotFoundError(f"all_three_ef not found: {path}")
         data = json.loads(path.read_text(encoding="utf-8"))
-        codes = [r.get("symbol") or r.get("stock_code") for r in data.get("rows", []) if r.get("ef_count", 0) >= 2]
+        codes = [r.get("symbol") or r.get("stock_code") for r in data.get("rows", []) if r.get("ef_count", 0) >= 2 or r.get("ef_strength", 0) >= 2]
         return sorted(set(codes))
 
 

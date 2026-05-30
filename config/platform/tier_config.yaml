@@ -1,0 +1,76 @@
+# Hermass 会员层级配置
+# 版本: v1.0
+# 日期: 2026-05-24
+# Phase 2: 层级门控 + 用量计量已实现
+# Phase 3: 支付回调集成
+
+tiers:
+  free:
+    name: "免费版"
+    price: 0
+    features:
+      - "每日市场简报（文字版）"
+      - "基础 State 查询（3 次/日）"
+      - "策略适配概览（仅文字摘要）"
+    limits:
+      daily_queries: 3
+      signal_detail: false
+      cognitive_profile: false
+      risk_assessment: false
+      strategy_signals: false
+      quiz: false
+    upgrade_prompt: "想解锁完整的交易认知画像吗？升级到基础版只需 ¥99/月。"
+
+  basic:
+    name: "基础会员"
+    price: 99
+    price_text: "¥99/月 或 ¥899/年"
+    features:
+      - "无限制 State 查询"
+      - "个人认知画像（月度更新）"
+      - "策略适配详细建议"
+      - "持仓风险评估"
+      - "交易知识库完整访问"
+      - "每日练习题"
+    limits:
+      daily_queries: -1
+      signal_detail: true
+      cognitive_profile: true
+      risk_assessment: true
+      strategy_signals: true
+      quiz: true
+    upgrade_prompt: "想获得每日更新的认知画像和 AI 交易教练吗？升级到高级版 ¥299/月。"
+
+  premium:
+    name: "高级会员"
+    price: 299
+    price_text: "¥299/月 或 ¥2699/年"
+    features:
+      - "基础会员全部权益"
+      - "认知画像每日更新"
+      - "AI 交易教练（个性化学习路径）"
+      - "优先级 Agent 响应"
+      - "深度认知分析报告（每月 1 份）"
+    limits:
+      daily_queries: -1
+      signal_detail: true
+      cognitive_profile: true
+      risk_assessment: true
+      strategy_signals: true
+      quiz: true
+    upgrade_prompt: "已经是最高级别，感谢你的信任。"
+
+additional_products:
+  - id: deep_report
+    name: "深度认知分析报告"
+    price: 49
+    price_text: "¥49/次"
+    description: "12 维认知特征完整分析 + 行为建议"
+  - id: enterprise
+    name: "企业/机构版"
+    price: 0
+    price_text: "定制报价"
+    description: "团队认知分析 + 批量 State 数据 + API 接入"
+
+beta_default_tier: basic
+beta_note: "W14 内测期间所有用户默认分配基础会员层级，不收费。"

@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hermass 多周期个股研究</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Hermass 多周期观察</p>
+        <h1>个股研究</h1>
+      </div>
+      <div class="date">
+        <a href="/?mode=research">首页</a>
+        <a href="/industry">行业</a>
+        <a href="/backtest">回测</a>
+        <span>{{ today }}</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel span-2 hero-panel">
+        <div class="panel-head">
+          <h2>{{ stock_code }}</h2>
+          <span>{{ research_lane.lead_name }} / {{ cards.as_of_date }}</span>
+        </div>
+        <p class="hero-copy">{{ research_lane.lead_signal or "当前查看研究卡主入口。" }}</p>
+        <form method="get" action="/research" class="form">
+          <label>
+            股票代码
+            <input name="stock_code" value="{{ stock_code }}" />
+          </label>
+          <label>
+            展开深度
+            <select name="render_profile">
+              <option value="standard" {% if render_profile == "standard" %}selected{% endif %}>标准</option>
+              <option value="full" {% if render_profile == "full" %}selected{% endif %}>完整</option>
+            </select>
+          </label>
+          <button type="submit">加载研究</button>
+        </form>
+      </section>
+
+      {% if research_warnings %}
+      <section class="panel span-2 warning-panel">
+        <div class="panel-head">
+          <h2>研究提示</h2>
+          <span>当前研究页风险提示</span>
+        </div>
+        <ul class="focus-list">
+          {% for line in research_warnings %}
+            <li>{{ line }}</li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+
+      {% if freshness %}
+      <section class="panel span-2 warning-panel">
+        <div class="panel-head">
+          <h2>数据新鲜度提示</h2>
+          <span>低频数据只作为辅助背景</span>
+        </div>
+        <ul class="focus-list">
+          {% for row in freshness %}
+            <li>{{ row.message }}</li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+
+      {% if strategy_risk_lines %}
+      <section class="panel span-2 warning-panel">
+        <div class="panel-head">
+          <h2>策略风险提示</h2>
+          <span>同样是强结构，不同阶段与位置的投入逻辑不同</span>
+        </div>
+        <ul class="focus-list">
+          {% for line in strategy_risk_lines %}
+            <li>{{ line }}</li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>策略视图</h2>
+          <span>同一只票可能同时被多种策略观察</span>
+        </div>
+        {% if strategy_rows %}
+          <table>
+            <thead>
+              <tr><th>策略</th><th>信号</th><th>适配度</th><th>生命周期</th><th>如何理解</th></tr>
+            </thead>
+            <tbody>
+            {% for row in strategy_rows %}
+              <tr>
+                <td>{{ row.strategy_label }}</td>
+                <td>{{ row.signal_name }}</td>
+                <td>{{ row.fit }}</td>
+                <td>{{ row.lifecycle_stage }}</td>
+                <td>{{ row.signal_read }}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p class="muted">当前没有同步到该股的策略信号视图。</p>
+        {% endif %}
+      </section>
+
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>当前覆盖层</h2>
+          <span>研究卡当前采用的策略覆盖层</span>
+        </div>
+        <table>
+          <tbody>
+            <tr><td>当前覆盖策略</td><td>{{ strategy_view.label }}</td></tr>
+            <tr><td>抓什么</td><td>{{ strategy_view.what }}</td></tr>
+            <tr><td>怎么看</td><td>{{ strategy_view.how }}</td></tr>
+            <tr><td>何时更适合</td><td>{{ strategy_view.when }}</td></tr>
+            <tr><td>不要误读</td><td>{{ strategy_view.avoid }}</td></tr>
+            <tr><td>风险提示</td><td>{{ strategy_view.risk }}</td></tr>
+            <tr><td>当前覆盖怎么读</td><td>{{ strategy_view.signal_read }}</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>决策收束</h2>
+          <span>先收束，再展开</span>
+        </div>
+        <table>
+          <tbody>
+            <tr><td>当前结论</td><td>{{ summary.conclusion }}</td></tr>
+            <tr><td>为什么</td><td>{{ summary.why }}</td></tr>
+            <tr><td>下一步</td><td>{{ summary.next_step }}</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="panel span-2 warning-panel">
+        <div class="panel-head">
+          <h2>多因子共振判断</h2>
+          <span>先看结构、资金、板块与真假突破</span>
+        </div>
+        <table>
+          <tbody>
+            <tr><td>资金流确认</td><td>{{ resonance_summary.moneyflow_confirmation }}</td></tr>
+            <tr><td>资金背离</td><td>{{ resonance_summary.moneyflow_divergence }}</td></tr>
+            <tr><td>板块承接</td><td>{{ resonance_summary.sector_followthrough }}</td></tr>
+            <tr><td>真假突破</td><td>{{ resonance_summary.breakout_view }}</td></tr>
+            <tr><td>持续性</td><td>{{ resonance_summary.persistence_view }}</td></tr>
+            <tr><td>来源日期</td><td>{{ resonance_summary.sources }}</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>证据状态</h2>
+          <span>先看够不够用</span>
+        </div>
+        <table>
+          <tbody>
+            {% for row in coverage %}
+            <tr><td>{{ row.label }}</td><td>{{ row.value }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>当前不必看</h2>
+          <span>先帮你减法</span>
+        </div>
+        <p class="hero-note">{{ not_needed_now }}</p>
+        {% if missing_modules %}
+        <p class="hero-note">当前缺口：{{ missing_modules | join(" / ") }}</p>
+        {% endif %}
+      </section>
+
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>快速卡</h2>
+        </div>
+        <pre>{{ cards.quick or cards.error }}</pre>
+      </section>
+
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>深度卡</h2>
+        </div>
+        <pre>{{ cards.deep or cards.error }}</pre>
+      </section>
+
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>证据卡</h2>
+        </div>
+        <pre>{{ cards.evidence or cards.error }}</pre>
+      </section>
+
+      <section class="panel span-2">
+        <details>
+          <summary>底层载荷调试</summary>
+          <pre>{{ cards.payload or cards.error }}</pre>
+        </details>
+      </section>
+    </main>
+  </body>
+</html>

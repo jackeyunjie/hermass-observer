@@ -24,6 +24,16 @@
     {"symbol": "516970.SH", "name": "基建ETF", "asset_type": "industry_etf", "sw_l1": "建筑装饰"},
     {"symbol": "516020.SH", "name": "化工ETF", "asset_type": "industry_etf", "sw_l1": "基础化工"},
     {"symbol": "512400.SH", "name": "有色金属ETF", "asset_type": "industry_etf", "sw_l1": "有色金属"},
-    {"symbol": "515220.SH", "name": "煤炭ETF", "asset_type": "industry_etf", "sw_l1": "煤炭"}
+    {"symbol": "515220.SH", "name": "煤炭ETF", "asset_type": "industry_etf", "sw_l1": "煤炭"},
+    {"symbol": "159666.SZ", "name": "交通运输ETF华夏", "asset_type": "industry_etf", "sw_l1": "交通运输"},
+    {"symbol": "159805.SZ", "name": "传媒ETF鹏华", "asset_type": "industry_etf", "sw_l1": "传媒"},
+    {"symbol": "159301.SZ", "name": "公用事业ETF华夏", "asset_type": "industry_etf", "sw_l1": "公用事业"},
+    {"symbol": "159745.SZ", "name": "建材ETF国泰", "asset_type": "industry_etf", "sw_l1": "建筑材料"},
+    {"symbol": "159768.SZ", "name": "房地产ETF银华", "asset_type": "industry_etf", "sw_l1": "房地产"},
+    {"symbol": "159886.SZ", "name": "机械ETF富国", "asset_type": "industry_etf", "sw_l1": "机械设备"},
+    {"symbol": "512580.SH", "name": "环保ETF广发", "asset_type": "industry_etf", "sw_l1": "环保"},
+    {"symbol": "159588.SZ", "name": "石油ETF景顺", "asset_type": "industry_etf", "sw_l1": "石油石化"},
+    {"symbol": "159586.SZ", "name": "计算机ETF南方", "asset_type": "industry_etf", "sw_l1": "计算机"},
+    {"symbol": "515210.SH", "name": "钢铁ETF国泰", "asset_type": "industry_etf", "sw_l1": "钢铁"}
   ]
 }

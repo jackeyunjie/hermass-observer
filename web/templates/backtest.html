@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hermass 多周期回测验证</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <style>
+      .backtest-form {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+      .backtest-form label {
+        display: grid;
+        gap: 6px;
+      }
+      .backtest-form button {
+        grid-column: span 3;
+        justify-self: start;
+        width: auto;
+        min-width: 140px;
+        padding: 12px 24px;
+        font-size: 14px;
+        font-weight: 700;
+      }
+      .result-metrics {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+      .result-metrics .metric {
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        text-align: center;
+      }
+      .result-metrics .metric-label {
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+      }
+      .result-metrics .metric-value {
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--ink);
+      }
+      .result-metrics .metric-value.positive {
+        color: var(--good);
+      }
+      .result-metrics .metric-value.negative {
+        color: var(--bad);
+      }
+      .equity-chart {
+        width: 100%;
+        height: 240px;
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+      }
+      .trade-list {
+        max-height: 400px;
+        overflow: auto;
+      }
+      .trade-list .win {
+        color: var(--good);
+      }
+      .trade-list .loss {
+        color: var(--bad);
+      }
+      .error-banner {
+        padding: 14px 18px;
+        background: rgba(184, 74, 58, 0.08);
+        border: 1px solid rgba(184, 74, 58, 0.25);
+        border-radius: 8px;
+        color: var(--bad);
+        font-size: 14px;
+        margin-bottom: 16px;
+      }
+      .nav-links {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+      }
+      .nav-links a {
+        color: var(--muted);
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .nav-links a:hover {
+        color: var(--good);
+      }
+      @media (max-width: 860px) {
+        .backtest-form {
+          grid-template-columns: 1fr;
+        }
+        .backtest-form button {
+          grid-column: span 1;
+        }
+        .result-metrics {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Hermass 多周期观察</p>
+        <h1>回测验证</h1>
+      </div>
+      <div class="date">
+        <span class="nav-links">
+          <a href="/?mode=direction">首页</a>
+          <a href="/industry">行业</a>
+          <a href="/watchlist">执行</a>
+          <a href="/research">研究</a>
+          <a href="/backtest">回测</a>
+        </span>
+        <span>{{ today }}</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>回测参数</h2>
+          <span>选择策略与参数运行历史验证</span>
+        </div>
+        <div class="warning-panel backtest-note">
+          <strong>使用边界</strong>
+          <p>{{ advisory.state_validation }}</p>
+          <p class="muted">{{ advisory.runtime_note }}</p>
+          <p class="muted">首次验收建议：先用 30 天窗口确认页面、日志和 tearsheet 正常，再决定是否拉长周期。</p>
+          <p class="muted">提示：同样的 E/F，不同位置与阶段的赔率和概率不同。回测结果只能辅助理解环境与策略匹配，不能代替投入决策。</p>
+          {% if advisory.runtime_seconds %}
+          <p class="muted">最近一次运行耗时：{{ advisory.runtime_seconds }} 秒</p>
+          {% endif %}
+        </div>
+        <form method="post" class="backtest-form">
+          <label>
+            策略
+            <select name="strategy">
+              <option value="ef" {% if defaults.strategy == 'ef' %}selected{% endif %}>E/F State 信号（环境过滤）</option>
+              <option value="composite" {% if defaults.strategy == 'composite' %}selected{% endif %}>复合策略（研究验证）</option>
+            </select>
+          </label>
+          <label>
+            结束日期
+            <input type="date" name="end_date" value="{{ defaults.end_date }}" />
+          </label>
+          <label>
+            回测天数
+            <select name="lookback_days">
+              <option value="30" {% if defaults.lookback_days == 30 %}selected{% endif %}>30 天</option>
+              <option value="60" {% if defaults.lookback_days == 60 %}selected{% endif %}>60 天</option>
+              <option value="90" {% if defaults.lookback_days == 90 %}selected{% endif %}>90 天</option>
+              <option value="180" {% if defaults.lookback_days == 180 %}selected{% endif %}>180 天</option>
+              <option value="252" {% if defaults.lookback_days == 252 %}selected{% endif %}>252 天（一年）</option>
+            </select>
+          </label>
+          <label>
+            最大持仓
+            <input type="number" name="max_positions" value="{{ defaults.max_positions }}" min="1" max="50" />
+          </label>
+          <label>
+            最小 E/F 数
+            <input type="number" name="min_ef" value="{{ defaults.min_ef }}" min="1" max="5" />
+          </label>
+          <label>
+            初始资金（万）
+            <input type="number" name="initial_capital" value="{{ defaults.initial_capital }}" min="100000" step="100000" />
+          </label>
+          <button type="submit">运行回测</button>
+        </form>
+      </section>
+
+      {% if error %}
+      <section class="span-2">
+        <div class="error-banner">{{ error }}</div>
+      </section>
+      {% endif %}
+
+      {% if result %}
+      {% set m = result.metrics %}
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>回测结果</h2>
+          <span>{{ result.config.strategy_name }} | {{ result.total_trading_days }} 个交易日 | {{ result.backtest_date }}</span>
+        </div>
+        <div class="result-metrics">
+          <div class="metric">
+            <div class="metric-label">总交易数</div>
+            <div class="metric-value">{{ m.total_trades }}</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">胜率</div>
+            <div class="metric-value {% if m.win_rate >= 0.5 %}positive{% else %}negative{% endif %}">{{ "%.1f"|format(m.win_rate * 100) }}%</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">平均收益</div>
+            <div class="metric-value {% if m.avg_return_pct >= 0 %}positive{% else %}negative{% endif %}">{{ "%.2f"|format(m.avg_return_pct) }}%</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">最大回撤</div>
+            <div class="metric-value negative">{{ "%.2f"|format(m.max_drawdown_pct) }}%</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">夏普比率</div>
+            <div class="metric-value {% if m.sharpe_ratio >= 1 %}positive{% endif %}">{{ "%.2f"|format(m.sharpe_ratio) }}</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">年化收益</div>
+            <div class="metric-value {% if m.annualized_return >= 0 %}positive{% else %}negative{% endif %}">{{ "%.2f"|format(m.annualized_return * 100) }}%</div>
+          </div>
+        </div>
+        <div class="tear-sheet-grid">
+          <div class="tear-card">
+            <h3>组合统计</h3>
+            <table>
+              <tbody>
+                <tr><td>总净收益</td><td>{{ "%.0f"|format(m.total_net_pnl) }}</td></tr>
+                <tr><td>总收益率</td><td>{{ "%.2f"|format(m.total_return_pct * 100) }}%</td></tr>
+                <tr><td>年化波动</td><td>{{ "%.2f"|format(m.annualized_volatility * 100) }}%</td></tr>
+                <tr><td>Calmar</td><td>{{ "%.2f"|format(m.calmar_ratio) }}</td></tr>
+                <tr><td>Sortino</td><td>{{ "%.2f"|format(m.sortino_ratio) }}</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="tear-card">
+            <h3>交易统计</h3>
+            <table>
+              <tbody>
+                <tr><td>盈利笔数</td><td>{{ m.winning_trades }}</td></tr>
+                <tr><td>亏损笔数</td><td>{{ m.losing_trades }}</td></tr>
+                <tr><td>平均持有天数</td><td>{{ "%.1f"|format(m.avg_hold_days) }}</td></tr>
+                <tr><td>平均盈利</td><td>{{ "%.2f"|format(m.avg_win_pct) }}%</td></tr>
+                <tr><td>平均亏损</td><td>{{ "%.2f"|format(m.avg_loss_pct) }}%</td></tr>
+                <tr><td>Payoff Ratio</td><td>{{ "%.2f"|format(m.payoff_ratio) }}</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="tear-card">
+            <h3>结构说明</h3>
+            <p class="muted">当前结果优先用于比较不同 State 环境下策略适配度，不建议把单次年化结果直接当成稳定预期。</p>
+            <table>
+              <tbody>
+                <tr><td>策略</td><td>{{ advisory.strategy }}</td></tr>
+                <tr><td>回测窗口</td><td>{{ advisory.lookback_days }} 天</td></tr>
+                <tr><td>预热期</td><td>{{ result.warmup_days }} 天</td></tr>
+                <tr><td>研究限定</td><td>{% if result.research_only_flag %}是{% else %}否{% endif %}</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% if advisory.empty_result_note %}
+        <div class="warning-panel backtest-note" style="margin-top: 14px;">
+          <strong>无交易说明</strong>
+          <p>{{ advisory.empty_result_note }}</p>
+        </div>
+        {% endif %}
+      </section>
+
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>净值曲线</h2>
+          <span>初始资金 {{ "%.0f"|format(result.config.initial_capital) }}</span>
+        </div>
+        <svg id="equity-chart" class="equity-chart" viewBox="0 0 800 240" preserveAspectRatio="none">
+          <!-- 网格线 -->
+          <line x1="0" y1="0" x2="800" y2="0" stroke="#dce2df" stroke-width="1" />
+          <line x1="0" y1="120" x2="800" y2="120" stroke="#dce2df" stroke-width="1" stroke-dasharray="4,4" />
+          <line x1="0" y1="240" x2="800" y2="240" stroke="#dce2df" stroke-width="1" />
+        </svg>
+        <script>
+          (function() {
+            var equityData = {{ result.equity_curve | tojson }};
+            if (!equityData || equityData.length < 2) return;
+            var svg = document.getElementById('equity-chart');
+            var w = 800, h = 240;
+            var values = equityData.map(function(d) { return d.total_equity || d.equity || 0; });
+            var minVal = Math.min.apply(null, values);
+            var maxVal = Math.max.apply(null, values);
+            var range = maxVal - minVal || 1;
+            var pad = 10;
+            var points = equityData.map(function(d, i) {
+              var x = (i / (equityData.length - 1)) * w;
+              var y = h - pad - ((d.total_equity || d.equity || 0) - minVal) / range * (h - 2 * pad);
+              return x + ',' + y;
+            }).join(' ');
+            var polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+            polyline.setAttribute('points', points);
+            polyline.setAttribute('fill', 'none');
+            polyline.setAttribute('stroke', '#0e7c66');
+            polyline.setAttribute('stroke-width', '2');
+            svg.appendChild(polyline);
+            // 起点和终点标记
+            var start = equityData[0];
+            var end = equityData[equityData.length - 1];
+            var startY = h - pad - ((start.total_equity || start.equity || 0) - minVal) / range * (h - 2 * pad);
+            var endY = h - pad - ((end.total_equity || end.equity || 0) - minVal) / range * (h - 2 * pad);
+            [{x: 0, y: startY, label: '起点'}, {x: w, y: endY, label: '终点'}].forEach(function(pt) {
+              var circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+              circle.setAttribute('cx', pt.x);
+              circle.setAttribute('cy', pt.y);
+              circle.setAttribute('r', '4');
+              circle.setAttribute('fill', '#0e7c66');
+              svg.appendChild(circle);
+            });
+          })();
+        </script>
+      </section>
+
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>交易明细</h2>
+          <span>最近 {{ result.trades | length }} 笔</span>
+        </div>
+        <div class="trade-list">
+          <table>
+            <thead>
+              <tr>
+                <th>代码</th>
+                <th>入场日</th>
+                <th>出场日</th>
+                <th>入场价</th>
+                <th>出场价</th>
+                <th>收益</th>
+                <th>持有天数</th>
+                <th>出场原因</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for trade in result.trades[-20:] | reverse %}
+              <tr>
+                <td>{{ trade.stock_code }}</td>
+                <td>{{ trade.entry_date }}</td>
+                <td>{{ trade.exit_date }}</td>
+                <td>{{ "%.2f"|format(trade.entry_price) }}</td>
+                <td>{{ "%.2f"|format(trade.exit_price) }}</td>
+                <td class="{% if trade.return_pct >= 0 %}win{% else %}loss{% endif %}">
+                  {{ "%.2f"|format(trade.return_pct) }}%
+                </td>
+                <td>{{ trade.hold_days }}</td>
+                <td>{{ trade.exit_reason }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      {% endif %}
+
+      {% if logs %}
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>运行日志</h2>
+          <span>用于核对 Foundation DB / 数据窗口 / 回测执行过程</span>
+        </div>
+        <pre class="log-block">{{ logs }}</pre>
+      </section>
+      {% endif %}
+    </main>
+  </body>
+</html>
