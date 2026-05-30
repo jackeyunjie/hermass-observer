@@ -94,11 +94,7 @@ def generate_signals(
             stop = compute_stop_loss(entry_price, sr_support, atr, config)
             target = compute_take_profit(entry_price, sr_resistance, atr, config)
 
-            # 兼容旧 signal 包与当前 signal_module 包命名。
-            try:
-                from signal_module.quality_score import calc_quality_score
-            except ImportError:
-                from signal.quality_score import calc_quality_score
+            from signal_module.quality_score import calc_quality_score
             q = calc_quality_score(s)
             score = q.total
 

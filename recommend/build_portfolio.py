@@ -15,8 +15,8 @@ from pathlib import Path
 
 import duckdb
 
-from signal.quality_score import rank_by_quality, calc_quality_score
-from signal.sector_filter import deduplicate_sectors
+from signal_module.quality_score import rank_by_quality, calc_quality_score
+from signal_module.sector_filter import deduplicate_sectors
 from risk.stop_loss import sr_support_stop, combined_stop
 from risk.take_profit import sr_resistance_target, calc_rr_ratio
 from risk.position_sizer import atr_based
