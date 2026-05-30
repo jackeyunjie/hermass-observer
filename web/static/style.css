@@ -500,6 +500,32 @@ pre {
   font-weight: 700;
 }
 
+.ai-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+}
+
+.ai-mode-switch button {
+  padding: 6px 10px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ai-mode-switch button.active {
+  background: var(--good);
+  color: #fff;
+}
+
 .ai-close {
   width: 32px;
   height: 32px;

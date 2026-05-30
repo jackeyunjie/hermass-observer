@@ -1775,6 +1775,7 @@ class ChatQuery(BaseModel):
     page_context: str = ""
     stock_code: str | None = None
     session_context: dict[str, Any] | None = None
+    mode: str = "chat"
 
 
 class ChatResponse(BaseModel):
@@ -1787,6 +1788,7 @@ class ChatResponse(BaseModel):
     sources: list[str]
     freshness_note: str = ""
     remembered_stock_code: str = ""
+    mode_used: str = "chat"
 
 
 WATCH_COMMAND_LEDGER = ROOT / "outputs" / "alerts" / "watch_command_ledger.json"
@@ -1923,6 +1925,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
     """基于用户问题调用现有数据返回回答。"""
     msg = query.message.strip()
     msg_lower = msg.lower()
+    mode = "agent" if str(query.mode or "").lower() == "agent" else "chat"
 
     watch_command = _detect_watch_command(query)
     if watch_command is not None:
@@ -1937,6 +1940,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
                 "sources": ["watch_command"],
                 "freshness_note": "",
                 "remembered_stock_code": "",
+                "mode_used": mode,
             }
         if not watch_command.get("email"):
             return {
@@ -1949,6 +1953,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
                 "sources": ["watch_command"],
                 "freshness_note": "",
                 "remembered_stock_code": watch_command["stock_code"],
+                "mode_used": mode,
             }
         record = _register_watch_command(watch_command)
         return {
@@ -1964,6 +1969,42 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
             "sources": ["watch_command_ledger"],
             "freshness_note": f"盯盘任务创建日期为 {record['valid_from']}，默认有效至 {record['valid_to']}。",
             "remembered_stock_code": record["stock_code"],
+            "mode_used": "agent",
+        }
+
+    if mode == "agent":
+        stock_code = _chat_stock_code(query)
+        if stock_code:
+            return {
+                "answer": f"当前是任务模式。我可以继续围绕 {stock_code} 帮你建立盯盘、长期跟踪，或直接跳到更合适的研究视图。",
+                "why": "任务模式不只回答问题，而是把后续动作接下来，例如记住对象、建立提醒、收盘后检查条件并发邮件。",
+                "multi_cycle_view": "任务模式下仍先看多周期环境：大周期是否支持、周线是否跟上、日线是否只是局部噪音，这决定提醒条件该设在 W1 还是 D1。",
+                "single_cycle_position": "如果当前更像刚突破，就更适合设关键位提醒；如果已经高位延展，就更适合设走弱或跌破支撑提醒。",
+                "avoid": "先不要把任务模式理解成自动交易。当前只做研究任务、盯盘任务和提醒，不替你下单。",
+                "next_actions": [
+                    {"label": "打开价值研究组合", "url": f"/research?stock_code={stock_code}&render_profile=value"},
+                    {"label": "打开标准研究页", "url": f"/research?stock_code={stock_code}"},
+                    {"label": f"盯盘 {stock_code}", "url": "#watch-command"},
+                ],
+                "sources": ["session_context", "watch_command"],
+                "freshness_note": "任务模式当前可执行的动作以盯盘、长期跟踪和邮件提醒为主。",
+                "remembered_stock_code": stock_code,
+                "mode_used": mode,
+            }
+        return {
+            "answer": "当前是任务模式。我更适合接任务，而不是只做解释。",
+            "why": "你可以把股票和动作一起交给我，比如长期跟踪、周线关键位提醒、跌破支撑提醒，后续由系统持续检查并发邮件。",
+            "multi_cycle_view": "任务模式依然以多周期为底座：先分清你关心的是大周期环境变化，还是周线 / 日线位置触发。",
+            "single_cycle_position": "如果你已经有具体股票，就把股票代码和提醒条件一起说出来，我会直接进入可执行任务。",
+            "avoid": "先不要只问泛问题。任务模式更适合明确对象、条件和邮箱。",
+            "next_actions": [
+                {"label": "打开执行页", "url": "/watchlist"},
+                {"label": "打开研究页", "url": "/research?stock_code=000021.SZ"},
+            ],
+            "sources": ["watch_command"],
+            "freshness_note": "任务模式当前支持盯盘命令、长期跟踪和邮件提醒的最小闭环。",
+            "remembered_stock_code": "",
+            "mode_used": mode,
         }
 
     # 问题 1：市场/能不能做
@@ -1981,6 +2022,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
             "sources": ["market_phase", "daily_snapshot"],
             "freshness_note": f"市场阶段与快照按 {market['phase']['date']} 口径展示。",
             "remembered_stock_code": _chat_stock_code(query),
+            "mode_used": mode,
         }
 
     # 问题 2：行业/方向
@@ -1999,6 +2041,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
             "sources": ["industry_rotation"],
             "freshness_note": f"行业回答按 {industry['date']} 快照展示。",
             "remembered_stock_code": _chat_stock_code(query),
+            "mode_used": mode,
         }
 
     # 问题 3.1：价值分析 / 深度价值投研
@@ -2018,6 +2061,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
             "sources": ["research_evidence", "valuation_reference", "market_views"],
             "freshness_note": "价值组合会复用当前已加载的研究证据、财务趋势、估值参考和公开市场观点数据。",
             "remembered_stock_code": code,
+            "mode_used": mode,
         }
 
     # 问题 3：个股/股票
@@ -2043,6 +2087,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
             "sources": ["research_evidence"],
             "freshness_note": "个股研究会结合当前已加载的研究证据与观察数据。",
             "remembered_stock_code": code,
+            "mode_used": mode,
         }
 
     # 问题 4：导航/先去哪
@@ -2061,6 +2106,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
             "sources": ["page_context"],
             "freshness_note": "",
             "remembered_stock_code": _chat_stock_code(query),
+            "mode_used": mode,
         }
 
     # 默认回答
@@ -2076,6 +2122,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
         "sources": ["market_phase"],
         "freshness_note": "",
         "remembered_stock_code": _chat_stock_code(query),
+        "mode_used": mode,
     }
 
 
@@ -2097,6 +2144,7 @@ def chat_query(query: ChatQuery) -> JSONResponse:
                 "next_actions": [{"label": "打开首页", "url": "/"}],
                 "sources": [],
                 "remembered_stock_code": "",
+                "mode_used": str(query.mode or "chat").lower(),
                 "error": str(exc),
             },
         )

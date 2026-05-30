@@ -23,6 +23,13 @@
       "delivery": "lark"
     },
     {
+      "name": "AI盯盘邮箱提醒",
+      "schedule": "28 15 * * 1-5",
+      "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python scripts/process_watch_command_alerts.py --date $(date +%Y-%m-%d)",
+      "description": "每个交易日 15:28 处理 AI 助手写入的盯盘命令账本，并在命中条件时发送邮件提醒",
+      "delivery": "terminal"
+    },
+    {
       "name": "板块共振报告",
       "schedule": "20 15 * * 1-5",
       "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python -c \"from hermass_platform.slice.industry_slice import detect_sector_resonance; from hermass_platform.agents.base_agent import find_foundation_db; db=find_foundation_db(); results=detect_sector_resonance(str(db)) if db else []; print(f'{len(results)} 个行业共振')\"",

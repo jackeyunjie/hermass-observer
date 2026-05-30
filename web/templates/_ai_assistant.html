@@ -7,6 +7,10 @@
     <div class="ai-drawer" id="ai-drawer">
       <div class="ai-header">
         <h3>Hermass 助手</h3>
+        <div class="ai-mode-switch" role="tablist" aria-label="助手模式">
+          <button type="button" class="active" id="ai-mode-chat" onclick="aiSetMode('chat')">对话</button>
+          <button type="button" id="ai-mode-agent" onclick="aiSetMode('agent')">任务</button>
+        </div>
         <button class="ai-close" onclick="aiToggle()" aria-label="关闭">&times;</button>
       </div>
       <div class="ai-body" id="ai-body">
@@ -35,6 +39,7 @@
         var input = document.getElementById('ai-input');
         var pageContext = "{{ ai_page_context or request.url.path }}";
         var aiSession = { stock_code: '' };
+        var aiMode = 'chat';
 
         function aiToggle() {
           var open = drawer.classList.contains('open');
@@ -72,6 +77,9 @@
           if (data.answer) {
             html += '<div class="ai-section"><strong>当前结论</strong>' + escapeHtml(data.answer) + '</div>';
           }
+          if (data.mode_used) {
+            html += '<div class="ai-section"><strong>当前模式</strong>' + (data.mode_used === 'agent' ? '任务' : '对话') + '</div>';
+          }
           if (data.why) {
             html += '<div class="ai-section"><strong>为什么</strong>' + escapeHtml(data.why) + '</div>';
           }
@@ -97,6 +105,13 @@
           aiAppend(html, false);
         }
 
+        function aiSetMode(mode) {
+          aiMode = mode === 'agent' ? 'agent' : 'chat';
+          document.getElementById('ai-mode-chat').classList.toggle('active', aiMode === 'chat');
+          document.getElementById('ai-mode-agent').classList.toggle('active', aiMode === 'agent');
+        }
+        window.aiSetMode = aiSetMode;
+
         function aiAsk(text) {
           aiAppend(text, true);
           aiSendMsg(text);
@@ -119,7 +134,7 @@
           fetch('/api/chat/query', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({message: text, page_context: pageContext, session_context: aiSession})
+            body: JSON.stringify({message: text, page_context: pageContext, session_context: aiSession, mode: aiMode})
           })
           .then(function(r) {
             if (!r.ok) throw new Error('请求失败');
