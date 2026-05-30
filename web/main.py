@@ -1865,6 +1865,109 @@ def _chat_stock_code(query: ChatQuery) -> str:
     return ""
 
 
+def _fmt_chat_num(value: Any, digits: int = 2) -> str:
+    if value in (None, ""):
+        return "暂无"
+    try:
+        return f"{float(value):,.{digits}f}"
+    except Exception:
+        return str(value)
+
+
+def _fmt_chat_yi(value: Any, digits: int = 2) -> str:
+    if value in (None, ""):
+        return "暂无"
+    try:
+        return f"{float(value) / 1e8:.{digits}f}亿"
+    except Exception:
+        return str(value)
+
+
+def _fmt_chat_percent(value: Any, digits: int = 1) -> str:
+    if value in (None, ""):
+        return "暂无"
+    try:
+        return f"{float(value):.{digits}f}%"
+    except Exception:
+        return str(value)
+
+
+def _value_research_chat_summary(stock_code: str) -> dict[str, str] | None:
+    foundation_db = find_foundation_db()
+    if not foundation_db:
+        return None
+    try:
+        evidence = build_external_research_evidence(
+            stock_code=stock_code,
+            as_of_date=_latest_research_as_of_date(),
+            foundation_db=foundation_db,
+        )
+    except Exception:
+        return None
+
+    profile = evidence.get("company_profile", {}) or {}
+    financial = (evidence.get("financial_trend", {}) or {}).get("period_rows", []) or []
+    latest = financial[0] if financial else {}
+    valuation = evidence.get("valuation_reference", {}) or {}
+    market_views = evidence.get("market_views", {}) or {}
+    industry = evidence.get("industry_state", {}) or {}
+    state_core = evidence.get("state_core", {}) or {}
+    stock_name = str(profile.get("stock_name") or stock_code)
+    sw_l1 = str(profile.get("sw_l1") or "所在行业")
+    main_business = str(profile.get("main_business") or "").strip()
+    comparable = str(profile.get("comparable_companies") or profile.get("competitor_companies") or "").strip()
+    business_text = main_business if main_business else "当前主营描述覆盖不足，需结合研究页补充阅读。"
+    comparable_text = comparable if comparable else "本地可比公司覆盖有限，竞争格局先按产业链位置理解。"
+    prosperity = industry.get("prosperity_score")
+    etf_state = str(industry.get("etf_state_hex") or "暂无")
+    revenue = _fmt_chat_yi(latest.get("revenue"))
+    net_profit = _fmt_chat_yi(latest.get("net_profit"))
+    roe = _fmt_chat_percent(latest.get("roe"))
+    pe = valuation.get("pe_ttm")
+    pb = valuation.get("pb")
+    pe_text = "暂无" if pe in (None, "") else ("亏损（PE 不适用）" if float(pe) <= 0 else f"{float(pe):.2f}")
+    pb_text = _fmt_chat_num(pb)
+    latest_report = (market_views.get("latest_report") or {})
+    latest_inst = str(latest_report.get("institution") or "暂无")
+    latest_rating = str(latest_report.get("rating") or "暂无")
+    latest_date = str(latest_report.get("date") or "暂无")
+    answer = (
+        f"可以。先给你一版 {stock_name} 的价值摘要：主营上，它主要围绕「{business_text}」展开；"
+        f"行业上归在 {sw_l1}，当前景气分 {_fmt_chat_num(prosperity)}、ETF State 为 {etf_state}；"
+        f"财务上最近一期营收 {revenue}、净利润 {net_profit}、ROE {roe}；"
+        f"估值参考上 PE(TTM) {pe_text}、PB {pb_text}。"
+    )
+    why = (
+        f"这不是恢复长报告，而是先把行业位置、公司主营、财务健康、估值参考和公开市场预期压成一版可读摘要。"
+        f"可比/竞争线索当前优先看：{comparable_text}"
+    )
+    multi_cycle_view = (
+        f"{stock_name} 的价值阅读也不能绕开多周期。先看 MN1/W1/D1 是否配合："
+        f"当前 State 组合为 {state_core.get('mn1_state_hex') or '-'} / {state_core.get('w1_state_hex') or '-'} / {state_core.get('d1_state_hex') or '-'}，"
+        "只有大级别和中级别环境不拖后腿，行业与公司层面的结论才更有结构支撑。"
+    )
+    single_cycle_position = (
+        "单周期上仍要区分刚突破、推进中段和高位延展。"
+        "同样的基本面，如果日线已经高位延展，赔率与节奏就和刚起步完全不同。"
+    )
+    avoid = (
+        f"先不要把这版价值摘要理解成买卖建议。公开市场最新观点仅显示为 {latest_inst} 于 {latest_date} 给出的 {latest_rating}，"
+        "它只是研究参考，不代表系统结论。"
+    )
+    freshness_note = (
+        f"当前摘要复用的研究数据日期为 {evidence.get('meta', {}).get('as_of_date', '-')}"
+        f"，财务期数为 {evidence.get('financial_trend', {}).get('latest_report_period', '暂无')}。"
+    )
+    return {
+        "answer": answer,
+        "why": why,
+        "multi_cycle_view": multi_cycle_view,
+        "single_cycle_position": single_cycle_position,
+        "avoid": avoid,
+        "freshness_note": freshness_note,
+    }
+
+
 def _detect_watch_command(query: ChatQuery) -> dict[str, Any] | None:
     msg = query.message.strip()
     if not any(keyword in msg for keyword in ("盯", "跟踪", "提醒我", "发邮件", "通知我")):
@@ -1956,6 +2059,29 @@ def _agently_enabled() -> bool:
         return True
     except Exception:
         return False
+
+
+def _is_value_question(message: str) -> bool:
+    return any(k in message for k in ("价值分析", "价值投研", "深度价值", "基本面深度", "8 大块", "八大块"))
+
+
+def _is_industry_question(message: str) -> bool:
+    return any(k in message for k in ("方向", "行业", "先看什么", "哪些", "顺风"))
+
+
+def _is_market_question(message: str) -> bool:
+    return any(k in message for k in ("能不能", "能做", "市场", "现在能", "今天能", "等待", "试错"))
+
+
+def _should_use_managed_llm(query: ChatQuery) -> bool:
+    mode = "agent" if str(query.mode or "").lower() == "agent" else "chat"
+    if mode != "chat":
+        return False
+    msg = query.message.strip().lower()
+    # 高价值解释类问题默认走平台托管增强；失败时自动回退规则回答。
+    if _is_value_question(msg) or _is_industry_question(msg) or _is_market_question(msg):
+        return True
+    return bool(query.use_llm)
 
 
 def _deepseek_prompt_contract() -> str:
@@ -2169,13 +2295,13 @@ def _enhance_result_defaults(
 
 
 def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
-    if not query.use_llm or not _deepseek_enabled():
+    if not _should_use_managed_llm(query) or not _deepseek_enabled():
         return None
     mode = "agent" if str(query.mode or "").lower() == "agent" else "chat"
     if mode != "chat":
         return None
     msg = query.message.strip().lower()
-    if any(k in msg for k in ("价值分析", "价值投研", "深度价值", "基本面深度", "8 大块", "八大块")):
+    if _is_value_question(msg):
         code = _chat_stock_code(query)
         payload = {
             "question_type": "value_research",
@@ -2201,7 +2327,7 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
                 sources=["coze_value_prompt_pack", "research_evidence"],
                 provider=provider,
             )
-    if any(k in msg for k in ("方向", "行业", "先看什么", "哪些", "顺风")):
+    if _is_industry_question(msg):
         industry = _industry_rotation_data()
         payload = {
             "question_type": "industry",
@@ -2223,7 +2349,7 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
                 sources=["industry_rotation"],
                 provider=provider,
             )
-    if any(k in msg for k in ("能不能", "能做", "市场", "现在能", "今天能", "等待", "试错")):
+    if _is_market_question(msg):
         market = _market_analysis_data()
         payload = {
             "question_type": "market",
@@ -2358,7 +2484,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
         }
 
     # 问题 1：市场/能不能做
-    if any(k in msg_lower for k in ("能不能", "能做", "市场", "现在能", "今天能", "等待", "试错")):
+    if _is_market_question(msg_lower):
         market = _market_analysis_data()
         return {
             "answer": market["stance"],
@@ -2377,7 +2503,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
         }
 
     # 问题 2：行业/方向
-    if any(k in msg_lower for k in ("方向", "行业", "先看什么", "哪些", "顺风")):
+    if _is_industry_question(msg_lower):
         industry = _industry_rotation_data()
         top = ", ".join(row["industry"] for row in industry["top_industries"][:3])
         return {
@@ -2397,21 +2523,22 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
         }
 
     # 问题 3.1：价值分析 / 深度价值投研
-    if any(k in msg for k in ("价值分析", "价值投研", "深度价值", "基本面深度", "8 大块", "八大块")):
+    if _is_value_question(msg):
         code = _chat_stock_code(query) or "000021.SZ"
+        value_summary = _value_research_chat_summary(code)
         return {
-            "answer": f"可以，我会把 {code} 切到价值组合研究视图，用行业、公司、财务、估值和公开市场预期的组合框架来读。",
-            "why": "价值分析不是恢复长报告，而是在当前研究链路里，把 8 大块中可保留的部分按合规边界组合输出。",
-            "multi_cycle_view": "价值分析也不会绕开多周期环境。先看 MN1/W1/D1 是否支持，再决定行业和公司层面的结论是否有结构支撑。",
-            "single_cycle_position": "单周期上仍要区分刚突破、推进中段和高位延展。同样的公司基本面，在不同位置上的概率与盈亏比不同。",
-            "avoid": "先不用把价值分析理解成买卖建议；估值、盈利趋势和公开市场观点都只作为研究参考。",
+            "answer": (value_summary or {}).get("answer") or f"可以，我会把 {code} 切到价值组合研究视图，用行业、公司、财务、估值和公开市场预期的组合框架来读。",
+            "why": (value_summary or {}).get("why") or "价值分析不是恢复长报告，而是在当前研究链路里，把 8 大块中可保留的部分按合规边界组合输出。",
+            "multi_cycle_view": (value_summary or {}).get("multi_cycle_view") or "价值分析也不会绕开多周期环境。先看 MN1/W1/D1 是否支持，再决定行业和公司层面的结论是否有结构支撑。",
+            "single_cycle_position": (value_summary or {}).get("single_cycle_position") or "单周期上仍要区分刚突破、推进中段和高位延展。同样的公司基本面，在不同位置上的概率与盈亏比不同。",
+            "avoid": (value_summary or {}).get("avoid") or "先不用把价值分析理解成买卖建议；估值、盈利趋势和公开市场观点都只作为研究参考。",
             "next_actions": [
                 {"label": "打开价值研究组合", "url": f"/research?stock_code={code}&render_profile=value"},
                 {"label": "打开标准研究页", "url": f"/research?stock_code={code}"},
                 {"label": f"盯盘 {code}", "url": "#watch-command"},
             ],
             "sources": ["research_evidence", "valuation_reference", "market_views"],
-            "freshness_note": "价值组合会复用当前已加载的研究证据、财务趋势、估值参考和公开市场观点数据。",
+            "freshness_note": (value_summary or {}).get("freshness_note") or "价值组合会复用当前已加载的研究证据、财务趋势、估值参考和公开市场观点数据。",
             "remembered_stock_code": code,
             "remembered_email": _chat_email(query),
             "mode_used": mode,

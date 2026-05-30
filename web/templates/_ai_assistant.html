@@ -25,7 +25,7 @@
         </div>
         <label class="ai-llm-toggle">
           <input type="checkbox" id="ai-use-llm" />
-          <span>增强解释</span>
+          <span>更自然的解释</span>
         </label>
         <button class="ai-close" onclick="aiToggle()" aria-label="关闭">&times;</button>
       </div>
@@ -100,6 +100,13 @@
           if (data.answer) {
             html += '<div class="ai-section"><strong>当前结论</strong>' + escapeHtml(data.answer) + '</div>';
           }
+          if (data.provider || data.enhancement_used !== undefined) {
+            var providerLabel = '规则回答';
+            if (data.provider === 'managed_deepseek') providerLabel = 'DeepSeek 增强';
+            else if (data.provider === 'agently_deepseek') providerLabel = 'Agently + DeepSeek';
+            var enhancementLabel = data.enhancement_used ? '已启用增强解释' : '未使用大模型，当前为规则回答';
+            html += '<div class="ai-section"><strong>回答引擎</strong>' + escapeHtml(providerLabel + ' · ' + enhancementLabel) + '</div>';
+          }
           if (data.mode_used) {
             html += '<div class="ai-section"><strong>当前模式</strong>' + (data.mode_used === 'agent' ? '任务' : '对话') + '</div>';
           }
@@ -154,7 +161,7 @@
           document.getElementById('ai-hint-text').textContent =
             aiMode === 'agent'
               ? '任务模式适合交给系统执行后续动作，比如盯盘、长期跟踪、邮件提醒。'
-              : '对话模式适合先问市场、方向、个股怎么看，再决定下一步。';
+              : '对话模式适合先问市场、方向、个股怎么看，再决定下一步。深度价值、市场和行业解释会优先尝试平台托管模型。';
         }
         window.aiSetMode = aiSetMode;
 
