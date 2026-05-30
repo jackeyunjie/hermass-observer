@@ -2055,7 +2055,7 @@ def _agently_enabled() -> bool:
     if not _deepseek_enabled():
         return False
     try:
-        from agently import Agent  # noqa: F401
+        from agently import Agently  # noqa: F401
         return True
     except Exception:
         return False
@@ -2082,6 +2082,14 @@ def _should_use_managed_llm(query: ChatQuery) -> bool:
     if _is_value_question(msg) or _is_industry_question(msg) or _is_market_question(msg):
         return True
     return bool(query.use_llm)
+
+
+def _requires_managed_llm(query: ChatQuery) -> bool:
+    mode = "agent" if str(query.mode or "").lower() == "agent" else "chat"
+    if mode != "chat":
+        return False
+    msg = query.message.strip().lower()
+    return _is_value_question(msg) or _is_industry_question(msg) or _is_market_question(msg)
 
 
 def _deepseek_prompt_contract() -> str:
@@ -2120,97 +2128,41 @@ def _deepseek_value_system_prompt() -> str:
     return with_deepseek_context(combined)
 
 
-def _deepseek_call(payload: dict[str, Any]) -> dict[str, Any] | None:
-    api_key = os.environ.get("HERMASS_DEEPSEEK_API_KEY", "").strip() or os.environ.get("DEEPSEEK_API_KEY", "").strip()
-    if not api_key:
-        return None
-    api_base = os.environ.get("HERMASS_DEEPSEEK_BASE_URL", "").strip() or os.environ.get("DEEPSEEK_API_BASE", "https://api.deepseek.com").strip()
-    model = os.environ.get("HERMASS_DEEPSEEK_MODEL", "").strip() or os.environ.get("HERMASS_LLM_MODEL", "deepseekV4").strip()
+def _init_agently_model_settings() -> bool:
+    if not _deepseek_enabled():
+        return False
     try:
-        response = requests.post(
-            f"{api_base}/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": model if model != "deepseekV4" else "deepseek-chat",
-                "messages": [
-                    {"role": "system", "content": _deepseek_system_prompt()},
-                    {
-                        "role": "user",
-                        "content": (
-                            "请根据以下结构化输入回答，并严格输出 JSON，不要输出 Markdown。\n"
-                            + json.dumps(payload, ensure_ascii=False, indent=2)
-                        ),
-                    },
-                ],
-                "temperature": 0.3,
-                "max_tokens": 1200,
-                "response_format": {"type": "json_object"},
-            },
-            timeout=25,
-        )
-        response.raise_for_status()
-        content = response.json()["choices"][0]["message"]["content"]
-        parsed = json.loads(content)
-        if not isinstance(parsed, dict):
-            return None
-        return parsed
-    except Exception:
-        return None
+        from agently import Agently
 
+        api_key = os.environ.get("HERMASS_DEEPSEEK_API_KEY", "").strip() or os.environ.get("DEEPSEEK_API_KEY", "").strip()
+        model = os.environ.get("HERMASS_DEEPSEEK_MODEL", "").strip() or os.environ.get("HERMASS_LLM_MODEL", "deepseek-chat").strip()
+        model = model if model != "deepseekV4" else "deepseek-chat"
+        base_url = os.environ.get("HERMASS_DEEPSEEK_BASE_URL", "").strip() or os.environ.get("DEEPSEEK_API_BASE", "https://api.deepseek.com").strip()
+        if not base_url.endswith("/v1"):
+            base_url = base_url.rstrip("/") + "/v1"
 
-def _deepseek_value_call(payload: dict[str, Any]) -> dict[str, Any] | None:
-    api_key = os.environ.get("HERMASS_DEEPSEEK_API_KEY", "").strip() or os.environ.get("DEEPSEEK_API_KEY", "").strip()
-    if not api_key:
-        return None
-    api_base = os.environ.get("HERMASS_DEEPSEEK_BASE_URL", "").strip() or os.environ.get("DEEPSEEK_API_BASE", "https://api.deepseek.com").strip()
-    model = os.environ.get("HERMASS_DEEPSEEK_MODEL", "").strip() or os.environ.get("HERMASS_LLM_MODEL", "deepseekV4").strip()
-    try:
-        response = requests.post(
-            f"{api_base}/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
+        Agently.set_settings(
+            "OpenAICompatible",
+            {
+                "base_url": base_url,
+                "api_key": api_key,
+                "model": model,
             },
-            json={
-                "model": model if model != "deepseekV4" else "deepseek-chat",
-                "messages": [
-                    {"role": "system", "content": _deepseek_value_system_prompt()},
-                    {
-                        "role": "user",
-                        "content": (
-                            "请根据以下价值研究结构化输入回答，并严格输出 JSON，不要输出 Markdown。\n"
-                            + json.dumps(payload, ensure_ascii=False, indent=2)
-                        ),
-                    },
-                ],
-                "temperature": 0.3,
-                "max_tokens": 1400,
-                "response_format": {"type": "json_object"},
-            },
-            timeout=25,
         )
-        response.raise_for_status()
-        content = response.json()["choices"][0]["message"]["content"]
-        parsed = json.loads(content)
-        if not isinstance(parsed, dict):
-            return None
-        return parsed
+        return True
     except Exception:
-        return None
+        return False
 
 
 def _agently_deepseek_call(payload: dict[str, Any]) -> dict[str, Any] | None:
     if not _agently_enabled():
         return None
     try:
-        from agently import Agent
+        from agently import Agently
 
-        model = os.environ.get("HERMASS_DEEPSEEK_MODEL", "").strip() or os.environ.get("HERMASS_LLM_MODEL", "deepseekV4").strip()
-        model = model if model != "deepseekV4" else "deepseek-chat"
-        agent = Agent()
+        if not _init_agently_model_settings():
+            return None
+        agent = Agently.create_agent()
         agent.system(_deepseek_system_prompt())
         agent.instruct("你只做解释与导航，不做投资建议，必须严格输出 JSON。")
         agent.input(
@@ -2227,7 +2179,7 @@ def _agently_deepseek_call(payload: dict[str, Any]) -> dict[str, Any] | None:
             "sources": ["string"],
             "freshness_note": "string",
         })
-        response = agent.start(model=model)
+        response = agent.start()
         if isinstance(response, dict):
             return response
         if isinstance(response, str):
@@ -2243,11 +2195,11 @@ def _agently_value_deepseek_call(payload: dict[str, Any]) -> dict[str, Any] | No
     if not _agently_enabled():
         return None
     try:
-        from agently import Agent
+        from agently import Agently
 
-        model = os.environ.get("HERMASS_DEEPSEEK_MODEL", "").strip() or os.environ.get("HERMASS_LLM_MODEL", "deepseekV4").strip()
-        model = model if model != "deepseekV4" else "deepseek-chat"
-        agent = Agent()
+        if not _init_agently_model_settings():
+            return None
+        agent = Agently.create_agent()
         agent.system(_deepseek_value_system_prompt())
         agent.instruct("你只做价值研究解释与导航，不做投资建议，必须严格输出 JSON。")
         agent.input(
@@ -2264,7 +2216,7 @@ def _agently_value_deepseek_call(payload: dict[str, Any]) -> dict[str, Any] | No
             "sources": ["string"],
             "freshness_note": "string",
         })
-        response = agent.start(model=model)
+        response = agent.start()
         if isinstance(response, dict):
             return response
         if isinstance(response, str):
@@ -2312,10 +2264,6 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
             "freshness_note": "价值分析将复用当前已加载的研究证据、财务趋势、估值参考和公开市场观点数据。",
         }
         result = _agently_value_deepseek_call(payload)
-        provider = "agently_deepseek"
-        if not result:
-            result = _deepseek_value_call(payload)
-            provider = "managed_deepseek"
         if result:
             return _enhance_result_defaults(
                 result,
@@ -2325,7 +2273,7 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
                     {"label": "打开标准研究页", "url": f"/research?stock_code={code or '000021.SZ'}"},
                 ],
                 sources=["coze_value_prompt_pack", "research_evidence"],
-                provider=provider,
+                provider="agently_deepseek",
             )
     if _is_industry_question(msg):
         industry = _industry_rotation_data()
@@ -2337,17 +2285,13 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
             "freshness_note": f"行业数据日期：{industry.get('date', '-')}",
         }
         result = _agently_deepseek_call(payload)
-        provider = "agently_deepseek"
-        if not result:
-            result = _deepseek_call(payload)
-            provider = "managed_deepseek"
         if result:
             return _enhance_result_defaults(
                 result,
                 query,
                 next_actions=[{"label": "打开行业页", "url": "/industry"}],
                 sources=["industry_rotation"],
-                provider=provider,
+                provider="agently_deepseek",
             )
     if _is_market_question(msg):
         market = _market_analysis_data()
@@ -2362,19 +2306,51 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
             "freshness_note": f"市场主数据日期：{market.get('phase', {}).get('date', '-')}",
         }
         result = _agently_deepseek_call(payload)
-        provider = "agently_deepseek"
-        if not result:
-            result = _deepseek_call(payload)
-            provider = "managed_deepseek"
         if result:
             return _enhance_result_defaults(
                 result,
                 query,
                 next_actions=[{"label": "打开市场页", "url": "/market"}],
                 sources=["market_phase", "daily_snapshot"],
-                provider=provider,
+                provider="agently_deepseek",
             )
     return None
+
+
+def _llm_required_failure_response(query: ChatQuery) -> dict[str, Any] | None:
+    if not _requires_managed_llm(query):
+        return None
+    if not _deepseek_enabled():
+        return {
+            "answer": "当前这类问题优先走 Agently 架构的大模型回答，但服务器未检测到可用的模型配置，以下内容将回退为规则摘要。",
+            "why": "价值分析、市场解释和行业方向属于高价值解释问题。当前 Agently 模型链路未就绪，所以只能提供带说明的规则回退结果。",
+            "multi_cycle_view": "这不是结构判断失败，而是大模型链路未就绪；下面的内容仍可作为基础研究摘要阅读。",
+            "single_cycle_position": "当模型恢复后，这类问题会重新回到大模型优先回答。",
+            "avoid": "先不要把“规则回退”误解成模型回答；它只是保底结果。",
+            "next_actions": [],
+            "sources": ["agently_deepseek", "rule_fallback"],
+            "freshness_note": "当前未检测到可用的 Agently 模型配置，已触发规则回退。",
+            "remembered_stock_code": _chat_stock_code(query),
+            "remembered_email": _chat_email(query),
+            "mode_used": "chat",
+            "provider": "agently_deepseek",
+            "enhancement_used": False,
+        }
+    return {
+        "answer": "当前这类问题优先走 Agently 架构的大模型回答，但本次模型调用失败，以下内容将回退为规则摘要。",
+        "why": "价值分析、市场解释和行业方向已改为 Agently 模型优先；当 Agently 返回异常、超时或结构化输出失败时，不再静默冒充模型回答。",
+        "multi_cycle_view": "当前失败只说明 Agently 模型链路异常，不代表多周期环境本身有问题；下面仍会提供保底规则摘要。",
+        "single_cycle_position": "请稍后重试；如果持续失败，应检查 Agently 运行时、模型配置和 JSON 输出合同。",
+        "avoid": "先不要把这个失败提示误解成市场或个股结论；它是在解释为什么当前结果属于规则回退。",
+        "next_actions": [],
+        "sources": ["agently_deepseek", "rule_fallback"],
+        "freshness_note": "Agently 模型调用失败，已切换到规则回退结果。",
+        "remembered_stock_code": _chat_stock_code(query),
+        "remembered_email": _chat_email(query),
+        "mode_used": "chat",
+        "provider": "agently_deepseek",
+        "enhancement_used": False,
+    }
 
 
 def _chat_answer(query: ChatQuery) -> dict[str, Any]:
@@ -2386,6 +2362,9 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
     llm_result = _llm_chat_answer(query)
     if llm_result:
         return llm_result
+    llm_required_failure = _llm_required_failure_response(query)
+    if llm_required_failure:
+        return llm_required_failure
 
     watch_command = _detect_watch_command(query)
     if watch_command is not None:
