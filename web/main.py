@@ -7,6 +7,7 @@ Small FastAPI + Jinja2 app for team-visible operational review.
 from __future__ import annotations
 
 import json
+import os
 import re
 import time
 from datetime import date, datetime, timedelta
@@ -14,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 import duckdb
+import requests
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -35,6 +37,7 @@ from hermass_platform.research import (
 
 from backtest.engine import run_backtest
 from backtest.config import BacktestConfig
+from scripts.deepseek_context import with_deepseek_context
 
 WEB_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(WEB_DIR / "templates"))
@@ -1783,6 +1786,7 @@ class ChatQuery(BaseModel):
     stock_code: str | None = None
     session_context: dict[str, Any] | None = None
     mode: str = "chat"
+    use_llm: bool = False
 
 
 class ChatResponse(BaseModel):
@@ -1929,11 +1933,121 @@ def _register_watch_command(command: dict[str, Any]) -> dict[str, Any]:
     return record
 
 
+def _deepseek_enabled() -> bool:
+    return bool(os.environ.get("HERMASS_DEEPSEEK_API_KEY", "").strip() or os.environ.get("DEEPSEEK_API_KEY", "").strip())
+
+
+def _deepseek_prompt_contract() -> str:
+    contract_path = ROOT / "docs" / "AI_ASSISTANT_RESPONSE_CONTRACT.md"
+    if not contract_path.exists():
+        return ""
+    return contract_path.read_text(encoding="utf-8")
+
+
+def _deepseek_system_prompt() -> str:
+    system_prompt = (
+        "你是 Hermass 网站内的 AI 助手。你只做解释、翻译和导航，不做投资建议。"
+        "你必须坚持多周期环境、单周期位置、风险控制这条主线。"
+        "输出必须是 JSON，且字段必须包含 answer, why, multi_cycle_view, single_cycle_position, avoid, next_actions, sources, freshness_note。"
+    )
+    return with_deepseek_context(system_prompt + "\n\n" + _deepseek_prompt_contract())
+
+
+def _deepseek_call(payload: dict[str, Any]) -> dict[str, Any] | None:
+    api_key = os.environ.get("HERMASS_DEEPSEEK_API_KEY", "").strip() or os.environ.get("DEEPSEEK_API_KEY", "").strip()
+    if not api_key:
+        return None
+    api_base = os.environ.get("HERMASS_DEEPSEEK_BASE_URL", "").strip() or os.environ.get("DEEPSEEK_API_BASE", "https://api.deepseek.com").strip()
+    model = os.environ.get("HERMASS_DEEPSEEK_MODEL", "").strip() or os.environ.get("HERMASS_LLM_MODEL", "deepseekV4").strip()
+    try:
+        response = requests.post(
+            f"{api_base}/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": model if model != "deepseekV4" else "deepseek-chat",
+                "messages": [
+                    {"role": "system", "content": _deepseek_system_prompt()},
+                    {
+                        "role": "user",
+                        "content": (
+                            "请根据以下结构化输入回答，并严格输出 JSON，不要输出 Markdown。\n"
+                            + json.dumps(payload, ensure_ascii=False, indent=2)
+                        ),
+                    },
+                ],
+                "temperature": 0.3,
+                "max_tokens": 1200,
+                "response_format": {"type": "json_object"},
+            },
+            timeout=25,
+        )
+        response.raise_for_status()
+        content = response.json()["choices"][0]["message"]["content"]
+        parsed = json.loads(content)
+        if not isinstance(parsed, dict):
+            return None
+        return parsed
+    except Exception:
+        return None
+
+
+def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
+    if not query.use_llm or not _deepseek_enabled():
+        return None
+    mode = "agent" if str(query.mode or "").lower() == "agent" else "chat"
+    if mode != "chat":
+        return None
+    msg = query.message.strip().lower()
+    if any(k in msg for k in ("方向", "行业", "先看什么", "哪些", "顺风")):
+        industry = _industry_rotation_data()
+        payload = {
+            "question_type": "industry",
+            "message": query.message,
+            "page_context": query.page_context,
+            "industry_rotation": industry,
+            "freshness_note": f"行业数据日期：{industry.get('date', '-')}",
+        }
+        result = _deepseek_call(payload)
+        if result:
+            result.setdefault("next_actions", [{"label": "打开行业页", "url": "/industry"}])
+            result.setdefault("sources", ["industry_rotation"])
+            result.setdefault("remembered_stock_code", _chat_stock_code(query))
+            result.setdefault("mode_used", "chat")
+            return result
+    if any(k in msg for k in ("能不能", "能做", "市场", "现在能", "今天能", "等待", "试错")):
+        market = _market_analysis_data()
+        payload = {
+            "question_type": "market",
+            "message": query.message,
+            "page_context": query.page_context,
+            "market_phase": market.get("phase", {}),
+            "daily_snapshot": market.get("snapshot", {}),
+            "market_assets_state": market.get("assets_state", {}),
+            "macro_chain_prior": market.get("macro", {}),
+            "freshness_note": f"市场主数据日期：{market.get('phase', {}).get('date', '-')}",
+        }
+        result = _deepseek_call(payload)
+        if result:
+            result.setdefault("next_actions", [{"label": "打开市场页", "url": "/market"}])
+            result.setdefault("sources", ["market_phase", "daily_snapshot"])
+            result.setdefault("remembered_stock_code", _chat_stock_code(query))
+            result.setdefault("mode_used", "chat")
+            return result
+    return None
+
+
 def _chat_answer(query: ChatQuery) -> dict[str, Any]:
     """基于用户问题调用现有数据返回回答。"""
     msg = query.message.strip()
     msg_lower = msg.lower()
     mode = "agent" if str(query.mode or "").lower() == "agent" else "chat"
+
+    llm_result = _llm_chat_answer(query)
+    if llm_result:
+        return llm_result
 
     watch_command = _detect_watch_command(query)
     if watch_command is not None:

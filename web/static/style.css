@@ -526,6 +526,19 @@ pre {
   color: #fff;
 }
 
+.ai-llm-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ai-llm-toggle input {
+  margin: 0;
+}
+
 .ai-close {
   width: 32px;
   height: 32px;

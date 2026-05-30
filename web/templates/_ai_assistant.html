@@ -11,6 +11,10 @@
           <button type="button" class="active" id="ai-mode-chat" onclick="aiSetMode('chat')">对话</button>
           <button type="button" id="ai-mode-agent" onclick="aiSetMode('agent')">任务</button>
         </div>
+        <label class="ai-llm-toggle">
+          <input type="checkbox" id="ai-use-llm" />
+          <span>增强解释</span>
+        </label>
         <button class="ai-close" onclick="aiToggle()" aria-label="关闭">&times;</button>
       </div>
       <div class="ai-body" id="ai-body">
@@ -143,7 +147,13 @@
           fetch('/api/chat/query', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({message: text, page_context: pageContext, session_context: aiSession, mode: aiMode})
+            body: JSON.stringify({
+              message: text,
+              page_context: pageContext,
+              session_context: aiSession,
+              mode: aiMode,
+              use_llm: !!document.getElementById('ai-use-llm')?.checked
+            })
           })
           .then(function(r) {
             if (!r.ok) throw new Error('请求失败');
