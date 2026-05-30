@@ -407,5 +407,8 @@
       </section>
       {% endif %}
     </main>
+
+    {% set ai_page_context = '/?mode=' ~ mode %}
+    {% include '_ai_assistant.html' %}
   </body>
 </html>

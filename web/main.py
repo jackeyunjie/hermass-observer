@@ -14,9 +14,10 @@ from typing import Any
 
 import duckdb
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -1763,3 +1764,139 @@ def backtest_run(
             "advisory": outcome.get("advisory"),
         },
     )
+
+
+# ─── AI 助手接口 ─────────────────────────────────────
+
+
+class ChatQuery(BaseModel):
+    message: str
+    page_context: str = ""
+    stock_code: str | None = None
+
+
+class ChatResponse(BaseModel):
+    answer: str
+    why: str
+    multi_cycle_view: str = ""
+    single_cycle_position: str = ""
+    avoid: str
+    next_actions: list[dict[str, str]]
+    sources: list[str]
+    freshness_note: str = ""
+
+
+def _chat_answer(query: ChatQuery) -> dict[str, Any]:
+    """基于用户问题调用现有数据返回回答。"""
+    msg = query.message.strip()
+    msg_lower = msg.lower()
+
+    # 问题 1：市场/能不能做
+    if any(k in msg_lower for k in ("能不能", "能做", "市场", "现在能", "今天能", "等待", "试错")):
+        market = _market_analysis_data()
+        return {
+            "answer": market["stance"],
+            "why": market["broad_summary"],
+            "multi_cycle_view": "先看 MN1/W1/D1 是否同步共振。当前更像大周期未全面同步、日线局部改善的环境，不宜把局部转暖直接外推成全面进攻。",
+            "single_cycle_position": "当前单周期节奏更偏日线活跃推进与局部修复，适合先观察结构延续性，再决定是否从等待切到试错。",
+            "avoid": market["avoid_now"],
+            "next_actions": [
+                {"label": "打开市场页", "url": "/market"},
+            ],
+            "sources": ["market_phase", "daily_snapshot"],
+            "freshness_note": f"市场阶段与快照按 {market['phase']['date']} 口径展示。",
+        }
+
+    # 问题 2：行业/方向
+    if any(k in msg_lower for k in ("方向", "行业", "先看什么", "哪些", "顺风")):
+        industry = _industry_rotation_data()
+        top = ", ".join(row["industry"] for row in industry["top_industries"][:3])
+        return {
+            "answer": f"当前行业覆盖 {industry['industry_count']} 个，建议先看：{top}。",
+            "why": "多周期结构并非全市场共振，更适合做选择题。",
+            "multi_cycle_view": "行业回答先看大级别环境是否支持扩散，再看行业自身是否进入共振。当前更适合先做方向缩圈，而不是把所有行业都当成同级机会。",
+            "single_cycle_position": "行业当前更应判断是起势初期、扩散中段还是高位延展。先找结构刚改善且承接清晰的方向，不急于追已经高位扩张的分支。",
+            "avoid": "暂时不要平均用力看所有行业。",
+            "next_actions": [
+                {"label": "打开行业页", "url": "/industry"},
+            ],
+            "sources": ["industry_rotation"],
+            "freshness_note": f"行业回答按 {industry['date']} 快照展示。",
+        }
+
+    # 问题 3：个股/股票
+    if any(k in msg_lower for k in ("股票", "个股", "看一只", "怎么看", "000", "300", "600")):
+        code = query.stock_code or "000021.SZ"
+        # 尝试从消息中提取股票代码
+        import re
+        match = re.search(r'(\d{6}\.?(SZ|sh|SH|sz)?)', msg)
+        if match:
+            raw = match.group(1)
+            if '.' not in raw:
+                raw += '.SZ'
+            code = raw.upper()
+        return {
+            "answer": f"我可以帮你查看 {code} 的多周期结构、策略适配和证据完整度。",
+            "why": "个股判断需要先看 State 结构、再看策略适配、最后验证证据链。",
+            "multi_cycle_view": "个股先看 MN1/W1/D1 的相互关系：大周期是否支持，周线是否跟上，日线是独立走强还是只是局部噪音。",
+            "single_cycle_position": "单周期上要区分刚突破、推进中段、高位延展还是等待确认。同样是强结构，不同位置的概率和盈亏比完全不同。",
+            "avoid": "不要只看单一周期信号就下结论。",
+            "next_actions": [
+                {"label": "打开研究页", "url": f"/research?stock_code={code}"},
+            ],
+            "sources": ["research_evidence"],
+            "freshness_note": "个股研究会结合当前已加载的研究证据与观察数据。",
+        }
+
+    # 问题 4：导航/先去哪
+    if any(k in msg_lower for k in ("去哪", "先去", "导航", "开始", "第一次", "从哪")):
+        return {
+            "answer": "建议按「市场 → 行业 → 研究/执行」的顺序看。",
+            "why": "先确认大环境是否支持，再缩小到方向，最后看个股。",
+            "multi_cycle_view": "导航顺序本身就是先看多周期环境，再看局部方向，最后才看个股执行。",
+            "single_cycle_position": "进入个股前，优先确认当前单周期是等待、试错还是顺风推进，不要跳过位置判断直接下钻。",
+            "avoid": "不要跳过市场判断直接看个股。",
+            "next_actions": [
+                {"label": "打开市场页", "url": "/market"},
+                {"label": "打开行业页", "url": "/industry"},
+                {"label": "打开执行页", "url": "/watchlist"},
+            ],
+            "sources": ["page_context"],
+            "freshness_note": "",
+        }
+
+    # 默认回答
+    return {
+        "answer": "当前更适合做结构跟踪，不适合把局部转暖直接外推成全面进攻。",
+        "why": "多周期结构并非同步强势，当前更偏局部改善。",
+        "multi_cycle_view": "先看大周期共振是否成立，再判断周线和日线是不是在同一个方向上推进。",
+        "single_cycle_position": "当前更像局部修复和中段推进，不宜把所有样本都当成刚起步机会。",
+        "avoid": "暂时少看高位延展样本，不把所有突破都当成早期机会。",
+        "next_actions": [
+            {"label": "打开市场页", "url": "/market"},
+        ],
+        "sources": ["market_phase"],
+        "freshness_note": "",
+    }
+
+
+@app.post("/api/chat/query")
+def chat_query(query: ChatQuery) -> JSONResponse:
+    try:
+        result = _chat_answer(query)
+        return JSONResponse(content=result)
+    except Exception as exc:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "answer": "服务暂时不可用，请直接浏览页面获取信息。",
+                "why": "",
+                "multi_cycle_view": "",
+                "single_cycle_position": "",
+                "avoid": "",
+                "freshness_note": "",
+                "next_actions": [{"label": "打开首页", "url": "/"}],
+                "sources": [],
+                "error": str(exc),
+            },
+        )

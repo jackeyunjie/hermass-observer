@@ -1,0 +1,138 @@
+    <!-- AI 助手 -->
+    <div class="ai-overlay" id="ai-overlay" onclick="aiToggle()"></div>
+    <button class="ai-trigger" id="ai-trigger" onclick="aiToggle()" aria-label="打开 Hermass 助手">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Hermass 助手
+    </button>
+    <div class="ai-drawer" id="ai-drawer">
+      <div class="ai-header">
+        <h3>Hermass 助手</h3>
+        <button class="ai-close" onclick="aiToggle()" aria-label="关闭">&times;</button>
+      </div>
+      <div class="ai-body" id="ai-body">
+        <div class="ai-quick" id="ai-quick">
+          <button onclick="aiAsk('现在能不能做')">现在能不能做</button>
+          <button onclick="aiAsk('今天先看什么方向')">今天先看什么方向</button>
+          <button onclick="aiAsk('帮我看一只股票')">帮我看一只股票</button>
+          <button onclick="aiAsk('我应该先去哪一页')">我应该先去哪一页</button>
+        </div>
+        <div class="ai-messages" id="ai-messages"></div>
+      </div>
+      <div class="ai-input-area">
+        <input type="text" id="ai-input" placeholder="输入问题…" onkeydown="if(event.key==='Enter')aiSend()" />
+        <button onclick="aiSend()">发送</button>
+      </div>
+    </div>
+
+    <script>
+      (function() {
+        var drawer = document.getElementById('ai-drawer');
+        var overlay = document.getElementById('ai-overlay');
+        var trigger = document.getElementById('ai-trigger');
+        var messages = document.getElementById('ai-messages');
+        var input = document.getElementById('ai-input');
+        var pageContext = "{{ ai_page_context or request.url.path }}";
+
+        function aiToggle() {
+          var open = drawer.classList.contains('open');
+          if (open) {
+            drawer.classList.remove('open');
+            overlay.classList.remove('open');
+            trigger.style.display = 'flex';
+          } else {
+            drawer.classList.add('open');
+            overlay.classList.add('open');
+            trigger.style.display = 'none';
+          }
+        }
+        window.aiToggle = aiToggle;
+
+        function escapeHtml(t) {
+          var d = document.createElement('div');
+          d.textContent = t || '';
+          return d.innerHTML;
+        }
+
+        function aiAppend(text, isUser) {
+          var div = document.createElement('div');
+          div.className = 'ai-msg ' + (isUser ? 'user' : 'bot');
+          div.innerHTML = text;
+          messages.appendChild(div);
+          document.getElementById('ai-body').scrollTop = document.getElementById('ai-body').scrollHeight;
+        }
+
+        function aiRender(data) {
+          var html = '';
+          if (data.answer) {
+            html += '<div class="ai-section"><strong>当前结论</strong>' + escapeHtml(data.answer) + '</div>';
+          }
+          if (data.why) {
+            html += '<div class="ai-section"><strong>为什么</strong>' + escapeHtml(data.why) + '</div>';
+          }
+          if (data.multi_cycle_view) {
+            html += '<div class="ai-section"><strong>多周期环境</strong>' + escapeHtml(data.multi_cycle_view) + '</div>';
+          }
+          if (data.single_cycle_position) {
+            html += '<div class="ai-section"><strong>单周期位置</strong>' + escapeHtml(data.single_cycle_position) + '</div>';
+          }
+          if (data.avoid) {
+            html += '<div class="ai-section"><strong>暂时不用看什么</strong>' + escapeHtml(data.avoid) + '</div>';
+          }
+          if (data.freshness_note) {
+            html += '<div class="ai-section"><strong>数据日期提示</strong>' + escapeHtml(data.freshness_note) + '</div>';
+          }
+          if (data.next_actions && data.next_actions.length) {
+            html += '<div class="ai-actions">';
+            data.next_actions.forEach(function(a) {
+              html += '<a href="' + escapeHtml(a.url) + '">' + escapeHtml(a.label) + '</a>';
+            });
+            html += '</div>';
+          }
+          aiAppend(html, false);
+        }
+
+        function aiAsk(text) {
+          aiAppend(text, true);
+          aiSendMsg(text);
+        }
+        window.aiAsk = aiAsk;
+
+        function aiSend() {
+          var text = input.value.trim();
+          if (!text) return;
+          input.value = '';
+          aiAppend(text, true);
+          aiSendMsg(text);
+        }
+        window.aiSend = aiSend;
+
+        function aiSendMsg(text) {
+          aiAppend('<em style="color:var(--muted)">思考中…</em>', false);
+          var placeholder = messages.lastChild;
+
+          fetch('/api/chat/query', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({message: text, page_context: pageContext})
+          })
+          .then(function(r) {
+            if (!r.ok) throw new Error('请求失败');
+            return r.json();
+          })
+          .then(function(data) {
+            messages.removeChild(placeholder);
+            aiRender(data);
+          })
+          .catch(function() {
+            messages.removeChild(placeholder);
+            aiRender({
+              answer: '服务暂时不可用，请直接浏览页面获取信息。',
+              why: '',
+              avoid: '',
+              freshness_note: '',
+              next_actions: [{label: '打开首页', url: '/'}]
+            });
+          });
+        }
+      })();
+    </script>
