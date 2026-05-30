@@ -1799,7 +1799,10 @@ class ChatResponse(BaseModel):
     sources: list[str]
     freshness_note: str = ""
     remembered_stock_code: str = ""
+    remembered_email: str = ""
     mode_used: str = "chat"
+    provider: str = "rule_based"
+    enhancement_used: bool = False
     task_card: dict[str, Any] | None = None
 
 
@@ -1843,6 +1846,14 @@ def _extract_email_from_message(message: str) -> str:
     return match.group(1).strip() if match else ""
 
 
+def _chat_email(query: ChatQuery) -> str:
+    direct = _extract_email_from_message(query.message)
+    if direct:
+        return direct
+    ctx = query.session_context or {}
+    return str(ctx.get("email") or "").strip()
+
+
 def _chat_stock_code(query: ChatQuery) -> str:
     direct = query.stock_code or _extract_stock_code_from_message(query.message)
     if direct:
@@ -1864,7 +1875,7 @@ def _detect_watch_command(query: ChatQuery) -> dict[str, Any] | None:
             "needs_stock_code": True,
             "email": _extract_email_from_message(msg),
         }
-    email = _extract_email_from_message(msg)
+    email = _chat_email(query)
     trigger_type = "long_term_watch"
     note = "长期跟踪提醒"
     watch_type = "long_term"
@@ -1937,6 +1948,16 @@ def _deepseek_enabled() -> bool:
     return bool(os.environ.get("HERMASS_DEEPSEEK_API_KEY", "").strip() or os.environ.get("DEEPSEEK_API_KEY", "").strip())
 
 
+def _agently_enabled() -> bool:
+    if not _deepseek_enabled():
+        return False
+    try:
+        from agently import Agent  # noqa: F401
+        return True
+    except Exception:
+        return False
+
+
 def _deepseek_prompt_contract() -> str:
     contract_path = ROOT / "docs" / "AI_ASSISTANT_RESPONSE_CONTRACT.md"
     if not contract_path.exists():
@@ -1994,6 +2015,61 @@ def _deepseek_call(payload: dict[str, Any]) -> dict[str, Any] | None:
         return None
 
 
+def _agently_deepseek_call(payload: dict[str, Any]) -> dict[str, Any] | None:
+    if not _agently_enabled():
+        return None
+    try:
+        from agently import Agent
+
+        model = os.environ.get("HERMASS_DEEPSEEK_MODEL", "").strip() or os.environ.get("HERMASS_LLM_MODEL", "deepseekV4").strip()
+        model = model if model != "deepseekV4" else "deepseek-chat"
+        agent = Agent()
+        agent.system(_deepseek_system_prompt())
+        agent.instruct("你只做解释与导航，不做投资建议，必须严格输出 JSON。")
+        agent.input(
+            "请根据以下结构化输入回答，并严格输出 JSON，不要输出 Markdown。\n"
+            + json.dumps(payload, ensure_ascii=False, indent=2)
+        )
+        agent.output({
+            "answer": "string",
+            "why": "string",
+            "multi_cycle_view": "string",
+            "single_cycle_position": "string",
+            "avoid": "string",
+            "next_actions": [{"label": "string", "url": "string"}],
+            "sources": ["string"],
+            "freshness_note": "string",
+        })
+        response = agent.start(model=model)
+        if isinstance(response, dict):
+            return response
+        if isinstance(response, str):
+            parsed = json.loads(response)
+            if isinstance(parsed, dict):
+                return parsed
+        return None
+    except Exception:
+        return None
+
+
+def _enhance_result_defaults(
+    result: dict[str, Any],
+    query: ChatQuery,
+    *,
+    next_actions: list[dict[str, str]],
+    sources: list[str],
+    provider: str,
+) -> dict[str, Any]:
+    result.setdefault("next_actions", next_actions)
+    result.setdefault("sources", sources)
+    result.setdefault("remembered_stock_code", _chat_stock_code(query))
+    result.setdefault("remembered_email", _chat_email(query))
+    result.setdefault("mode_used", "chat")
+    result.setdefault("provider", provider)
+    result.setdefault("enhancement_used", provider != "rule_based")
+    return result
+
+
 def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
     if not query.use_llm or not _deepseek_enabled():
         return None
@@ -2010,13 +2086,19 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
             "industry_rotation": industry,
             "freshness_note": f"行业数据日期：{industry.get('date', '-')}",
         }
-        result = _deepseek_call(payload)
+        result = _agently_deepseek_call(payload)
+        provider = "agently_deepseek"
+        if not result:
+            result = _deepseek_call(payload)
+            provider = "managed_deepseek"
         if result:
-            result.setdefault("next_actions", [{"label": "打开行业页", "url": "/industry"}])
-            result.setdefault("sources", ["industry_rotation"])
-            result.setdefault("remembered_stock_code", _chat_stock_code(query))
-            result.setdefault("mode_used", "chat")
-            return result
+            return _enhance_result_defaults(
+                result,
+                query,
+                next_actions=[{"label": "打开行业页", "url": "/industry"}],
+                sources=["industry_rotation"],
+                provider=provider,
+            )
     if any(k in msg for k in ("能不能", "能做", "市场", "现在能", "今天能", "等待", "试错")):
         market = _market_analysis_data()
         payload = {
@@ -2029,13 +2111,19 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
             "macro_chain_prior": market.get("macro", {}),
             "freshness_note": f"市场主数据日期：{market.get('phase', {}).get('date', '-')}",
         }
-        result = _deepseek_call(payload)
+        result = _agently_deepseek_call(payload)
+        provider = "agently_deepseek"
+        if not result:
+            result = _deepseek_call(payload)
+            provider = "managed_deepseek"
         if result:
-            result.setdefault("next_actions", [{"label": "打开市场页", "url": "/market"}])
-            result.setdefault("sources", ["market_phase", "daily_snapshot"])
-            result.setdefault("remembered_stock_code", _chat_stock_code(query))
-            result.setdefault("mode_used", "chat")
-            return result
+            return _enhance_result_defaults(
+                result,
+                query,
+                next_actions=[{"label": "打开市场页", "url": "/market"}],
+                sources=["market_phase", "daily_snapshot"],
+                provider=provider,
+            )
     return None
 
 
@@ -2062,6 +2150,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
                 "sources": ["watch_command"],
                 "freshness_note": "",
                 "remembered_stock_code": "",
+                "remembered_email": watch_command.get("email", ""),
                 "mode_used": mode,
             }
         if not watch_command.get("email"):
@@ -2075,6 +2164,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
                 "sources": ["watch_command"],
                 "freshness_note": "",
                 "remembered_stock_code": watch_command["stock_code"],
+                "remembered_email": "",
                 "mode_used": mode,
             }
         record = _register_watch_command(watch_command)
@@ -2091,6 +2181,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
             "sources": ["watch_command_ledger"],
             "freshness_note": f"盯盘任务创建日期为 {record['valid_from']}，默认有效至 {record['valid_to']}。",
             "remembered_stock_code": record["stock_code"],
+            "remembered_email": record["email"],
             "mode_used": "agent",
             "task_card": {
                 "title": "任务确认",
@@ -2122,6 +2213,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
                 "sources": ["session_context", "watch_command"],
                 "freshness_note": "任务模式当前可执行的动作以盯盘、长期跟踪和邮件提醒为主。",
                 "remembered_stock_code": stock_code,
+                "remembered_email": _chat_email(query),
                 "mode_used": mode,
             }
         return {
@@ -2137,6 +2229,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
             "sources": ["watch_command"],
             "freshness_note": "任务模式当前支持盯盘命令、长期跟踪和邮件提醒的最小闭环。",
             "remembered_stock_code": "",
+            "remembered_email": _chat_email(query),
             "mode_used": mode,
         }
 
@@ -2155,6 +2248,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
             "sources": ["market_phase", "daily_snapshot"],
             "freshness_note": f"市场阶段与快照按 {market['phase']['date']} 口径展示。",
             "remembered_stock_code": _chat_stock_code(query),
+            "remembered_email": _chat_email(query),
             "mode_used": mode,
         }
 
@@ -2174,6 +2268,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
             "sources": ["industry_rotation"],
             "freshness_note": f"行业回答按 {industry['date']} 快照展示。",
             "remembered_stock_code": _chat_stock_code(query),
+            "remembered_email": _chat_email(query),
             "mode_used": mode,
         }
 
@@ -2194,6 +2289,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
             "sources": ["research_evidence", "valuation_reference", "market_views"],
             "freshness_note": "价值组合会复用当前已加载的研究证据、财务趋势、估值参考和公开市场观点数据。",
             "remembered_stock_code": code,
+            "remembered_email": _chat_email(query),
             "mode_used": mode,
         }
 
@@ -2220,6 +2316,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
             "sources": ["research_evidence"],
             "freshness_note": "个股研究会结合当前已加载的研究证据与观察数据。",
             "remembered_stock_code": code,
+            "remembered_email": _chat_email(query),
             "mode_used": mode,
         }
 
@@ -2239,6 +2336,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
             "sources": ["page_context"],
             "freshness_note": "",
             "remembered_stock_code": _chat_stock_code(query),
+            "remembered_email": _chat_email(query),
             "mode_used": mode,
         }
 
@@ -2255,6 +2353,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
         "sources": ["market_phase"],
         "freshness_note": "",
         "remembered_stock_code": _chat_stock_code(query),
+        "remembered_email": _chat_email(query),
         "mode_used": mode,
     }
 
@@ -2263,6 +2362,8 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
 def chat_query(query: ChatQuery) -> JSONResponse:
     try:
         result = _chat_answer(query)
+        result.setdefault("provider", "rule_based")
+        result.setdefault("enhancement_used", False)
         return JSONResponse(content=result)
     except Exception as exc:
         return JSONResponse(
@@ -2277,7 +2378,10 @@ def chat_query(query: ChatQuery) -> JSONResponse:
                 "next_actions": [{"label": "打开首页", "url": "/"}],
                 "sources": [],
                 "remembered_stock_code": "",
+                "remembered_email": "",
                 "mode_used": str(query.mode or "chat").lower(),
+                "provider": "rule_based",
+                "enhancement_used": False,
                 "error": str(exc),
             },
         )

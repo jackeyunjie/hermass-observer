@@ -58,7 +58,7 @@
         var messages = document.getElementById('ai-messages');
         var input = document.getElementById('ai-input');
         var pageContext = "{{ ai_page_context or request.url.path }}";
-        var aiSession = { stock_code: '' };
+        var aiSession = { stock_code: '', email: '' };
         var aiMode = 'chat';
 
         function aiToggle() {
@@ -92,6 +92,9 @@
         function aiRender(data) {
           if (data.remembered_stock_code) {
             aiSession.stock_code = data.remembered_stock_code;
+          }
+          if (data.remembered_email) {
+            aiSession.email = data.remembered_email;
           }
           var html = '';
           if (data.answer) {
@@ -127,10 +130,11 @@
             html += '</div>';
           }
           if (data.remembered_stock_code) {
+            var followupEmail = aiSession.email || 'test@example.com';
             html += '<div class="ai-followups">';
             html += '<button type="button" onclick="aiAsk(\'看价值组合\')">看价值组合</button>';
             html += '<button type="button" onclick="aiAsk(\'那它现在是假突破吗\')">继续追问位置</button>';
-            html += '<button type="button" onclick="aiAsk(\'盯它，突破周线关键位提醒我，邮箱 test@example.com\')">直接盯盘</button>';
+            html += '<button type="button" onclick="aiAsk(\'盯它，突破周线关键位提醒我，邮箱 ' + escapeHtml(followupEmail) + '\')">直接盯盘</button>';
             html += '</div>';
           }
           if (data.next_actions && data.next_actions.length) {
