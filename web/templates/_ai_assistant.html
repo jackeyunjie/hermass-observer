@@ -14,6 +14,8 @@
           <button onclick="aiAsk('现在能不能做')">现在能不能做</button>
           <button onclick="aiAsk('今天先看什么方向')">今天先看什么方向</button>
           <button onclick="aiAsk('帮我看一只股票')">帮我看一只股票</button>
+          <button onclick="aiAsk('用价值分析看000021')">用价值分析看一只票</button>
+          <button onclick="aiAsk('盯 000021，突破周线关键位提醒我，邮箱 test@example.com')">试试盯盘命令</button>
           <button onclick="aiAsk('我应该先去哪一页')">我应该先去哪一页</button>
         </div>
         <div class="ai-messages" id="ai-messages"></div>
@@ -32,6 +34,7 @@
         var messages = document.getElementById('ai-messages');
         var input = document.getElementById('ai-input');
         var pageContext = "{{ ai_page_context or request.url.path }}";
+        var aiSession = { stock_code: '' };
 
         function aiToggle() {
           var open = drawer.classList.contains('open');
@@ -62,6 +65,9 @@
         }
 
         function aiRender(data) {
+          if (data.remembered_stock_code) {
+            aiSession.stock_code = data.remembered_stock_code;
+          }
           var html = '';
           if (data.answer) {
             html += '<div class="ai-section"><strong>当前结论</strong>' + escapeHtml(data.answer) + '</div>';
@@ -113,7 +119,7 @@
           fetch('/api/chat/query', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({message: text, page_context: pageContext})
+            body: JSON.stringify({message: text, page_context: pageContext, session_context: aiSession})
           })
           .then(function(r) {
             if (!r.ok) throw new Error('请求失败');

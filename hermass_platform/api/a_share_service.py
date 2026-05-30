@@ -58,7 +58,7 @@ class ResearchRequest(BaseModel):
     date: str = Field(..., description="查询日期，格式 YYYY-MM-DD")
     foundation_db: str | None = Field(None, description="可选，Foundation DB 覆盖路径")
     fundamental_db: str | None = Field(None, description="可选，fundamental_evidence.duckdb 覆盖路径")
-    render_profile: str = Field("full", description="deep card 展开层级：standard 或 full")
+    render_profile: str = Field("full", description="deep card 展开层级：standard / full / value")
 
 
 app = FastAPI(

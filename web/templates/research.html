@@ -37,6 +37,7 @@
             <select name="render_profile">
               <option value="standard" {% if render_profile == "standard" %}selected{% endif %}>标准</option>
               <option value="full" {% if render_profile == "full" %}selected{% endif %}>完整</option>
+              <option value="value" {% if render_profile == "value" %}selected{% endif %}>价值组合</option>
             </select>
           </label>
           <button type="submit">加载研究</button>

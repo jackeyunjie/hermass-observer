@@ -9,7 +9,7 @@ DEFAULT_DISCLAIMER = (
     "历史数据不代表未来表现。投资决策应由投资者独立做出。"
 )
 
-RENDER_PROFILES = {"quick", "standard", "full"}
+RENDER_PROFILES = {"quick", "standard", "full", "value"}
 
 
 def _status_label(status: str | None) -> str:
@@ -517,6 +517,189 @@ def _market_expectation_lines(market_views: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _growth_logic_section(profile: dict[str, Any], industry: dict[str, Any], state_core: dict[str, Any], rows: list[dict[str, Any]]) -> list[str]:
+    latest = rows[0] if rows else {}
+    drivers: list[str] = []
+    main_business = str(profile.get("main_business") or "")
+    concepts = _split_csv_like(profile.get("ths_concepts"), limit=4)
+    if concepts:
+        drivers.append(f"概念线索主要集中在 {', '.join(concepts)}")
+    if any(token in main_business for token in ["芯片", "半导体", "集成电路"]):
+        drivers.append("增长线索更多围绕国产替代、算力链需求和下游电子景气变化")
+    elif any(token in main_business for token in ["设备", "终端", "制造", "零部件"]):
+        drivers.append("增长线索更多围绕订单、出货节奏和下游资本开支变化")
+    elif any(token in main_business for token in ["软件", "平台", "服务"]):
+        drivers.append("增长线索更多围绕客户扩张、产品渗透和数字化投入")
+    prosperity = industry.get("prosperity_score")
+    if isinstance(prosperity, (int, float)) and float(prosperity) >= 7:
+        drivers.append("当前行业景气度处于中高位，对增长线索有一定顺风支撑")
+    if state_core.get("ef_count") in {2, 3}:
+        drivers.append("多周期结构已有一定共振，说明增长线索正在被价格结构部分验证")
+    lines = [
+        "### 3.2 发展前景与增长线索",
+        f"- 主营延展：{profile.get('main_business') or '暂无主营描述，增长线索需谨慎。'}",
+        f"- 最新收入：{_fmt_yi(latest.get('revenue'))}，净利润：{_fmt_yi(latest.get('net_profit'))}。",
+    ]
+    if drivers:
+        lines.append(f"- 增长线索：{'；'.join(drivers)}。")
+    else:
+        lines.append("- 增长线索：当前仅能确认公司处于既有主营赛道，后续增长驱动仍需更多公开证据。")
+    lines.append("- 边界说明：这里是增长线索观察，不构成未来业绩预测。")
+    return lines
+
+
+def _governance_observation_section(profile: dict[str, Any], rows: list[dict[str, Any]]) -> list[str]:
+    latest = rows[0] if rows else {}
+    debt_ratio = latest.get("debt_ratio")
+    roe = latest.get("roe")
+    notes = []
+    if debt_ratio not in (None, ""):
+        notes.append(f"最新资产负债率 { _fmt_percent(debt_ratio) }")
+    if roe not in (None, ""):
+        notes.append(f"ROE { _fmt_percent(roe) }")
+    if profile.get("competitor_companies") or profile.get("comparable_companies"):
+        notes.append("已具备可比公司/竞争对手线索，便于做治理与执行力的横向观察")
+    lines = [
+        "### 3.4 管理与治理观察",
+        "- 当前证据层缺少完整的管理团队与治理数据库，因此这里只做弱观察，不输出强判断。",
+    ]
+    if notes:
+        lines.append(f"- 可观察线索：{'；'.join(notes)}。")
+    lines.append("- 使用方式：更适合作为补充观察项，而不是独立下结论模块。")
+    return lines
+
+
+def _event_watch_section(profile: dict[str, Any], market_views: dict[str, Any]) -> list[str]:
+    latest_report = market_views.get("latest_report") or {}
+    lines = [
+        "### 3.5 事件观察",
+        "- 当前只把公开事件、机构更新和结构变化作为观察线索，不当作交易级催化剂。",
+    ]
+    if latest_report:
+        lines.append(
+            f"- 最近公开更新：{latest_report.get('institution') or '暂无'} 于 {latest_report.get('date') or '暂无'} 发布了 {latest_report.get('rating') or '暂无'} 观点。"
+        )
+    concepts = _split_csv_like(profile.get("ths_concepts"), limit=5)
+    if concepts:
+        lines.append(f"- 主题观察：{', '.join(concepts)}。")
+    lines.append("- 使用方式：事件只做验证和跟踪，不替代多周期结构判断。")
+    return lines
+
+
+def _financial_trend_observation_section(evidence: dict[str, Any], rows: list[dict[str, Any]]) -> list[str]:
+    lines = ["### 4. 盈利趋势观察（非预测）"]
+    limited_text = _limited_module_text("financial_trend", evidence)
+    if limited_text:
+        lines.append(limited_text)
+    if rows:
+        for row in rows[:4]:
+            lines.append(
+                f"- {row.get('report_period')}: 营收 {_fmt_yi(row.get('revenue'))}，净利润 {_fmt_yi(row.get('net_profit'))}，EPS {_fmt_num(row.get('eps'), 4)}，ROE {_fmt_percent(row.get('roe'))}"
+            )
+    else:
+        lines.append("- 财务趋势数据暂缺。")
+    lines.append("- 说明：以上为历史趋势描述，不构成未来盈利预测。")
+    return lines
+
+
+def _valuation_reference_section(evidence: dict[str, Any], valuation: dict[str, Any]) -> list[str]:
+    lines = ["### 5. 估值参考（非结论）"]
+    valuation_text = _limited_module_text("valuation_reference", evidence)
+    if valuation_text:
+        lines.append(valuation_text)
+    if any(valuation.get(field) is not None for field in ["pe_ttm", "pb", "market_cap", "ps"]):
+        lines.append(
+            f"- PE(TTM)：{_fmt_pe(valuation.get('pe_ttm'))}，PB：{_fmt_num(valuation.get('pb'))}，PS：{_fmt_num(valuation.get('ps'))}，总市值：{_fmt_yi(valuation.get('market_cap'))}。"
+        )
+    else:
+        lines.append("- 估值参考数据暂缺。")
+    lines.append("- 说明：这里只做历史与横向参考，不输出合理估值、目标价或投资建议。")
+    return lines
+
+
+def _risk_limit_section(shared: dict[str, Any], risks: dict[str, Any]) -> list[str]:
+    lines = ["### 7. 风险与限制"]
+    rendered_any_risk = False
+    for section, title in [
+        ("financial_risks", "财务风险"),
+        ("industry_risks", "行业风险"),
+        ("valuation_risks", "估值风险"),
+        ("data_risks", "数据风险"),
+    ]:
+        values = risks.get(section) or []
+        if values:
+            rendered_any_risk = True
+            lines.append(f"- {title}：")
+            for item in values:
+                lines.append(f"  - {_clean_risk_text(_risk_text(item))}")
+    if not rendered_any_risk:
+        lines.append("- 当前未检出明确风险提示，但这不代表未来没有风险。")
+    lines.append(f"- 数据充分度：{_status_label(shared['overall_completeness'])}")
+    lines.append(f"- 数据来源：{shared['source_summary']}")
+    return lines
+
+
+def _value_combo_research_card(
+    evidence: dict[str, Any],
+    shared: dict[str, Any],
+    profile: dict[str, Any],
+    industry: dict[str, Any],
+    state_core: dict[str, Any],
+    overlay: dict[str, Any],
+    valuation: dict[str, Any],
+    market_views: dict[str, Any],
+    risks: dict[str, Any],
+    rows: list[dict[str, Any]],
+) -> str:
+    financial_quality_lines = (
+        _financial_quality_section(evidence, profile, rows)
+        if rows
+        else ["### 3.3 盈利质量与财务健康", "- 当前财务趋势样本不足。"]
+    )
+    lines = [
+        f"## {shared['stock_name']} 价值研究组合卡",
+        "",
+        "### 1. 研究说明",
+        "- 当前输出不是恢复 8 大块长报告，而是把其中可保留、可降级的价值投研模块按合规边界组合进研究卡。",
+        f"- 当前 State 组合：{shared['state_combo']}；结构解读：{_state_structure_explanation(state_core)}。",
+        "",
+        "### 2. 公司概况",
+        *_company_profile_lines(profile),
+        "",
+        *_industry_competition_section(profile, industry),
+        "",
+        *_industry_driver_section(profile, industry),
+        "",
+        *_industry_policy_tech_section(profile, evidence),
+        "",
+        *_industry_cycle_section(profile, industry, state_core),
+        "",
+        *_business_model_section(profile, _latest_financial_row(evidence)),
+        "",
+        *_growth_logic_section(profile, industry, state_core, rows),
+        "",
+        *financial_quality_lines,
+        "",
+        *_governance_observation_section(profile, rows),
+        "",
+        *_event_watch_section(profile, market_views),
+        "",
+        *_financial_trend_observation_section(evidence, rows),
+        "",
+        *_valuation_reference_section(evidence, valuation),
+        "",
+        *_market_expectation_lines(market_views),
+        "",
+        *_risk_limit_section(shared, risks),
+    ]
+    if overlay.get("fit_strategy"):
+        lines.insert(
+            5,
+            f"- 当前结构覆盖：{overlay.get('fit_strategy')}，{overlay.get('strategy_environment_fit') or '待观察'}，生命周期={overlay.get('lifecycle_stage') or '暂无'}。",
+        )
+    return _apply_compliance("\n".join(lines))
+
+
 def _trend_direction(rows: list[dict[str, Any]], field: str) -> str:
     values = [row.get(field) for row in rows[:3] if row.get(field) not in (None, "")]
     if len(values) < 2:
@@ -774,9 +957,24 @@ def format_deep_research_card(evidence: dict[str, Any], render_profile: str = "f
     state_core = evidence.get("state_core", {})
     overlay = evidence.get("strategy_fit_overlay", {})
     valuation = evidence.get("valuation_reference", {})
+    market_views = evidence.get("market_views", {})
     risks = evidence.get("risk_flags", {})
     rows = evidence.get("financial_trend", {}).get("period_rows") or []
     latest_financial = rows[0] if rows else {}
+
+    if profile_mode == "value":
+        return _value_combo_research_card(
+            evidence=evidence,
+            shared=shared,
+            profile=profile,
+            industry=industry,
+            state_core=state_core,
+            overlay=overlay,
+            valuation=valuation,
+            market_views=market_views,
+            risks=risks,
+            rows=rows,
+        )
 
     lines = [
         f"## {shared['stock_name']} 深度研究卡",
@@ -848,7 +1046,6 @@ def format_deep_research_card(evidence: dict[str, Any], render_profile: str = "f
         lines.append("仅供研究参考，不构成建议。")
 
     if profile_mode == "full":
-        market_views = evidence.get("market_views", {})
         market_view_text = _limited_module_text("market_views", evidence)
         if market_view_text:
             lines.extend(["", "### 5.1 市场预期", market_view_text])

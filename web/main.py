@@ -7,8 +7,9 @@ Small FastAPI + Jinja2 app for team-visible operational review.
 from __future__ import annotations
 
 import json
+import re
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -1773,6 +1774,7 @@ class ChatQuery(BaseModel):
     message: str
     page_context: str = ""
     stock_code: str | None = None
+    session_context: dict[str, Any] | None = None
 
 
 class ChatResponse(BaseModel):
@@ -1784,12 +1786,185 @@ class ChatResponse(BaseModel):
     next_actions: list[dict[str, str]]
     sources: list[str]
     freshness_note: str = ""
+    remembered_stock_code: str = ""
+
+
+WATCH_COMMAND_LEDGER = ROOT / "outputs" / "alerts" / "watch_command_ledger.json"
+
+
+def _load_watch_command_ledger() -> dict[str, Any]:
+    if not WATCH_COMMAND_LEDGER.exists():
+        return {"version": "1.0.0", "commands": []}
+    try:
+        return json.loads(WATCH_COMMAND_LEDGER.read_text(encoding="utf-8"))
+    except Exception:
+        return {"version": "1.0.0", "commands": []}
+
+
+def _save_watch_command_ledger(data: dict[str, Any]) -> None:
+    WATCH_COMMAND_LEDGER.parent.mkdir(parents=True, exist_ok=True)
+    WATCH_COMMAND_LEDGER.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _canonical_stock_code(value: str) -> str:
+    digits = "".join(ch for ch in value if ch.isdigit())
+    if len(digits) != 6:
+        return value.upper()
+    if digits.startswith(("6", "9")):
+        return f"{digits}.SH"
+    if digits.startswith(("8", "4")):
+        return f"{digits}.BJ"
+    return f"{digits}.SZ"
+
+
+def _extract_stock_code_from_message(message: str) -> str:
+    match = re.search(r"(?<!\d)(\d{6})(?!\d)", message)
+    if not match:
+        return ""
+    return _canonical_stock_code(match.group(1))
+
+
+def _extract_email_from_message(message: str) -> str:
+    match = re.search(r"([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})", message)
+    return match.group(1).strip() if match else ""
+
+
+def _chat_stock_code(query: ChatQuery) -> str:
+    direct = query.stock_code or _extract_stock_code_from_message(query.message)
+    if direct:
+        return direct
+    ctx = query.session_context or {}
+    remembered = str(ctx.get("stock_code") or "").strip()
+    if remembered:
+        return _canonical_stock_code(remembered)
+    return ""
+
+
+def _detect_watch_command(query: ChatQuery) -> dict[str, Any] | None:
+    msg = query.message.strip()
+    if not any(keyword in msg for keyword in ("盯", "跟踪", "提醒我", "发邮件", "通知我")):
+        return None
+    stock_code = _chat_stock_code(query)
+    if not stock_code:
+        return {
+            "needs_stock_code": True,
+            "email": _extract_email_from_message(msg),
+        }
+    email = _extract_email_from_message(msg)
+    trigger_type = "long_term_watch"
+    note = "长期跟踪提醒"
+    watch_type = "long_term"
+    valid_days = 90
+
+    if "周线关键位" in msg and any(k in msg for k in ("突破", "站上")):
+        trigger_type = "w1_breakout"
+        note = "突破周线关键位提醒"
+        watch_type = "conditional"
+        valid_days = 30
+    elif "跌破" in msg and any(k in msg for k in ("支撑", "D1")):
+        trigger_type = "d1_support_break"
+        note = "跌破 D1 支撑提醒"
+        watch_type = "conditional"
+        valid_days = 30
+    elif any(k in msg for k in ("行业共振", "板块共振")):
+        trigger_type = "sector_resonance"
+        note = "行业共振提醒"
+        watch_type = "conditional"
+        valid_days = 30
+    elif any(k in msg for k in ("走弱", "连续 3 天")):
+        trigger_type = "d1_weakening_3d"
+        note = "D1 连续走弱提醒"
+        watch_type = "conditional"
+        valid_days = 30
+    elif any(k in msg for k in ("跌出", "从 E/F 跌出")):
+        trigger_type = "state_drop"
+        note = "D1 从 E/F 跌出提醒"
+        watch_type = "conditional"
+        valid_days = 30
+
+    return {
+        "stock_code": stock_code,
+        "email": email,
+        "trigger_type": trigger_type,
+        "watch_type": watch_type,
+        "valid_days": valid_days,
+        "note": note,
+        "page_context": query.page_context,
+    }
+
+
+def _register_watch_command(command: dict[str, Any]) -> dict[str, Any]:
+    ledger = _load_watch_command_ledger()
+    commands = ledger.setdefault("commands", [])
+    today = date.today()
+    valid_to = today + timedelta(days=int(command["valid_days"]))
+    watch_id = f"watch_{today.strftime('%Y%m%d')}_{command['stock_code'].replace('.', '')}_{len(commands)+1:03d}"
+    record = {
+        "watch_id": watch_id,
+        "stock_code": command["stock_code"],
+        "watch_type": command["watch_type"],
+        "trigger_type": command["trigger_type"],
+        "email": command["email"],
+        "valid_from": today.isoformat(),
+        "valid_to": valid_to.isoformat(),
+        "status": "active",
+        "note": command["note"],
+        "created_from": "ai_assistant",
+        "page_context": command.get("page_context") or "",
+        "last_triggered_at": None,
+    }
+    commands.append(record)
+    ledger["commands"] = commands[-500:]
+    _save_watch_command_ledger(ledger)
+    return record
 
 
 def _chat_answer(query: ChatQuery) -> dict[str, Any]:
     """基于用户问题调用现有数据返回回答。"""
     msg = query.message.strip()
     msg_lower = msg.lower()
+
+    watch_command = _detect_watch_command(query)
+    if watch_command is not None:
+        if watch_command.get("needs_stock_code"):
+            return {
+                "answer": "我可以帮你建立盯盘任务，但还需要你给出 6 位股票代码。",
+                "why": "盯盘指令至少需要明确跟踪对象，才能绑定后续提醒条件。",
+                "multi_cycle_view": "盯盘本质上是在多周期环境里持续观察一只股票是否进入你关心的状态。",
+                "single_cycle_position": "先明确股票，再判断是盯周线关键位、D1 支撑，还是长期跟踪。",
+                "avoid": "先不用重复描述条件，先把股票代码补完整。",
+                "next_actions": [{"label": "打开研究页", "url": "/research?stock_code=000021.SZ"}],
+                "sources": ["watch_command"],
+                "freshness_note": "",
+                "remembered_stock_code": "",
+            }
+        if not watch_command.get("email"):
+            return {
+                "answer": f"我已经识别到你想盯 {watch_command['stock_code']}，但还缺一个接收提醒的邮箱。",
+                "why": "邮件是当前唯一稳定的外部通知通道，没有邮箱就无法把盯盘信号发给你。",
+                "multi_cycle_view": "盯盘条件会围绕多周期环境展开，比如周线关键位突破、行业共振、或大周期结构变化。",
+                "single_cycle_position": "当前先把提醒通道补齐，后续再按你指定的单周期位置条件触发通知。",
+                "avoid": "先不用重复发送股票代码或条件，直接补邮箱即可。",
+                "next_actions": [{"label": "打开执行页", "url": "/watchlist"}],
+                "sources": ["watch_command"],
+                "freshness_note": "",
+                "remembered_stock_code": watch_command["stock_code"],
+            }
+        record = _register_watch_command(watch_command)
+        return {
+            "answer": f"已为 {record['stock_code']} 建立盯盘任务，后续会按「{record['note']}」发邮件到 {record['email']}。",
+            "why": "当前指令已被结构化写入盯盘账本，后续由后台任务按条件检查并触发提醒。",
+            "multi_cycle_view": "这类提醒会优先检查多周期环境是否进入你指定的条件，例如周线关键位突破、行业共振或大周期共振变化。",
+            "single_cycle_position": "邮件提醒不会盲发，而是结合当前单周期是否进入刚突破、跌破支撑或持续走弱等位置来触发。",
+            "avoid": "暂时不用反复提交同一条命令；后续同日同条件会自动去重。",
+            "next_actions": [
+                {"label": "打开执行页", "url": "/watchlist"},
+                {"label": "打开研究页", "url": f"/research?stock_code={record['stock_code']}"},
+            ],
+            "sources": ["watch_command_ledger"],
+            "freshness_note": f"盯盘任务创建日期为 {record['valid_from']}，默认有效至 {record['valid_to']}。",
+            "remembered_stock_code": record["stock_code"],
+        }
 
     # 问题 1：市场/能不能做
     if any(k in msg_lower for k in ("能不能", "能做", "市场", "现在能", "今天能", "等待", "试错")):
@@ -1805,6 +1980,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
             ],
             "sources": ["market_phase", "daily_snapshot"],
             "freshness_note": f"市场阶段与快照按 {market['phase']['date']} 口径展示。",
+            "remembered_stock_code": _chat_stock_code(query),
         }
 
     # 问题 2：行业/方向
@@ -1822,13 +1998,31 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
             ],
             "sources": ["industry_rotation"],
             "freshness_note": f"行业回答按 {industry['date']} 快照展示。",
+            "remembered_stock_code": _chat_stock_code(query),
+        }
+
+    # 问题 3.1：价值分析 / 深度价值投研
+    if any(k in msg for k in ("价值分析", "价值投研", "深度价值", "基本面深度", "8 大块", "八大块")):
+        code = _chat_stock_code(query) or "000021.SZ"
+        return {
+            "answer": f"可以，我会把 {code} 切到价值组合研究视图，用行业、公司、财务、估值和公开市场预期的组合框架来读。",
+            "why": "价值分析不是恢复长报告，而是在当前研究链路里，把 8 大块中可保留的部分按合规边界组合输出。",
+            "multi_cycle_view": "价值分析也不会绕开多周期环境。先看 MN1/W1/D1 是否支持，再决定行业和公司层面的结论是否有结构支撑。",
+            "single_cycle_position": "单周期上仍要区分刚突破、推进中段和高位延展。同样的公司基本面，在不同位置上的概率与盈亏比不同。",
+            "avoid": "先不用把价值分析理解成买卖建议；估值、盈利趋势和公开市场观点都只作为研究参考。",
+            "next_actions": [
+                {"label": "打开价值研究组合", "url": f"/research?stock_code={code}&render_profile=value"},
+                {"label": "打开标准研究页", "url": f"/research?stock_code={code}"},
+                {"label": f"盯盘 {code}", "url": "#watch-command"},
+            ],
+            "sources": ["research_evidence", "valuation_reference", "market_views"],
+            "freshness_note": "价值组合会复用当前已加载的研究证据、财务趋势、估值参考和公开市场观点数据。",
+            "remembered_stock_code": code,
         }
 
     # 问题 3：个股/股票
     if any(k in msg_lower for k in ("股票", "个股", "看一只", "怎么看", "000", "300", "600")):
-        code = query.stock_code or "000021.SZ"
-        # 尝试从消息中提取股票代码
-        import re
+        code = _chat_stock_code(query) or "000021.SZ"
         match = re.search(r'(\d{6}\.?(SZ|sh|SH|sz)?)', msg)
         if match:
             raw = match.group(1)
@@ -1843,9 +2037,12 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
             "avoid": "不要只看单一周期信号就下结论。",
             "next_actions": [
                 {"label": "打开研究页", "url": f"/research?stock_code={code}"},
+                {"label": "看价值组合", "url": f"/research?stock_code={code}&render_profile=value"},
+                {"label": f"盯盘 {code}", "url": "#watch-command"},
             ],
             "sources": ["research_evidence"],
             "freshness_note": "个股研究会结合当前已加载的研究证据与观察数据。",
+            "remembered_stock_code": code,
         }
 
     # 问题 4：导航/先去哪
@@ -1863,6 +2060,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
             ],
             "sources": ["page_context"],
             "freshness_note": "",
+            "remembered_stock_code": _chat_stock_code(query),
         }
 
     # 默认回答
@@ -1877,6 +2075,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
         ],
         "sources": ["market_phase"],
         "freshness_note": "",
+        "remembered_stock_code": _chat_stock_code(query),
     }
 
 
@@ -1897,6 +2096,7 @@ def chat_query(query: ChatQuery) -> JSONResponse:
                 "freshness_note": "",
                 "next_actions": [{"label": "打开首页", "url": "/"}],
                 "sources": [],
+                "remembered_stock_code": "",
                 "error": str(exc),
             },
         )
