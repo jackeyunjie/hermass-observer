@@ -1,12 +1,24 @@
     <!-- AI 助手 -->
     <div class="ai-overlay" id="ai-overlay" onclick="aiToggle()"></div>
     <button class="ai-trigger" id="ai-trigger" onclick="aiToggle()" aria-label="打开 Hermass 助手">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-      Hermass 助手
+      <span class="ai-mini-avatar" aria-hidden="true">
+        <span class="ai-mini-core"></span>
+      </span>
+      观象
     </button>
     <div class="ai-drawer" id="ai-drawer">
       <div class="ai-header">
-        <h3>Hermass 助手</h3>
+        <div class="ai-identity">
+          <div class="ai-avatar" aria-hidden="true">
+            <span class="ai-avatar-ring ai-avatar-ring-1"></span>
+            <span class="ai-avatar-ring ai-avatar-ring-2"></span>
+            <span class="ai-avatar-core"></span>
+          </div>
+          <div>
+            <h3>观象</h3>
+            <p class="ai-identity-subtitle">Hermass 多周期研究助手</p>
+          </div>
+        </div>
         <div class="ai-mode-switch" role="tablist" aria-label="助手模式">
           <button type="button" class="active" id="ai-mode-chat" onclick="aiSetMode('chat')">对话</button>
           <button type="button" id="ai-mode-agent" onclick="aiSetMode('agent')">任务</button>
@@ -18,6 +30,10 @@
         <button class="ai-close" onclick="aiToggle()" aria-label="关闭">&times;</button>
       </div>
       <div class="ai-body" id="ai-body">
+        <div class="ai-hint" id="ai-hint">
+          <strong>当前模式说明</strong>
+          <span id="ai-hint-text">对话模式适合先问市场、方向、个股怎么看；任务模式适合把盯盘、长期跟踪和提醒任务交给系统。</span>
+        </div>
         <div class="ai-quick" id="ai-quick">
           <button onclick="aiAsk('现在能不能做')">现在能不能做</button>
           <button onclick="aiAsk('今天先看什么方向')">今天先看什么方向</button>
@@ -100,13 +116,22 @@
             html += '<div class="ai-section"><strong>数据日期提示</strong>' + escapeHtml(data.freshness_note) + '</div>';
           }
           if (data.task_card) {
-            html += '<div class="ai-section"><strong>' + escapeHtml(data.task_card.title || '任务确认') + '</strong>';
-            html += '类型：' + escapeHtml(data.task_card.task_type || '-') + '<br>';
-            html += '股票：' + escapeHtml(data.task_card.stock_code || '-') + '<br>';
-            html += '条件：' + escapeHtml(data.task_card.note || data.task_card.trigger_type || '-') + '<br>';
-            html += '邮箱：' + escapeHtml(data.task_card.email || '-') + '<br>';
-            html += '有效期：' + escapeHtml(data.task_card.valid_from || '-') + ' → ' + escapeHtml(data.task_card.valid_to || '-') + '<br>';
-            html += '状态：' + escapeHtml(data.task_card.status || '-') + '</div>';
+            html += '<div class="ai-task-card">';
+            html += '<div class="ai-task-title">' + escapeHtml(data.task_card.title || '任务确认') + '</div>';
+            html += '<div class="ai-task-row"><span>类型</span><b>' + escapeHtml(data.task_card.task_type || '-') + '</b></div>';
+            html += '<div class="ai-task-row"><span>股票</span><b>' + escapeHtml(data.task_card.stock_code || '-') + '</b></div>';
+            html += '<div class="ai-task-row"><span>条件</span><b>' + escapeHtml(data.task_card.note || data.task_card.trigger_type || '-') + '</b></div>';
+            html += '<div class="ai-task-row"><span>邮箱</span><b>' + escapeHtml(data.task_card.email || '-') + '</b></div>';
+            html += '<div class="ai-task-row"><span>有效期</span><b>' + escapeHtml(data.task_card.valid_from || '-') + ' → ' + escapeHtml(data.task_card.valid_to || '-') + '</b></div>';
+            html += '<div class="ai-task-row"><span>状态</span><b>' + escapeHtml(data.task_card.status || '-') + '</b></div>';
+            html += '</div>';
+          }
+          if (data.remembered_stock_code) {
+            html += '<div class="ai-followups">';
+            html += '<button type="button" onclick="aiAsk(\'看价值组合\')">看价值组合</button>';
+            html += '<button type="button" onclick="aiAsk(\'那它现在是假突破吗\')">继续追问位置</button>';
+            html += '<button type="button" onclick="aiAsk(\'盯它，突破周线关键位提醒我，邮箱 test@example.com\')">直接盯盘</button>';
+            html += '</div>';
           }
           if (data.next_actions && data.next_actions.length) {
             html += '<div class="ai-actions">';
@@ -122,6 +147,10 @@
           aiMode = mode === 'agent' ? 'agent' : 'chat';
           document.getElementById('ai-mode-chat').classList.toggle('active', aiMode === 'chat');
           document.getElementById('ai-mode-agent').classList.toggle('active', aiMode === 'agent');
+          document.getElementById('ai-hint-text').textContent =
+            aiMode === 'agent'
+              ? '任务模式适合交给系统执行后续动作，比如盯盘、长期跟踪、邮件提醒。'
+              : '对话模式适合先问市场、方向、个股怎么看，再决定下一步。';
         }
         window.aiSetMode = aiSetMode;
 
