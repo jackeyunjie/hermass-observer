@@ -2587,35 +2587,28 @@ def _is_market_question(message: str) -> bool:
 
 
 
-def _assistant_agent_simple(query: ChatQuery) -> dict[str, Any] | None:
-    """[Web 侧暂不直连 Agently runtime — 等待官方接入方案]
-
-    当前行为：直接返回 None，强制走规则回答链路。
-    Agently 在 Hermass 的正确定位是执行编排层 / 任务引擎，
-    应通过 agently_adapter/a_share_flow.py 等主线统一封装后接入，
-    而非让 web/main.py 直接猜测式调 agent。
-    """
-    return None
-
-
 def _should_use_managed_llm(query: ChatQuery) -> bool:
-    """[Web 侧暂不直连 LLM — 强制走规则回答]
+    """判断是否应走 Agently 统一问答服务层。
 
-    2026-05-30 整改：禁用猜测式 Agently/DeepSeek 直接调用。
-    市场/行业/个股/价值分析全部走当前规则回答，保证稳定可预期。
-    未来若需接入大模型，应通过 agently_adapter 主线统一封装，
-    而非在 web/main.py 中直接调 Agently agent。
+    2026-05-30 整改后：不再让 web/main.py 直接猜测式调 agent，
+    而是通过 agently_adapter.qa_service 统一封装调用。
     """
-    return False
+    mode = "agent" if str(query.mode or "").lower() == "agent" else "chat"
+    if mode != "chat":
+        return False
+    msg = query.message.strip().lower()
+    if _is_value_question(msg) or _is_industry_question(msg) or _is_market_question(msg):
+        return True
+    return bool(query.use_llm)
 
 
 def _requires_managed_llm(query: ChatQuery) -> bool:
-    """[Web 侧暂不直连 LLM — 强制走规则回答]
-
-    参见 _should_use_managed_llm 的整改说明。
-    此函数恒返回 False，确保 _llm_required_failure_response 不会触发。
-    """
-    return False
+    """判断当前问题是否属于高价值解释类，需要 LLM 增强。"""
+    mode = "agent" if str(query.mode or "").lower() == "agent" else "chat"
+    if mode != "chat":
+        return False
+    msg = query.message.strip().lower()
+    return _is_value_question(msg) or _is_industry_question(msg) or _is_market_question(msg)
 
 
 def _deepseek_prompt_contract() -> str:
@@ -2773,24 +2766,77 @@ def _enhance_result_defaults(
 
 
 def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
-    """[Web 侧暂不直连 LLM — 强制返回 None，走规则回答]
+    """通过 Agently 统一问答服务层（qa_service）获取 LLM 增强回答。
 
-    2026-05-30 整改：此函数原为猜测式 Agently/DeepSeek 调用入口，
-    现已被禁用。保留函数壳以便未来通过 agently_adapter 主线统一接入。
-
-    当前规则回答已覆盖：市场判断、行业方向、个股结构、价值摘要、
-    导航指引、盯盘任务、任务模式。稳定性优先，不再猜测式调外部模型。
+    2026-05-30 整改后：不再让 web/main.py 直接猜测式调 agent，
+    而是通过 agently_adapter.qa_service 统一封装调用。
     """
+    if not _should_use_managed_llm(query):
+        return None
+
+    try:
+        from agently_adapter.qa_service import (
+            answer_market,
+            answer_industry,
+            answer_value_research,
+            answer_stock,
+        )
+    except Exception:
+        return None
+
+    msg = query.message.strip().lower()
+
+    if _is_value_question(msg):
+        code = _chat_stock_code(query) or "000021.SZ"
+        # 构造研究上下文（复用现有证据）
+        research_ctx = {}
+        return answer_value_research(code, research_ctx)
+
+    if _is_industry_question(msg):
+        industry = _industry_rotation_data()
+        return answer_industry(industry)
+
+    if _is_market_question(msg):
+        market = _market_analysis_data()
+        return answer_market(market)
+
     return None
 
 
 def _llm_required_failure_response(query: ChatQuery) -> dict[str, Any] | None:
-    """[Web 侧暂不直连 LLM — 强制返回 None]
-
-    2026-05-30 整改：配合 _requires_managed_llm 恒返回 False，
-    此函数不再被触发。保留壳体以便未来统一接入时恢复。
-    """
-    return None
+    if not _requires_managed_llm(query):
+        return None
+    if not _deepseek_enabled():
+        return {
+            "answer": "当前这类问题优先走 Agently 架构的大模型回答，但服务器未检测到可用的模型配置，以下内容将回退为规则摘要。",
+            "why": "价值分析、市场解释和行业方向属于高价值解释问题。当前 Agently 模型链路未就绪，所以只能提供带说明的规则回退结果。",
+            "multi_cycle_view": "这不是结构判断失败，而是大模型链路未就绪；下面的内容仍可作为基础研究摘要阅读。",
+            "single_cycle_position": "当模型恢复后，这类问题会重新回到大模型优先回答。",
+            "avoid": "先不要把“规则回退”误解成模型回答；它只是保底结果。",
+            "next_actions": [],
+            "sources": ["agently_deepseek", "rule_fallback"],
+            "freshness_note": "当前未检测到可用的 Agently 模型配置，已触发规则回退。",
+            "remembered_stock_code": _chat_stock_code(query),
+            "remembered_email": _chat_email(query),
+            "mode_used": "chat",
+            "provider": "agently_deepseek",
+            "enhancement_used": False,
+        }
+    return {
+        "answer": "当前这类问题优先走 Agently 架构的大模型回答，但本次模型调用失败，以下内容将回退为规则摘要。",
+        "why": "价值分析、市场解释和行业方向已改为 Agently 模型优先；当 Agently 返回异常、超时或结构化输出失败时，不再静默冒充模型回答。",
+        "multi_cycle_view": "当前失败只说明 Agently 模型链路异常，不代表多周期环境本身有问题；下面仍会提供保底规则摘要。",
+        "single_cycle_position": "请稍后重试；如果持续失败，应检查 Agently 运行时、模型配置和 JSON 输出合同。",
+        "avoid": "先不要把这个失败提示误解成市场或个股结论；它是在解释为什么当前结果属于规则回退。",
+        "next_actions": [],
+        "sources": ["agently_deepseek", "rule_fallback"],
+        "freshness_note": "Agently 模型调用失败，已切换到规则回退结果。",
+        "remembered_stock_code": _chat_stock_code(query),
+        "remembered_email": _chat_email(query),
+        "mode_used": "chat",
+        "provider": "agently_deepseek",
+        "enhancement_used": False,
+    }
 
 
 def _chat_answer(query: ChatQuery) -> dict[str, Any]:
@@ -3056,6 +3102,48 @@ def chat_query(request: Request, query: ChatQuery) -> JSONResponse:
                 "provider": "rule_based",
                 "enhancement_used": False,
                 "user_id": user_id,
+                "error": str(exc),
+            },
+        )
+
+
+# ─── Agently 观测日志接口 ─────────────────────────────
+
+@app.get("/api/chat/observation")
+def chat_observation(
+    request: Request,
+    category: str = "",
+    limit: int = 50,
+) -> JSONResponse:
+    """查看 Agently 统一问答服务层的运行时观测日志。
+
+    用途：
+      - 查看大模型调用的成功率、延迟、错误分布
+      - 按 category 过滤（market/industry/value_research/stock）
+      - 监控 Agently 运行状况
+    """
+    try:
+        from agently_adapter.qa_service import get_recent_observation_logs, get_observation_summary
+
+        logs = get_recent_observation_logs(
+            category=category or None,
+            limit=min(limit, 200),
+        )
+        summary = get_observation_summary()
+        return JSONResponse(
+            content={
+                "summary": summary,
+                "logs": logs,
+                "category": category or "all",
+                "limit": limit,
+            }
+        )
+    except Exception as exc:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "summary": {},
+                "logs": [],
                 "error": str(exc),
             },
         )
