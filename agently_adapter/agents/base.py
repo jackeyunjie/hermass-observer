@@ -97,10 +97,10 @@ def create_agent() -> Any:
     return agent
 
 
-def safe_get_response(agent: Any, timeout: float = 60.0) -> dict[str, Any] | None:
+def safe_get_response(agent: Any) -> dict[str, Any] | None:
     """安全地获取 Agent 响应，任何异常都返回 None（调用方应回退）。"""
     try:
-        response = agent.get_response(timeout=timeout)
+        response = agent.get_response()
         result = response.result.get_data() if response.result else {}
         return result if isinstance(result, dict) else None
     except Exception:
