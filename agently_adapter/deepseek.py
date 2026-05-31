@@ -11,44 +11,7 @@ try:
 except ImportError:  # pragma: no cover
     Agently = None  # type: ignore[misc, assignment]
 
-_SETTINGS_READY = False
-
-
-def _ensure_settings() -> bool:
-    """确保 Agently DeepSeek 配置已初始化（幂等）。"""
-    global _SETTINGS_READY
-    if _SETTINGS_READY:
-        return True
-    if Agently is None:
-        return False
-
-    api_key = (
-        os.environ.get("HERMASS_DEEPSEEK_API_KEY", "").strip()
-        or os.environ.get("DEEPSEEK_API_KEY", "").strip()
-    )
-    if not api_key:
-        return False
-    model = (
-        os.environ.get("HERMASS_DEEPSEEK_MODEL", "").strip()
-        or os.environ.get("HERMASS_LLM_MODEL", "deepseek-chat").strip()
-    )
-    model = model if model != "deepseekV4" else "deepseek-chat"
-    base_url = (
-        os.environ.get("HERMASS_DEEPSEEK_BASE_URL", "").strip()
-        or os.environ.get("DEEPSEEK_API_BASE", "https://api.deepseek.com").strip()
-    )
-    if not base_url.endswith("/v1"):
-        base_url = base_url.rstrip("/") + "/v1"
-
-    try:
-        Agently.set_settings(
-            "OpenAICompatible",
-            {"base_url": base_url, "api_key": api_key, "model": model},
-        )
-        _SETTINGS_READY = True
-        return True
-    except Exception:
-        return False
+from agently_adapter.agents.base import _ensure_settings  # noqa: F401
 
 
 OUTPUT_SCHEMA = {
