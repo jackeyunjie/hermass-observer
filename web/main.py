@@ -2586,23 +2586,36 @@ def _is_market_question(message: str) -> bool:
     return any(k in message for k in ("能不能", "能做", "市场", "现在能", "今天能", "等待", "试错"))
 
 
+
+def _assistant_agent_simple(query: ChatQuery) -> dict[str, Any] | None:
+    """[Web 侧暂不直连 Agently runtime — 等待官方接入方案]
+
+    当前行为：直接返回 None，强制走规则回答链路。
+    Agently 在 Hermass 的正确定位是执行编排层 / 任务引擎，
+    应通过 agently_adapter/a_share_flow.py 等主线统一封装后接入，
+    而非让 web/main.py 直接猜测式调 agent。
+    """
+    return None
+
+
 def _should_use_managed_llm(query: ChatQuery) -> bool:
-    mode = "agent" if str(query.mode or "").lower() == "agent" else "chat"
-    if mode != "chat":
-        return False
-    msg = query.message.strip().lower()
-    # 高价值解释类问题默认走平台托管增强；失败时自动回退规则回答。
-    if _is_value_question(msg) or _is_industry_question(msg) or _is_market_question(msg):
-        return True
-    return bool(query.use_llm)
+    """[Web 侧暂不直连 LLM — 强制走规则回答]
+
+    2026-05-30 整改：禁用猜测式 Agently/DeepSeek 直接调用。
+    市场/行业/个股/价值分析全部走当前规则回答，保证稳定可预期。
+    未来若需接入大模型，应通过 agently_adapter 主线统一封装，
+    而非在 web/main.py 中直接调 Agently agent。
+    """
+    return False
 
 
 def _requires_managed_llm(query: ChatQuery) -> bool:
-    mode = "agent" if str(query.mode or "").lower() == "agent" else "chat"
-    if mode != "chat":
-        return False
-    msg = query.message.strip().lower()
-    return _is_value_question(msg) or _is_industry_question(msg) or _is_market_question(msg)
+    """[Web 侧暂不直连 LLM — 强制走规则回答]
+
+    参见 _should_use_managed_llm 的整改说明。
+    此函数恒返回 False，确保 _llm_required_failure_response 不会触发。
+    """
+    return False
 
 
 def _deepseek_prompt_contract() -> str:
@@ -2760,110 +2773,24 @@ def _enhance_result_defaults(
 
 
 def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
-    if not _should_use_managed_llm(query) or not _deepseek_enabled():
-        return None
-    mode = "agent" if str(query.mode or "").lower() == "agent" else "chat"
-    if mode != "chat":
-        return None
-    msg = query.message.strip().lower()
-    if _is_value_question(msg):
-        code = _chat_stock_code(query)
-        payload = {
-            "question_type": "value_research",
-            "message": query.message,
-            "page_context": query.page_context,
-            "stock_code": code,
-            "research_view": f"/research?stock_code={code}&render_profile=value" if code else "/research?render_profile=value",
-            "freshness_note": "价值分析将复用当前已加载的研究证据、财务趋势、估值参考和公开市场观点数据。",
-        }
-        result = _agently_value_deepseek_call(payload)
-        if result:
-            return _enhance_result_defaults(
-                result,
-                query,
-                next_actions=[
-                    {"label": "打开价值研究组合", "url": f"/research?stock_code={code or '000021.SZ'}&render_profile=value"},
-                    {"label": "打开标准研究页", "url": f"/research?stock_code={code or '000021.SZ'}"},
-                ],
-                sources=["coze_value_prompt_pack", "research_evidence"],
-                provider="agently_deepseek",
-            )
-    if _is_industry_question(msg):
-        industry = _industry_rotation_data()
-        payload = {
-            "question_type": "industry",
-            "message": query.message,
-            "page_context": query.page_context,
-            "industry_rotation": industry,
-            "freshness_note": f"行业数据日期：{industry.get('date', '-')}",
-        }
-        result = _agently_deepseek_call(payload)
-        if result:
-            return _enhance_result_defaults(
-                result,
-                query,
-                next_actions=[{"label": "打开行业页", "url": "/industry"}],
-                sources=["industry_rotation"],
-                provider="agently_deepseek",
-            )
-    if _is_market_question(msg):
-        market = _market_analysis_data()
-        payload = {
-            "question_type": "market",
-            "message": query.message,
-            "page_context": query.page_context,
-            "market_phase": market.get("phase", {}),
-            "daily_snapshot": market.get("snapshot", {}),
-            "market_assets_state": market.get("assets_state", {}),
-            "macro_chain_prior": market.get("macro", {}),
-            "freshness_note": f"市场主数据日期：{market.get('phase', {}).get('date', '-')}",
-        }
-        result = _agently_deepseek_call(payload)
-        if result:
-            return _enhance_result_defaults(
-                result,
-                query,
-                next_actions=[{"label": "打开市场页", "url": "/market"}],
-                sources=["market_phase", "daily_snapshot"],
-                provider="agently_deepseek",
-            )
+    """[Web 侧暂不直连 LLM — 强制返回 None，走规则回答]
+
+    2026-05-30 整改：此函数原为猜测式 Agently/DeepSeek 调用入口，
+    现已被禁用。保留函数壳以便未来通过 agently_adapter 主线统一接入。
+
+    当前规则回答已覆盖：市场判断、行业方向、个股结构、价值摘要、
+    导航指引、盯盘任务、任务模式。稳定性优先，不再猜测式调外部模型。
+    """
     return None
 
 
 def _llm_required_failure_response(query: ChatQuery) -> dict[str, Any] | None:
-    if not _requires_managed_llm(query):
-        return None
-    if not _deepseek_enabled():
-        return {
-            "answer": "当前这类问题优先走 Agently 架构的大模型回答，但服务器未检测到可用的模型配置，以下内容将回退为规则摘要。",
-            "why": "价值分析、市场解释和行业方向属于高价值解释问题。当前 Agently 模型链路未就绪，所以只能提供带说明的规则回退结果。",
-            "multi_cycle_view": "这不是结构判断失败，而是大模型链路未就绪；下面的内容仍可作为基础研究摘要阅读。",
-            "single_cycle_position": "当模型恢复后，这类问题会重新回到大模型优先回答。",
-            "avoid": "先不要把“规则回退”误解成模型回答；它只是保底结果。",
-            "next_actions": [],
-            "sources": ["agently_deepseek", "rule_fallback"],
-            "freshness_note": "当前未检测到可用的 Agently 模型配置，已触发规则回退。",
-            "remembered_stock_code": _chat_stock_code(query),
-            "remembered_email": _chat_email(query),
-            "mode_used": "chat",
-            "provider": "agently_deepseek",
-            "enhancement_used": False,
-        }
-    return {
-        "answer": "当前这类问题优先走 Agently 架构的大模型回答，但本次模型调用失败，以下内容将回退为规则摘要。",
-        "why": "价值分析、市场解释和行业方向已改为 Agently 模型优先；当 Agently 返回异常、超时或结构化输出失败时，不再静默冒充模型回答。",
-        "multi_cycle_view": "当前失败只说明 Agently 模型链路异常，不代表多周期环境本身有问题；下面仍会提供保底规则摘要。",
-        "single_cycle_position": "请稍后重试；如果持续失败，应检查 Agently 运行时、模型配置和 JSON 输出合同。",
-        "avoid": "先不要把这个失败提示误解成市场或个股结论；它是在解释为什么当前结果属于规则回退。",
-        "next_actions": [],
-        "sources": ["agently_deepseek", "rule_fallback"],
-        "freshness_note": "Agently 模型调用失败，已切换到规则回退结果。",
-        "remembered_stock_code": _chat_stock_code(query),
-        "remembered_email": _chat_email(query),
-        "mode_used": "chat",
-        "provider": "agently_deepseek",
-        "enhancement_used": False,
-    }
+    """[Web 侧暂不直连 LLM — 强制返回 None]
+
+    2026-05-30 整改：配合 _requires_managed_llm 恒返回 False，
+    此函数不再被触发。保留壳体以便未来统一接入时恢复。
+    """
+    return None
 
 
 def _chat_answer(query: ChatQuery) -> dict[str, Any]:

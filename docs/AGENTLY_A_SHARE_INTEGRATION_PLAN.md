@@ -307,3 +307,75 @@ preflight
 - `agently_adapter/agently_a_share_flow.py`
 
 这三者构成当前 A 股专属 Agently core flow 的第一版落地骨架。agently_daily_flow.py 作为 full workflow compatibility flow 继续保留，但不再是推荐主入口。
+
+
+---
+
+## 附录 C：Web AI 助手与 Agently 的边界（2026-05-30 整改）
+
+### C.1 现状问题
+
+`web/main.py` 中曾存在一套**猜测式**的 Agently + DeepSeek 直接调用：
+
+- `_agently_enabled()` / `_init_agently_model_settings()`
+- `_agently_deepseek_call()` / `_agently_value_deepseek_call()`
+- `_llm_chat_answer()` / `_llm_required_failure_response()`
+
+这套用法不等于项目里真正的 Agently 主线（`agently_adapter/` 下的 flow/core/actions），导致：
+1. Web 助手行为不可预期（模型可用时走 LLM，不可用时回退规则，用户感受不到稳定性）
+2. 提示词和输出合同散落在 web 层，难以版本管理
+3. 与 Agently 执行编排层的能力重叠但实现不一致
+
+### C.2 整改结论
+
+**Web AI 助手当前不直接走 Agently runtime。**
+
+| 层级 | 定位 | 当前状态 |
+|------|------|---------|
+| **Web AI 助手** (`web/main.py`) | 规则回答 + 导航 + 任务入口 | ✅ 保留并强化 |
+| **Agently 执行编排层** (`agently_adapter/`) | 流程引擎 / 任务调度 / 数据管道 | ✅ 唯一官方主线 |
+| **Web → Agently 直连** | 猜测式 agent 调用 | ❌ 已禁用 |
+
+### C.3 禁用方式（可恢复）
+
+以下函数被保留壳体，但逻辑上强制关闭：
+
+- `_should_use_managed_llm()` → **恒返回 `False`**
+- `_requires_managed_llm()` → **恒返回 `False`**
+- `_llm_chat_answer()` → **直接返回 `None`**
+- `_llm_required_failure_response()` → **直接返回 `None`**
+- `_assistant_agent_simple()` → **直接返回 `None`**
+
+未来若要恢复 LLM 增强，不应在 `web/main.py` 中直接调 `Agently.create_agent()`，而应：
+
+1. 在 `agently_adapter/` 中封装统一的「问答 Agent」
+2. 通过 `hermass_platform/api/a_share_service.py` 提供服务化接口
+3. Web 层只调用封装后的服务接口，不感知 Agently runtime 细节
+
+### C.4 Web 助手保留的能力
+
+当前规则回答已完整覆盖：
+
+1. **市场判断** — 基于 `_market_analysis_data()` 的 stance/breadth/focus
+2. **行业方向** — 基于 `_industry_rotation_data()` 的 top industries
+3. **个股结构** — 基于 `build_external_research_evidence()` 的多周期摘要
+4. **价值摘要** — 基于 `_value_research_chat_summary()` 的财务/估值速览
+5. **导航指引** — 页面跳转链接和推荐顺序
+6. **盯盘任务** — Watch command ledger 的注册与查询
+7. **任务模式** — Agent 模式的入口和上下文保持
+
+### C.5 暂时禁用的能力
+
+| 能力 | 原实现 | 禁用原因 | 恢复路径 |
+|------|--------|---------|---------|
+| 价值分析 LLM 增强 | `_agently_value_deepseek_call` | 不稳定、不可预期 | 通过 `agently_adapter` 主线封装后接入 |
+| 行业方向 LLM 增强 | `_agently_deepseek_call(industry)` | 同上 | 同上 |
+| 市场判断 LLM 增强 | `_agently_deepseek_call(market)` | 同上 | 同上 |
+| 通用对话 LLM 增强 | `_assistant_agent_simple` | 同上 | 同上 |
+
+### C.6 为什么这样更稳
+
+1. **确定性**：用户每次提问得到的是同一套规则逻辑，不依赖外部模型可用性
+2. **可维护性**：规则逻辑在代码中可见、可测试、可回滚；提示词不散落在 web 层
+3. **边界清晰**：Agently 做它擅长的执行编排（DAG、Action、数据管道），Web 做它擅长的请求响应和模板渲染
+4. **不丢代码**：旧逻辑保留壳体和注释，未来接入时不必重写，只需替换 return 值
