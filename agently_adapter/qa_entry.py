@@ -22,7 +22,7 @@ def _fallback_response(user_input: str, context: dict[str, Any]) -> dict[str, An
     """当多 Agent 链任何一环失败时，返回一个带说明的兜底结构，让 web 层决定如何展示。"""
     return {
         "answer": "当前 Agently 多 Agent 链路调用失败，已触发规则回退。",
-        "why": "场景化 Agent 编排链中某个 Agent 返回异常、超时或结构化输出失败。",
+        "why": "Agently 场景化 Agent 编排链路调用失败：某个 Agent 返回异常、超时或结构化输出失败。",
         "multi_cycle_view": "失败不代表数据本身有问题，只是 LLM 链路暂时不可用。",
         "single_cycle_position": "请稍后重试；如果持续失败，应检查 Agently 运行时和模型配置。",
         "avoid": "不要把「链路失败」误解成市场或个股结论。",
