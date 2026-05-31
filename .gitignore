@@ -23,6 +23,7 @@ env/
 config/secrets/
 *.env
 .env*
+**/.envrc
 !.env.example
 
 # raw / large local data

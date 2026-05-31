@@ -67,6 +67,28 @@
 1. 所有模块默认 Research-Only。
 2. 只允许输出事实、结构、变化与公开信息，不输出目标价、评级、买卖建议。
 3. 若引用公开机构观点，必须明确它只是外部观点，不代表系统判断。
+
+# Variable Mapping（与 Hermass 数据层对接）
+本节定义 prompt 模板中的占位符变量与当前系统数据字段的映射关系。
+后续接入层必须按此映射注入上下文，不得自行猜测字段名。
+
+| Prompt 变量 | 系统数据字段 | 类型 | 说明 |
+|-------------|-------------|------|------|
+| `{{stock_code}}` | `context["symbol"]` | str | 股票代码，如 `000021.SZ` |
+| `{{stock_name}}` | `context.get("stock_name", "")` | str | 股票简称，如 `深科技` |
+| `{{theme_info}}` | `context.get("industry_name", "")` | str | 所属行业/主题，如 `电子` |
+| `{{target_businesses}}` | `context.get("industry_name", "")` | str | 核心业务方向，当前映射到行业名称 |
+| `{{search_data}}` | `context.get("market_data", {})` | dict | 市场环境数据（ef_count、逆位占比等） |
+| `{{context}}` | `context.get("stock_states", {})` | dict | 个股多周期 State 结构（mn1/w1/d1 hex、score、duration） |
+| `{{Top10_holders}}` | `context.get("top10_holders", [])` | list | 十大股东数据（待接入） |
+| `{{Main_Business}}` | `context.get("main_business", "")` | str | 主营业务描述（来自 ifind_industry_chain_profile） |
+| `{{Report_2025Q3}}` | `context.get("latest_financial_report", {})` | dict | 最新财报数据（来自 ifind_excel_facts） |
+| `{{Report_2024}}` | `context.get("annual_report_2024", {})` | dict | 2024 年报数据（来自 ifind_excel_facts） |
+
+**注入规则：**
+1. 以上字段由 `web/main.py` 的 `_stock_context_for_agent()` 或后续数据层统一准备。
+2. 若字段缺失，用空字符串/空字典/空列表注入，prompt 内部应自行处理空数据（宁可少写，不要补写）。
+3. 禁止在 prompt 中直接拼接 SQL、CSV 原始行或带占位符的财务数据。
 ```
 
 ---
