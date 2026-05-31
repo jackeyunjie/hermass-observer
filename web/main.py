@@ -2773,65 +2773,16 @@ def _deepseek_value_system_prompt() -> str:
     return with_deepseek_context(combined)
 
 
-def _init_agently_model_settings() -> bool:
-    if not _deepseek_enabled():
-        return False
-    try:
-        from agently import Agently
-
-        api_key = os.environ.get("HERMASS_DEEPSEEK_API_KEY", "").strip() or os.environ.get("DEEPSEEK_API_KEY", "").strip()
-        model = os.environ.get("HERMASS_DEEPSEEK_MODEL", "").strip() or os.environ.get("HERMASS_LLM_MODEL", "deepseek-chat").strip()
-        model = model if model != "deepseekV4" else "deepseek-chat"
-        base_url = os.environ.get("HERMASS_DEEPSEEK_BASE_URL", "").strip() or os.environ.get("DEEPSEEK_API_BASE", "https://api.deepseek.com").strip()
-        if not base_url.endswith("/v1"):
-            base_url = base_url.rstrip("/") + "/v1"
-
-        Agently.set_settings(
-            "OpenAICompatible",
-            {
-                "base_url": base_url,
-                "api_key": api_key,
-                "model": model,
-            },
-        )
-        return True
-    except Exception:
-        return False
-
-
 def _agently_deepseek_call(payload: dict[str, Any]) -> dict[str, Any] | None:
     if not _agently_enabled():
         return None
     try:
-        from agently import Agently
-
-        if not _init_agently_model_settings():
-            return None
-        agent = Agently.create_agent()
-        agent.system(_deepseek_system_prompt())
-        agent.instruct("你只做解释与导航，不做投资建议，必须严格输出 JSON。")
-        agent.input(
-            "请根据以下结构化输入回答，并严格输出 JSON，不要输出 Markdown。\n"
-            + json.dumps(payload, ensure_ascii=False, indent=2, default=str)
+        from agently_adapter.deepseek import call as deepseek_call
+        return deepseek_call(
+            payload,
+            system_prompt=_deepseek_system_prompt(),
+            instruct="你只做解释与导航，不做投资建议，必须严格输出 JSON。",
         )
-        agent.output({
-            "answer": "string",
-            "why": "string",
-            "multi_cycle_view": "string",
-            "single_cycle_position": "string",
-            "avoid": "string",
-            "next_actions": [{"label": "string", "url": "string"}],
-            "sources": ["string"],
-            "freshness_note": "string",
-        })
-        response = agent.start()
-        if isinstance(response, dict):
-            return response
-        if isinstance(response, str):
-            parsed = json.loads(response)
-            if isinstance(parsed, dict):
-                return parsed
-        return None
     except Exception:
         return None
 
@@ -2840,41 +2791,19 @@ def _agently_value_deepseek_call(payload: dict[str, Any]) -> dict[str, Any] | No
     if not _agently_enabled():
         return None
     try:
-        from agently import Agently
-
-        if not _init_agently_model_settings():
-            return None
-        agent = Agently.create_agent()
-        agent.system(_deepseek_value_system_prompt())
-        agent.instruct(
+        from agently_adapter.deepseek import call as deepseek_call
+        instruct = (
             "你只做价值研究解释与导航，不做投资建议，必须严格输出 JSON。"
             "分析时必须包含以下要素："
             "1. 先用 main_business 一句话说明公司主营业务；"
             "2. 再用 latest_financial_report 中的营收、利润、现金流数据支撑基本面判断；"
             "3. 最后结合多周期 State 给出综合结论。"
         )
-        agent.input(
-            "请根据以下价值研究结构化输入回答，并严格输出 JSON，不要输出 Markdown。\n"
-            + json.dumps(payload, ensure_ascii=False, indent=2, default=str)
+        return deepseek_call(
+            payload,
+            system_prompt=_deepseek_value_system_prompt(),
+            instruct=instruct,
         )
-        agent.output({
-            "answer": "string",
-            "why": "string",
-            "multi_cycle_view": "string",
-            "single_cycle_position": "string",
-            "avoid": "string",
-            "next_actions": [{"label": "string", "url": "string"}],
-            "sources": ["string"],
-            "freshness_note": "string",
-        })
-        response = agent.start()
-        if isinstance(response, dict):
-            return response
-        if isinstance(response, str):
-            parsed = json.loads(response)
-            if isinstance(parsed, dict):
-                return parsed
-        return None
     except Exception:
         return None
 
@@ -2948,6 +2877,86 @@ def _build_memory_context(session_id: str) -> dict[str, Any]:
         "user_focus": user_focus,
         "user_preferred_scenarios": preferred,
     }
+
+
+def _check_watch_commands() -> list[dict[str, Any]]:
+    """检查盯盘命令触发条件，命中则写入 watch_alerts.json。返回命中的提醒列表。"""
+    cmd_path = ROOT / "outputs" / "watch_commands.json"
+    if not cmd_path.exists():
+        return []
+    try:
+        commands = json.loads(cmd_path.read_text())
+    except Exception:
+        return []
+    if not commands:
+        return []
+
+    foundation_db = find_foundation_db(str(date.today()))
+    if not foundation_db:
+        return []
+
+    alerts: list[dict[str, Any]] = []
+    con = duckdb.connect(str(foundation_db), read_only=True)
+    try:
+        for cmd in commands:
+            symbol = cmd.get("symbol", "")
+            condition = cmd.get("condition", "")
+            if not symbol or not condition:
+                continue
+
+            rows = con.execute(
+                """
+                SELECT trade_date, ef_count, d1_close, d1_sr_support,
+                       d1_sr_resistance, w1_sr_resistance, mn1_sr_resistance, d1_position_bit
+                FROM d1_perspective_state
+                WHERE stock_code = ?
+                ORDER BY trade_date DESC
+                LIMIT 2
+                """,
+                [symbol],
+            ).fetchall()
+            if len(rows) < 2:
+                continue
+
+            today = rows[0]
+            yesterday = rows[1]
+            today_ef = today[1]
+            yesterday_ef = yesterday[1]
+            d1_close = today[2]
+            d1_support = today[3]
+            w1_resist = today[5]
+            mn1_resist = today[6]
+            d1_pos = today[7]
+
+            triggered = False
+            trigger_desc = ""
+            if condition == "突破周线":
+                triggered = d1_close > w1_resist and d1_pos == 2
+                trigger_desc = "日线收盘突破周线阻力且处于突破位"
+            elif condition == "突破月线":
+                triggered = d1_close > mn1_resist and d1_pos == 2
+                trigger_desc = "日线收盘突破月线阻力且处于突破位"
+            elif condition == "跌破支撑":
+                triggered = d1_close < d1_support
+                trigger_desc = "日线收盘跌破 D1 支撑位"
+            elif condition == "ef降级":
+                triggered = yesterday_ef >= 2 and today_ef == 0
+                trigger_desc = f"EF 从 {yesterday_ef} 降级到 0"
+
+            if triggered:
+                alerts.append({
+                    "symbol": symbol,
+                    "condition": condition,
+                    "trigger_desc": trigger_desc,
+                    "triggered_at": datetime.now(timezone.utc).isoformat(),
+                })
+    finally:
+        con.close()
+
+    if alerts:
+        alert_path = ROOT / "outputs" / "watch_alerts.json"
+        alert_path.write_text(json.dumps(alerts, ensure_ascii=False, indent=2))
+    return alerts
 
 
 def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
