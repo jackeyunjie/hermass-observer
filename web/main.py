@@ -2720,7 +2720,13 @@ def _agently_value_deepseek_call(payload: dict[str, Any]) -> dict[str, Any] | No
             return None
         agent = Agently.create_agent()
         agent.system(_deepseek_value_system_prompt())
-        agent.instruct("你只做价值研究解释与导航，不做投资建议，必须严格输出 JSON。")
+        agent.instruct(
+            "你只做价值研究解释与导航，不做投资建议，必须严格输出 JSON。"
+            "分析时必须包含以下要素："
+            "1. 先用 main_business 一句话说明公司主营业务；"
+            "2. 再用 latest_financial_report 中的营收、利润、现金流数据支撑基本面判断；"
+            "3. 最后结合多周期 State 给出综合结论。"
+        )
         agent.input(
             "请根据以下价值研究结构化输入回答，并严格输出 JSON，不要输出 Markdown。\n"
             + json.dumps(payload, ensure_ascii=False, indent=2, default=str)
@@ -2796,6 +2802,8 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
     if _is_value_question(msg):
         code = context["symbol"] or "000021.SZ"
         stock_ctx = _stock_context_for_agent(code)
+        value_ctx = _value_context_for_agent(code)
+        stock_ctx.update(value_ctx)
         # value 增强路径：直接调用 prompt-pack 增强的 _agently_value_deepseek_call
         value_payload = {
             "stock_code": code,
@@ -2821,6 +2829,34 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
         return result
 
     return handle(query.message, context)
+
+
+def _value_context_for_agent(symbol: str) -> dict[str, Any]:
+    """从外部研究证据层提取价值分析专用上下文（main_business + 财报摘要）。"""
+    try:
+        evidence = build_external_research_evidence(symbol, str(date.today()))
+    except Exception:
+        return {
+            "main_business": "",
+            "latest_financial_report": {},
+            "annual_report_2024": {},
+        }
+
+    company_profile = evidence.get("company_profile", {})
+    financial_trend = evidence.get("financial_trend", {})
+    period_rows = financial_trend.get("period_rows", [])
+
+    latest_report = period_rows[0] if period_rows else {}
+    annual_2024 = next(
+        (r for r in period_rows if "2024" in str(r.get("report_period", ""))),
+        {},
+    )
+
+    return {
+        "main_business": company_profile.get("main_business", ""),
+        "latest_financial_report": latest_report,
+        "annual_report_2024": annual_2024,
+    }
 
 
 def _stock_context_for_agent(symbol: str) -> dict[str, Any]:

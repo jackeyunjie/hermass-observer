@@ -63,6 +63,15 @@ def test_e2e_chat_value_branch() -> None:
     assert isinstance(result["answer"], str) and len(result["answer"]) > 20
     assert isinstance(result["why"], str) and len(result["why"]) > 20
 
+    # value 数据注入检查：main_business 和财报数据应在 why/answer 中体现
+    combined = (result["answer"] + result["why"]).lower()
+    assert "主营业务" in combined or "计算机" in combined or "通讯" in combined, (
+        f"main_business 未在输出中体现。combined: {combined[:200]}"
+    )
+    assert "营收" in combined or "利润" in combined or "现金流" in combined or "eps" in combined, (
+        f"latest_financial_report 未在输出中体现。combined: {combined[:200]}"
+    )
+
     print(f"answer: {result['answer'][:80]}...")
     print(f"why: {result['why'][:80]}...")
     print(f"provider: {result['provider']}")
