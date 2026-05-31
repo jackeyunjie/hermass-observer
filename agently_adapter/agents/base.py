@@ -70,6 +70,7 @@ def _ensure_settings() -> bool:
         os.environ.get("HERMASS_DEEPSEEK_MODEL", "").strip()
         or os.environ.get("HERMASS_LLM_MODEL", "deepseek-chat").strip()
     )
+    model = model if model != "deepseekV4" else "deepseek-chat"
     base_url = (
         os.environ.get("HERMASS_DEEPSEEK_BASE_URL", "").strip()
         or os.environ.get("DEEPSEEK_API_BASE", "https://api.deepseek.com").strip()
