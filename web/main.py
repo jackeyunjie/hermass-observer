@@ -2686,7 +2686,7 @@ def _agently_deepseek_call(payload: dict[str, Any]) -> dict[str, Any] | None:
         agent.instruct("你只做解释与导航，不做投资建议，必须严格输出 JSON。")
         agent.input(
             "请根据以下结构化输入回答，并严格输出 JSON，不要输出 Markdown。\n"
-            + json.dumps(payload, ensure_ascii=False, indent=2)
+            + json.dumps(payload, ensure_ascii=False, indent=2, default=str)
         )
         agent.output({
             "answer": "string",
@@ -2723,7 +2723,7 @@ def _agently_value_deepseek_call(payload: dict[str, Any]) -> dict[str, Any] | No
         agent.instruct("你只做价值研究解释与导航，不做投资建议，必须严格输出 JSON。")
         agent.input(
             "请根据以下价值研究结构化输入回答，并严格输出 JSON，不要输出 Markdown。\n"
-            + json.dumps(payload, ensure_ascii=False, indent=2)
+            + json.dumps(payload, ensure_ascii=False, indent=2, default=str)
         )
         agent.output({
             "answer": "string",

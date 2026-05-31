@@ -103,5 +103,11 @@ def safe_get_response(agent: Any) -> dict[str, Any] | None:
         response = agent.get_response()
         result = response.result.get_data() if response.result else {}
         return result if isinstance(result, dict) else None
-    except Exception:
+    except Exception as exc:
+        import warnings
+        warnings.warn(
+            f"Agent call failed: {type(exc).__name__}: {exc}",
+            RuntimeWarning,
+            stacklevel=2,
+        )
         return None
