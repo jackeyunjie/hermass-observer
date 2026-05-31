@@ -2796,19 +2796,47 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
     if _is_value_question(msg):
         code = context["symbol"] or "000021.SZ"
         stock_ctx = _stock_context_for_agent(code)
-        context.update(stock_ctx)
+        # value 增强路径：直接调用 prompt-pack 增强的 _agently_value_deepseek_call
+        value_payload = {
+            "stock_code": code,
+            "stock_name": stock_ctx.get("stock_name", code),
+            "theme_info": stock_ctx.get("industry_name", ""),
+            "target_businesses": stock_ctx.get("industry_name", ""),
+            "context": stock_ctx.get("stock_states", {}),
+            "capital_flow": stock_ctx.get("capital_flow", {}),
+            "market_data": context.get("market_data", {}),
+            "main_business": stock_ctx.get("main_business", "【待接入】主营业务描述"),
+            "latest_financial_report": stock_ctx.get("latest_financial_report", {}),
+            "annual_report_2024": stock_ctx.get("annual_report_2024", {}),
+            "top10_holders": stock_ctx.get("top10_holders", []),
+            "search_data": {},  # 待接入外部搜索数据
+        }
+        result = _agently_value_deepseek_call(value_payload)
+        if result:
+            result.setdefault("remembered_stock_code", code)
+            result.setdefault("remembered_email", _chat_email(query))
+            result.setdefault("mode_used", "chat")
+            result.setdefault("provider", "agently_deepseek")
+            result.setdefault("enhancement_used", True)
+        return result
 
     return handle(query.message, context)
 
 
 def _stock_context_for_agent(symbol: str) -> dict[str, Any]:
-    """从统一快照 CSV 提取个股状态，供 Agent 场景编排消费。"""
+    """从统一快照 CSV 提取个股状态，供 Agent 场景编排与 value 增强消费。"""
     unified_map, _ = _latest_unified_snapshot_rows()
     row = unified_map.get(symbol.strip().upper(), {}) if unified_map else {}
     if not row:
-        return {"stock_name": symbol, "stock_states": {}, "ef_count": 0}
+        return {
+            "stock_name": symbol,
+            "industry_name": "",
+            "stock_states": {},
+            "ef_count": 0,
+        }
     return {
         "stock_name": str(row.get("stock_name", "")).strip() or symbol,
+        "industry_name": str(row.get("sw_l1", "")).strip(),
         "stock_states": {
             "mn1": str(row.get("mn1_state_hex", "")).strip(),
             "w1": str(row.get("w1_state_hex", "")).strip(),
@@ -2825,7 +2853,12 @@ def _stock_context_for_agent(symbol: str) -> dict[str, Any]:
             "score": row.get("moneyflow_score", ""),
         },
         "breakout_status": str(row.get("sr_boundary_type", "")).strip(),
-        "sustained_days": int(row.get("duration_d1_close", 0) or 0),
+        "sustained_days": int(float(row.get("duration_d1_close", 0) or 0)),
+        # 以下字段待后续数据源接入，当前留空占位
+        "main_business": "",
+        "latest_financial_report": {},
+        "annual_report_2024": {},
+        "top10_holders": [],
     }
 
 
