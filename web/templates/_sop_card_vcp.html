@@ -1,8 +1,8 @@
-<!--
+{#
   VCP 策略 SOP 卡片
   用法: {% include '_sop_card_vcp.html' %}
   或带参数: {% with strategy_fit='最佳适配' %}{% include '_sop_card_vcp.html' %}{% endwith %}
--->
+#}
 {% set fit = strategy_fit|default('待观察') %}
 {% set fit_class = 'fit-best' if fit == '最佳适配' else ('fit-watch' if fit == '待观察' else 'fit-weak') %}
 

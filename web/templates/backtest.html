@@ -366,6 +366,19 @@
         <pre class="log-block">{{ logs }}</pre>
       </section>
       {% endif %}
+
+      <!-- 策略 SOP 卡片 -->
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>策略执行手册</h2>
+          <span>三策略标准操作程序（SOP）</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;">
+          {% with strategy_fit='最佳适配' %}{% include '_sop_card_vcp.html' %}{% endwith %}
+          {% with strategy_fit='待观察' %}{% include '_sop_card_2560.html' %}{% endwith %}
+          {% with strategy_fit='弱适配' %}{% include '_sop_card_bollinger.html' %}{% endwith %}
+        </div>
+      </section>
     </main>
     {% set ai_page_context = '/backtest' %}
     {% include '_ai_assistant.html' %}

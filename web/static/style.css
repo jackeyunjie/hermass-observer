@@ -884,3 +884,275 @@ pre {
     padding: 22px 16px 16px;
   }
 }
+
+/* ── SOP 策略卡片组件（Linear Card + Notion Toggle 风格）── */
+
+.sop-card {
+  background: #1a1d23;
+  border: 1px solid #2a2f3a;
+  border-radius: 12px;
+  overflow: hidden;
+  font-family: Avenir Next, Helvetica Neue, Arial, sans-serif;
+  color: #e2e4e9;
+  margin-bottom: 16px;
+}
+
+.sop-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.03) 0%, transparent 100%);
+  border-bottom: 1px solid #2a2f3a;
+}
+
+.sop-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sop-name {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #f0f2f5;
+  letter-spacing: -0.01em;
+}
+
+.sop-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+}
+
+.sop-badge.fit-best {
+  background: rgba(14, 124, 102, 0.2);
+  color: #34d399;
+  border-color: rgba(14, 124, 102, 0.4);
+}
+
+.sop-badge.fit-watch {
+  background: rgba(217, 119, 6, 0.15);
+  color: #fbbf24;
+  border-color: rgba(217, 119, 6, 0.3);
+}
+
+.sop-badge.fit-weak {
+  background: rgba(184, 74, 58, 0.15);
+  color: #f87171;
+  border-color: rgba(184, 74, 58, 0.3);
+}
+
+.sop-tag {
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.sop-body {
+  padding: 4px 0;
+}
+
+.sop-section {
+  border-bottom: 1px solid #252a33;
+}
+
+.sop-section:last-child {
+  border-bottom: none;
+}
+
+.sop-section > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #d1d5db;
+  transition: background 0.15s ease;
+  user-select: none;
+}
+
+.sop-section > summary:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.sop-section > summary::-webkit-details-marker {
+  display: none;
+}
+
+.sop-section > summary::before {
+  content: "▸";
+  font-size: 10px;
+  color: #4b5563;
+  transition: transform 0.15s ease;
+  display: inline-block;
+  width: 12px;
+}
+
+.sop-section[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.sop-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.dot-entry { background: var(--sop-primary, #2563eb); }
+.dot-stop  { background: #b84a3a; }
+.dot-exit  { background: #d98a1a; }
+
+.sop-checklist,
+.sop-rules {
+  padding: 4px 20px 16px 46px;
+}
+
+.sop-check-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 7px 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #b0b5c3;
+}
+
+.sop-check-item.sop-note {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px dashed #2a2f3a;
+}
+
+.check-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--sop-primary-soft, rgba(37, 99, 235, 0.08));
+  color: var(--sop-primary, #2563eb);
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.check-num.note {
+  background: rgba(107, 114, 128, 0.15);
+  color: #9ca3af;
+  font-size: 9px;
+  font-weight: 600;
+  width: 20px;
+  border-radius: 4px;
+}
+
+.check-text {
+  flex: 1;
+}
+
+.sop-rule-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 7px 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.sop-rule-row .rule-label {
+  color: #9ca3af;
+  font-weight: 500;
+  flex-shrink: 0;
+  min-width: 80px;
+}
+
+.sop-rule-row .rule-value {
+  color: #d1d5db;
+  text-align: right;
+  flex: 1;
+}
+
+.sop-rule-row.priority {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed #2a2f3a;
+}
+
+.sop-rule-row.priority .rule-value {
+  color: var(--sop-primary, #2563eb);
+  font-weight: 500;
+}
+
+.sop-footer {
+  padding: 14px 20px;
+  background: rgba(255, 255, 255, 0.02);
+  border-top: 1px solid #2a2f3a;
+}
+
+.sop-stats {
+  display: flex;
+  gap: 24px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.stat-label {
+  font-size: 10.5px;
+  color: #6b7280;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.stat-value {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #f0f2f5;
+}
+
+/* ── 策略特定颜色覆盖 ── */
+.sop-card.sop-vcp .stat-value { color: #60a5fa; }
+.sop-card.sop-2560 .stat-value { color: #34d399; }
+.sop-card.sop-bollinger .stat-value { color: #fbbf24; }
+
+.sop-card.sop-vcp .sop-section-title { color: #93bbfc; }
+.sop-card.sop-2560 .sop-section-title { color: #6ee7b7; }
+.sop-card.sop-bollinger .sop-section-title { color: #fcd34d; }
+
+/* ── 移动端适配 ── */
+@media (max-width: 640px) {
+  .sop-stats {
+    gap: 16px;
+  }
+  .sop-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .sop-rule-row {
+    flex-direction: column;
+    gap: 2px;
+  }
+  .sop-rule-row .rule-value {
+    text-align: left;
+  }
+}
