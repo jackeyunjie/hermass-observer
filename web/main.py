@@ -2794,10 +2794,39 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
     if _is_industry_question(msg):
         context["industry_distribution"] = _industry_rotation_data()
     if _is_value_question(msg):
-        context["stock_states"] = {}
-        context["ef_count"] = 0
+        code = context["symbol"] or "000021.SZ"
+        stock_ctx = _stock_context_for_agent(code)
+        context.update(stock_ctx)
 
     return handle(query.message, context)
+
+
+def _stock_context_for_agent(symbol: str) -> dict[str, Any]:
+    """从统一快照 CSV 提取个股状态，供 Agent 场景编排消费。"""
+    unified_map, _ = _latest_unified_snapshot_rows()
+    row = unified_map.get(symbol.strip().upper(), {}) if unified_map else {}
+    if not row:
+        return {"stock_name": symbol, "stock_states": {}, "ef_count": 0}
+    return {
+        "stock_name": str(row.get("stock_name", "")).strip() or symbol,
+        "stock_states": {
+            "mn1": str(row.get("mn1_state_hex", "")).strip(),
+            "w1": str(row.get("w1_state_hex", "")).strip(),
+            "d1": str(row.get("d1_state_hex", "")).strip(),
+            "mn1_score": row.get("mn1_state_score", ""),
+            "w1_score": row.get("w1_state_score", ""),
+            "d1_score": row.get("d1_state_score", ""),
+        },
+        "ef_count": int(row.get("ef_count", 0) or 0),
+        "capital_flow": {
+            "status": str(row.get("moneyflow_status", "")).strip(),
+            "confirmed": bool(row.get("moneyflow_confirmed")),
+            "divergence": bool(row.get("moneyflow_divergence")),
+            "score": row.get("moneyflow_score", ""),
+        },
+        "breakout_status": str(row.get("sr_boundary_type", "")).strip(),
+        "sustained_days": int(row.get("duration_d1_close", 0) or 0),
+    }
 
 
 def _llm_required_failure_response(query: ChatQuery) -> dict[str, Any] | None:

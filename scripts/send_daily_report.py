@@ -90,6 +90,33 @@ def build_html():
     except: pass
     rows.append('</div>')
 
+    # 结构预警卡片
+    warning_path = ROOT / "outputs" / "daily_warning.json"
+    if warning_path.exists():
+        try:
+            warning = json.loads(warning_path.read_text())
+            if warning.get("date") == report_date:
+                level = warning.get("alert_level", "green")
+                if level != "green":
+                    border = {"yellow": "#fff3cd", "orange": "#ffe0b2", "red": "#f8d7da"}.get(level, "#fff3cd")
+                    if level == "red":
+                        title = f'🔴 多周期结构同步恶化：{warning.get("message","")}'
+                        detail = (f'D1 负值日增 {warning.get("d1_negative_delta",0)} 只 | '
+                                  f'MN1 正值 {warning.get("mn1_positive_pct_delta",0)}% | '
+                                  f'高位崩跌 {warning.get("high_to_negative_estimate",0)} 只')
+                    else:
+                        title = f'⚠️ 结构预警：{warning.get("message","")}'
+                        detail = (f'D1 负值日增 {warning.get("d1_negative_delta",0)} 只 | '
+                                  f'MN1 正值占比 {warning.get("mn1_positive_pct_delta",0)}%')
+                    rows.append(f'<div class="card" style="border:1px solid {border}"><h2>{title}</h2>'
+                                f'<p style="margin:0 0 8px;color:#555;font-size:13px">{detail}</p>')
+                    if warning.get("breather_trap"):
+                        rows.append('<p style="margin-top:8px;color:#856404;font-size:13px">'
+                                    '⚠️ 当前 ef2 反弹但月线支撑在收缩——不是止跌确认，防诱多陷阱。</p>')
+                    rows.append('</div>')
+        except Exception:
+            pass
+
     # Card 1: Market KPI
     rows.append('<div class="card"><h2>市场概览</h2><div class="grid">')
     rows.append(f'<div class="metric"><div class="val">{total:,}</div><div class="lbl">全市场股票</div></div>')

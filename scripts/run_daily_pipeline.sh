@@ -25,7 +25,7 @@ log "Hermass 每日流水线开始 - ${DATE_STR}"
 log "========================================"
 
 # ── Step 1: 下载日线数据 ──
-log "Step 1/7: 下载日线数据..."
+log "Step 1/8: 下载日线数据..."
 PREV_DATE=$(date -j -v-1d -f "%Y-%m-%d" "$DATE_STR" "+%Y-%m-%d" 2>/dev/null || date -d "yesterday" "+%Y-%m-%d")
 
 if "$VENV_DIR/bin/python" "$PRODUCT_DIR/blackwolf_actions/download_daily.py" \
@@ -36,7 +36,7 @@ else
 fi
 
 # ── Step 2: 构建 Raw DB ──
-log "Step 2/7: 构建 Raw DB..."
+log "Step 2/8: 构建 Raw DB..."
 RAW_DB="$RESEARCH_DIR/outputs/p108_blackwolf_ashare_daily_raw_${YMD}/p108_blackwolf_ashare_daily_raw.duckdb"
 if [ ! -f "$RAW_DB" ]; then
     mkdir -p "$(dirname "$RAW_DB")"
@@ -48,7 +48,7 @@ else
 fi
 
 # ── Step 3: 构建 Foundation DB ──
-log "Step 3/7: 构建 Foundation DB..."
+log "Step 3/8: 构建 Foundation DB..."
 FOUNDATION_DB="$PRODUCT_DIR/outputs/p116_foundation_${YMD}/p116_foundation.duckdb"
 if [ ! -f "$FOUNDATION_DB" ]; then
     "$VENV_DIR/bin/python" "$PRODUCT_DIR/scripts/build_p116_foundation.py" \
@@ -59,7 +59,7 @@ else
 fi
 
 # ── Step 4: 策略信号账本 ──
-log "Step 4/7: 构建策略信号账本..."
+log "Step 4/8: 构建策略信号账本..."
 if "$VENV_DIR/bin/python" "$PRODUCT_DIR/scripts/strategy_signal_ledger.py" \
     --date "$DATE_STR" 2>&1 | tail -1; then
     log " 策略信号账本生成完成"
@@ -68,7 +68,7 @@ else
 fi
 
 # ── Step 5: 策略提醒 ──
-log "Step 5/7: 生成策略提醒..."
+log "Step 5/8: 生成策略提醒..."
 if "$VENV_DIR/bin/python" "$PRODUCT_DIR/scripts/strategy_reminder_brief.py" \
     --date "$DATE_STR" 2>&1 | tail -1; then
     log " 策略提醒生成完成"
@@ -77,7 +77,7 @@ else
 fi
 
 # ── Step 6: 前向观察账本 ──
-log "Step 6/7: 更新前向观察账本..."
+log "Step 6/8: 更新前向观察账本..."
 if "$VENV_DIR/bin/python" "$PRODUCT_DIR/scripts/forward_observation_ledger.py" \
     --date "$DATE_STR" 2>&1 | tail -1; then
     log " 前向观察更新完成"
@@ -86,7 +86,7 @@ else
 fi
 
 # ── Step 7: 每日快照 ──
-log "Step 7/7: 构建每日快照..."
+log "Step 7/8: 构建每日快照..."
 if "$VENV_DIR/bin/python" "$PRODUCT_DIR/scripts/build_daily_snapshot.py" \
     --date "$DATE_STR" 2>&1 | tail -1; then
     log " 每日快照完成"
@@ -94,8 +94,17 @@ else
     log " 每日快照构建失败（非致命）"
 fi
 
+# ── Step 7.5: 每日预警 ──
+log "Step 7.5/9: 生成每日预警..."
+if "$VENV_DIR/bin/python" "$PRODUCT_DIR/scripts/build_daily_warning.py" \
+    --date "$DATE_STR" 2>&1 | tail -1; then
+    log " 每日预警完成"
+else
+    log " 每日预警跳过（非致命）"
+fi
+
 # ── Step 8: 生成Excel并发送邮件 ──
-log "Step 8/9: 生成Excel并发送邮件..."
+log "Step 9/10: 生成Excel并发送邮件..."
 export HERMASS_SMTP_USER="1300893414@qq.com"
 export HERMASS_SMTP_PASS="dyhqeduaqsrnihag"
 export HERMASS_REPORT_TO="3393639019@qq.com,447372703@qq.com"
@@ -107,7 +116,7 @@ else
 fi
 
 # ── Step 9: 飞书推送 (可选) ──
-log "Step 9: 飞书推送每日摘要..."
+log "Step 10: 飞书推送每日摘要..."
 LARK_CONFIG="$PRODUCT_DIR/config/platform/lark_app.yaml"
 if [ -f "$LARK_CONFIG" ]; then
     # 尝试读取配置的 chat_id
