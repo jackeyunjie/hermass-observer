@@ -154,6 +154,19 @@ def build_html():
             rows.append(f'<tr><td style="font-weight:600">{sid.upper()}</td>{"".join(cels)}</tr>')
         rows.append('</table></div>')
 
+    # 盯盘提醒卡片
+    watch_alert_path = ROOT / "outputs" / "watch_alerts.json"
+    if watch_alert_path.exists():
+        try:
+            alerts = json.loads(watch_alert_path.read_text())
+            if alerts:
+                rows.append('<div class="card"><h2>🔔 盯盘提醒</h2><table><tr><th>股票</th><th>触发条件</th><th>说明</th><th>触发时间</th></tr>')
+                for a in alerts:
+                    rows.append(f'<tr><td><b>{a["symbol"]}</b></td><td>{a["condition"]}</td><td>{a["trigger_desc"]}</td><td>{a.get("triggered_at","")[:19]}</td></tr>')
+                rows.append('</table></div>')
+        except Exception:
+            pass
+
     # Footer
     rows.append(f'<div class="footer"><p>Hermass Observer 自动生成 · {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}</p>'
                 '<p>Research Only · 不构成投资建议</p></div></body></html>')
