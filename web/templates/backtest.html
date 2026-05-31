@@ -147,7 +147,10 @@
           <label>
             策略
             <select name="strategy">
-              <option value="ef" {% if defaults.strategy == 'ef' %}selected{% endif %}>E/F State 信号（环境过滤）</option>
+              <option value="ef" {% if defaults.strategy == 'ef' %}selected{% endif %}>EF共振（环境过滤）</option>
+              <option value="vcp" {% if defaults.strategy == 'vcp' %}selected{% endif %}>VCP收缩突破</option>
+              <option value="ma2560" {% if defaults.strategy == 'ma2560' %}selected{% endif %}>MA2560趋势</option>
+              <option value="bollinger_bandit" {% if defaults.strategy == 'bollinger_bandit' %}selected{% endif %}>布林强盗</option>
               <option value="composite" {% if defaults.strategy == 'composite' %}selected{% endif %}>复合策略（研究验证）</option>
             </select>
           </label>
@@ -266,6 +269,37 @@
         </div>
         {% endif %}
       </section>
+
+      {% if result.env_breakdown %}
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>按 MN1 环境分层</h2>
+          <span>不同 State 环境下的策略表现</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>环境</th>
+              <th>笔数</th>
+              <th>胜率</th>
+              <th>盈亏比</th>
+              <th>平均持仓天</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in result.env_breakdown %}
+            <tr>
+              <td><strong>{{ row.env_name }}</strong></td>
+              <td>{{ row.trades }}</td>
+              <td class="{% if row.win_rate >= 0.5 %}win{% else %}loss{% endif %}">{{ "%.1f"|format(row.win_rate * 100) }}%</td>
+              <td>{{ "%.2f"|format(row.profit_factor) }}</td>
+              <td>{{ "%.1f"|format(row.avg_hold_days) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+      {% endif %}
 
       <section class="panel span-2">
         <div class="panel-head">

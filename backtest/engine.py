@@ -25,6 +25,114 @@ from backtest.strategy_signals.ma2560 import ma2560_signal
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def _build_env_breakdown(
+    trades: list,
+    foundation_db: Path,
+) -> list[dict]:
+    """按 MN1 环境分层聚合交易统计.
+
+    返回每行一个环境的中文名、笔数、胜率、盈亏比、平均持仓天数。
+    """
+    if not trades:
+        return []
+
+    # 加载 state 映射
+    mapping_path = ROOT / 'config' / 'state_human_mapping.json'
+    hex_to_name: dict[str, str] = {}
+    negative_name = "逆位"
+    if mapping_path.exists():
+        mapping = json.loads(mapping_path.read_text(encoding='utf-8'))
+        hex_to_name = mapping.get('hex_to_name', {})
+        negative_name = mapping.get('negative_hex_to_name', '逆位')
+
+    # 构造 trades 内存表
+    conn = duckdb.connect(str(foundation_db), read_only=True)
+    trade_rows = [
+        (t.entry_date, t.stock_code, t.net_pnl, t.return_pct, t.hold_days)
+        for t in trades
+    ]
+    conn.execute("""
+        CREATE OR REPLACE TEMPORARY TABLE _trades (
+            entry_date VARCHAR,
+            stock_code VARCHAR,
+            net_pnl DOUBLE,
+            return_pct DOUBLE,
+            hold_days INTEGER
+        )
+    """)
+    conn.executemany("INSERT INTO _trades VALUES (?, ?, ?, ?, ?)", trade_rows)
+
+    # JOIN Foundation DB 获取 mn1_state_hex
+    rows_df = conn.execute("""
+        SELECT
+            t.entry_date,
+            t.stock_code,
+            t.net_pnl,
+            t.return_pct,
+            t.hold_days,
+            s.mn1_state_hex
+        FROM _trades t
+        LEFT JOIN d1_perspective_state s
+            ON s.stock_code = t.stock_code AND s.state_date = t.entry_date
+    """).fetchdf()
+    conn.close()
+
+    # 按环境分组聚合
+    from collections import defaultdict
+    env_stats: dict[str, dict] = defaultdict(lambda: {
+        'trades': 0, 'wins': 0, 'total_pnl': 0.0,
+        'total_hold_days': 0, 'gross_profit': 0.0, 'gross_loss': 0.0,
+    })
+
+    for _, row in rows_df.iterrows():
+        hex_val = row['mn1_state_hex']
+        if hex_val is None or (isinstance(hex_val, float) and hex_val != hex_val):  # NaN check
+            hex_str = ''
+        else:
+            hex_str = str(int(hex_val)) if isinstance(hex_val, (int, float)) else str(hex_val)
+
+        # 映射到中文环境名
+        env_name = hex_to_name.get(hex_str)
+        if env_name is None:
+            # 负数或不在映射表中的 → 逆位
+            try:
+                if int(hex_str, 16) < 0:
+                    env_name = negative_name
+                else:
+                    env_name = '未知'
+            except (ValueError, TypeError):
+                env_name = '未知'
+
+        stats = env_stats[env_name]
+        stats['trades'] += 1
+        if row['return_pct'] > 0:
+            stats['wins'] += 1
+            stats['gross_profit'] += row['return_pct']
+        elif row['return_pct'] < 0:
+            stats['gross_loss'] += abs(row['return_pct'])
+        stats['total_pnl'] += row['net_pnl']
+        stats['total_hold_days'] += int(row['hold_days'])
+
+    # 组装输出（固定顺序）
+    env_order = ['天时', '地利', '人和', '蓄力', '冬眠', '逆位', '未知']
+    result = []
+    for env in env_order:
+        if env not in env_stats:
+            continue
+        s = env_stats[env]
+        win_rate = s['wins'] / s['trades'] if s['trades'] > 0 else 0
+        profit_factor = s['gross_profit'] / s['gross_loss'] if s['gross_loss'] > 0 else (999 if s['gross_profit'] > 0 else 0)
+        avg_hold = s['total_hold_days'] / s['trades'] if s['trades'] > 0 else 0
+        result.append({
+            'env_name': env,
+            'trades': s['trades'],
+            'win_rate': win_rate,
+            'profit_factor': profit_factor,
+            'avg_hold_days': avg_hold,
+        })
+    return result
+
+
 def load_state_data_from_duckdb(
     foundation_db: Path,
     start_date: str,
@@ -432,6 +540,9 @@ def run_backtest(
     # 计算绩效
     metrics = calculate_metrics(portfolio.closed_trades, portfolio.daily_snapshots, config.initial_capital)
 
+    # ── 按 MN1 环境分层聚合 ──
+    env_breakdown = _build_env_breakdown(portfolio.closed_trades, foundation_db)
+
     result = {
         'backtest_date': date_str,
         'config': {
@@ -450,6 +561,7 @@ def run_backtest(
         'total_trading_days': len(all_dates),
         'warmup_days': config.warmup_days,
         'research_only_flag': True,
+        'env_breakdown': env_breakdown,
     }
 
     print(f"\n{'='*50}")
@@ -476,7 +588,7 @@ def main() -> int:
     parser.add_argument('--max-positions', type=int, default=10)
     parser.add_argument('--min-ef', type=int, default=2)
     parser.add_argument('--initial-capital', type=float, default=1_000_000)
-    parser.add_argument('--strategy', choices=['ef', 'composite'], default='ef')
+    parser.add_argument('--strategy', choices=['ef', 'vcp', 'ma2560', 'bollinger_bandit', 'composite'], default='ef')
     args = parser.parse_args()
 
     config = BacktestConfig(

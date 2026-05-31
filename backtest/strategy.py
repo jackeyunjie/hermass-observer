@@ -79,61 +79,121 @@ def generate_signals(
     for date_str, states in states_by_date.items():
         signals = []
         for s in states:
-            ef_count = s.get('ef_count', 0)
-            if ef_count < config.min_ef_count:
-                continue
-
             entry_price = s.get('close', 0.0)
             if entry_price <= 0:
                 continue
 
-            sr_support = s.get('d1_sr_support', entry_price * 0.9)
-            sr_resistance = s.get('d1_sr_resistance', entry_price * 1.1)
-            atr = s.get('d1_atr', entry_price * 0.02)
-
-            stop = compute_stop_loss(entry_price, sr_support, atr, config)
-            target = compute_take_profit(entry_price, sr_resistance, atr, config)
-
-            from signal_module.quality_score import calc_quality_score
-            q = calc_quality_score(s)
-            score = q.total
-
-            entry_type = 'ef'
+            # ── 策略路由 ──
             strategy_components: tuple[str, ...] = ()
-            if config.strategy_name == 'composite':
-                from backtest.strategy_signals.composite import composite_signal as _cs
-                result = _cs(s, s, position_ctx=None, mode="classic")
+            entry_type = 'ef'
+            score = 0.0
+
+            if config.strategy_name == 'vcp':
+                from backtest.strategy_signals.vcp import vcp_signal as _vcp
+                result = _vcp(s, s)
                 if result is None:
                     continue
+                entry_type = result[0]
+                score = result[1] * 100
+                # VCP 不要求 ef_count
+
+            elif config.strategy_name == 'ma2560':
+                from backtest.strategy_signals.ma2560 import ma2560_signal as _ma
+                result = _ma(s, s)
+                if result is None:
+                    continue
+                entry_type = result[0]
+                score = result[1] * 100
+                # 2560 只取金叉和多头排列信号，过滤空头
+                if entry_type in ('ma2560_death_cross_exit', 'ma2560_bearish'):
+                    continue
+                # MA2560 不要求 ef_count
+
+            elif config.strategy_name == 'bollinger_bandit':
+                from backtest.strategy_signals.bollinger_bandit import bollinger_bandit_signal as _bb
+                result = _bb(s, s)
+                if result is None:
+                    continue
+                entry_type = result[0]
+                score = result[1] * 100
+                # 布林强盗不要求 ef_count
+
+            elif config.strategy_name == 'composite':
+                from backtest.strategy_signals.composite import composite_signal as _cs
+                res = _cs(s, s, position_ctx=None, mode="classic")
+                if res is None:
+                    continue
                 strategy_components = tuple(
-                    k for k, v in result.get("details", {}).items()
+                    k for k, v in res.get("details", {}).items()
                     if v.get("signal")
                 )
-                if result.get("exit_type"):
+                if res.get("exit_type"):
                     continue
-                entry_type = result.get("entry_type") or "composite_entry"
-                score = result.get("composite_confidence", 0) * 100
+                entry_type = res.get("entry_type") or "composite_entry"
+                score = res.get("composite_confidence", 0) * 100
                 if score < config.composite_score_floor:
                     continue
 
-            # 盈亏比过滤: RR < 1.5 的信号降权
-            risk = entry_price - stop
-            reward = target - entry_price
-            rr = reward / risk if risk > 0 else 0
-            if rr < 1.0:
-                score *= 0.3  # RR 太差, 大幅降权
-            elif rr < 1.5:
-                score *= 0.7
+            else:  # ef (default)
+                ef_count = s.get('ef_count', 0)
+                if ef_count < config.min_ef_count:
+                    continue
 
-            # 最低质量分门槛: 低于此分数不参与
+                sr_support = s.get('d1_sr_support', entry_price * 0.9)
+                sr_resistance = s.get('d1_sr_resistance', entry_price * 1.1)
+                atr = s.get('d1_atr', entry_price * 0.02)
+                stop = compute_stop_loss(entry_price, sr_support, atr, config)
+                target = compute_take_profit(entry_price, sr_resistance, atr, config)
+
+                from signal_module.quality_score import calc_quality_score
+                q = calc_quality_score(s)
+                score = q.total
+
+                # 盈亏比过滤: RR < 1.5 的信号降权
+                risk = entry_price - stop
+                reward = target - entry_price
+                rr = reward / risk if risk > 0 else 0
+                if rr < 1.0:
+                    score *= 0.3
+                elif rr < 1.5:
+                    score *= 0.7
+
+                if score < 60:
+                    continue
+
+                signals.append(Signal(
+                    stock_code=s['stock_code'],
+                    stock_name=s.get('stock_name', ''),
+                    date=date_str,
+                    ef_count=ef_count,
+                    mn1_hex=s.get('mn1_state_hex', s.get('mn1_hex', '0')),
+                    w1_hex=s.get('w1_state_hex', s.get('w1_hex', '0')),
+                    d1_hex=s.get('d1_state_hex', s.get('d1_hex', '0')),
+                    entry_price=entry_price,
+                    stop_loss=stop,
+                    take_profit=target,
+                    quality_score=score,
+                    entry_type=entry_type,
+                    strategy_components=strategy_components,
+                ))
+                continue  # ef 分支已 append，跳过后续通用 append
+
+            # 三独立策略共用：最低质量分门槛
             if score < 60:
                 continue
+
+            # 三独立策略的止损止盈简化计算
+            sr_support = s.get('d1_sr_support', entry_price * 0.9)
+            sr_resistance = s.get('d1_sr_resistance', entry_price * 1.1)
+            atr = s.get('d1_atr', entry_price * 0.02)
+            stop = compute_stop_loss(entry_price, sr_support, atr, config)
+            target = compute_take_profit(entry_price, sr_resistance, atr, config)
 
             signals.append(Signal(
                 stock_code=s['stock_code'],
                 stock_name=s.get('stock_name', ''),
                 date=date_str,
-                ef_count=ef_count,
+                ef_count=s.get('ef_count', 0),
                 mn1_hex=s.get('mn1_state_hex', s.get('mn1_hex', '0')),
                 w1_hex=s.get('w1_state_hex', s.get('w1_hex', '0')),
                 d1_hex=s.get('d1_state_hex', s.get('d1_hex', '0')),
