@@ -2775,12 +2775,7 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
         return None
 
     try:
-        from agently_adapter.qa_service import (
-            answer_market,
-            answer_industry,
-            answer_value_research,
-            answer_stock,
-        )
+        from agently_adapter.qa_service import qa_ask
     except Exception:
         return None
 
@@ -2788,17 +2783,13 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
 
     if _is_value_question(msg):
         code = _chat_stock_code(query) or "000021.SZ"
-        # 构造研究上下文（复用现有证据）
-        research_ctx = {}
-        return answer_value_research(code, research_ctx)
+        return qa_ask("value_research", {"code": code})
 
     if _is_industry_question(msg):
-        industry = _industry_rotation_data()
-        return answer_industry(industry)
+        return qa_ask("industry", _industry_rotation_data())
 
     if _is_market_question(msg):
-        market = _market_analysis_data()
-        return answer_market(market)
+        return qa_ask("market", _market_analysis_data())
 
     return None
 
@@ -3102,48 +3093,6 @@ def chat_query(request: Request, query: ChatQuery) -> JSONResponse:
                 "provider": "rule_based",
                 "enhancement_used": False,
                 "user_id": user_id,
-                "error": str(exc),
-            },
-        )
-
-
-# ─── Agently 观测日志接口 ─────────────────────────────
-
-@app.get("/api/chat/observation")
-def chat_observation(
-    request: Request,
-    category: str = "",
-    limit: int = 50,
-) -> JSONResponse:
-    """查看 Agently 统一问答服务层的运行时观测日志。
-
-    用途：
-      - 查看大模型调用的成功率、延迟、错误分布
-      - 按 category 过滤（market/industry/value_research/stock）
-      - 监控 Agently 运行状况
-    """
-    try:
-        from agently_adapter.qa_service import get_recent_observation_logs, get_observation_summary
-
-        logs = get_recent_observation_logs(
-            category=category or None,
-            limit=min(limit, 200),
-        )
-        summary = get_observation_summary()
-        return JSONResponse(
-            content={
-                "summary": summary,
-                "logs": logs,
-                "category": category or "all",
-                "limit": limit,
-            }
-        )
-    except Exception as exc:
-        return JSONResponse(
-            status_code=500,
-            content={
-                "summary": {},
-                "logs": [],
                 "error": str(exc),
             },
         )
