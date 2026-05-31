@@ -3494,6 +3494,96 @@ def _matches(stock: dict[str, Any], condition: dict[str, Any]) -> bool:
     return True
 
 
+@app.get("/journal", response_class=HTMLResponse)
+def journal_page(request: Request) -> HTMLResponse:
+    profile = get_current_profile(request)
+    username = profile.get("username", "web_user")
+
+    from hermass_platform.trade_journal import get_filters, get_trade_stats, list_trades
+
+    trades = list_trades(username, page=1)
+    stats = get_trade_stats(username)
+    filters = get_filters(username)
+
+    return templates.TemplateResponse(
+        request,
+        "journal.html",
+        {
+            "request": request,
+            "today": str(date.today()),
+            "current_user": profile,
+            "journal": {
+                "trades": trades["trades"],
+                "total": trades["total"],
+                "page": trades["page"],
+                "pages": trades["pages"],
+                "stats": stats,
+                "filters": filters,
+            },
+        },
+    )
+
+
+@app.post("/api/journal/add")
+def journal_add(request: Request, payload: dict[str, Any] | None = None) -> JSONResponse:
+    profile = get_current_profile(request)
+    username = profile.get("username", "web_user")
+    payload = payload or {}
+
+    from hermass_platform.trade_journal import add_trade
+
+    trade = add_trade(
+        username=username,
+        trade_date=payload.get("trade_date") or str(date.today()),
+        stock_code=payload.get("stock_code", ""),
+        stock_name=payload.get("stock_name", ""),
+        direction=payload.get("direction", "long"),
+        entry_price=float(payload.get("entry_price", 0)),
+        exit_price=float(payload["exit_price"]) if payload.get("exit_price") is not None else None,
+        strategy_id=payload.get("strategy_id", ""),
+        stop_loss=float(payload["stop_loss"]) if payload.get("stop_loss") is not None else None,
+        mn1_state_name=payload.get("mn1_state_name"),
+        note=payload.get("note", ""),
+    )
+    return JSONResponse(content={"ok": True, "trade": trade})
+
+
+@app.get("/api/journal/list")
+def journal_list(
+    request: Request,
+    page: int = 1,
+    strategy: str = "",
+    state: str = "",
+) -> JSONResponse:
+    profile = get_current_profile(request)
+    username = profile.get("username", "web_user")
+
+    from hermass_platform.trade_journal import list_trades
+
+    data = list_trades(username, strategy_filter=strategy, state_filter=state, page=page)
+    return JSONResponse(content=data)
+
+
+@app.get("/api/journal/stats")
+def journal_stats(request: Request) -> JSONResponse:
+    profile = get_current_profile(request)
+    username = profile.get("username", "web_user")
+
+    from hermass_platform.trade_journal import get_trade_stats
+
+    return JSONResponse(content=get_trade_stats(username))
+
+
+@app.delete("/api/journal/{trade_id}")
+def journal_delete(request: Request, trade_id: int) -> JSONResponse:
+    profile = get_current_profile(request)
+    username = profile.get("username", "web_user")
+
+    from hermass_platform.trade_journal import delete_trade
+
+    return JSONResponse(content={"ok": delete_trade(trade_id, username)})
+
+
 @app.post("/api/chat/query")
 def chat_query(request: Request, query: ChatQuery) -> JSONResponse:
     profile = get_current_profile(request)

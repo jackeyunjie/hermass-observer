@@ -27,10 +27,8 @@
       font-family: 'Inter', sans-serif;
       font-variant-numeric: tabular-nums;
     }
-    /* Terminal glow for key numbers */
     .glow-green { text-shadow: 0 0 8px rgba(52,211,153,0.3); }
     .glow-red { text-shadow: 0 0 8px rgba(248,113,113,0.25); }
-    /* Modal */
     .modal-overlay {
       opacity: 0;
       pointer-events: none;
@@ -47,14 +45,11 @@
     .modal-overlay.open .modal-card {
       transform: translateY(0) scale(1);
     }
-    /* Table row hover */
     .trade-row:hover { background: rgba(255,255,255,0.015); }
-    /* Custom scrollbar */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.14); }
-    /* Form field */
     .field-input {
       background: rgba(255,255,255,0.03);
       border: 1px solid rgba(255,255,255,0.08);
@@ -66,9 +61,7 @@
       outline: none;
       transition: border-color 0.15s ease;
     }
-    .field-input:focus {
-      border-color: rgba(255,255,255,0.18);
-    }
+    .field-input:focus { border-color: rgba(255,255,255,0.18); }
     .field-input::placeholder { color: #475569; }
     select.field-input { appearance: none; cursor: pointer; }
   </style>
@@ -85,7 +78,7 @@
       </nav>
       <div class="flex-1"></div>
       <div class="flex items-center gap-3 shrink-0">
-        <span class="text-[12px] text-slate-500 num">2026-05-31</span>
+        <span class="text-[12px] text-slate-500 num">{{ journal.stats.total_trades or 0 }} 笔</span>
         <button type="button" onclick="document.getElementById('tradeModal').classList.add('open')" class="px-3.5 py-[7px] text-[13px] font-medium text-white rounded-md flex items-center gap-1.5" style="background:#3b82f6;">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
           新交易记录
@@ -101,23 +94,25 @@
     <section data-component="KPI Strip" class="grid grid-cols-4 gap-3.5">
       <div class="rounded-lg px-4 py-3.5" style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06);">
         <div class="text-[11px] font-medium text-slate-500 tracking-wider uppercase mb-2">总交易</div>
-        <div class="num text-[26px] font-semibold text-slate-50 tracking-tight" style="letter-spacing:-0.02em;">247</div>
-        <div class="text-[11px] text-slate-500 mt-1">2025-06 至今</div>
+        <div class="num text-[26px] font-semibold text-slate-50 tracking-tight" style="letter-spacing:-0.02em;">{{ journal.stats.total_trades }}</div>
+        <div class="text-[11px] text-slate-500 mt-1">自首笔记录</div>
       </div>
       <div class="rounded-lg px-4 py-3.5" style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06);">
         <div class="text-[11px] font-medium text-slate-500 tracking-wider uppercase mb-2">总胜率</div>
-        <div class="num text-[26px] font-semibold tracking-tight glow-green" style="color:var(--gain); letter-spacing:-0.02em;">58.3%</div>
-        <div class="text-[11px] text-slate-500 mt-1">144 胜 / 103 负</div>
+        <div class="num text-[26px] font-semibold tracking-tight glow-green" style="color:var(--gain); letter-spacing:-0.02em;">{{ "%.1f"|format(journal.stats.win_rate) }}%</div>
+        <div class="text-[11px] text-slate-500 mt-1">{{ journal.stats.total_trades }} 笔</div>
       </div>
       <div class="rounded-lg px-4 py-3.5" style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06);">
         <div class="text-[11px] font-medium text-slate-500 tracking-wider uppercase mb-2">盈亏比</div>
-        <div class="num text-[26px] font-semibold text-slate-50 tracking-tight" style="letter-spacing:-0.02em;">2.14</div>
+        <div class="num text-[26px] font-semibold text-slate-50 tracking-tight" style="letter-spacing:-0.02em;">{{ "%.2f"|format(journal.stats.profit_factor) }}</div>
         <div class="text-[11px] text-slate-500 mt-1">平均盈利 / 平均亏损</div>
       </div>
       <div class="rounded-lg px-4 py-3.5" style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06);">
         <div class="text-[11px] font-medium text-slate-500 tracking-wider uppercase mb-2">累计收益</div>
-        <div class="num text-[26px] font-semibold tracking-tight glow-green" style="color:var(--gain); letter-spacing:-0.02em;">+34.7%</div>
-        <div class="text-[11px] text-slate-500 mt-1">最大回撤 -8.2%</div>
+        <div class="num text-[26px] font-semibold tracking-tight glow-green" style="color:var(--gain); letter-spacing:-0.02em;">
+          {% if journal.stats.total_return >= 0 %}+{% endif %}{{ "%.1f"|format(journal.stats.total_return) }}%
+        </div>
+        <div class="text-[11px] text-slate-500 mt-1">最大回撤 {{ "%.1f"|format(journal.stats.max_drawdown) }}%</div>
       </div>
     </section>
 
@@ -128,29 +123,32 @@
       <div class="flex items-center justify-between px-5 py-3 border-b border-white/[0.06]">
         <div class="flex items-center gap-3">
           <h2 class="text-[14px] font-semibold text-slate-100">交易记录</h2>
-          <span class="text-[12px] text-slate-500 num">247 笔</span>
+          <span class="text-[12px] text-slate-500 num">共 {{ journal.total }} 笔</span>
         </div>
         <div class="flex items-center gap-2">
           <!-- Strategy Filter -->
           <div class="relative">
-            <select aria-label="按策略筛选" class="field-input text-[12px] py-[5px] pr-7 pl-2.5" style="background-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%2364748b%22 stroke-width=%222%22><path d=%22M6 9l6 6 6-6%22/></svg>'); background-repeat:no-repeat; background-position:right 8px center;">
-              <option>全部策略</option>
-              <option>VCP 突破</option>
-              <option>MA2560</option>
-              <option>布林强盗</option>
-            </select>
+            <form method="get" action="/journal" class="m-0">
+              <input type="hidden" name="state" value="{{ request.query_params.get('state','') }}" />
+              <select aria-label="按策略筛选" name="strategy" class="field-input text-[12px] py-[5px] pr-7 pl-2.5" style="background-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%2364748b%22 stroke-width=%222%22><path d=%22M6 9l6 6 6-6%22/></svg>'); background-repeat:no-repeat; background-position:right 8px center;" onchange="this.form.submit()">
+                <option value="">全部策略</option>
+                {% for s in journal.filters.strategies %}
+                <option value="{{ s }}" {% if s == request.query_params.get('strategy','') %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+              </select>
+            </form>
           </div>
           <!-- State Filter -->
           <div class="relative">
-            <select aria-label="按环境筛选" class="field-input text-[12px] py-[5px] pr-7 pl-2.5" style="background-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%2364748b%22 stroke-width=%222%22><path d=%22M6 9l6 6 6-6%22/></svg>'); background-repeat:no-repeat; background-position:right 8px center;">
-              <option>全部环境</option>
-              <option>天时 E/F</option>
-              <option>地利 C/D</option>
-              <option>人和 8/B</option>
-              <option>蓄力 4-7</option>
-              <option>冬眠 0-3</option>
-              <option>逆位 负值</option>
-            </select>
+            <form method="get" action="/journal" class="m-0">
+              <input type="hidden" name="strategy" value="{{ request.query_params.get('strategy','') }}" />
+              <select aria-label="按环境筛选" name="state" class="field-input text-[12px] py-[5px] pr-7 pl-2.5" style="background-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%2364748b%22 stroke-width=%222%22><path d=%22M6 9l6 6 6-6%22/></svg>'); background-repeat:no-repeat; background-position:right 8px center;" onchange="this.form.submit()">
+                <option value="">全部环境</option>
+                {% for e in journal.filters.states %}
+                <option value="{{ e }}" {% if e == request.query_params.get('state','') %}selected{% endif %}>{{ e }}</option>
+                {% endfor %}
+              </select>
+            </form>
           </div>
         </div>
       </div>
@@ -172,261 +170,61 @@
             </tr>
           </thead>
           <tbody>
-            <!-- Row 1 -->
+            {% for t in journal.trades %}
             <tr class="trade-row border-b border-white/[0.03]">
-              <td class="px-5 py-2.5 num text-slate-400">05-28</td>
+              <td class="px-5 py-2.5 num text-slate-400">{{ t.trade_date[5:10] }}</td>
               <td class="px-4 py-2.5">
-                <span class="text-slate-200 font-medium">688107</span>
-                <span class="text-slate-500 text-[11px] ml-1.5">安路科技</span>
+                <span class="text-slate-200 font-medium">{{ t.stock_code }}</span>
+                <span class="text-slate-500 text-[11px] ml-1.5">{{ t.stock_name }}</span>
               </td>
               <td class="px-3 py-2.5 text-center">
-                <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded" style="color:var(--gain); background:rgba(52,211,153,0.08);">做多</span>
+                <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded" style="color:{% if t.direction == '做多' %}var(--gain){% else %}var(--loss){% endif %}; background:rgba(52,211,153,0.08);">
+                  {{ t.direction }}
+                </span>
               </td>
-              <td class="px-4 py-2.5 num text-slate-300 text-right">42.50</td>
-              <td class="px-4 py-2.5 num text-slate-300 text-right">48.20</td>
-              <td class="px-4 py-2.5 num text-right font-semibold" style="color:var(--gain);">+13.4%</td>
+              <td class="px-4 py-2.5 num text-slate-300 text-right">{{ "%.2f"|format(t.entry_price) }}</td>
+              <td class="px-4 py-2.5 num text-slate-300 text-right">{{ "%.2f"|format(t.exit_price) if t.exit_price is not none else '-' }}</td>
+              <td class="px-4 py-2.5 num text-right font-semibold" style="color:{% if t.pnl_pct is not none and t.pnl_pct >= 0 %}var(--gain){% else %}var(--loss){% endif %};">
+                {% if t.pnl_pct is not none %}{% if t.pnl_pct >= 0 %}+{% endif %}{{ "%.1f"|format(t.pnl_pct) }}%{% else %}-{% endif %}
+              </td>
               <td class="px-4 py-2.5">
-                <span class="text-[12px] text-slate-300 px-2 py-0.5 rounded-full" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06);">VCP</span>
+                <span class="text-[12px] text-slate-300 px-2 py-0.5 rounded-full" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06);">{{ t.strategy_label or t.strategy_id }}</span>
               </td>
               <td class="px-4 py-2.5">
                 <span class="inline-flex items-center gap-1.5 text-[12px]">
-                  <span class="w-1.5 h-1.5 rounded-full" style="background:var(--mn1-tianshi);"></span>
-                  <span class="text-slate-300">天时</span>
+                  <span class="w-1.5 h-1.5 rounded-full" style="background:{% if t.mn1_state_name == '天时' %}var(--mn1-tianshi){% elif t.mn1_state_name == '地利' %}var(--mn1-dili){% elif t.mn1_state_name == '人和' %}var(--mn1-renhe){% elif t.mn1_state_name == '蓄力' %}var(--mn1-xuli){% elif t.mn1_state_name == '冬眠' %}var(--mn1-dongmian){% else %}var(--mn1-niwei){% endif %};"></span>
+                  <span class="text-slate-300">{{ t.mn1_state_name or '-' }}</span>
                 </span>
               </td>
-              <td class="px-5 py-2.5 num text-slate-400 text-right">5</td>
+              <td class="px-5 py-2.5 num text-slate-400 text-right">{{ t.hold_days if t.hold_days is not none else '-' }}</td>
             </tr>
-            <!-- Row 2 -->
-            <tr class="trade-row border-b border-white/[0.03]">
-              <td class="px-5 py-2.5 num text-slate-400">05-25</td>
-              <td class="px-4 py-2.5">
-                <span class="text-slate-200 font-medium">002371</span>
-                <span class="text-slate-500 text-[11px] ml-1.5">北方华创</span>
-              </td>
-              <td class="px-3 py-2.5 text-center">
-                <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded" style="color:var(--gain); background:rgba(52,211,153,0.08);">做多</span>
-              </td>
-              <td class="px-4 py-2.5 num text-slate-300 text-right">318.00</td>
-              <td class="px-4 py-2.5 num text-slate-300 text-right">335.60</td>
-              <td class="px-4 py-2.5 num text-right font-semibold" style="color:var(--gain);">+5.5%</td>
-              <td class="px-4 py-2.5">
-                <span class="text-[12px] text-slate-300 px-2 py-0.5 rounded-full" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06);">MA2560</span>
-              </td>
-              <td class="px-4 py-2.5">
-                <span class="inline-flex items-center gap-1.5 text-[12px]">
-                  <span class="w-1.5 h-1.5 rounded-full" style="background:var(--mn1-dili);"></span>
-                  <span class="text-slate-300">地利</span>
-                </span>
-              </td>
-              <td class="px-5 py-2.5 num text-slate-400 text-right">8</td>
-            </tr>
-            <!-- Row 3 -->
-            <tr class="trade-row border-b border-white/[0.03]">
-              <td class="px-5 py-2.5 num text-slate-400">05-22</td>
-              <td class="px-4 py-2.5">
-                <span class="text-slate-200 font-medium">300750</span>
-                <span class="text-slate-500 text-[11px] ml-1.5">宁德时代</span>
-              </td>
-              <td class="px-3 py-2.5 text-center">
-                <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded" style="color:var(--gain); background:rgba(52,211,153,0.08);">做多</span>
-              </td>
-              <td class="px-4 py-2.5 num text-slate-300 text-right">198.50</td>
-              <td class="px-4 py-2.5 num text-slate-300 text-right">192.10</td>
-              <td class="px-4 py-2.5 num text-right font-semibold" style="color:var(--loss);">-3.2%</td>
-              <td class="px-4 py-2.5">
-                <span class="text-[12px] text-slate-300 px-2 py-0.5 rounded-full" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06);">布林强盗</span>
-              </td>
-              <td class="px-4 py-2.5">
-                <span class="inline-flex items-center gap-1.5 text-[12px]">
-                  <span class="w-1.5 h-1.5 rounded-full" style="background:var(--mn1-renhe);"></span>
-                  <span class="text-slate-300">人和</span>
-                </span>
-              </td>
-              <td class="px-5 py-2.5 num text-slate-400 text-right">3</td>
-            </tr>
-            <!-- Row 4 -->
-            <tr class="trade-row border-b border-white/[0.03]">
-              <td class="px-5 py-2.5 num text-slate-400">05-19</td>
-              <td class="px-4 py-2.5">
-                <span class="text-slate-200 font-medium">603290</span>
-                <span class="text-slate-500 text-[11px] ml-1.5">斯达半导</span>
-              </td>
-              <td class="px-3 py-2.5 text-center">
-                <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded" style="color:var(--gain); background:rgba(52,211,153,0.08);">做多</span>
-              </td>
-              <td class="px-4 py-2.5 num text-slate-300 text-right">156.80</td>
-              <td class="px-4 py-2.5 num text-slate-300 text-right">171.40</td>
-              <td class="px-4 py-2.5 num text-right font-semibold" style="color:var(--gain);">+9.3%</td>
-              <td class="px-4 py-2.5">
-                <span class="text-[12px] text-slate-300 px-2 py-0.5 rounded-full" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06);">VCP</span>
-              </td>
-              <td class="px-4 py-2.5">
-                <span class="inline-flex items-center gap-1.5 text-[12px]">
-                  <span class="w-1.5 h-1.5 rounded-full" style="background:var(--mn1-tianshi);"></span>
-                  <span class="text-slate-300">天时</span>
-                </span>
-              </td>
-              <td class="px-5 py-2.5 num text-slate-400 text-right">6</td>
-            </tr>
-            <!-- Row 5 -->
-            <tr class="trade-row border-b border-white/[0.03]">
-              <td class="px-5 py-2.5 num text-slate-400">05-15</td>
-              <td class="px-4 py-2.5">
-                <span class="text-slate-200 font-medium">002049</span>
-                <span class="text-slate-500 text-[11px] ml-1.5">紫光国微</span>
-              </td>
-              <td class="px-3 py-2.5 text-center">
-                <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded" style="color:var(--gain); background:rgba(52,211,153,0.08);">做多</span>
-              </td>
-              <td class="px-4 py-2.5 num text-slate-300 text-right">89.20</td>
-              <td class="px-4 py-2.5 num text-slate-300 text-right">82.70</td>
-              <td class="px-4 py-2.5 num text-right font-semibold" style="color:var(--loss);">-7.3%</td>
-              <td class="px-4 py-2.5">
-                <span class="text-[12px] text-slate-300 px-2 py-0.5 rounded-full" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06);">MA2560</span>
-              </td>
-              <td class="px-4 py-2.5">
-                <span class="inline-flex items-center gap-1.5 text-[12px]">
-                  <span class="w-1.5 h-1.5 rounded-full" style="background:var(--mn1-niwei);"></span>
-                  <span class="text-slate-300">逆位</span>
-                </span>
-              </td>
-              <td class="px-5 py-2.5 num text-slate-400 text-right">4</td>
-            </tr>
-            <!-- Row 6 -->
-            <tr class="trade-row border-b border-white/[0.03]">
-              <td class="px-5 py-2.5 num text-slate-400">05-12</td>
-              <td class="px-4 py-2.5">
-                <span class="text-slate-200 font-medium">688981</span>
-                <span class="text-slate-500 text-[11px] ml-1.5">中芯国际</span>
-              </td>
-              <td class="px-3 py-2.5 text-center">
-                <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded" style="color:var(--gain); background:rgba(52,211,153,0.08);">做多</span>
-              </td>
-              <td class="px-4 py-2.5 num text-slate-300 text-right">52.80</td>
-              <td class="px-4 py-2.5 num text-slate-300 text-right">56.90</td>
-              <td class="px-4 py-2.5 num text-right font-semibold" style="color:var(--gain);">+7.8%</td>
-              <td class="px-4 py-2.5">
-                <span class="text-[12px] text-slate-300 px-2 py-0.5 rounded-full" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06);">布林强盗</span>
-              </td>
-              <td class="px-4 py-2.5">
-                <span class="inline-flex items-center gap-1.5 text-[12px]">
-                  <span class="w-1.5 h-1.5 rounded-full" style="background:var(--mn1-dili);"></span>
-                  <span class="text-slate-300">地利</span>
-                </span>
-              </td>
-              <td class="px-5 py-2.5 num text-slate-400 text-right">11</td>
-            </tr>
-            <!-- Row 7 -->
-            <tr class="trade-row border-b border-white/[0.03]">
-              <td class="px-5 py-2.5 num text-slate-400">05-08</td>
-              <td class="px-4 py-2.5">
-                <span class="text-slate-200 font-medium">002230</span>
-                <span class="text-slate-500 text-[11px] ml-1.5">科大讯飞</span>
-              </td>
-              <td class="px-3 py-2.5 text-center">
-                <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded" style="color:var(--gain); background:rgba(52,211,153,0.08);">做多</span>
-              </td>
-              <td class="px-4 py-2.5 num text-slate-300 text-right">48.30</td>
-              <td class="px-4 py-2.5 num text-slate-300 text-right">46.10</td>
-              <td class="px-4 py-2.5 num text-right font-semibold" style="color:var(--loss);">-4.6%</td>
-              <td class="px-4 py-2.5">
-                <span class="text-[12px] text-slate-300 px-2 py-0.5 rounded-full" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06);">VCP</span>
-              </td>
-              <td class="px-4 py-2.5">
-                <span class="inline-flex items-center gap-1.5 text-[12px]">
-                  <span class="w-1.5 h-1.5 rounded-full" style="background:var(--mn1-dongmian);"></span>
-                  <span class="text-slate-400">冬眠</span>
-                </span>
-              </td>
-              <td class="px-5 py-2.5 num text-slate-400 text-right">2</td>
-            </tr>
-            <!-- Row 8 -->
-            <tr class="trade-row border-b border-white/[0.03]">
-              <td class="px-5 py-2.5 num text-slate-400">05-05</td>
-              <td class="px-4 py-2.5">
-                <span class="text-slate-200 font-medium">300760</span>
-                <span class="text-slate-500 text-[11px] ml-1.5">迈瑞医疗</span>
-              </td>
-              <td class="px-3 py-2.5 text-center">
-                <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded" style="color:var(--gain); background:rgba(52,211,153,0.08);">做多</span>
-              </td>
-              <td class="px-4 py-2.5 num text-slate-300 text-right">285.00</td>
-              <td class="px-4 py-2.5 num text-slate-300 text-right">301.50</td>
-              <td class="px-4 py-2.5 num text-right font-semibold" style="color:var(--gain);">+5.8%</td>
-              <td class="px-4 py-2.5">
-                <span class="text-[12px] text-slate-300 px-2 py-0.5 rounded-full" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06);">MA2560</span>
-              </td>
-              <td class="px-4 py-2.5">
-                <span class="inline-flex items-center gap-1.5 text-[12px]">
-                  <span class="w-1.5 h-1.5 rounded-full" style="background:var(--mn1-xuli);"></span>
-                  <span class="text-slate-300">蓄力</span>
-                </span>
-              </td>
-              <td class="px-5 py-2.5 num text-slate-400 text-right">14</td>
-            </tr>
-            <!-- Row 9 -->
-            <tr class="trade-row border-b border-white/[0.03]">
-              <td class="px-5 py-2.5 num text-slate-400">04-30</td>
-              <td class="px-4 py-2.5">
-                <span class="text-slate-200 font-medium">688107</span>
-                <span class="text-slate-500 text-[11px] ml-1.5">安路科技</span>
-              </td>
-              <td class="px-3 py-2.5 text-center">
-                <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded" style="color:var(--gain); background:rgba(52,211,153,0.08);">做多</span>
-              </td>
-              <td class="px-4 py-2.5 num text-slate-300 text-right">38.60</td>
-              <td class="px-4 py-2.5 num text-slate-300 text-right">44.80</td>
-              <td class="px-4 py-2.5 num text-right font-semibold" style="color:var(--gain);">+16.1%</td>
-              <td class="px-4 py-2.5">
-                <span class="text-[12px] text-slate-300 px-2 py-0.5 rounded-full" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06);">VCP</span>
-              </td>
-              <td class="px-4 py-2.5">
-                <span class="inline-flex items-center gap-1.5 text-[12px]">
-                  <span class="w-1.5 h-1.5 rounded-full" style="background:var(--mn1-tianshi);"></span>
-                  <span class="text-slate-300">天时</span>
-                </span>
-              </td>
-              <td class="px-5 py-2.5 num text-slate-400 text-right">9</td>
-            </tr>
-            <!-- Row 10 -->
-            <tr class="trade-row">
-              <td class="px-5 py-2.5 num text-slate-400">04-26</td>
-              <td class="px-4 py-2.5">
-                <span class="text-slate-200 font-medium">601012</span>
-                <span class="text-slate-500 text-[11px] ml-1.5">隆基绿能</span>
-              </td>
-              <td class="px-3 py-2.5 text-center">
-                <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded" style="color:var(--gain); background:rgba(52,211,153,0.08);">做多</span>
-              </td>
-              <td class="px-4 py-2.5 num text-slate-300 text-right">24.50</td>
-              <td class="px-4 py-2.5 num text-slate-300 text-right">22.80</td>
-              <td class="px-4 py-2.5 num text-right font-semibold" style="color:var(--loss);">-6.9%</td>
-              <td class="px-4 py-2.5">
-                <span class="text-[12px] text-slate-300 px-2 py-0.5 rounded-full" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06);">布林强盗</span>
-              </td>
-              <td class="px-4 py-2.5">
-                <span class="inline-flex items-center gap-1.5 text-[12px]">
-                  <span class="w-1.5 h-1.5 rounded-full" style="background:var(--mn1-niwei);"></span>
-                  <span class="text-slate-300">逆位</span>
-                </span>
-              </td>
-              <td class="px-5 py-2.5 num text-slate-400 text-right">3</td>
-            </tr>
+            {% endfor %}
           </tbody>
         </table>
       </div>
 
       <!-- Pagination -->
       <div class="flex items-center justify-between px-5 py-2.5 border-t border-white/[0.06]">
-        <span class="text-[12px] text-slate-500">显示 1–10 / 共 247 笔</span>
+        <span class="text-[12px] text-slate-500">显示 1-{{ journal.total if journal.total < 10 else 10 }} / 共 {{ journal.total }} 笔</span>
         <div class="flex items-center gap-1">
-          <button type="button" class="px-2.5 py-1 text-[12px] text-slate-500 rounded border border-white/[0.06] hover:bg-white/[0.03] transition-colors" disabled>上一页</button>
-          <button type="button" class="px-2.5 py-1 text-[12px] text-white rounded font-medium" style="background:rgba(255,255,255,0.06);">1</button>
-          <button type="button" class="px-2.5 py-1 text-[12px] text-slate-400 rounded hover:bg-white/[0.03] transition-colors">2</button>
-          <button type="button" class="px-2.5 py-1 text-[12px] text-slate-400 rounded hover:bg-white/[0.03] transition-colors">3</button>
-          <span class="text-[12px] text-slate-600 px-1">…</span>
-          <button type="button" class="px-2.5 py-1 text-[12px] text-slate-400 rounded hover:bg-white/[0.03] transition-colors">25</button>
-          <button type="button" class="px-2.5 py-1 text-[12px] text-slate-300 rounded border border-white/[0.06] hover:bg-white/[0.03] transition-colors">下一页</button>
+          <button type="button" class="px-2.5 py-1 text-[12px] text-slate-500 rounded border border-white/[0.06] hover:bg-white/[0.03] transition-colors" {% if journal.page <= 1 %}disabled{% endif %}>上一页</button>
+          {% set start_page = [1, journal.page - 2] | max %}
+          {% set end_page = [journal.pages, journal.page + 2] | min %}
+          {% if end_page - start_page < 4 %}
+            {% set start_page = [1, end_page - 4] | max %}
+          {% endif %}
+          {% for p in range(start_page, end_page + 1) %}
+            {% if p == journal.page %}
+              <button type="button" class="px-2.5 py-1 text-[12px] text-white rounded font-medium" style="background:rgba(255,255,255,0.06);">{{ p }}</button>
+            {% else %}
+              <button type="button" class="px-2.5 py-1 text-[12px] text-slate-400 rounded hover:bg-white/[0.03] transition-colors" onclick="location='?page={{ p }}&strategy={{ request.query_params.get('strategy','') }}&state={{ request.query_params.get('state','') }}'">{{ p }}</button>
+            {% endif %}
+          {% endfor %}
+          {% if journal.pages > 5 %}
+            <span class="text-[12px] text-slate-600 px-1">…</span>
+            <button type="button" class="px-2.5 py-1 text-[12px] text-slate-400 rounded hover:bg-white/[0.03] transition-colors" onclick="location='?page={{ journal.pages }}&strategy={{ request.query_params.get('strategy','') }}&state={{ request.query_params.get('state','') }}'">{{ journal.pages }}</button>
+          {% endif %}
+          <button type="button" class="px-2.5 py-1 text-[12px] text-slate-300 rounded border border-white/[0.06] hover:bg-white/[0.03] transition-colors" {% if journal.page >= journal.pages %}disabled{% endif %}>下一页</button>
         </div>
       </div>
     </section>
@@ -440,73 +238,29 @@
           <h3 class="text-[13px] font-semibold text-slate-200">按策略归因</h3>
         </div>
         <div class="p-4 space-y-3">
-          <!-- VCP -->
+          {% for s in journal.stats.by_strategy %}
           <div>
             <div class="flex items-center justify-between mb-1.5">
-              <span class="text-[12px] text-slate-300 font-medium">VCP 突破</span>
+              <span class="text-[12px] text-slate-300 font-medium">{{ s.strategy_label }}</span>
               <div class="flex items-center gap-3">
                 <span class="text-[11px] text-slate-500">胜率</span>
-                <span class="num text-[12px] font-semibold" style="color:var(--gain);">64%</span>
+                <span class="num text-[12px] font-semibold" style="color:{% if s.win_rate >= 60 %}var(--gain){% elif s.win_rate < 45 %}var(--loss){% else %}var(--mn1-xuli){% endif %};">{{ "%.1f"|format(s.win_rate) }}%</span>
               </div>
             </div>
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-3">
-                <span class="num text-[11px] text-slate-500">82 笔</span>
+                <span class="num text-[11px] text-slate-500">{{ s.count }} 笔</span>
               </div>
               <div class="flex items-center gap-3">
                 <span class="text-[11px] text-slate-500">盈亏比</span>
-                <span class="num text-[12px] font-semibold text-slate-200">2.8</span>
-              </div>
-            </div>
-            <!-- Mini bar -->
-            <div class="mt-1.5 h-[3px] rounded-full" style="background:rgba(255,255,255,0.04);">
-              <div class="h-full rounded-full" style="background:var(--gain); opacity:0.6; width:64%;"></div>
-            </div>
-          </div>
-          <!-- MA2560 -->
-          <div>
-            <div class="flex items-center justify-between mb-1.5">
-              <span class="text-[12px] text-slate-300 font-medium">MA2560</span>
-              <div class="flex items-center gap-3">
-                <span class="text-[11px] text-slate-500">胜率</span>
-                <span class="num text-[12px] font-semibold text-slate-200">55%</span>
-              </div>
-            </div>
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <span class="num text-[11px] text-slate-500">98 笔</span>
-              </div>
-              <div class="flex items-center gap-3">
-                <span class="text-[11px] text-slate-500">盈亏比</span>
-                <span class="num text-[12px] font-semibold text-slate-200">1.9</span>
+                <span class="num text-[12px] font-semibold text-slate-200">{{ "%.2f"|format(s.profit_factor) }}</span>
               </div>
             </div>
             <div class="mt-1.5 h-[3px] rounded-full" style="background:rgba(255,255,255,0.04);">
-              <div class="h-full rounded-full" style="background:var(--mn1-dili); opacity:0.6; width:55%;"></div>
+              <div class="h-full rounded-full" style="background:var(--gain); opacity:0.6; width:{{ s.share }}%;"></div>
             </div>
           </div>
-          <!-- Bollinger -->
-          <div>
-            <div class="flex items-center justify-between mb-1.5">
-              <span class="text-[12px] text-slate-300 font-medium">布林强盗</span>
-              <div class="flex items-center gap-3">
-                <span class="text-[11px] text-slate-500">胜率</span>
-                <span class="num text-[12px] font-semibold text-slate-300">48%</span>
-              </div>
-            </div>
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <span class="num text-[11px] text-slate-500">67 笔</span>
-              </div>
-              <div class="flex items-center gap-3">
-                <span class="text-[11px] text-slate-500">盈亏比</span>
-                <span class="num text-[12px] font-semibold text-slate-300">1.5</span>
-              </div>
-            </div>
-            <div class="mt-1.5 h-[3px] rounded-full" style="background:rgba(255,255,255,0.04);">
-              <div class="h-full rounded-full" style="background:var(--mn1-xuli); opacity:0.6; width:48%;"></div>
-            </div>
-          </div>
+          {% endfor %}
         </div>
       </div>
 
@@ -526,72 +280,19 @@
               </tr>
             </thead>
             <tbody>
+              {% for e in journal.stats.by_state %}
               <tr class="border-b border-white/[0.03]">
                 <td class="py-1.5">
                   <span class="inline-flex items-center gap-1.5">
-                    <span class="w-1.5 h-1.5 rounded-full" style="background:var(--mn1-tianshi);"></span>
-                    <span class="text-slate-300">天时</span>
+                    <span class="w-1.5 h-1.5 rounded-full" style="background:{% if e.state_name == '天时' %}var(--mn1-tianshi){% elif e.state_name == '地利' %}var(--mn1-dili){% elif e.state_name == '人和' %}var(--mn1-renhe){% elif e.state_name == '蓄力' %}var(--mn1-xuli){% elif e.state_name == '冬眠' %}var(--mn1-dongmian){% else %}var(--mn1-niwei){% endif %};"></span>
+                    <span class="text-slate-300">{{ e.state_name }}</span>
                   </span>
                 </td>
-                <td class="text-right num text-slate-400">42</td>
-                <td class="text-right num font-semibold" style="color:var(--gain);">68%</td>
-                <td class="text-right num text-slate-200 font-medium">2.8</td>
+                <td class="text-right num text-slate-400">{{ e.count }}</td>
+                <td class="text-right num font-semibold" style="color:{% if e.win_rate >= 60 %}var(--gain){% elif e.win_rate < 45 %}var(--loss){% else %}var(--mn1-xuli){% endif %};">{{ "%.1f"|format(e.win_rate) }}%</td>
+                <td class="text-right num text-slate-200 font-medium">{{ "%.2f"|format(e.profit_factor) }}</td>
               </tr>
-              <tr class="border-b border-white/[0.03]">
-                <td class="py-1.5">
-                  <span class="inline-flex items-center gap-1.5">
-                    <span class="w-1.5 h-1.5 rounded-full" style="background:var(--mn1-dili);"></span>
-                    <span class="text-slate-300">地利</span>
-                  </span>
-                </td>
-                <td class="text-right num text-slate-400">78</td>
-                <td class="text-right num text-slate-200 font-medium">61%</td>
-                <td class="text-right num text-slate-200 font-medium">2.1</td>
-              </tr>
-              <tr class="border-b border-white/[0.03]">
-                <td class="py-1.5">
-                  <span class="inline-flex items-center gap-1.5">
-                    <span class="w-1.5 h-1.5 rounded-full" style="background:var(--mn1-renhe);"></span>
-                    <span class="text-slate-300">人和</span>
-                  </span>
-                </td>
-                <td class="text-right num text-slate-400">51</td>
-                <td class="text-right num text-slate-300">52%</td>
-                <td class="text-right num text-slate-300">1.6</td>
-              </tr>
-              <tr class="border-b border-white/[0.03]">
-                <td class="py-1.5">
-                  <span class="inline-flex items-center gap-1.5">
-                    <span class="w-1.5 h-1.5 rounded-full" style="background:var(--mn1-xuli);"></span>
-                    <span class="text-slate-300">蓄力</span>
-                  </span>
-                </td>
-                <td class="text-right num text-slate-400">38</td>
-                <td class="text-right num text-slate-400">44%</td>
-                <td class="text-right num text-slate-400">1.2</td>
-              </tr>
-              <tr class="border-b border-white/[0.03]">
-                <td class="py-1.5">
-                  <span class="inline-flex items-center gap-1.5">
-                    <span class="w-1.5 h-1.5 rounded-full" style="background:var(--mn1-dongmian);"></span>
-                    <span class="text-slate-400">冬眠</span>
-                  </span>
-                </td>
-                <td class="text-right num text-slate-500">15</td>
-                <td class="text-right num text-slate-500">20%</td>
-                <td class="text-right num" style="color:var(--loss);">0.5</td>
-              </tr>
-              <tr>
-                <td class="py-1.5">
-                  <span class="inline-flex items-center gap-1.5">
-                    <span class="w-1.5 h-1.5 rounded-full" style="background:var(--mn1-niwei);"></span>
-                    <span class="text-slate-400">逆位</span>
-                  </span>
-                </td>
-                <td class="text-right num text-slate-500">23</td>
-                <td class="text-right num text-slate-500">26%</td>
-                <td class="text-right num" style="color:var(--loss);">0.7</td>
-              </tr>
+              {% endfor %}
             </tbody>
           </table>
         </div>
@@ -602,33 +303,10 @@
         <div class="px-4 py-3 border-b border-white/[0.06]">
           <h3 class="text-[13px] font-semibold text-slate-200">归因结论</h3>
         </div>
-        <div class="p-4 space-y-4">
-          <!-- Insight 1 -->
+        <div class="p-4 space-y-3">
           <div class="flex items-start gap-3">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-slate-500 mt-0.5 shrink-0"><path d="M3 3v18h18"/><path d="M7 16l4-8 4 4 5-9"/></svg>
-            <p class="text-[12.5px] text-slate-300 leading-relaxed">
-              你在<strong class="text-slate-100 font-semibold">天时共振</strong>下做的 <strong class="text-slate-100 font-semibold">VCP</strong> 胜率最高（<span class="num" style="color:var(--gain);">68%</span>），盈亏比达 <span class="num text-slate-100 font-semibold">2.8</span>。这是你最有效的组合。
-            </p>
-          </div>
-          <!-- Insight 2 -->
-          <div class="flex items-start gap-3">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-slate-500 mt-0.5 shrink-0"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
-            <p class="text-[12.5px] text-slate-300 leading-relaxed">
-              <strong class="text-slate-100 font-semibold">逆位</strong>和<strong class="text-slate-100 font-semibold">冬眠</strong>环境下的操作全部亏损，共 <span class="num text-slate-100">38</span> 笔，平均亏损 <span class="num" style="color:var(--loss);">-4.8%</span>。建议停止在这两种环境下交易。
-            </p>
-          </div>
-          <!-- Insight 3 -->
-          <div class="flex items-start gap-3">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-slate-500 mt-0.5 shrink-0"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-            <p class="text-[12.5px] text-slate-300 leading-relaxed">
-              <strong class="text-slate-100 font-semibold">布林强盗</strong>策略整体胜率低于 <span class="num text-slate-200">50%</span>，但在地利环境下表现尚可（<span class="num text-slate-200">57%</span>）。考虑增加环境过滤条件。
-            </p>
-          </div>
-          <!-- Recommendation -->
-          <div class="mt-2 p-3 rounded-md" style="background:rgba(52,211,153,0.04); border:1px solid rgba(52,211,153,0.1);">
-            <p class="text-[11.5px] text-slate-400 leading-relaxed">
-              <span class="font-semibold text-slate-300">建议</span>：将交易权限收缩至天时 + 地利环境，仅执行 VCP 和 MA2560 策略，预计可将总胜率从 58% 提升至 65% 以上。
-            </p>
+            <p class="text-[12.5px] text-slate-300 leading-relaxed">{{ journal.stats.insight }}</p>
           </div>
         </div>
       </div>
@@ -648,7 +326,7 @@
         </button>
       </div>
       <!-- Modal Body -->
-      <form class="p-5 space-y-4" onsubmit="return false;">
+      <form id="tradeForm" action="/api/journal/add" method="post" class="p-5 space-y-4" onsubmit="return false;">
         <div class="grid grid-cols-2 gap-3.5">
           <div>
             <label for="stockCode" class="block text-[11px] font-medium text-slate-400 tracking-wider uppercase mb-1.5">股票代码</label>
@@ -673,7 +351,6 @@
               <option>VCP 突破</option>
               <option>MA2560</option>
               <option>布林强盗</option>
-              <option>自定义</option>
             </select>
           </div>
         </div>
@@ -698,20 +375,43 @@
         <!-- Actions -->
         <div class="flex items-center justify-end gap-2.5 pt-1">
           <button type="button" onclick="document.getElementById('tradeModal').classList.remove('open')" class="px-3.5 py-2 text-[13px] font-medium text-slate-400 rounded-md border border-white/[0.08] hover:bg-white/[0.03] transition-colors">取消</button>
-          <button type="submit" class="px-4 py-2 text-[13px] font-medium text-white rounded-md transition-colors" style="background:#3b82f6;">保存记录</button>
+          <button type="button" id="saveTrade" class="px-4 py-2 text-[13px] font-medium text-white rounded-md transition-colors" style="background:#3b82f6;">保存记录</button>
         </div>
       </form>
     </div>
   </div>
 
   <script>
-    // Close modal on overlay click
     document.getElementById('tradeModal').addEventListener('click', function(e) {
       if (e.target === this) this.classList.remove('open');
     });
-    // Close modal on Escape
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') document.getElementById('tradeModal').classList.remove('open');
+    });
+
+    document.getElementById('saveTrade').addEventListener('click', function() {
+      const payload = {
+        stock_code: document.getElementById('stockCode').value,
+        stock_name: document.getElementById('stockName').value,
+        direction: document.getElementById('direction').value,
+        entry_price: parseFloat(document.getElementById('entryPrice').value),
+        exit_price: document.getElementById('exitPrice').value ? parseFloat(document.getElementById('exitPrice').value) : undefined,
+        strategy_id: document.getElementById('strategy').value,
+        stop_loss: document.getElementById('stopLoss').value ? parseFloat(document.getElementById('stopLoss').value) : undefined,
+        note: document.getElementById('tradeNote').value,
+      };
+      fetch('/api/journal/add', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload),
+      }).then(r => r.json()).then(data => {
+        if (data.ok) {
+          document.getElementById('tradeModal').classList.remove('open');
+          location.reload();
+        } else {
+          alert(data.error || '保存失败');
+        }
+      });
     });
   </script>
 
