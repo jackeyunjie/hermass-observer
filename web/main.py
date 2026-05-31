@@ -2766,32 +2766,38 @@ def _enhance_result_defaults(
 
 
 def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
-    """通过 Agently 统一问答服务层（qa_service）获取 LLM 增强回答。
+    """通过 Agently 场景化多 Agent 编排获取 LLM 增强回答。
 
-    2026-05-30 整改后：不再让 web/main.py 直接猜测式调 agent，
-    而是通过 agently_adapter.qa_service 统一封装调用。
+    2026-05-31 升级：从单 Agent qa_ask 升级到场景化多 Agent 链（qa_entry.handle）。
+    web/main.py 只负责构造上下文和转发，所有路由、编排、融合都在 agently_adapter 层完成。
     """
     if not _should_use_managed_llm(query):
         return None
 
     try:
-        from agently_adapter.qa_service import qa_ask
+        from agently_adapter.qa_entry import handle
     except Exception:
         return None
 
     msg = query.message.strip().lower()
 
-    if _is_value_question(msg):
-        code = _chat_stock_code(query) or "000021.SZ"
-        return qa_ask("value_research", {"code": code})
+    context = {
+        "user_type": "执行型",
+        "current_page": query.page_context or "",
+        "symbol": query.stock_code or _chat_stock_code(query) or "",
+        "mode": query.mode or "chat",
+    }
 
+    # 按需预取数据注入上下文（场景编排会消费）
+    if _is_market_question(msg) or _is_industry_question(msg) or _is_value_question(msg):
+        context["market_data"] = _market_analysis_data()
     if _is_industry_question(msg):
-        return qa_ask("industry", _industry_rotation_data())
+        context["industry_distribution"] = _industry_rotation_data()
+    if _is_value_question(msg):
+        context["stock_states"] = {}
+        context["ef_count"] = 0
 
-    if _is_market_question(msg):
-        return qa_ask("market", _market_analysis_data())
-
-    return None
+    return handle(query.message, context)
 
 
 def _llm_required_failure_response(query: ChatQuery) -> dict[str, Any] | None:
