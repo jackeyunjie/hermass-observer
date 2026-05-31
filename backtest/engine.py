@@ -17,7 +17,9 @@ from backtest.config import BacktestConfig, TradeRecord, DailySnapshot
 from backtest.portfolio import Portfolio
 from backtest.strategy import generate_signals, Signal
 from backtest.metrics import calculate_metrics, compare_to_benchmark
-from backtest.strategy_signals.bollinger_bandit import bollinger_bandit_exit_signal, exit_ma_period
+from backtest.strategy_signals.bollinger_bandit import bollinger_bandit_exit_signal, exit_ma_period, bollinger_bandit_signal
+from backtest.strategy_signals.vcp import vcp_signal
+from backtest.strategy_signals.ma2560 import ma2560_signal
 
 
 ROOT = Path(__file__).resolve().parents[1]

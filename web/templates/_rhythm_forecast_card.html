@@ -1,0 +1,68 @@
+{# ─── 节奏预告卡片 ─────────────────────────────────────── #}
+{# 用法: {% include '_rhythm_forecast_card.html' %}          #}
+{# 数据: rhythm_forecast.phases (list of phase dicts)        #}
+{#       rhythm_forecast.hint (统计提示文案)                   #}
+{#       rhythm_forecast.date (数据日期)                      #}
+
+<section data-component="Rhythm Forecast" class="rounded-lg overflow-hidden" style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06);">
+
+  <div class="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.05]">
+    <div class="flex items-center gap-2">
+      <h3 class="text-[13px] font-semibold text-slate-200 tracking-wide">节奏预告</h3>
+      <span class="text-[11px] text-slate-500 num">全市场分布</span>
+    </div>
+    <span class="text-[11px] text-slate-500 num">{{ rhythm_forecast.date | default('05-31 收盘') }}</span>
+  </div>
+
+  <div class="px-4 pt-3.5 pb-2">
+    <div class="grid grid-cols-6 gap-2">
+      {% for phase in rhythm_forecast.phases | default([
+        {'name': '生长季', 'emoji': '🌱', 'pct': 4, 'color': '#22c55e', 'dominant': false},
+        {'name': '秋收期', 'emoji': '🌾', 'pct': 4, 'color': '#F39C12', 'dominant': false},
+        {'name': '破土期', 'emoji': '🌿', 'pct': 2, 'color': '#F1C40F', 'dominant': false},
+        {'name': '萌芽期', 'emoji': '🫘', 'pct': 0, 'color': '#3498DB', 'dominant': false},
+        {'name': '冬藏期', 'emoji': '❄️', 'pct': 0.5, 'color': '#95A5A6', 'dominant': false},
+        {'name': '逆风期', 'emoji': '🌪', 'pct': 72, 'color': '#9B59B6', 'dominant': true},
+      ]) %}
+      <div class="flex flex-col items-center gap-1.5">
+        <span class="text-[16px] leading-none" role="img" aria-label="{{ phase.name }}">{{ phase.emoji }}</span>
+        <span class="num text-[15px] font-semibold {{ 'text-slate-100' if not phase.dominant else '' }}"
+              {% if phase.dominant %}style="color:{{ phase.color }};"{% elif phase.pct == 0 %}class="text-slate-400"{% endif %}>
+          {{ phase.pct }}%
+        </span>
+        <span class="text-[10px] {{ 'text-slate-400' if phase.dominant else 'text-slate-500' }} font-medium">{{ phase.name }}</span>
+        <div class="w-full h-[3px] rounded-full" style="background:rgba(255,255,255,0.04);">
+          <div class="h-full rounded-full" style="background:{{ phase.color }}; opacity:{{ 0.8 if phase.dominant else 0.7 if phase.pct > 0 else 0.5 }}; width:{{ phase.pct }}%;{% if phase.pct > 0 and phase.pct < 3 %} min-width:3px;{% endif %}"></div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="px-4 pb-3">
+    <div class="flex h-[5px] rounded-full overflow-hidden" style="background:rgba(255,255,255,0.03);">
+      {% for phase in rhythm_forecast.phases | default([
+        {'pct': 4, 'color': '#22c55e'},
+        {'pct': 4, 'color': '#F39C12'},
+        {'pct': 2, 'color': '#F1C40F'},
+        {'pct': 0, 'color': '#3498DB'},
+        {'pct': 0.5, 'color': '#95A5A6'},
+        {'pct': 72, 'color': '#9B59B6'},
+      ]) %}
+      {% if phase.pct > 0 %}
+      <div style="width:{{ phase.pct }}%; background:{{ phase.color }}; opacity:0.7;"></div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="px-4 py-2.5 border-t border-white/[0.05]" style="background:rgba(255,255,255,0.01);">
+    <div class="flex items-start gap-2">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-slate-500 mt-[1px] shrink-0"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="8" rx="0.5"/><rect x="14" y="6" width="3" height="12" rx="0.5"/></svg>
+      <p class="text-[12px] text-slate-400 leading-relaxed">
+        {{ rhythm_forecast.hint | default('当前 <span class="num text-slate-200 font-medium">72%</span> 逆风期 — 历史上类似分布的次日有 <span class="num text-slate-200 font-medium">58%</span> 概率至少一半股票止跌。<span class="text-slate-500">但这不意味着可以追涨，仍需等待破土确认。</span>') | safe }}
+      </p>
+    </div>
+  </div>
+
+</section>

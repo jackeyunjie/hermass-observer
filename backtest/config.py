@@ -34,7 +34,7 @@ class BacktestConfig:
     require_volume_confirm: bool = True   # 突破需要放量确认
     volume_ratio_threshold: float = 1.5   # 量比阈值
     require_trend_align: bool = False     # 是否要求大盘趋势一致
-    strategy_name: str = "ef"             # ef | composite
+    strategy_name: str = "ef"             # ef | vcp | ma2560 | bollinger_bandit | composite
     composite_score_floor: float = 60.0   # 复合策略最低原始质量分
     enable_bollinger_bandit_exit: bool = True
 
