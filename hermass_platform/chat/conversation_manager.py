@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
 
+from hermass_platform.chat.conversation_store import ConversationStore
+
 
 @dataclass
 class Turn:
@@ -23,7 +25,7 @@ class Session:
     turns: list[Turn] = field(default_factory=list)
     context: dict = field(default_factory=dict)
     max_turns: int = 20
-    ttl_seconds: int = 1800
+    ttl_seconds: int = 86400
 
     def add_turn(self, role: str, message: str, intent: str = "", agent: str = ""):
         now = datetime.now(timezone.utc).isoformat()
@@ -79,9 +81,10 @@ class Session:
 
 
 class ConversationManager:
-    def __init__(self, ttl_seconds: int = 1800):
+    def __init__(self, ttl_seconds: int = 86400):
         self._sessions: dict[str, Session] = {}
         self._ttl_seconds = ttl_seconds
+        self._store = ConversationStore()
 
     def create_session(self, user_id: str) -> Session:
         session_id = f"conv_{user_id}_{uuid.uuid4().hex[:8]}"
@@ -94,16 +97,40 @@ class ConversationManager:
             ttl_seconds=self._ttl_seconds,
         )
         self._sessions[session_id] = session
+        self._store.save_session(session.session_id, session.user_id, session.created_at, session.last_active)
         self._gc()
         return session
 
     def get_session(self, session_id: str) -> Optional[Session]:
         session = self._sessions.get(session_id)
-        if session is None:
+        if session is not None:
+            if session.is_expired():
+                del self._sessions[session_id]
+                self._store.delete_session(session_id)
+                return None
+            return session
+
+        data = self._store.load_session(session_id)
+        if data is None:
             return None
+
+        session = Session(
+            session_id=data["session_id"],
+            user_id=data["user_id"],
+            created_at=data["created_at"],
+            last_active=data["last_active"],
+            ttl_seconds=self._ttl_seconds,
+        )
+        for t in data["turns"]:
+            session.turns.append(Turn(**t))
+            for key, value in session._extract_context(t["message"], t["role"], t["intent"]):
+                session.context[key] = value
+
         if session.is_expired():
-            del self._sessions[session_id]
+            self._store.delete_session(session_id)
             return None
+
+        self._sessions[session_id] = session
         return session
 
     def get_or_create(self, user_id: str, session_id: str | None = None) -> Session:
@@ -125,6 +152,7 @@ class ConversationManager:
         if session is None:
             return
         session.add_turn(role, message, intent, agent)
+        self._store.add_turn(session_id, role, message, intent, agent)
 
     def get_context(self, session_id: str) -> dict:
         session = self.get_session(session_id)
@@ -134,14 +162,13 @@ class ConversationManager:
 
     def end_session(self, session_id: str):
         self._sessions.pop(session_id, None)
+        self._store.delete_session(session_id)
 
     def _gc(self):
-        if len(self._sessions) > 1000:
-            expired = [
-                sid for sid, s in self._sessions.items()
-                if s.is_expired()
-            ]
-            for sid in expired:
+        if len(self._sessions) > 100:
+            sorted_sessions = sorted(self._sessions.items(), key=lambda item: item[1].last_active)
+            to_evict = len(self._sessions) - 100
+            for sid, _ in sorted_sessions[:to_evict]:
                 del self._sessions[sid]
 
     @property

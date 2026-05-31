@@ -254,7 +254,7 @@ def _record_research_event(user_id: str, user_message: str) -> None:
     )
 
 
-def _dispatch_agent(user_id: str, intent: str, user_message: str, foundation_db: str) -> str:
+def _dispatch_agent(user_id: str, intent: str, user_message: str, foundation_db: str, session_id: str = "") -> str:
     config = INTENT_AGENT_METHODS.get(intent)
     if config is None:
         return "抱歉，我暂时无法处理这个请求。你可以试试问我：市场环境、策略适配、我的画像、交易知识等。"
@@ -305,6 +305,7 @@ def _dispatch_agent(user_id: str, intent: str, user_message: str, foundation_db:
             else:
                 kwargs["stock_code"] = "000001.SZ"
 
+        kwargs["recent_turns"] = get_conversation_manager().get_context(session_id).get("recent_turns", [])
         result = func(**kwargs)
 
         if isinstance(result, dict) and result.get("status") == "ok":
@@ -424,7 +425,7 @@ def handle_lark_message(
         payload={"message": user_message[:200], "intent": intent, "agent": agent_name},
     ))
 
-    response_text = _dispatch_agent(user_id, intent, user_message, foundation_db)
+    response_text = _dispatch_agent(user_id, intent, user_message, foundation_db, session.session_id)
 
     from hermass_platform.chat.response_enricher import enrich_stock_response, enrich_market_response
     if intent in ("signal_explore", "exit_rule") and foundation_db:
