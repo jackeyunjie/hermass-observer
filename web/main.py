@@ -2348,6 +2348,21 @@ def backtest_run(
     )
 
 
+@app.get("/mystrategies", response_class=HTMLResponse)
+def mystrategies_page(request: Request) -> HTMLResponse:
+    """策略编辑器页面 —— Phase 1：条件块 UI + 即时预览。"""
+    profile = get_current_profile(request)
+    return templates.TemplateResponse(
+        request,
+        "mystrategies.html",
+        {
+            "request": request,
+            "today": str(date.today()),
+            "current_user": profile,
+        },
+    )
+
+
 # ─── AI 助手接口 ─────────────────────────────────────
 
 
@@ -3376,6 +3391,107 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
         "remembered_email": _chat_email(query),
         "mode_used": mode,
     }
+
+
+@app.post("/api/strategy/preview")
+def strategy_preview(request: Request, payload: dict[str, Any] | None = None) -> JSONResponse:
+    """即时预览：基于 daily_snapshot 计算条件命中数，不连 DuckDB，<50ms。"""
+    if payload is None:
+        payload = {}
+    entry_conditions = payload.get("conditions", [])
+    filter_conditions = payload.get("filters", [])
+    exit_conditions = payload.get("exit_conditions", [])
+
+    snapshot = _latest_daily_snapshot()
+    stocks = snapshot.get("stocks", [])
+    total = len(stocks)
+    today = snapshot.get("date", str(date.today()))
+
+    entry_hits = _count_hits(stocks, entry_conditions)
+    filtered_hits = _count_hits(stocks, entry_conditions + filter_conditions)
+    all_hits = _count_hits(stocks, entry_conditions + filter_conditions + exit_conditions)
+
+    return JSONResponse(content={
+        "date": today,
+        "total": total,
+        "entry_hits": entry_hits,
+        "filtered_hits": filtered_hits,
+        "all_hits": all_hits,
+    })
+
+
+def _latest_daily_snapshot() -> dict[str, Any]:
+    snap_dir = ROOT / "outputs" / "daily_snapshot"
+    files = sorted(snap_dir.glob("daily_snapshot_*.json"))
+    if not files:
+        return {}
+    try:
+        return json.loads(files[-1].read_text())
+    except Exception:
+        return {}
+
+
+def _count_hits(stocks: list[dict[str, Any]], conditions: list[dict[str, Any]]) -> int:
+    return sum(1 for s in stocks if _matches_all(s, conditions))
+
+
+def _matches_all(stock: dict[str, Any], conditions: list[dict[str, Any]]) -> bool:
+    return all(_matches(stock, c) for c in conditions)
+
+
+def _matches(stock: dict[str, Any], condition: dict[str, Any]) -> bool:
+    t = condition.get("type")
+    if t == "ef_count":
+        ef = stock.get("ef", 0)
+        compare = condition.get("compare", ">=")
+        value = int(condition.get("value", 0))
+        if compare == ">=":
+            return ef >= value
+        if compare == ">":
+            return ef > value
+        if compare == "==":
+            return ef == value
+        if compare == "<=":
+            return ef <= value
+        if compare == "<":
+            return ef < value
+        return False
+    if t == "state_filter":
+        values = condition.get("values", [])
+        if not values:
+            return True
+        target = condition.get("target", "d1")
+        hex_idx = {"mn1": 0, "w1": 1, "d1": 2}
+        idx = hex_idx.get(target, 2)
+        stock_hex = stock.get("hex", ["", "", ""])
+        return idx < len(stock_hex) and stock_hex[idx] in values
+    if t == "price_cross":
+        direction = condition.get("direction", "above")
+        ma_period = int(condition.get("ma_period", 20))
+        p = stock.get("p", 0) or 0
+        sr = stock.get("sr", {})
+        level = sr.get("w" if ma_period >= 50 else "d", [0, 0])
+        if not level or len(level) < 2:
+            return False
+        support, resistance = level[0], level[1]
+        if support is None or resistance is None:
+            return False
+        if direction == "above":
+            return p > resistance
+        return p < support
+    if t == "volume_ratio":
+        # daily_snapshot 无原始成交量，暂不支持即时预览
+        return False
+    if t == "industry_filter":
+        # daily_snapshot 无行业数据，暂不支持即时预览
+        return False
+    if t == "price_change":
+        # daily_snapshot 无涨跌幅数据，暂不支持即时预览
+        return False
+    if t == "stop_loss":
+        # 需要入场价，daily_snapshot 不支持
+        return False
+    return True
 
 
 @app.post("/api/chat/query")

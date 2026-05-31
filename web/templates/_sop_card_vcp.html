@@ -1,0 +1,117 @@
+<!--
+  VCP 策略 SOP 卡片
+  用法: {% include '_sop_card_vcp.html' %}
+  或带参数: {% with strategy_fit='最佳适配' %}{% include '_sop_card_vcp.html' %}{% endwith %}
+-->
+{% set fit = strategy_fit|default('待观察') %}
+{% set fit_class = 'fit-best' if fit == '最佳适配' else ('fit-watch' if fit == '待观察' else 'fit-weak') %}
+
+<div class="sop-card sop-vcp">
+  <div class="sop-header">
+    <div class="sop-title-group">
+      <h3 class="sop-name">VCP 收缩释放</h3>
+      <span class="sop-badge {{ fit_class }}">{{ fit }}</span>
+    </div>
+    <span class="sop-tag">波动率收缩路径</span>
+  </div>
+
+  <div class="sop-body">
+    <!-- 入场条件 -->
+    <details class="sop-section" open>
+      <summary class="sop-section-title">
+        <span class="sop-dot dot-entry"></span>入场条件
+      </summary>
+      <div class="sop-checklist">
+        <div class="sop-check-item">
+          <span class="check-num">1</span>
+          <span class="check-text">波幅收缩：近期波动率逐步收窄，ATR 处于历史低位</span>
+        </div>
+        <div class="sop-check-item">
+          <span class="check-num">2</span>
+          <span class="check-text">量能枯竭：收缩区间内成交量递减，呈现"蓄力"特征</span>
+        </div>
+        <div class="sop-check-item">
+          <span class="check-num">3</span>
+          <span class="check-text">突破确认：收盘价突破收缩区间上沿 + 成交量 ≥ 1.5×20日均量</span>
+        </div>
+        <div class="sop-check-item sop-note">
+          <span class="check-num note">注</span>
+          <span class="check-text">涨停突破直接拒绝；T+1 次日开盘价执行</span>
+        </div>
+      </div>
+    </details>
+
+    <!-- 止损规则 -->
+    <details class="sop-section">
+      <summary class="sop-section-title">
+        <span class="sop-dot dot-stop"></span>止损规则
+      </summary>
+      <div class="sop-rules">
+        <div class="sop-rule-row">
+          <span class="rule-label">硬止损</span>
+          <span class="rule-value">入场价 -6%</span>
+        </div>
+        <div class="sop-rule-row">
+          <span class="rule-label">技术止损</span>
+          <span class="rule-value">最近收缩低点 × 0.99</span>
+        </div>
+        <div class="sop-rule-row">
+          <span class="rule-label">ATR 止损</span>
+          <span class="rule-value">入场价 - 2×ATR</span>
+        </div>
+        <div class="sop-rule-row priority">
+          <span class="rule-label">优先级</span>
+          <span class="rule-value">假突破 → 硬止损 → ATR止损 → 技术止损</span>
+        </div>
+      </div>
+    </details>
+
+    <!-- 退出规则 -->
+    <details class="sop-section">
+      <summary class="sop-section-title">
+        <span class="sop-dot dot-exit"></span>退出规则
+      </summary>
+      <div class="sop-rules">
+        <div class="sop-rule-row">
+          <span class="rule-label">假突破</span>
+          <span class="rule-value">3日内收盘 &lt; 突破点，立即离场</span>
+        </div>
+        <div class="sop-rule-row">
+          <span class="rule-label">时间退出</span>
+          <span class="rule-value">持仓 &gt; 20 日且盈利 &lt; 5%</span>
+        </div>
+        <div class="sop-rule-row">
+          <span class="rule-label">移动止损</span>
+          <span class="rule-value">最高价 ≥ 入场价 +5% 后，回吐至成本价离场</span>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <div class="sop-footer">
+    <div class="sop-stats">
+      <div class="stat-item">
+        <span class="stat-label">胜率</span>
+        <span class="stat-value">52.3%</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">盈亏比</span>
+        <span class="stat-value">1.8:1</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">最优环境</span>
+        <span class="stat-value">C/D 环境 + 收缩蓄力</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+/* ── VCP SOP 卡片样式（蓝色系）── */
+.sop-card.sop-vcp {
+  --sop-primary: #2563eb;
+  --sop-primary-soft: rgba(37, 99, 235, 0.08);
+  --sop-primary-medium: rgba(37, 99, 235, 0.15);
+  --sop-primary-text: #1d4ed8;
+}
+</style>

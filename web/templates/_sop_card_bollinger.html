@@ -1,0 +1,117 @@
+<!--
+  布林强盗策略 SOP 卡片
+  用法: {% include '_sop_card_bollinger.html' %}
+  或带参数: {% with strategy_fit='最佳适配' %}{% include '_sop_card_bollinger.html' %}{% endwith %}
+-->
+{% set fit = strategy_fit|default('待观察') %}
+{% set fit_class = 'fit-best' if fit == '最佳适配' else ('fit-watch' if fit == '待观察' else 'fit-weak') %}
+
+<div class="sop-card sop-bollinger">
+  <div class="sop-header">
+    <div class="sop-title-group">
+      <h3 class="sop-name">布林强盗</h3>
+      <span class="sop-badge {{ fit_class }}">{{ fit }}</span>
+    </div>
+    <span class="sop-tag">波动扩张路径</span>
+  </div>
+
+  <div class="sop-body">
+    <!-- 入场条件 -->
+    <details class="sop-section" open>
+      <summary class="sop-section-title">
+        <span class="sop-dot dot-entry"></span>入场条件
+      </summary>
+      <div class="sop-checklist">
+        <div class="sop-check-item">
+          <span class="check-num">1</span>
+          <span class="check-text">突破上轨：收盘价突破布林带上轨（50日MA + 1σ）</span>
+        </div>
+        <div class="sop-check-item">
+          <span class="check-num">2</span>
+          <span class="check-text">动量确认：上影线 &lt; 实体×2，非毛刺行情</span>
+        </div>
+        <div class="sop-check-item">
+          <span class="check-num">3</span>
+          <span class="check-text">量能分级：成交量 ≥ 1.2×20日均量（A级），≥ 2.0×为S级</span>
+        </div>
+        <div class="sop-check-item sop-note">
+          <span class="check-num note">注</span>
+          <span class="check-text">涨停突破拒绝；上影线&gt;实体2倍且振幅&gt;8%直接过滤；T+1执行</span>
+        </div>
+      </div>
+    </details>
+
+    <!-- 止损规则 -->
+    <details class="sop-section">
+      <summary class="sop-section-title">
+        <span class="sop-dot dot-stop"></span>止损规则
+      </summary>
+      <div class="sop-rules">
+        <div class="sop-rule-row">
+          <span class="rule-label">递减均线</span>
+          <span class="rule-value">Day1: MA50 → Day2: MA49 → ... → Day41+: MA10</span>
+        </div>
+        <div class="sop-rule-row">
+          <span class="rule-label">中轨跌破</span>
+          <span class="rule-value">收盘价 &lt; 50日SMA（布林带中轨），趋势反转清仓</span>
+        </div>
+        <div class="sop-rule-row">
+          <span class="rule-label">波动率异常</span>
+          <span class="rule-value">当前 ATR &gt; 2×入场ATR，减仓 50%</span>
+        </div>
+        <div class="sop-rule-row priority">
+          <span class="rule-label">优先级</span>
+          <span class="rule-value">ATR异常 → 中轨跌破 → 递减均线 → 上轨回落</span>
+        </div>
+      </div>
+    </details>
+
+    <!-- 退出规则 -->
+    <details class="sop-section">
+      <summary class="sop-section-title">
+        <span class="sop-dot dot-exit"></span>退出规则
+      </summary>
+      <div class="sop-rules">
+        <div class="sop-rule-row">
+          <span class="rule-label">假突破</span>
+          <span class="rule-value">T+1 收盘 &lt; 信号日最低，或涨停次日低开 &gt;3%</span>
+        </div>
+        <div class="sop-rule-row">
+          <span class="rule-label">上轨回落</span>
+          <span class="rule-value">曾突破上轨后回落至下轨下方，减仓 50%</span>
+        </div>
+        <div class="sop-rule-row">
+          <span class="rule-label">时间退出</span>
+          <span class="rule-value">持仓 &gt; 10 日且盈利 &lt; 5%</span>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <div class="sop-footer">
+    <div class="sop-stats">
+      <div class="stat-item">
+        <span class="stat-label">胜率</span>
+        <span class="stat-value">45.1%</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">盈亏比</span>
+        <span class="stat-value">1.9:1</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">最优环境</span>
+        <span class="stat-value">B/C 环境 + 波动扩张初期</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+/* ── 布林强盗 SOP 卡片样式（橙色系）── */
+.sop-card.sop-bollinger {
+  --sop-primary: #d97706;
+  --sop-primary-soft: rgba(217, 119, 6, 0.08);
+  --sop-primary-medium: rgba(217, 119, 6, 0.15);
+  --sop-primary-text: #b45309;
+}
+</style>

@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hermass 策略编辑器</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <style>
+    .editor-wrap { display: none; }
+    .editor-wrap.open { display: block; }
+    .cond-block { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 16px 20px; margin-bottom: 14px; }
+    .cond-block h3 { display: flex; justify-content: space-between; align-items: center; }
+    .cond-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 8px 0; padding: 10px 12px; background: #f7f8f5; border-radius: 8px; }
+    .cond-row select, .cond-row input { padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; font-size: 14px; }
+    .cond-row button.del { background: none; border: none; color: var(--bad); cursor: pointer; font-size: 18px; margin-left: auto; }
+    .btn { padding: 8px 18px; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
+    .btn-primary { background: var(--good); color: #fff; }
+    .btn-secondary { background: var(--line); color: var(--ink); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .preview-panel { position: sticky; top: 20px; }
+    .preview-num { font-size: 28px; font-weight: 700; color: var(--good); }
+    .preview-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .add-cond-bar { display: flex; gap: 8px; margin-top: 10px; }
+    .cond-type-select { padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; }
+    .strategy-name { width: 100%; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; margin-bottom: 16px; }
+    .two-col { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+    @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">Hermass 策略实验室</p>
+      <h1>我的策略</h1>
+    </div>
+    <div class="date">
+      <a href="/">首页</a>
+      <a href="/watchlist">执行观察</a>
+      <a href="/backtest">回测</a>
+      <span>{{ today }}</span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel span-2" style="display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <h2>已保存的策略</h2>
+        <p class="muted">Phase 3 支持保存与加载</p>
+      </div>
+      <button class="btn btn-primary" onclick="toggleEditor()">+ 新建策略</button>
+    </section>
+
+    <div class="editor-wrap span-2 open" id="editorWrap">
+      <div class="two-col">
+        <div>
+          <input type="text" class="strategy-name" id="strategyName" placeholder="策略名称（如：VCP 突破法）" />
+
+          <div class="cond-block">
+            <h3>入场条件 <span class="muted" style="font-size:12px;font-weight:400;">满足即产生信号</span></h3>
+            <div id="entryBlocks"></div>
+            <div class="add-cond-bar">
+              <select class="cond-type-select" id="entryTypeSelect">
+                <option value="">+ 添加条件</option>
+                <option value="price_cross">价格突破</option>
+                <option value="volume_ratio">成交量</option>
+                <option value="ef_count">State（ef_count）</option>
+                <option value="state_filter">单周期 State</option>
+                <option value="industry_filter">行业过滤</option>
+                <option value="price_change">涨跌幅</option>
+              </select>
+              <button class="btn btn-secondary" onclick="addCondition('entry')">添加</button>
+            </div>
+          </div>
+
+          <div class="cond-block">
+            <h3>过滤条件 <span class="muted" style="font-size:12px;font-weight:400;">进一步缩小范围</span></h3>
+            <div id="filterBlocks"></div>
+            <div class="add-cond-bar">
+              <select class="cond-type-select" id="filterTypeSelect">
+                <option value="">+ 添加条件</option>
+                <option value="price_cross">价格突破</option>
+                <option value="volume_ratio">成交量</option>
+                <option value="ef_count">State（ef_count）</option>
+                <option value="state_filter">单周期 State</option>
+                <option value="industry_filter">行业过滤</option>
+                <option value="price_change">涨跌幅</option>
+              </select>
+              <button class="btn btn-secondary" onclick="addCondition('filter')">添加</button>
+            </div>
+          </div>
+
+          <div class="cond-block">
+            <h3>退出条件 <span class="muted" style="font-size:12px;font-weight:400;">触发即平仓</span></h3>
+            <div id="exitBlocks"></div>
+            <div class="add-cond-bar">
+              <select class="cond-type-select" id="exitTypeSelect">
+                <option value="">+ 添加条件</option>
+                <option value="price_cross">价格突破</option>
+                <option value="stop_loss">止损止盈</option>
+                <option value="state_filter">单周期 State</option>
+              </select>
+              <button class="btn btn-secondary" onclick="addCondition('exit')">添加</button>
+            </div>
+          </div>
+
+          <button class="btn btn-primary" disabled title="Phase 2 实现">▶ 运行回测（预计 30 秒）</button>
+        </div>
+
+        <div class="panel preview-panel">
+          <div class="panel-head"><h2>即时预览</h2></div>
+          <div class="preview-row">
+            <span>当前全市场</span>
+            <span class="preview-num" id="pTotal">—</span>
+          </div>
+          <div class="preview-row">
+            <span>入场条件满足</span>
+            <span class="preview-num" id="pEntry">—</span>
+          </div>
+          <div class="preview-row">
+            <span>入场+过滤满足</span>
+            <span class="preview-num" id="pFilter">—</span>
+          </div>
+          <div class="preview-row">
+            <span>全部条件满足</span>
+            <span class="preview-num" id="pAll">—</span>
+          </div>
+          <p class="muted" style="margin-top:12px;font-size:12px;">基于最新 daily_snapshot 计算，50ms 内返回。</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    let condId = 0;
+    const conditions = { entry: [], filter: [], exit: [] };
+
+    function toggleEditor() {
+      const w = document.getElementById('editorWrap');
+      w.classList.toggle('open');
+    }
+
+    function addCondition(bucket) {
+      const sel = document.getElementById(bucket + 'TypeSelect');
+      const type = sel.value;
+      if (!type) return;
+      sel.value = '';
+      const id = 'c' + (++condId);
+      const block = { id, type, bucket };
+      conditions[bucket].push(block);
+      renderCondition(block);
+      requestPreview();
+    }
+
+    function removeCondition(id) {
+      for (const b of ['entry','filter','exit']) {
+        conditions[b] = conditions[b].filter(c => c.id !== id);
+      }
+      const el = document.getElementById(id);
+      if (el) el.remove();
+      requestPreview();
+    }
+
+    function renderCondition(block) {
+      const container = document.getElementById(block.bucket + 'Blocks');
+      const div = document.createElement('div');
+      div.className = 'cond-row';
+      div.id = block.id;
+      div.innerHTML = conditionHtml(block);
+      container.appendChild(div);
+    }
+
+    function conditionHtml(block) {
+      const t = block.type;
+      let html = '<span style="font-weight:700;min-width:80px;">' + condLabel(t) + '</span>';
+      if (t === 'price_cross') {
+        html += '<select onchange="requestPreview()" data-key="direction"><option value="above">站上</option><option value="below">跌破</option></select>';
+        html += '<select onchange="requestPreview()" data-key="ma_period"><option value="5">MA5</option><option value="10">MA10</option><option value="20">MA20</option><option value="25">MA25</option><option value="50">MA50</option><option value="60">MA60</option></select>';
+      } else if (t === 'volume_ratio') {
+        html += '<select onchange="requestPreview()" data-key="compare"><option value=">">大于</option><option value="<">小于</option></select>';
+        html += '<select onchange="requestPreview()" data-key="ma_period"><option value="5">5日均量</option><option value="20">20日均量</option><option value="50">50日均量</option></select>';
+        html += '<input type="number" step="0.5" min="0.5" max="5.0" value="1.5" style="width:60px;" oninput="requestPreview()" data-key="multiplier" /> 倍';
+      } else if (t === 'ef_count') {
+        html += '<select onchange="requestPreview()" data-key="compare"><option value=">=">≥</option><option value="==">=</option><option value=">">></option><option value="<=">≤</option></select>';
+        html += '<select onchange="requestPreview()" data-key="value"><option value="0">0</option><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option></select>';
+      } else if (t === 'state_filter') {
+        html += '<select onchange="requestPreview()" data-key="target"><option value="d1">D1</option><option value="w1">W1</option><option value="mn1">MN1</option></select>';
+        html += '<select onchange="requestPreview()" data-key="values" multiple size="3" style="min-width:80px;"><option value="E" selected>E</option><option value="F" selected>F</option><option value="C">C</option><option value="D">D</option><option value="8">8</option><option value="9">9</option><option value="A">A</option><option value="B">B</option></select>';
+      } else if (t === 'industry_filter') {
+        html += '<select onchange="requestPreview()" data-key="mode"><option value="include">包含</option><option value="exclude">排除</option></select>';
+        html += '<select onchange="requestPreview()" data-key="codes" multiple size="4" style="min-width:120px;"><option value="电子">电子</option><option value="计算机">计算机</option><option value="通信">通信</option><option value="医药生物">医药生物</option><option value="电力设备">电力设备</option><option value="汽车">汽车</option><option value="食品饮料">食品饮料</option><option value="银行">银行</option><option value="非银金融">非银金融</option><option value="煤炭">煤炭</option><option value="钢铁">钢铁</option><option value="公用事业">公用事业</option></select>';
+      } else if (t === 'price_change') {
+        html += '<input type="number" value="-5" style="width:60px;" oninput="requestPreview()" data-key="min" /> % 至 ';
+        html += '<input type="number" value="5" style="width:60px;" oninput="requestPreview()" data-key="max" /> %';
+      } else if (t === 'stop_loss') {
+        html += '<input type="number" value="7" style="width:60px;" oninput="requestPreview()" data-key="pct" /> % 止损';
+      }
+      html += '<button class="del" onclick="removeCondition(\'' + block.id + '\')">×</button>';
+      return html;
+    }
+
+    function condLabel(type) {
+      const map = {price_cross:'价格突破', volume_ratio:'成交量', ef_count:'ef_count', state_filter:'State', industry_filter:'行业', price_change:'涨跌幅', stop_loss:'止损止盈'};
+      return map[type] || type;
+    }
+
+    function collectConditions(bucket) {
+      return conditions[bucket].map(c => {
+        const el = document.getElementById(c.id);
+        if (!el) return null;
+        const obj = { type: c.type };
+        el.querySelectorAll('[data-key]').forEach(inp => {
+          const k = inp.dataset.key;
+          if (inp.tagName === 'SELECT' && inp.multiple) {
+            obj[k] = Array.from(inp.selectedOptions).map(o => o.value);
+          } else {
+            obj[k] = inp.value;
+          }
+        });
+        return obj;
+      }).filter(Boolean);
+    }
+
+    let previewTimer = null;
+    function requestPreview() {
+      clearTimeout(previewTimer);
+      previewTimer = setTimeout(doPreview, 300);
+    }
+
+    async function doPreview() {
+      const payload = {
+        conditions: collectConditions('entry'),
+        filters: collectConditions('filter'),
+        exit_conditions: collectConditions('exit'),
+      };
+      try {
+        const res = await fetch('/api/strategy/preview', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        document.getElementById('pTotal').textContent = data.total ?? '—';
+        document.getElementById('pEntry').textContent = data.entry_hits ?? '—';
+        document.getElementById('pFilter').textContent = data.filtered_hits ?? '—';
+        document.getElementById('pAll').textContent = data.all_hits ?? '—';
+      } catch (e) {
+        console.error('preview error', e);
+      }
+    }
+
+    // 初始展开编辑器并请求一次预览
+    toggleEditor();
+    doPreview();
+  </script>
+</body>
+</html>

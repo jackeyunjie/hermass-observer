@@ -1,0 +1,121 @@
+<!--
+  MA2560 策略 SOP 卡片
+  用法: {% include '_sop_card_2560.html' %}
+  或带参数: {% with strategy_fit='最佳适配' %}{% include '_sop_card_2560.html' %}{% endwith %}
+-->
+{% set fit = strategy_fit|default('待观察') %}
+{% set fit_class = 'fit-best' if fit == '最佳适配' else ('fit-watch' if fit == '待观察' else 'fit-weak') %}
+
+<div class="sop-card sop-2560">
+  <div class="sop-header">
+    <div class="sop-title-group">
+      <h3 class="sop-name">MA2560 趋势推进</h3>
+      <span class="sop-badge {{ fit_class }}">{{ fit }}</span>
+    </div>
+    <span class="sop-tag">均线共振路径</span>
+  </div>
+
+  <div class="sop-body">
+    <!-- 入场条件 -->
+    <details class="sop-section" open>
+      <summary class="sop-section-title">
+        <span class="sop-dot dot-entry"></span>入场条件
+      </summary>
+      <div class="sop-checklist">
+        <div class="sop-check-item">
+          <span class="check-num">1</span>
+          <span class="check-text">均线排列：MA25 向上倾斜，MA25 &gt; MA60（多头排列）</span>
+        </div>
+        <div class="sop-check-item">
+          <span class="check-num">2</span>
+          <span class="check-text">价格位置：收盘价在 MA25 ±2% 区间内或上方</span>
+        </div>
+        <div class="sop-check-item">
+          <span class="check-num">3</span>
+          <span class="check-text">量能确认：VOL5/VOL60 ≥ 0.9，且非冲量过热（&lt; 2.5）</span>
+        </div>
+        <div class="sop-check-item">
+          <span class="check-num">4</span>
+          <span class="check-text">回踩次数：60日内回踩 MA25 次数 &lt; 3</span>
+        </div>
+        <div class="sop-check-item sop-note">
+          <span class="check-num note">注</span>
+          <span class="check-text">涨停无法买入；T+1 次日开盘价执行</span>
+        </div>
+      </div>
+    </details>
+
+    <!-- 止损规则 -->
+    <details class="sop-section">
+      <summary class="sop-section-title">
+        <span class="sop-dot dot-stop"></span>止损规则
+      </summary>
+      <div class="sop-rules">
+        <div class="sop-rule-row">
+          <span class="rule-label">MA25 止损</span>
+          <span class="rule-value">收盘价跌破 MA25，全仓离场</span>
+        </div>
+        <div class="sop-rule-row">
+          <span class="rule-label">MA60 清仓</span>
+          <span class="rule-value">收盘价跌破 MA60，强制清仓</span>
+        </div>
+        <div class="sop-rule-row">
+          <span class="rule-label">MA25 走平</span>
+          <span class="rule-value">MA25 不再向上，视为趋势减弱信号</span>
+        </div>
+        <div class="sop-rule-row priority">
+          <span class="rule-label">优先级</span>
+          <span class="rule-value">跌破 MA60 → 跌破 MA25 → 止盈</span>
+        </div>
+      </div>
+    </details>
+
+    <!-- 退出规则 -->
+    <details class="sop-section">
+      <summary class="sop-section-title">
+        <span class="sop-dot dot-exit"></span>退出规则
+      </summary>
+      <div class="sop-rules">
+        <div class="sop-rule-row">
+          <span class="rule-label">第一止盈</span>
+          <span class="rule-value">盈利 5-10%，减仓 50%</span>
+        </div>
+        <div class="sop-rule-row">
+          <span class="rule-label">第二止盈</span>
+          <span class="rule-value">盈利 ≥ 10%，全部清仓</span>
+        </div>
+        <div class="sop-rule-row">
+          <span class="rule-label">均线跟踪</span>
+          <span class="rule-value">持仓期间 MA25/MA60 持续作为动态止损线</span>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <div class="sop-footer">
+    <div class="sop-stats">
+      <div class="stat-item">
+        <span class="stat-label">胜率</span>
+        <span class="stat-value">48.7%</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">盈亏比</span>
+        <span class="stat-value">2.1:1</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">最优环境</span>
+        <span class="stat-value">E/F 环境 + 趋势确立</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+/* ── 2560 SOP 卡片样式（绿色系）── */
+.sop-card.sop-2560 {
+  --sop-primary: #0e7c66;
+  --sop-primary-soft: rgba(14, 124, 102, 0.08);
+  --sop-primary-medium: rgba(14, 124, 102, 0.15);
+  --sop-primary-text: #047857;
+}
+</style>
