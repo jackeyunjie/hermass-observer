@@ -139,12 +139,11 @@ def _handle_value_analysis(context: dict[str, Any]) -> dict[str, Any] | None:
 
         stock_code = payload.get("stock_code", "")
 
-        try:
-            from web.main import _agently_value_deepseek_call
-        except Exception:
+        value_call = context.get("value_call")
+        if not callable(value_call):
             return None
 
-        result = _agently_value_deepseek_call(payload)
+        result = value_call(payload)
         if not result:
             return None
 

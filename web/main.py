@@ -1482,6 +1482,19 @@ def _execution_lane() -> dict[str, Any]:
         item["sector_followthrough"] = sector_followthrough
         item["breakout_view"] = breakout_view
         item["persistence_view"] = persistence_view
+        # 升级 A：退出参考信号
+        sid = item.get("strategy_id", "")
+        nearest_support = item.get("nearest_support")
+        if sid == "vcp":
+            exit_ref = "VCP 前低。若跌破最近一次收缩低点则结构失效。"
+        elif sid == "ma2560":
+            exit_ref = "MA25。若日线收盘 < MA25 且 MA25 走平，趋势破坏。"
+        elif sid == "bollinger_bandit":
+            exit_ref = "递减均线。持有越久防守线越灵敏，当前等效约 MA20。"
+        else:
+            support_val = f"{nearest_support:.2f}" if nearest_support is not None else "未知"
+            exit_ref = f"D1 支撑位约 {support_val}。若跌破则优先降级到观察队列。"
+        item["exit_reference"] = exit_ref
         item["phase_position"] = phase_position
         item["allocation_tier"] = allocation_tier
         item["queue_reason"] = f"{fit} / {stage}。{reason}"
@@ -2970,6 +2983,7 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
         "recent_stock_codes": memory.get("recent_stock_codes", []),
         "user_focus": memory.get("user_focus", ""),
         "user_preferred_scenarios": memory.get("user_preferred_scenarios", []),
+        "value_call": _agently_value_deepseek_call,
     }
 
     # 按需预取数据注入上下文（场景编排会消费）
