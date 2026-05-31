@@ -105,6 +105,25 @@ def _latest_path(pattern: str) -> Path | None:
     return matches[-1] if matches else None
 
 
+def _digits_only_code(value: str) -> str:
+    return "".join(ch for ch in str(value or "") if ch.isdigit())[:6]
+
+
+def _latest_dated_data_file(directory: Path, prefix: str, suffix: str, as_of_date: str) -> Path | None:
+    latest: tuple[str, Path] | None = None
+    target = as_of_date.replace("-", "")
+    for path in sorted(directory.glob(f"{prefix}_*{suffix}")):
+        match = re.search(r"(\d{8})", path.stem)
+        if not match:
+            continue
+        ymd = match.group(1)
+        if ymd > target:
+            continue
+        if latest is None or ymd > latest[0]:
+            latest = (ymd, path)
+    return latest[1] if latest else None
+
+
 def _rel(path: Path | str | None) -> str:
     if not path:
         return "-"
@@ -406,6 +425,32 @@ def _latest_research_as_of_date() -> str:
         except Exception:
             pass
     return str(latest) if latest else str(date.today())
+
+
+def _latest_fundamental_as_of_date() -> str:
+    fundamental_db = ROOT / "outputs" / "fundamental" / "fundamental_evidence.duckdb"
+    if not fundamental_db.exists():
+        return str(date.today())
+    con = None
+    try:
+        con = duckdb.connect(str(fundamental_db), read_only=True)
+        candidates = []
+        for table in ("ifind_industry_chain_profile", "ifind_excel_facts"):
+            try:
+                latest = con.execute(f"SELECT MAX(as_of_date) FROM {table}").fetchone()[0]
+            except Exception:
+                latest = None
+            if latest:
+                candidates.append(str(latest))
+        return max(candidates) if candidates else str(date.today())
+    except Exception:
+        return str(date.today())
+    finally:
+        if con is not None:
+            try:
+                con.close()
+            except Exception:
+                pass
 
 
 def _industry_rotation_data() -> dict[str, Any]:
@@ -2297,6 +2342,7 @@ class ChatQuery(BaseModel):
     message: str
     page_context: str = ""
     stock_code: str | None = None
+    session_id: str | None = None
     session_context: dict[str, Any] | None = None
     mode: str = "chat"
     use_llm: bool = False
@@ -2478,6 +2524,73 @@ def _value_research_chat_summary(stock_code: str) -> dict[str, str] | None:
         "single_cycle_position": single_cycle_position,
         "avoid": avoid,
         "freshness_note": freshness_note,
+    }
+
+
+def _load_top10_holders_context(stock_code: str, as_of_date: str) -> list[dict[str, Any]]:
+    parquet_path = _latest_dated_data_file(
+        ROOT / "data" / "akshare_fundamental",
+        "stock_holder_top10",
+        ".parquet",
+        as_of_date,
+    )
+    digits = _digits_only_code(stock_code)
+    if not parquet_path or not digits:
+        return []
+
+    con = duckdb.connect()
+    try:
+        rows = con.execute(
+            f"""
+            SELECT 股东名称, 股东类型, 报告期, "期末持股-数量", "期末持股-数量变化",
+                   "期末持股-数量变化比例", "期末持股-持股变动", "期末持股-流通市值", 公告日
+            FROM read_parquet('{parquet_path.as_posix()}')
+            WHERE 股票代码 = ?
+              AND 报告期 <= ?
+            ORDER BY 报告期 DESC, 序号 ASC
+            LIMIT 10
+            """,
+            [digits, as_of_date],
+        ).fetchall()
+    finally:
+        con.close()
+
+    holders: list[dict[str, Any]] = []
+    for row in rows:
+        holders.append(
+            {
+                "holder_name": row[0] or "",
+                "holder_type": row[1] or "",
+                "report_date": str(row[2]) if row[2] else "",
+                "share_count": row[3],
+                "share_change": row[4],
+                "share_change_pct": row[5],
+                "change_label": row[6] or "",
+                "market_value_yi": round(float(row[7]) / 1e8, 2) if row[7] is not None else None,
+                "announcement_date": str(row[8]) if row[8] else "",
+            }
+        )
+    return holders
+
+
+def _build_search_data_context(market_views: dict[str, Any]) -> dict[str, Any]:
+    latest_report = market_views.get("latest_report") or {}
+    rating_distribution = market_views.get("rating_distribution") or {}
+    status = "local_market_views_already_present" if (latest_report or rating_distribution) else "placeholder"
+    notes: list[str] = []
+    if latest_report:
+        notes.append(
+            f"本地 market_views 已有公开机构观点：{latest_report.get('institution') or '暂无'} 于 "
+            f"{latest_report.get('date') or '暂无'} 给出 {latest_report.get('rating') or '暂无'}。"
+        )
+    return {
+        "status": status,
+        "source": "local_market_views",
+        "latest_report": latest_report,
+        "rating_distribution": rating_distribution,
+        "target_price_count": market_views.get("target_price_count", 0),
+        "digest_items": [],
+        "policy_event_notes": notes,
     }
 
 
@@ -2771,6 +2884,59 @@ def _enhance_result_defaults(
     return result
 
 
+def _build_memory_context(session_id: str) -> dict[str, Any]:
+    """从最近 3 轮对话中规则提取记忆上下文。零外部依赖，不调用 LLM。"""
+    import json as _json
+    from collections import Counter
+    from hermass_platform.chat.conversation_manager import get_conversation_manager
+
+    conv_mgr = get_conversation_manager()
+    session = conv_mgr.get_session(session_id)
+    if session is None:
+        return {"recent_topics": [], "recent_stock_codes": [], "user_focus": "", "user_preferred_scenarios": []}
+
+    recent_turns = session.turns[-3:]
+    user_turns = [t for t in recent_turns if t.role == "user"]
+
+    # 提取股票代码（6 位数字，去重保序）
+    stock_codes: list[str] = []
+    for turn in recent_turns:
+        codes = re.findall(r"(?<!\d)\d{6}(?!\d)", turn.message)
+        for c in codes:
+            if c not in stock_codes:
+                stock_codes.append(c)
+
+    # 统计高频中文词（2–4 字，出现 >1 次）
+    all_text = " ".join(t.message for t in recent_turns)
+    words = re.findall(r"[\u4e00-\u9fa5]{2,4}", all_text)
+    word_counter = Counter(words)
+    top_words = [w for w, _ in word_counter.most_common(5) if word_counter[w] > 1]
+
+    # 当前焦点：最近一条用户消息前 50 字
+    user_focus = user_turns[-1].message[:50] if user_turns else ""
+
+    # 用户偏好场景：从 turn.intent（JSON）解析 scenario 并统计频次
+    scenario_counts: dict[str, int] = {}
+    for turn in recent_turns:
+        raw = turn.intent
+        if raw and raw.startswith("{"):
+            try:
+                obj = _json.loads(raw)
+                sc = obj.get("scenario")
+                if sc:
+                    scenario_counts[sc] = scenario_counts.get(sc, 0) + 1
+            except Exception:
+                pass
+    preferred = [s for s, _ in sorted(scenario_counts.items(), key=lambda x: -x[1])[:2]]
+
+    return {
+        "recent_topics": top_words,
+        "recent_stock_codes": stock_codes,
+        "user_focus": user_focus,
+        "user_preferred_scenarios": preferred,
+    }
+
+
 def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
     """通过 Agently 场景化多 Agent 编排获取 LLM 增强回答。
 
@@ -2787,11 +2953,23 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
 
     msg = query.message.strip().lower()
 
+    # Phase 1：注入会话记忆上下文
+    memory: dict[str, Any] = {}
+    if query.session_id:
+        try:
+            memory = _build_memory_context(query.session_id)
+        except Exception:
+            pass  # 记忆提取失败不阻塞主链路
+
     context = {
         "user_type": "执行型",
         "current_page": query.page_context or "",
         "symbol": query.stock_code or _chat_stock_code(query) or "",
         "mode": query.mode or "chat",
+        "recent_topics": memory.get("recent_topics", []),
+        "recent_stock_codes": memory.get("recent_stock_codes", []),
+        "user_focus": memory.get("user_focus", ""),
+        "user_preferred_scenarios": memory.get("user_preferred_scenarios", []),
     }
 
     # 按需预取数据注入上下文（场景编排会消费）
@@ -2804,46 +2982,51 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
         stock_ctx = _stock_context_for_agent(code)
         value_ctx = _value_context_for_agent(code)
         stock_ctx.update(value_ctx)
-        # value 增强路径：直接调用 prompt-pack 增强的 _agently_value_deepseek_call
-        value_payload = {
+        context["value_prompt_pack"] = True
+        context["value_payload"] = {
             "stock_code": code,
             "stock_name": stock_ctx.get("stock_name", code),
             "theme_info": stock_ctx.get("industry_name", ""),
             "target_businesses": stock_ctx.get("industry_name", ""),
-            "context": stock_ctx.get("stock_states", {}),
+            "data_context": stock_ctx.get("stock_states", {}),
             "capital_flow": stock_ctx.get("capital_flow", {}),
             "market_data": context.get("market_data", {}),
             "main_business": stock_ctx.get("main_business", "【待接入】主营业务描述"),
             "latest_financial_report": stock_ctx.get("latest_financial_report", {}),
             "annual_report_2024": stock_ctx.get("annual_report_2024", {}),
             "top10_holders": stock_ctx.get("top10_holders", []),
-            "search_data": {},  # 待接入外部搜索数据
+            "search_data": stock_ctx.get("search_data", {}),
         }
-        result = _agently_value_deepseek_call(value_payload)
-        if result:
-            result.setdefault("remembered_stock_code", code)
-            result.setdefault("remembered_email", _chat_email(query))
-            result.setdefault("mode_used", "chat")
-            result.setdefault("provider", "agently_deepseek")
-            result.setdefault("enhancement_used", True)
-        return result
 
     return handle(query.message, context)
 
 
 def _value_context_for_agent(symbol: str) -> dict[str, Any]:
-    """从外部研究证据层提取价值分析专用上下文（main_business + 财报摘要）。"""
+    """从外部研究证据层提取价值分析专用上下文。"""
+    as_of_date = _latest_fundamental_as_of_date()
+    top10_holders = _load_top10_holders_context(symbol, as_of_date)
     try:
-        evidence = build_external_research_evidence(symbol, str(date.today()))
+        evidence = build_external_research_evidence(symbol, as_of_date)
     except Exception:
         return {
             "main_business": "",
             "latest_financial_report": {},
             "annual_report_2024": {},
+            "top10_holders": top10_holders,
+            "search_data": {
+                "status": "placeholder",
+                "source": "local_market_views",
+                "latest_report": {},
+                "rating_distribution": {},
+                "target_price_count": 0,
+                "digest_items": [],
+                "policy_event_notes": [],
+            },
         }
 
     company_profile = evidence.get("company_profile", {})
     financial_trend = evidence.get("financial_trend", {})
+    market_views = evidence.get("market_views", {})
     period_rows = financial_trend.get("period_rows", [])
 
     latest_report = period_rows[0] if period_rows else {}
@@ -2856,6 +3039,8 @@ def _value_context_for_agent(symbol: str) -> dict[str, Any]:
         "main_business": company_profile.get("main_business", ""),
         "latest_financial_report": latest_report,
         "annual_report_2024": annual_2024,
+        "top10_holders": top10_holders,
+        "search_data": _build_search_data_context(market_views),
     }
 
 
@@ -2895,6 +3080,7 @@ def _stock_context_for_agent(symbol: str) -> dict[str, Any]:
         "latest_financial_report": {},
         "annual_report_2024": {},
         "top10_holders": [],
+        "search_data": {},
     }
 
 
@@ -3173,11 +3359,39 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
 def chat_query(request: Request, query: ChatQuery) -> JSONResponse:
     profile = get_current_profile(request)
     user_id = profile.get("username", "web_user")
+
+    # Phase 1：session 管理（创建/复用 + 持久化用户输入）
+    try:
+        from hermass_platform.chat.conversation_manager import get_conversation_manager
+        conv_mgr = get_conversation_manager()
+        if not query.session_id:
+            session = conv_mgr.create_session(user_id)
+            query.session_id = session.session_id
+        else:
+            session = conv_mgr.get_or_create(user_id, query.session_id)
+        conv_mgr.add_message(session.session_id, "user", query.message)
+    except Exception:
+        # 会话层失败不阻塞主链路，降级为无状态
+        if not query.session_id:
+            query.session_id = ""
+
     try:
         result = _chat_answer(query)
         result.setdefault("provider", "rule_based")
         result.setdefault("enhancement_used", False)
         result["user_id"] = user_id  # 绑定会话到当前用户
+        result["session_id"] = query.session_id or ""
+
+        # Phase 1：持久化助手回复（下一轮可读取）
+        if query.session_id:
+            try:
+                intent_meta = result.get("intent")
+                intent_str = json.dumps(intent_meta, ensure_ascii=False) if isinstance(intent_meta, dict) else ""
+                conv_mgr.add_message(
+                    query.session_id, "assistant", result.get("answer", ""), intent=intent_str
+                )
+            except Exception:
+                pass
         return JSONResponse(content=result)
     except Exception as exc:
         return JSONResponse(
@@ -3197,6 +3411,7 @@ def chat_query(request: Request, query: ChatQuery) -> JSONResponse:
                 "provider": "rule_based",
                 "enhancement_used": False,
                 "user_id": user_id,
+                "session_id": query.session_id or "",
                 "error": str(exc),
             },
         )

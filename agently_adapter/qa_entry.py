@@ -32,6 +32,7 @@ def _fallback_response(user_input: str, context: dict[str, Any]) -> dict[str, An
         "mode_used": context.get("mode", "chat"),
         "provider": "agently_deepseek",
         "enhancement_used": False,
+        "intent": {"scenario": "fallback", "confidence": 0.0, "secondary_scenario": ""},
     }
 
 
@@ -46,6 +47,8 @@ def handle(user_input: str, context: dict[str, Any]) -> dict[str, Any] | None:
             - symbol: 当前股票代码（如有）
             - market_data: 市场数据（市场/行业/策略场景需要）
             - stock_states: 个股状态（个股场景需要）
+            - value_prompt_pack + value_payload: 价值分析增强（web 层准备）
+            - recent_topics / recent_stock_codes / user_focus / user_preferred_scenarios: 记忆上下文
             - 以及其他场景所需的结构化数据
 
     Returns:
@@ -55,7 +58,12 @@ def handle(user_input: str, context: dict[str, Any]) -> dict[str, Any] | None:
     if not user_input or not user_input.strip():
         return None
 
+    # 价值分析路径：直接走 prompt-pack 增强的 DeepSeek 调用，不经过场景链
+    if context.get("value_prompt_pack"):
+        return _handle_value_analysis(context)
+
     # 1. 场景路由 —— LLM 判断场景类型
+    # 记忆信息通过 context 传递，不拼入 user_input（保持路由输入纯净）
     route = router.run(user_input, context)
     if route is None:
         # 路由失败：尝试用关键词匹配兜底
@@ -88,6 +96,11 @@ def handle(user_input: str, context: dict[str, Any]) -> dict[str, Any] | None:
     result.setdefault("mode_used", context.get("mode", "chat"))
     result.setdefault("provider", "agently_deepseek")
     result.setdefault("enhancement_used", True)
+    result.setdefault("intent", {
+        "scenario": scenario_name,
+        "confidence": route.get("confidence", 0.0) if route else 0.0,
+        "secondary_scenario": route.get("secondary_scenario", "") if route else "",
+    })
     return result
 
 
@@ -115,3 +128,71 @@ def _keyword_fallback_route(user_input: str, context: dict[str, Any]) -> str:
         return "market_overview"
 
     return "chitchat"
+
+
+def _handle_value_analysis(context: dict[str, Any]) -> dict[str, Any] | None:
+    """价值分析增强 —— 走 prompt-pack + DeepSeek 直调，不经过场景链。
+
+    当前 agently_adapter/scenarios/ 中没有 value_analysis 场景，
+    因此 value 问题在此直接处理，保持 intent 追踪完整性。
+    """
+    try:
+        payload = context.get("value_payload", {})
+        if not payload:
+            return None
+
+        stock_code = payload.get("stock_code", "")
+        stock_name = payload.get("stock_name", stock_code)
+
+        prompt_parts = [
+            f"请对 {stock_name}（{stock_code}）做价值分析。",
+            f"行业背景：{payload.get('theme_info', '')}",
+            f"核心业务：{payload.get('target_businesses', '')}",
+            "请基于 Hermass 多周期 State 模型和基本面数据，给出研究参考。",
+        ]
+        user_prompt = "\n".join(p for p in prompt_parts if p)
+
+        import os
+        from openai import OpenAI
+
+        api_key = os.environ.get("DEEPSEEK_API_KEY", "")
+        if not api_key:
+            return None
+
+        client = OpenAI(
+            api_key=api_key,
+            base_url="https://api.deepseek.com/v1",
+        )
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "你是 Hermass 系统的价值研究助手。输出研究参考，不构成投资建议。使用三段式：结论、依据、下一步。",
+                },
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.3,
+            max_tokens=800,
+        )
+        content = response.choices[0].message.content.strip()
+
+        return {
+            "answer": content[:200] + ("..." if len(content) > 200 else ""),
+            "why": content[:400],
+            "multi_cycle_view": "",
+            "single_cycle_position": "",
+            "avoid": "",
+            "next_actions": [
+                {"label": "打开研究页", "url": f"/research?stock_code={stock_code}"}
+            ],
+            "sources": ["prompt_pack", "deepseek"],
+            "freshness_note": f"价值分析增强 · {stock_code}",
+            "mode_used": context.get("mode", "chat"),
+            "provider": "agently_deepseek",
+            "enhancement_used": True,
+            "intent": {"scenario": "value_analysis", "confidence": 1.0, "secondary_scenario": ""},
+            "remembered_stock_code": stock_code,
+        }
+    except Exception:
+        return None
