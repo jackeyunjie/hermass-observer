@@ -2988,7 +2988,7 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
             "stock_name": stock_ctx.get("stock_name", code),
             "theme_info": stock_ctx.get("industry_name", ""),
             "target_businesses": stock_ctx.get("industry_name", ""),
-            "data_context": stock_ctx.get("stock_states", {}),
+            "context": stock_ctx.get("stock_states", {}),
             "capital_flow": stock_ctx.get("capital_flow", {}),
             "market_data": context.get("market_data", {}),
             "main_business": stock_ctx.get("main_business", "【待接入】主营业务描述"),
