@@ -139,11 +139,9 @@ def _handle_value_analysis(context: dict[str, Any]) -> dict[str, Any] | None:
 
         stock_code = payload.get("stock_code", "")
 
-        value_call = context.get("value_call")
-        if not callable(value_call):
-            return None
+        from agently_adapter.deepseek import call as deepseek_call
 
-        result = value_call(payload)
+        result = deepseek_call(payload)
         if not result:
             return None
 

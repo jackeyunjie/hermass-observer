@@ -103,7 +103,7 @@ def test_http_chat_value_branch_injects_search_data() -> None:
         },
     }
 
-    with patch("web.main._agently_value_deepseek_call", side_effect=fake_value_call), \
+    with patch("agently_adapter.deepseek.call", side_effect=fake_value_call), \
          patch("web.main._value_context_for_agent", return_value=fake_value_ctx):
         response = client.post(
             "/api/chat/query",
