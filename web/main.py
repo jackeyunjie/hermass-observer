@@ -16,7 +16,7 @@ from typing import Any
 
 import duckdb
 import requests
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -3730,3 +3730,45 @@ def chat_query(request: Request, query: ChatQuery) -> JSONResponse:
                 "error": str(exc),
             },
         )
+
+
+@app.post("/api/admin/upload-data")
+async def admin_upload_data(
+    file: UploadFile,
+    type: str = Form(""),
+    date: str = Form(""),
+) -> JSONResponse:
+    """接收 pipeline 产出的数据文件，写入 outputs/ 目录。支持 gzip 压缩传输。"""
+    if not type:
+        return JSONResponse(content={"ok": False, "error": "missing type"}, status_code=400)
+
+    raw = await file.read()
+    if not raw:
+        return JSONResponse(content={"ok": False, "error": "empty file"}, status_code=400)
+
+    filename = file.filename or ""
+    if filename.endswith(".gz"):
+        import gzip as _gz
+        raw = _gz.decompress(raw)
+
+    dest_dir = ROOT / "outputs"
+    if type == "foundation":
+        dest_dir = dest_dir / f"p116_foundation_{date}"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest_path = dest_dir / "p116_foundation.duckdb"
+    elif type == "snapshot":
+        dest_path = dest_dir / "daily_snapshot.json"
+    else:
+        return JSONResponse(content={"ok": False, "error": f"unknown type: {type}"}, status_code=400)
+
+    tmp_path = dest_path.with_suffix(dest_path.suffix + ".tmp")
+    tmp_path.write_bytes(raw)
+    tmp_path.rename(dest_path)
+
+    return JSONResponse(content={
+        "ok": True,
+        "type": type,
+        "path": str(dest_path),
+        "size": len(raw),
+    })
+
