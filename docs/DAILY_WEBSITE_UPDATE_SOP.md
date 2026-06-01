@@ -103,9 +103,14 @@ python3 scripts/calibration_trigger.py --date 2026-05-30
 流程：
 
 1. 本地跑完数据流水线
-2. 把新的 `outputs/` 同步到服务器
-3. 重启 `hermass-console`
+2. 生成并上传 `foundation_delta` 增量包
+3. 上传 `daily_snapshot.json`
 4. 刷页面验收
+
+说明：
+
+- 只更新数据时，不需要重启 `hermass-console`
+- 只有部署代码变更时，才需要 `systemctl restart hermass-console`
 
 ### 3.2 当前推荐的数据同步思路
 
@@ -149,6 +154,14 @@ python3 scripts/calibration_trigger.py --date 2026-05-30
 
 ```bash
 UPLOAD_FOUNDATION=1 ./scripts/run_daily_pipeline.sh YYYY-MM-DD
+```
+
+手动同步当天网站数据时，可执行：
+
+```bash
+python scripts/build_foundation_delta.py --date YYYY-MM-DD
+python scripts/upload_output_to_server.py --date YYYYMMDD --type foundation_delta
+python scripts/upload_output_to_server.py --date YYYYMMDD --type snapshot
 ```
 
 ---

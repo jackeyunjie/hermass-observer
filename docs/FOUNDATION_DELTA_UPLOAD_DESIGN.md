@@ -170,6 +170,40 @@ python scripts/upload_output_to_server.py --date YYYYMMDD --type foundation
 - 上传后的服务器合并数据可用
 - 验收重点不是只看 HTTP 上传成功，还要确认合并后的 Foundation DB 数据能被网站继续读取
 
+### 2026-06-01 网站数据同步记录
+
+状态：成功。
+
+已执行：
+
+```bash
+python scripts/upload_output_to_server.py --date 20260601 --type foundation_delta
+python scripts/upload_output_to_server.py --date 20260601 --type snapshot
+```
+
+结果：
+
+```text
+Foundation 增量包：8.8M，gzip 后 4.4M
+foundation_delta 上传并合并成功：11 tables
+服务器增量包路径：/opt/hermass/outputs/foundation_delta_20260601/foundation_delta.duckdb
+snapshot 上传成功：/opt/hermass/outputs/daily_snapshot.json
+```
+
+外部入口检查：
+
+```text
+http://8.130.125.201/ -> 200
+Host: console.supertrader.world -> 401
+```
+
+说明：
+
+- `200` 表示服务器入口可访问。
+- `401` 表示 `console.supertrader.world` 的 Basic Auth 生效，属于正常结果。
+- 本次数据同步后，网站快照数据和 Foundation 增量数据均已更新。
+- 数据上传和合并不需要重启 `hermass-console`；只有部署代码变更时才需要重启服务。
+
 ## 已推送提交
 
 ```text
