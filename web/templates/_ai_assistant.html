@@ -23,10 +23,10 @@
           <button type="button" class="active" id="ai-mode-chat" onclick="aiSetMode('chat')">对话</button>
           <button type="button" id="ai-mode-agent" onclick="aiSetMode('agent')">任务</button>
         </div>
-        <label class="ai-llm-toggle">
-          <input type="checkbox" id="ai-use-llm" />
-          <span>更自然的解释</span>
-        </label>
+          <label class="ai-llm-toggle">
+            <input type="checkbox" id="ai-use-llm" checked />
+            <span>更自然的解释</span>
+          </label>
         <button class="ai-close" onclick="aiToggle()" aria-label="关闭">&times;</button>
       </div>
       <div class="ai-body" id="ai-body">
@@ -89,7 +89,7 @@
           document.getElementById('ai-body').scrollTop = document.getElementById('ai-body').scrollHeight;
         }
 
-        function aiRender(data) {
+function aiRender(data) {
           if (data.remembered_stock_code) {
             aiSession.stock_code = data.remembered_stock_code;
           }
@@ -97,33 +97,41 @@
             aiSession.email = data.remembered_email;
           }
           var html = '';
+          // 主回答区置顶，元信息沉底
           if (data.answer) {
             html += '<div class="ai-section"><strong>当前结论</strong>' + escapeHtml(data.answer) + '</div>';
+          }
+          if (data.why) {
+            html += '<div class="ai-section ai-section--secondary"><strong>为什么</strong>' + escapeHtml(data.why) + '</div>';
+          }
+          if (data.avoid) {
+            html += '<div class="ai-section ai-section--secondary"><strong>暂时不用看什么</strong>' + escapeHtml(data.avoid) + '</div>';
+          }
+          if (data.next_actions && data.next_actions.length) {
+            html += '<div class="ai-actions">';
+            data.next_actions.forEach(function(a) {
+              html += '<a href="' + escapeHtml(a.url) + '">' + escapeHtml(a.label) + '</a>';
+            });
+            html += '</div>';
+          }
+          if (data.multi_cycle_view) {
+            html += '<div class="ai-section ai-section--muted"><strong>多周期环境</strong>' + escapeHtml(data.multi_cycle_view) + '</div>';
+          }
+          if (data.single_cycle_position) {
+            html += '<div class="ai-section ai-section--muted"><strong>单周期位置</strong>' + escapeHtml(data.single_cycle_position) + '</div>';
+          }
+          if (data.freshness_note) {
+            html += '<div class="ai-section ai-section--muted"><strong>数据日期提示</strong>' + escapeHtml(data.freshness_note) + '</div>';
           }
           if (data.provider || data.enhancement_used !== undefined) {
             var providerLabel = '规则回答';
             if (data.provider === 'managed_deepseek') providerLabel = 'DeepSeek 增强';
             else if (data.provider === 'agently_deepseek') providerLabel = 'Agently + DeepSeek';
             var enhancementLabel = data.enhancement_used ? '已启用增强解释' : '未使用大模型，当前为规则回答';
-            html += '<div class="ai-section"><strong>回答引擎</strong>' + escapeHtml(providerLabel + ' · ' + enhancementLabel) + '</div>';
+            html += '<div class="ai-section ai-section--meta"><strong>回答引擎</strong>' + escapeHtml(providerLabel + ' · ' + enhancementLabel) + '</div>';
           }
           if (data.mode_used) {
-            html += '<div class="ai-section"><strong>当前模式</strong>' + (data.mode_used === 'agent' ? '任务' : '对话') + '</div>';
-          }
-          if (data.why) {
-            html += '<div class="ai-section"><strong>为什么</strong>' + escapeHtml(data.why) + '</div>';
-          }
-          if (data.multi_cycle_view) {
-            html += '<div class="ai-section"><strong>多周期环境</strong>' + escapeHtml(data.multi_cycle_view) + '</div>';
-          }
-          if (data.single_cycle_position) {
-            html += '<div class="ai-section"><strong>单周期位置</strong>' + escapeHtml(data.single_cycle_position) + '</div>';
-          }
-          if (data.avoid) {
-            html += '<div class="ai-section"><strong>暂时不用看什么</strong>' + escapeHtml(data.avoid) + '</div>';
-          }
-          if (data.freshness_note) {
-            html += '<div class="ai-section"><strong>数据日期提示</strong>' + escapeHtml(data.freshness_note) + '</div>';
+            html += '<div class="ai-section ai-section--meta"><strong>当前模式</strong>' + (data.mode_used === 'agent' ? '任务' : '对话') + '</div>';
           }
           if (data.task_card) {
             html += '<div class="ai-task-card">';
@@ -142,13 +150,6 @@
             html += '<button type="button" onclick="aiAsk(\'看价值组合\')">看价值组合</button>';
             html += '<button type="button" onclick="aiAsk(\'那它现在是假突破吗\')">继续追问位置</button>';
             html += '<button type="button" onclick="aiAsk(\'盯它，突破周线关键位提醒我，邮箱 ' + escapeHtml(followupEmail) + '\')">直接盯盘</button>';
-            html += '</div>';
-          }
-          if (data.next_actions && data.next_actions.length) {
-            html += '<div class="ai-actions">';
-            data.next_actions.forEach(function(a) {
-              html += '<a href="' + escapeHtml(a.url) + '">' + escapeHtml(a.label) + '</a>';
-            });
             html += '</div>';
           }
           aiAppend(html, false);

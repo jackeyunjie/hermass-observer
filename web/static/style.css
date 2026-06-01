@@ -715,6 +715,28 @@ pre {
   margin-bottom: 2px;
 }
 
+.ai-msg.bot .ai-section--secondary {
+  color: rgba(226,232,240,0.85);
+}
+.ai-msg.bot .ai-section--secondary strong {
+  color: rgba(226,232,240,0.9);
+}
+
+.ai-msg.bot .ai-section--muted {
+  color: rgba(148,163,184,0.85);
+}
+.ai-msg.bot .ai-section--muted strong {
+  color: rgba(148,163,184,0.85);
+}
+
+.ai-msg.bot .ai-section--meta {
+  color: rgba(148,163,184,0.7);
+  font-size: 11px;
+}
+.ai-msg.bot .ai-section--meta strong {
+  color: rgba(148,163,184,0.75);
+}
+
 .ai-actions {
   display: flex;
   flex-wrap: wrap;
