@@ -170,8 +170,53 @@ else
     log " 同步脚本不存在，跳过"
 fi
 
+# ── 校验与标记 ──
+log "Step 11: 输出校验..."
+
+PIPELINE_OK=true
+MARKER_DIR="$PRODUCT_DIR/outputs/.pipeline_markers"
+mkdir -p "$MARKER_DIR"
+
+_verify() {
+    local label="$1" path="$2" type="$3"
+    local ok=false
+    case "$type" in
+        dir)  [ -d "$path" ] && [ "$(ls -A "$path" 2>/dev/null | wc -l)" -gt 0 ] && ok=true ;;
+        file) [ -f "$path" ] && [ -s "$path" ] && ok=true ;;
+        db)   [ -f "$path" ] && [ "$(stat -f%z "$path" 2>/dev/null || stat -c%s "$path" 2>/dev/null || echo 0)" -gt 1024 ] && ok=true ;;
+    esac
+    if $ok; then
+        log "  [OK] $label: $path"
+    else
+        log "  [MISS] $label: $path"
+        PIPELINE_OK=false
+    fi
+}
+
+_verify "Foundation DB"       "${PRODUCT_DIR}/outputs/p116_foundation_${YMD}"         dir
+_verify "Foundation DuckDB"   "${PRODUCT_DIR}/outputs/p116_foundation_${YMD}/p116_foundation.duckdb" db
+_verify "每日快照"            "${PRODUCT_DIR}/outputs/daily_snapshot.json"             file
+
+# 非关键项（不存在不标记失败）
+for d in strategy_signals unified_view market_phase industry_rotation; do
+    path="${PRODUCT_DIR}/outputs/${d}"
+    if [ -d "$path" ] && [ "$(ls -A "$path" 2>/dev/null | wc -l)" -gt 0 ]; then
+        log "  [OK] $d: $path"
+    else
+        log "  [SKIP] $d: 目录不存在或为空"
+    fi
+done
+
+if $PIPELINE_OK; then
+    echo "$DATE_STR $(date '+%H:%M:%S')" > "$MARKER_DIR/pipeline_success_${YMD}"
+    log "校验通过，标记文件已写入: $MARKER_DIR/pipeline_success_${YMD}"
+else
+    log "校验未通过，请检查上述 [MISS] 项"
+fi
+
 # ── 流水线结束 ──
 log "========================================"
 log "流水线完成 - ${DATE_STR}"
-log "Foundation DB: $FOUNDATION_DB"
-log "========================================"
+log "Foundation DB: ${PRODUCT_DIR}/outputs/p116_foundation_${YMD}/p116_foundation.duckdb"
+log "状态: $($PIPELINE_OK && echo 'SUCCESS' || echo 'INCOMPLETE')"
+log "========================================" 
