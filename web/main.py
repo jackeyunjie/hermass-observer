@@ -3951,6 +3951,12 @@ async def admin_upload_data(
         dest_path = dest_dir / "p116_foundation.duckdb"
     elif type == "snapshot":
         dest_path = dest_dir / "daily_snapshot.json"
+    elif type == "strategy_signal_daily":
+        if not date:
+            return JSONResponse(content={"ok": False, "error": "missing date"}, status_code=400)
+        dest_dir = dest_dir / "strategy_signals"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest_path = dest_dir / f"strategy_signal_daily_{date}.json"
     elif type == "foundation_delta":
         if not date:
             return JSONResponse(content={"ok": False, "error": "missing date"}, status_code=400)
@@ -3963,6 +3969,11 @@ async def admin_upload_data(
     tmp_path = dest_path.with_suffix(dest_path.suffix + ".tmp")
     tmp_path.write_bytes(raw)
     tmp_path.rename(dest_path)
+    if type == "strategy_signal_daily":
+        latest_path = dest_path.parent / "strategy_signal_daily_latest.json"
+        latest_tmp_path = latest_path.with_suffix(latest_path.suffix + ".tmp")
+        latest_tmp_path.write_bytes(raw)
+        latest_tmp_path.rename(latest_path)
 
     merged = None
     if type == "foundation_delta":

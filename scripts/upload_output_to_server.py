@@ -4,6 +4,7 @@
 用法：
   python3 scripts/upload_output_to_server.py --date 20260601 --type foundation
   python3 scripts/upload_output_to_server.py --date 20260601 --type foundation_delta
+  python3 scripts/upload_output_to_server.py --date 20260601 --type strategy_signal_daily
   python3 scripts/upload_output_to_server.py --date 20260601 --type snapshot
 
 需要：服务器已部署 /api/admin/upload-data 端点
@@ -126,16 +127,50 @@ def upload_snapshot() -> None:
         sys.exit(1)
 
 
+def upload_strategy_signal_daily(date: str) -> None:
+    path = ROOT / "outputs" / "strategy_signals" / f"strategy_signal_daily_{date}.json"
+    if not path.exists():
+        print(f"[ERROR] {path} 不存在")
+        sys.exit(1)
+
+    print(f"上传 strategy_signal_daily ({path.stat().st_size / 1024:.0f} KB)...")
+    resp = requests.post(
+        BASE_URL,
+        files={"file": (path.name, path.read_bytes(), "application/json")},
+        data={"type": "strategy_signal_daily", "date": date},
+        auth=AUTH,
+        headers=HEADERS,
+        timeout=60,
+    )
+    try:
+        data = resp.json()
+    except Exception:
+        print(f"[ERROR] 非 JSON 响应: HTTP {resp.status_code}")
+        print(resp.text[:500])
+        sys.exit(1)
+    if data.get("ok"):
+        print(f"[OK] 上传成功: {data.get('path')}")
+    else:
+        print(f"[ERROR] 上传失败: {data.get('error')}")
+        sys.exit(1)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="上传数据到 Hermass 服务器")
     parser.add_argument("--date", required=True)
-    parser.add_argument("--type", required=True, choices=["foundation", "foundation_delta", "snapshot"])
+    parser.add_argument(
+        "--type",
+        required=True,
+        choices=["foundation", "foundation_delta", "strategy_signal_daily", "snapshot"],
+    )
     args = parser.parse_args()
 
     if args.type == "foundation":
         upload_foundation(args.date)
     elif args.type == "foundation_delta":
         upload_foundation_delta(args.date)
+    elif args.type == "strategy_signal_daily":
+        upload_strategy_signal_daily(args.date)
     elif args.type == "snapshot":
         upload_snapshot()
 

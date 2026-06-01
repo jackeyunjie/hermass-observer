@@ -174,6 +174,11 @@ if [ -f "$UPLOAD_SCRIPT" ]; then
     else
         log " 网站每日快照更新失败（非致命）"
     fi
+    if "$VENV_DIR/bin/python" "$UPLOAD_SCRIPT" --date "$YMD" --type strategy_signal_daily 2>&1 | while IFS= read -r line; do log "[website] $line"; done; then
+        log " 网站策略信号快照更新完成"
+    else
+        log " 网站策略信号快照更新失败（非致命）"
+    fi
     if [ "${UPLOAD_FOUNDATION:-0}" = "1" ]; then
         if "$VENV_DIR/bin/python" "$UPLOAD_SCRIPT" --date "$YMD" --type foundation 2>&1 | while IFS= read -r line; do log "[website] $line"; done; then
             log " 网站 Foundation DB 更新完成"
