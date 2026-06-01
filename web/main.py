@@ -453,6 +453,42 @@ def _latest_fundamental_as_of_date() -> str:
                 pass
 
 
+def _load_company_profile(stock_code: str) -> dict[str, Any] | None:
+    """Load company profile including industry and main business/products."""
+    fundamental_db = ROOT / "outputs" / "fundamental" / "fundamental_evidence.duckdb"
+    if not fundamental_db.exists():
+        return None
+    try:
+        con = duckdb.connect(str(fundamental_db), read_only=True)
+        try:
+            row = con.execute(
+                """
+                SELECT stock_name, sw_l1, sw_l2, sw_l3,
+                       main_business, main_product_types, main_product_names
+                FROM ifind_industry_chain_profile
+                WHERE stock_code = ? OR split_part(stock_code, '.', 1) = ?
+                ORDER BY as_of_date DESC
+                LIMIT 1
+                """,
+                [_canonical_stock_code(stock_code), _canonical_stock_code(stock_code).split('.')[0]],
+            ).fetchone()
+            if not row:
+                return None
+            return {
+                'stock_name': row[0] or '',
+                'sw_l1': row[1] or '',
+                'sw_l2': row[2] or '',
+                'sw_l3': row[3] or '',
+                'main_business': row[4] or '',
+                'main_product_types': row[5] or '',
+                'main_product_names': row[6] or '',
+            }
+        finally:
+            con.close()
+    except Exception:
+        return None
+
+
 def _industry_rotation_data() -> dict[str, Any]:
     config = _read_json(ROOT / "config/industry_rotation_assets.json")
     signal_ctx = _signal_payload_context()
@@ -3375,19 +3411,67 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
     # 问题 2：行业/方向
     if _is_industry_question(msg_lower):
         industry = _industry_rotation_data()
-        top = ", ".join(row["industry"] for row in industry["top_industries"][:3])
+        focus_code = _chat_stock_code(query)
+        focus_industry_name = ""
+        focus_main_business = ""
+        focus_main_products = ""
+        try:
+            if focus_code:
+                focus_profile = _load_company_profile(focus_code)
+                if focus_profile:
+                    focus_industry_name = str(focus_profile.get("sw_l1") or "").strip()
+                    focus_main_business = str(focus_profile.get("main_business") or "").strip()
+                    focus_main_products = str(
+                        focus_profile.get("main_product_types") or focus_profile.get("main_product_names") or ""
+                    ).strip()
+        except Exception:
+            focus_profile = None
+        if not focus_industry_name:
+            try:
+                if focus_code:
+                    foundation_db = find_foundation_db(str(date.today()))
+                    if foundation_db:
+                        import duckdb as _duck
+                        con = _duck.connect(str(foundation_db), read_only=True)
+                        try:
+                            row = con.execute(
+                                "SELECT sw_l1_name FROM foundation WHERE symbol = ? LIMIT 1",
+                                [_canonical_stock_code(focus_code)],
+                            ).fetchone()
+                            if row and row[0]:
+                                focus_industry_name = str(row[0]).strip()
+                        finally:
+                            con.close()
+            except Exception:
+                focus_industry_name = ""
+
+        top = ", ".join(row["industry"] for row in industry.get("top_industries", [])[:3])
+        if focus_code and focus_industry_name:
+            details = ""
+            if focus_main_products:
+                details = f" 它的主要产品/业务方向包括：{focus_main_products}。"
+            elif focus_main_business:
+                details = f" 它的主营业务描述是：{focus_main_business}。"
+            answer = (
+                f"{focus_code} 对应的所属行业按现有口径为 {focus_industry_name}；"
+                f"当前行业覆盖 {industry.get('industry_count', '?')} 个，建议先看：{top}。{details}"
+            )
+        else:
+            answer = f"当前行业覆盖 {industry.get('industry_count', '?')} 个，建议先看：{top}。"
+
         return {
-            "answer": f"当前行业覆盖 {industry['industry_count']} 个，建议先看：{top}。",
-            "why": "多周期结构并非全市场共振，更适合做选择题。",
+            "answer": answer,
+            "why": "多周期结构并非全市场共振，更适合做选择题；如果已锁定标的，就优先看该标的所在行业的共振位置。",
             "multi_cycle_view": "行业回答先看大级别环境是否支持扩散，再看行业自身是否进入共振。当前更适合先做方向缩圈，而不是把所有行业都当成同级机会。",
             "single_cycle_position": "行业当前更应判断是起势初期、扩散中段还是高位延展。先找结构刚改善且承接清晰的方向，不急于追已经高位扩张的分支。",
             "avoid": "暂时不要平均用力看所有行业。",
             "next_actions": [
                 {"label": "打开行业页", "url": "/industry"},
+                {"label": f"打开 {focus_code or '标的'} 研究页", "url": f"/research?stock_code={focus_code or ''}"},
             ],
-            "sources": ["industry_rotation"],
-            "freshness_note": f"行业回答按 {industry['date']} 快照展示。",
-            "remembered_stock_code": _chat_stock_code(query),
+            "sources": ["industry_rotation", "ifind_industry_chain_profile"],
+            "freshness_note": f"行业回答按 {industry.get('date', str(date.today()))} 快照展示。",
+            "remembered_stock_code": focus_code or _chat_stock_code(query),
             "remembered_email": _chat_email(query),
             "mode_used": mode,
         }

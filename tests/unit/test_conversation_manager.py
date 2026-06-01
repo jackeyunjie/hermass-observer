@@ -192,6 +192,68 @@ class TestConversationManager:
         memory = _build_memory_context(sid)
         assert "000021" in memory["recent_stock_codes"]
 
+    def test_industry_followup_mentions_remembered_stock_industry_when_known(self):
+        from pathlib import Path
+        from unittest.mock import patch
+        from fastapi.testclient import TestClient
+        from web.main import app
+
+        client = TestClient(app)
+        industry_payload = {
+            "date": "2026-06-01",
+            "industry_count": 8,
+            "top_industries": [
+                {"industry": "电力设备"},
+                {"industry": "传媒"},
+            ],
+        }
+
+        fake_foundation = {
+            "000021.SZ": "电子",
+            "600519.SH": "食品饮料",
+        }
+
+        def fake_industry(*args, **kwargs):
+            return industry_payload
+
+        def fake_foundation_db(*args, **kwargs):
+            return Path("fake.duckdb")
+
+        def fake_duck_connect(*args, **kwargs):
+            class FakeRow:
+                def fetchone(self_inner):
+                    return ("电子",)
+                def execute(self_inner, *a, **k):
+                    return self_inner
+                def close(self_inner):
+                    return None
+            return FakeRow()
+
+        with patch("web.main._industry_rotation_data", fake_industry),              patch("web.main.find_foundation_db", fake_foundation_db),              patch("duckdb.connect", fake_duck_connect):
+            first = client.post(
+                "/api/chat/query",
+                json={
+                    "message": "000021 怎么样",
+                    "stock_code": "000021.SZ",
+                    "page_context": "stock",
+                    "mode": "chat",
+                    "use_llm": False,
+                },
+            )
+            assert first.status_code == 200
+            sid = first.json()["session_id"]
+
+            second = client.post(
+                "/api/chat/query",
+                json={"message": "它是什么行业", "mode": "chat", "session_id": sid, "use_llm": False},
+            )
+            assert second.status_code == 200
+            payload = second.json()
+            assert payload["session_id"] == sid
+            assert payload["remembered_stock_code"] == "000021.SZ"
+            assert "000021.SZ" in payload["answer"]
+            assert "电子" in payload["answer"]
+
     def test_end_session(self):
         mgr = ConversationManager(ttl_seconds=3600)
         session = mgr.create_session("user_001")
