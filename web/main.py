@@ -3015,29 +3015,41 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
 
     # 按需预取数据注入上下文（场景编排会消费）
     if _is_market_question(msg) or _is_industry_question(msg) or _is_value_question(msg):
-        context["market_data"] = _market_analysis_data()
+        try:
+            context["market_data"] = _market_analysis_data()
+        except Exception:
+            context["market_data"] = {}
+
     if _is_industry_question(msg):
-        context["industry_distribution"] = _industry_rotation_data()
+        try:
+            context["industry_distribution"] = _industry_rotation_data()
+        except Exception:
+            context["industry_distribution"] = {}
+
     if _is_value_question(msg):
-        code = context["symbol"] or "000021.SZ"
-        stock_ctx = _stock_context_for_agent(code)
-        value_ctx = _value_context_for_agent(code)
-        stock_ctx.update(value_ctx)
-        context["value_prompt_pack"] = True
-        context["value_payload"] = {
-            "stock_code": code,
-            "stock_name": stock_ctx.get("stock_name", code),
-            "theme_info": stock_ctx.get("industry_name", ""),
-            "target_businesses": stock_ctx.get("industry_name", ""),
-            "context": stock_ctx.get("stock_states", {}),
-            "capital_flow": stock_ctx.get("capital_flow", {}),
-            "market_data": context.get("market_data", {}),
-            "main_business": stock_ctx.get("main_business", "【待接入】主营业务描述"),
-            "latest_financial_report": stock_ctx.get("latest_financial_report", {}),
-            "annual_report_2024": stock_ctx.get("annual_report_2024", {}),
-            "top10_holders": stock_ctx.get("top10_holders", []),
-            "search_data": stock_ctx.get("search_data", {}),
-        }
+        try:
+            code = context["symbol"] or "000021.SZ"
+            context["stock_states"] = _stock_context_for_agent(code)
+            value_ctx = _value_context_for_agent(code)
+            context["stock_states"].update(value_ctx)
+            context["value_prompt_pack"] = True
+            context["value_payload"] = {
+                "stock_code": code,
+                "stock_name": context["stock_states"].get("stock_name", code),
+                "theme_info": context["stock_states"].get("industry_name", ""),
+                "target_businesses": context["stock_states"].get("industry_name", ""),
+                "context": context["stock_states"].get("stock_states", {}),
+                "capital_flow": context["stock_states"].get("capital_flow", {}),
+                "market_data": context.get("market_data", {}),
+                "main_business": context["stock_states"].get("main_business", "【待接入】主营业务描述"),
+                "latest_financial_report": context["stock_states"].get("latest_financial_report", {}),
+                "annual_report_2024": context["stock_states"].get("annual_report_2024", {}),
+                "top10_holders": context["stock_states"].get("top10_holders", []),
+                "search_data": context["stock_states"].get("search_data", {}),
+            }
+        except Exception:
+            context["stock_states"] = {}
+            context["value_prompt_pack"] = False
 
     return handle(query.message, context)
 
