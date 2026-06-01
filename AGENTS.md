@@ -1,21 +1,21 @@
 
 ## 修改 → 部署 → 测试 流水线（2026-05-31 固化）
 
-**核心原则：本地只做代码修改 + git push。不要从本机 SSH 到服务器。部署和测试通过提示词交给服务器上的 AI。**
+**核心原则：优先本地代码修改 + git push；需要部署、同步数据或排障时，允许本机直接 SSH 到服务器执行必要操作。**
 
-### 禁止事项
+### 服务器操作规则
 
-- ❌ **禁止本机 SSH 到 8.130.125.201** — 部署是服务器 Codex 的事，不是你的事
-- ❌ **禁止本机执行 `ssh root@8.130.125.201 ...`** — 发现此命令直接拒绝
-- ❌ **禁止本机 curl 服务器接口验证部署** — 冒烟测试由服务器 Codex 执行
+- ✅ 允许本机 SSH 到 8.130.125.201 执行部署、数据同步、日志排障和服务重启
+- ✅ 允许本机 curl 服务器接口做冒烟验证
+- 执行前先说明目的；执行后给出结果和下一步
 
 ### 三阶段流水线
 
 | 阶段 | 执行者 | 动作 | 输入 |
 |------|--------|------|------|
 | 1. 审阅 | Claude | 代码 diff 审阅 | 本机 diff / commit |
-| 2. 部署 | 服务器 Codex | git pull + 编译 + 重启 + 冒烟 | git push 后的 commit hash |
-| 3. 测试 | KIMI | 浏览器端回归测试 | 部署完成确认 |
+| 2. 部署 | Codex / 服务器 Codex | git pull + 编译 + 重启 + 冒烟 | git push 后的 commit hash |
+| 3. 测试 | Codex / KIMI | 接口或浏览器端回归测试 | 部署完成确认 |
 
 ### 部署提示词模板（发给服务器上的 Codex）
 
@@ -39,6 +39,20 @@
 - 服务: hermass-console (systemd, 端口 8020)
 - Python: .venv 虚拟环境
 - 网址: http://console.supertrader.world
+
+### 服务器上传 413 / Nginx 容器入口快查
+
+遇到网站数据上传失败、HTTP 413、Nginx 容器入口不清楚、`company-pager-nginx` 是否属于 Hermass 等问题，先看：
+
+- `docs/SERVER_UPLOAD_413_RUNBOOK.md`
+
+已确认背景：
+
+- 服务器 80/443 入口是 Docker 容器 `company-pager-nginx`
+- 宿主机配置文件是 `/opt/company-pager/nginx-backend.conf`
+- 容器内配置文件是 `/etc/nginx/conf.d/default.conf`
+- `company-pager-nginx` 虽然名字像另一个项目，但它代理了 `console.supertrader.world -> http://172.17.0.1:8020`
+- 改完宿主机配置后，优先 `docker restart company-pager-nginx`，再用 `docker exec company-pager-nginx nginx -T` 验证是否真实生效
 
 ---
 
