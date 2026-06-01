@@ -3925,6 +3925,76 @@ def _merge_foundation_delta(delta_db: Path, date_str: str) -> dict[str, Any]:
     return merged
 
 
+def _json_status(path: Path, date_key: str = "date") -> dict[str, Any]:
+    payload = _read_json(path)
+    rows = payload.get("rows", []) if isinstance(payload, dict) else []
+    return {
+        "path": str(path),
+        "exists": path.exists(),
+        "size": path.stat().st_size if path.exists() else 0,
+        "date": str(payload.get(date_key, "")) if isinstance(payload, dict) else "",
+        "row_count": len(rows) if isinstance(rows, list) else 0,
+        "signal_count": payload.get("signal_count", len(rows)) if isinstance(payload, dict) else 0,
+    }
+
+
+def _foundation_status(date_str: str) -> dict[str, Any]:
+    db_path = find_foundation_db(date_str) or find_foundation_db()
+    status: dict[str, Any] = {
+        "path": str(db_path) if db_path else "",
+        "exists": bool(db_path and db_path.exists()),
+        "size": db_path.stat().st_size if db_path and db_path.exists() else 0,
+        "latest_date": "",
+        "daily_rows": 0,
+        "state_rows": 0,
+    }
+    if not db_path:
+        return status
+    con = duckdb.connect(str(db_path), read_only=True)
+    try:
+        latest = con.execute("SELECT max(state_date) FROM d1_perspective_state").fetchone()[0]
+        daily_rows = con.execute(
+            "SELECT count(*) FROM daily_bars WHERE date = CAST(? AS DATE)",
+            [date_str],
+        ).fetchone()[0]
+        state_rows = con.execute(
+            "SELECT count(*) FROM d1_perspective_state WHERE state_date = CAST(? AS DATE)",
+            [date_str],
+        ).fetchone()[0]
+        status.update({
+            "latest_date": str(latest or ""),
+            "daily_rows": daily_rows,
+            "state_rows": state_rows,
+        })
+    finally:
+        con.close()
+    return status
+
+
+@app.get("/api/admin/data-sync-status")
+def admin_data_sync_status(date: str = "") -> JSONResponse:
+    """Machine-readable data sync status for post-upload acceptance checks."""
+    normalized_date = _normalize_upload_date(date or datetime.now().strftime("%Y%m%d"))
+    compact_date = normalized_date.replace("-", "")
+    outputs = ROOT / "outputs"
+    strategy_dir = outputs / "strategy_signals"
+    delta_path = outputs / f"foundation_delta_{compact_date}" / "foundation_delta.duckdb"
+    payload = {
+        "ok": True,
+        "expected_date": normalized_date,
+        "daily_snapshot": _json_status(outputs / "daily_snapshot.json"),
+        "strategy_signal_daily": _json_status(strategy_dir / f"strategy_signal_daily_{compact_date}.json"),
+        "strategy_signal_latest": _json_status(strategy_dir / "strategy_signal_daily_latest.json"),
+        "foundation_delta": {
+            "path": str(delta_path),
+            "exists": delta_path.exists(),
+            "size": delta_path.stat().st_size if delta_path.exists() else 0,
+        },
+        "foundation_db": _foundation_status(normalized_date),
+    }
+    return JSONResponse(content=payload)
+
+
 @app.post("/api/admin/upload-data")
 async def admin_upload_data(
     file: UploadFile,

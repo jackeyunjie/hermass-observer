@@ -15,6 +15,7 @@ DATE_STR="${1:-$(date +%Y-%m-%d)}"
 YMD="${DATE_STR//-/}"
 
 mkdir -p "$LOG_DIR"
+PIPELINE_OK=true
 
 # 确保项目本地包可被 venv Python 导入
 export PYTHONPATH="$PRODUCT_DIR:$RESEARCH_DIR${PYTHONPATH:+:$PYTHONPATH}"
@@ -188,6 +189,17 @@ if [ -f "$UPLOAD_SCRIPT" ]; then
     else
         log " 网站 Foundation DB 跳过（默认不上传 3.7G 大包；需要时设置 UPLOAD_FOUNDATION=1）"
     fi
+    VALIDATE_SCRIPT="$PRODUCT_DIR/scripts/validate_website_data_sync.py"
+    if [ -f "$VALIDATE_SCRIPT" ]; then
+        if "$VENV_DIR/bin/python" "$VALIDATE_SCRIPT" --date "$DATE_STR" 2>&1 | while IFS= read -r line; do log "[website-check] $line"; done; then
+            log " 网站数据同步验收通过"
+        else
+            log " 网站数据同步验收失败（请检查 foundation_delta / strategy_signal_daily / daily_snapshot）"
+            PIPELINE_OK=false
+        fi
+    else
+        log " 网站数据同步验收脚本不存在，跳过"
+    fi
 else
     log " 网站上传脚本不存在，跳过"
 fi
@@ -195,7 +207,6 @@ fi
 # ── 校验与标记 ──
 log "Step 11: 输出校验..."
 
-PIPELINE_OK=true
 MARKER_DIR="$PRODUCT_DIR/outputs/.pipeline_markers"
 mkdir -p "$MARKER_DIR"
 
