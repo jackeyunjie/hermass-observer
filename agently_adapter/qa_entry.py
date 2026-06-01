@@ -37,10 +37,21 @@ def _should_compound(primary: str, secondary: str, user_input: str) -> bool:
     if not primary or not secondary or primary == secondary:
         return False
     msg = user_input.strip().lower()
+    pair = {primary, secondary}
     for p, s, p_kws, s_kws in COMPOUND_PAIRS:
-        if primary == p and secondary == s and _has_keywords(msg, p_kws) and _has_keywords(msg, s_kws):
+        if pair == {p, s} and _has_keywords(msg, p_kws) and _has_keywords(msg, s_kws):
             return True
     return False
+
+
+def _compound_fallback_secondary(primary: str, user_input: str) -> str:
+    msg = user_input.strip().lower()
+    for p, s, p_kws, s_kws in COMPOUND_PAIRS:
+        if primary == p and _has_keywords(msg, s_kws):
+            return s
+        if primary == s and _has_keywords(msg, p_kws):
+            return p
+    return ""
 
 
 def _execute_compound(
@@ -50,43 +61,46 @@ def _execute_compound(
     context: dict[str, Any],
     route: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    primary_mod = get_scenario_module(primary)
-    secondary_mod = get_scenario_module(secondary)
+    # 规范化：task_card 提供方（watch_command）先跑，行业/回答提供方后跑
+    task_scenario = "watch_command"
+    answer_scenario = "industry_scan"
+    task_mod = get_scenario_module(task_scenario)
+    answer_mod = get_scenario_module(answer_scenario)
 
-    primary_result = None
-    secondary_result = None
+    task_result = None
+    answer_result = None
     try:
-        primary_result = primary_mod.run(user_input, context) if primary_mod else None
+        task_result = task_mod.run(user_input, context) if task_mod else None
     except Exception:
-        primary_result = None
+        task_result = None
 
     try:
-        secondary_result = secondary_mod.run(user_input, context) if secondary_mod else None
+        answer_result = answer_mod.run(user_input, context) if answer_mod else None
     except Exception:
-        secondary_result = None
+        answer_result = None
 
-    if primary_result is None and secondary_result is None:
+    if task_result is None and answer_result is None:
         return _fallback_response(user_input, context)
 
-    if primary_result is None:
-        result = dict(secondary_result)
+    if task_result is None:
+        result = dict(answer_result)
         result["freshness_note"] = (
             result.get("freshness_note", "")
             + " 盯盘任务链路暂不可用，仅返回行业分析。"
         ).strip()
-    elif secondary_result is None:
-        result = dict(primary_result)
+    elif answer_result is None:
+        result = dict(task_result)
         result["freshness_note"] = (
             result.get("freshness_note", "")
             + " 行业扫描链路暂不可用，仅返回盯盘确认。"
         ).strip()
-        result.setdefault("task_card", primary_result.get("task_card"))
+        result.setdefault("task_card", task_result.get("task_card"))
     else:
-        result = dict(secondary_result)
-        result["task_card"] = primary_result.get("task_card")
-        result["remembered_stock_code"] = primary_result.get("remembered_stock_code", "")
-        next_actions = list(primary_result.get("next_actions", []))
-        for a in secondary_result.get("next_actions", []):
+        result = dict(answer_result)
+        result["task_card"] = task_result.get("task_card")
+        result["remembered_stock_code"] = task_result.get("remembered_stock_code", "")
+        next_actions = list(task_result.get("next_actions", []))
+        for a in answer_result.get("next_actions", []):
             if a not in next_actions:
                 next_actions.append(a)
         result["next_actions"] = next_actions
@@ -158,7 +172,11 @@ def handle(user_input: str, context: dict[str, Any]) -> dict[str, Any] | None:
     if scenario_name == "chitchat":
         return None
 
-    # 1.5 复合场景检测 —— 主/次场景不同且用户消息含两条链关键词
+    # 1.5 复合关键词兜底：secondary 为空时从关键词推断
+    if not secondary:
+        secondary = _compound_fallback_secondary(scenario_name, user_input)
+
+    # 复合场景检测：主/次场景配对命中
     if _should_compound(scenario_name, secondary, user_input):
         return _execute_compound(scenario_name, secondary, user_input, context, route)
 
