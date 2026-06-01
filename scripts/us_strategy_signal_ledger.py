@@ -4,6 +4,7 @@
 Builds a normalized signal ledger for US stocks, equivalent to
 scripts/strategy_signal_ledger.py for A-shares.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -18,6 +19,7 @@ import duckdb
 
 ROOT = Path(__file__).resolve().parents[1]
 import sys
+
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
 
@@ -168,12 +170,14 @@ def build_us_ledger(
         lifecycle, lifecycle_reasons = compute_lifecycle_stage(sig)
         fit, fit_reasons = compute_environment_fit(sig["strategy_id"], lifecycle, lifecycle_reasons)
 
-        rows.append({
-            **sig,
-            "lifecycle_stage": lifecycle,
-            "strategy_environment_fit": fit,
-            "fit_reasons": fit_reasons,
-        })
+        rows.append(
+            {
+                **sig,
+                "lifecycle_stage": lifecycle,
+                "strategy_environment_fit": fit,
+                "fit_reasons": fit_reasons,
+            }
+        )
 
     created_at = datetime.now(timezone.utc).isoformat()
 
@@ -191,12 +195,24 @@ def build_us_ledger(
             """,
             [
                 (
-                    r["signal_date"], r["stock_code"], r["strategy_id"],
-                    r["signal_type"], r["signal_name"], r["signal_strength"],
-                    r["raw_signal"], r["source_module"], r["ef_count"],
-                    r.get("mn1_state_hex"), r.get("w1_state_hex"), r.get("d1_state_hex"),
-                    r.get("mn1_state_score"), r.get("w1_state_score"), r.get("d1_state_score"),
-                    r["lifecycle_stage"], r["strategy_environment_fit"], r["fit_reasons"],
+                    r["signal_date"],
+                    r["stock_code"],
+                    r["strategy_id"],
+                    r["signal_type"],
+                    r["signal_name"],
+                    r["signal_strength"],
+                    r["raw_signal"],
+                    r["source_module"],
+                    r["ef_count"],
+                    r.get("mn1_state_hex"),
+                    r.get("w1_state_hex"),
+                    r.get("d1_state_hex"),
+                    r.get("mn1_state_score"),
+                    r.get("w1_state_score"),
+                    r.get("d1_state_score"),
+                    r["lifecycle_stage"],
+                    r["strategy_environment_fit"],
+                    r["fit_reasons"],
                     created_at,
                 )
                 for r in rows
@@ -221,8 +237,13 @@ def build_us_ledger(
         INSERT OR REPLACE INTO us_signal_manifest
         VALUES (CAST(? AS DATE), ?, ?, ?, ?, true)
         """,
-        (date_str, created_at, str(foundation_db), len(rows),
-         json.dumps(strategy_counts, ensure_ascii=False, sort_keys=True)),
+        (
+            date_str,
+            created_at,
+            str(foundation_db),
+            len(rows),
+            json.dumps(strategy_counts, ensure_ascii=False, sort_keys=True),
+        ),
     )
 
     con.close()

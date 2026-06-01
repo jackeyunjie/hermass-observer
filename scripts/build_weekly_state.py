@@ -40,7 +40,7 @@ def build_native_w1_state(
 
     # Use in-memory DuckDB and attach weekly bars read-only
     con = duckdb.connect(":memory:")
-    con.execute(f"ATTACH '{str(weekly_db).replace(chr(39), chr(39)+chr(39))}' AS wdb (READ_ONLY)")
+    con.execute(f"ATTACH '{str(weekly_db).replace(chr(39), chr(39) + chr(39))}' AS wdb (READ_ONLY)")
 
     # 1. Compute SR levels from weekly bars (same fractal logic as foundation)
     con.execute("""
@@ -300,10 +300,19 @@ def build_native_w1_state(
 
     for row in rows:
         (
-            stock_code, week_start, week_end, w1_close,
-            sr_support, sr_resistance, sr_ready,
-            base, trend_bit, position_bit, volatility_bit,
-            bull_context, bear_context,
+            stock_code,
+            week_start,
+            week_end,
+            w1_close,
+            sr_support,
+            sr_resistance,
+            sr_ready,
+            base,
+            trend_bit,
+            position_bit,
+            volatility_bit,
+            bull_context,
+            bear_context,
         ) = row
 
         wk = iso_week_key(week_start)
@@ -337,21 +346,23 @@ def build_native_w1_state(
         else:
             state_hex = f"{state_score:X}"
 
-        weeks[wk]["stocks"].append({
-            "stock_code": stock_code,
-            "week_start_date": week_start.isoformat(),
-            "week_end_date": week_end.isoformat() if week_end else None,
-            "w1_state": state_score,
-            "w1_state_hex": state_hex,
-            "w1_base": base,
-            "w1_trend": trend_bit,
-            "w1_position": position_bit,
-            "w1_volatility": volatility_bit,
-            "w1_close": round(w1_close, 4) if w1_close else None,
-            "w1_sr_support": round(sr_support, 4) if sr_support else None,
-            "w1_sr_resistance": round(sr_resistance, 4) if sr_resistance else None,
-            "w1_sr_ready": bool(sr_ready) if sr_ready is not None else False,
-        })
+        weeks[wk]["stocks"].append(
+            {
+                "stock_code": stock_code,
+                "week_start_date": week_start.isoformat(),
+                "week_end_date": week_end.isoformat() if week_end else None,
+                "w1_state": state_score,
+                "w1_state_hex": state_hex,
+                "w1_base": base,
+                "w1_trend": trend_bit,
+                "w1_position": position_bit,
+                "w1_volatility": volatility_bit,
+                "w1_close": round(w1_close, 4) if w1_close else None,
+                "w1_sr_support": round(sr_support, 4) if sr_support else None,
+                "w1_sr_resistance": round(sr_resistance, 4) if sr_resistance else None,
+                "w1_sr_ready": bool(sr_ready) if sr_ready is not None else False,
+            }
+        )
         weeks[wk]["total_stocks"] += 1
 
     # Write JSON files

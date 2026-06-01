@@ -104,12 +104,16 @@ def init_schema(db_path: Path | None = None) -> Path:
         con.execute(stmt)
     con.execute("CREATE TABLE IF NOT EXISTS schema_info (schema_version VARCHAR, created_at VARCHAR)")
     con.execute("DELETE FROM schema_info")
-    con.execute("INSERT INTO schema_info VALUES (?, ?)", (SCHEMA_VERSION, datetime.now(timezone.utc).isoformat()))
+    con.execute(
+        "INSERT INTO schema_info VALUES (?, ?)", (SCHEMA_VERSION, datetime.now(timezone.utc).isoformat())
+    )
     con.close()
     return db_path
 
 
-def import_chain_export(con: duckdb.DuckDBPyConnection, json_path: Path, date_str: str, collected_at: str) -> dict[str, int]:
+def import_chain_export(
+    con: duckdb.DuckDBPyConnection, json_path: Path, date_str: str, collected_at: str
+) -> dict[str, int]:
     if not json_path.exists():
         return {"dynamics": 0, "positions": 0}
 
@@ -118,38 +122,59 @@ def import_chain_export(con: duckdb.DuckDBPyConnection, json_path: Path, date_st
     positions_count = 0
 
     for item in data.get("chain_dynamics", []):
-        did = f"chain_{item.get('industry','')}_{date_str}_{dynamics_count}"
+        did = f"chain_{item.get('industry', '')}_{date_str}_{dynamics_count}"
         try:
-            con.execute("""
+            con.execute(
+                """
                 INSERT OR IGNORE INTO chain_dynamics
                 (dynamic_id, industry, chain_node, event_date, event_type, title,
                  summary, companies_affected, supply_demand, catalyst_type,
                  source_agent, raw_json, collected_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (did, item.get("industry", ""), item.get("chain_node"),
-                  item.get("date", date_str), item.get("type", "industry_update"),
-                  item.get("title", ""), item.get("summary", ""),
-                  item.get("companies", ""), item.get("supply_demand"),
-                  item.get("catalyst_type"),
-                  item.get("source_agent", "算力行业头部公司动态跟踪助手"),
-                  json.dumps(item, ensure_ascii=False)[:3000], collected_at))
+            """,
+                (
+                    did,
+                    item.get("industry", ""),
+                    item.get("chain_node"),
+                    item.get("date", date_str),
+                    item.get("type", "industry_update"),
+                    item.get("title", ""),
+                    item.get("summary", ""),
+                    item.get("companies", ""),
+                    item.get("supply_demand"),
+                    item.get("catalyst_type"),
+                    item.get("source_agent", "算力行业头部公司动态跟踪助手"),
+                    json.dumps(item, ensure_ascii=False)[:3000],
+                    collected_at,
+                ),
+            )
             dynamics_count += 1
         except Exception:
             pass
 
     for item in data.get("industry_positions", []):
         try:
-            con.execute("""
+            con.execute(
+                """
                 INSERT OR REPLACE INTO industry_position
                 (stock_code, industry, chain_node, node_rank, node_peers,
                  value_add, upstream_dependency, downstream_reach, moat_description, source_agent, collected_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (item.get("stock_code", ""), item.get("industry", ""),
-                  item.get("chain_node", "unknown"), item.get("node_rank"),
-                  item.get("node_peers"), item.get("value_add"),
-                  item.get("upstream"), item.get("downstream"),
-                  item.get("moat", ""),
-                  item.get("source_agent", "行业深度资料"), collected_at))
+            """,
+                (
+                    item.get("stock_code", ""),
+                    item.get("industry", ""),
+                    item.get("chain_node", "unknown"),
+                    item.get("node_rank"),
+                    item.get("node_peers"),
+                    item.get("value_add"),
+                    item.get("upstream"),
+                    item.get("downstream"),
+                    item.get("moat", ""),
+                    item.get("source_agent", "行业深度资料"),
+                    collected_at,
+                ),
+            )
             positions_count += 1
         except Exception:
             pass
@@ -173,23 +198,33 @@ def cross_with_pool(con: duckdb.DuckDBPyConnection, date_str: str) -> int:
     count = 0
     for code, ef in code_to_ef.items():
         chain_events = con.execute(
-            "SELECT COUNT(*) FROM chain_dynamics WHERE companies_affected LIKE ?",
-            (f"%{code}%",)
+            "SELECT COUNT(*) FROM chain_dynamics WHERE companies_affected LIKE ?", (f"%{code}%",)
         ).fetchone()[0]
 
-        latest = con.execute("""
+        latest = con.execute(
+            """
             SELECT title, catalyst_type FROM chain_dynamics
             WHERE companies_affected LIKE ? AND event_date = ?
             ORDER BY dynamic_id LIMIT 1
-        """, (f"%{code}%", date_str)).fetchone()
+        """,
+            (f"%{code}%", date_str),
+        ).fetchone()
 
-        con.execute("""
+        con.execute(
+            """
             INSERT OR REPLACE INTO chain_event_cross
             (stock_code, as_of_date, ef_count, chain_events, latest_chain_event, chain_catalyst)
             VALUES (?, ?, ?, ?, ?, ?)
-        """, (code, date_str, ef, chain_events,
-              f"{latest[1]}: {latest[0]}" if latest else "无",
-              latest[1] if latest else None))
+        """,
+            (
+                code,
+                date_str,
+                ef,
+                chain_events,
+                f"{latest[1]}: {latest[0]}" if latest else "无",
+                latest[1] if latest else None,
+            ),
+        )
         count += 1
 
     return count
@@ -211,12 +246,22 @@ def run(date_str: str, import_json: str | None = None) -> dict:
 
     cross_count = cross_with_pool(con, date_str)
 
-    con.execute("""
+    con.execute(
+        """
         INSERT OR REPLACE INTO chain_run_log
         (run_id, run_date, dynamics_imported, positions_imported, cross_count, source, finished_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (run_id, date_str, dynamics, positions, cross_count,
-          import_json or "no_import", datetime.now(timezone.utc).isoformat()))
+    """,
+        (
+            run_id,
+            date_str,
+            dynamics,
+            positions,
+            cross_count,
+            import_json or "no_import",
+            datetime.now(timezone.utc).isoformat(),
+        ),
+    )
     con.close()
 
     return {

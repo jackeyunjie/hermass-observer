@@ -46,10 +46,15 @@ class ConversationStore:
                 message TEXT NOT NULL,
                 intent TEXT DEFAULT '',
                 agent TEXT DEFAULT '',
+                metadata TEXT DEFAULT '',
                 timestamp TEXT NOT NULL,
                 FOREIGN KEY (session_id) REFERENCES sessions(session_id)
             )
         """)
+        try:
+            conn.execute("ALTER TABLE turns ADD COLUMN metadata TEXT DEFAULT ''")
+        except Exception:
+            pass
         conn.commit()
 
     def save_session(self, session_id: str, user_id: str, created_at: str, last_active: str) -> None:

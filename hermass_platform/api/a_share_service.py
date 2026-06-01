@@ -70,7 +70,9 @@ app = FastAPI(
 
 def _signal_payload_path(date_str: str | None = None) -> Path:
     if date_str:
-        return ROOT / "outputs" / "strategy_signals" / f"strategy_signal_daily_{date_str.replace('-', '')}.json"
+        return (
+            ROOT / "outputs" / "strategy_signals" / f"strategy_signal_daily_{date_str.replace('-', '')}.json"
+        )
     return ROOT / "outputs" / "strategy_signals" / "strategy_signal_daily_latest.json"
 
 
@@ -83,7 +85,9 @@ def _load_signal_payload(date_str: str | None = None) -> dict[str, Any]:
     except json.JSONDecodeError as exc:
         raise HTTPException(status_code=500, detail=f"invalid signal payload JSON: {path}") from exc
     if not isinstance(payload, dict):
-        raise HTTPException(status_code=500, detail=f"unexpected signal payload type: {type(payload).__name__}")
+        raise HTTPException(
+            status_code=500, detail=f"unexpected signal payload type: {type(payload).__name__}"
+        )
     return payload
 
 

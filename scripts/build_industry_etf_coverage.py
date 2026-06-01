@@ -15,11 +15,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_BLACKWOLF_LIST = (
-    Path.home()
-    / "Documents"
-    / "hongrun-chaos-trading-system"
-    / "data"
-    / "blackwolf_stock_list_flag0.csv"
+    Path.home() / "Documents" / "hongrun-chaos-trading-system" / "data" / "blackwolf_stock_list_flag0.csv"
 )
 DEFAULT_CONFIG = ROOT / "config" / "industry_rotation_assets.json"
 IFIND_DIR = ROOT / "outputs" / "ifind"
@@ -229,7 +225,9 @@ def best_market_state(rows: list[dict[str, str]]) -> dict[str, str]:
         rows,
         key=lambda row: (
             -(fnum(row.get("ef_count")) or -1),
-            -sum(fnum(row.get(field)) or 0 for field in ["mn1_state_score", "w1_state_score", "d1_state_score"]),
+            -sum(
+                fnum(row.get(field)) or 0 for field in ["mn1_state_score", "w1_state_score", "d1_state_score"]
+            ),
             str(row.get("symbol") or ""),
         ),
     )[0]
@@ -386,15 +384,15 @@ def render_html(payload: dict[str, Any]) -> str:
     for row in payload["rows"]:
         detail_rows.append(
             f"""
-            <tr class="{esc(row.get('coverage_status'))}">
-              <td><strong>{esc(row.get('sw_l1'))}</strong><br><span>{esc(row.get('ifind_stock_count'))} 只</span></td>
-              <td>{esc(row.get('coverage_status'))}<br><span>{esc(row.get('recommended_action'))}</span></td>
-              <td>{esc(row.get('current_config_symbols'))}</td>
-              <td>{esc(row.get('market_state_best_symbol'))}<br><span>{esc(row.get('market_state_best_name'))} EF={esc(row.get('market_state_best_ef_count'))}</span></td>
-              <td><strong>{esc(row.get('selected_symbol'))}</strong><br><span>{esc(row.get('selected_name'))}</span></td>
-              <td>{esc(row.get('selected_match_type'))}<br><span>{esc(row.get('selected_match_keyword'))} / {esc(row.get('selected_score'))}</span></td>
-              <td>{esc(row.get('direct_candidates'))}</td>
-              <td>{esc(row.get('proxy_candidates'))}</td>
+            <tr class="{esc(row.get("coverage_status"))}">
+              <td><strong>{esc(row.get("sw_l1"))}</strong><br><span>{esc(row.get("ifind_stock_count"))} 只</span></td>
+              <td>{esc(row.get("coverage_status"))}<br><span>{esc(row.get("recommended_action"))}</span></td>
+              <td>{esc(row.get("current_config_symbols"))}</td>
+              <td>{esc(row.get("market_state_best_symbol"))}<br><span>{esc(row.get("market_state_best_name"))} EF={esc(row.get("market_state_best_ef_count"))}</span></td>
+              <td><strong>{esc(row.get("selected_symbol"))}</strong><br><span>{esc(row.get("selected_name"))}</span></td>
+              <td>{esc(row.get("selected_match_type"))}<br><span>{esc(row.get("selected_match_keyword"))} / {esc(row.get("selected_score"))}</span></td>
+              <td>{esc(row.get("direct_candidates"))}</td>
+              <td>{esc(row.get("proxy_candidates"))}</td>
             </tr>
             """
         )
@@ -403,7 +401,7 @@ def render_html(payload: dict[str, Any]) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>行业ETF覆盖审计 - {esc(payload['date'])}</title>
+  <title>行业ETF覆盖审计 - {esc(payload["date"])}</title>
   <style>
     body {{ margin:0; background:#f6f8fb; color:#172033; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }}
     main {{ max-width:1440px; margin:0 auto; padding:24px; }}
@@ -425,7 +423,7 @@ def render_html(payload: dict[str, Any]) -> str:
 <body>
   <main>
     <h1>行业ETF覆盖审计</h1>
-    <div class="meta">日期 {esc(payload['date'])} | iFind 行业 {esc(payload['ifind_industry_count'])} 个 | 黑狼ETF候选 {esc(payload['blackwolf_etf_count'])} 条 | 直接新增 {esc(payload['direct_addition_count'])} 个</div>
+    <div class="meta">日期 {esc(payload["date"])} | iFind 行业 {esc(payload["ifind_industry_count"])} 个 | 黑狼ETF候选 {esc(payload["blackwolf_etf_count"])} 条 | 直接新增 {esc(payload["direct_addition_count"])} 个</div>
     <div class="grid">
       <section>
         <h2>覆盖状态</h2>
@@ -436,7 +434,7 @@ def render_html(payload: dict[str, Any]) -> str:
         <div class="wrap">
           <table>
             <thead><tr><th>行业</th><th>状态</th><th>当前配置</th><th>当前State</th><th>候选</th><th>匹配</th><th>直接候选</th><th>代理候选</th></tr></thead>
-            <tbody>{''.join(detail_rows)}</tbody>
+            <tbody>{"".join(detail_rows)}</tbody>
           </table>
         </div>
       </section>
@@ -460,7 +458,11 @@ def write_outputs(payload: dict[str, Any]) -> dict[str, str]:
     latest_csv = OUT_DIR / "industry_etf_coverage_latest.csv"
     latest_html = PUBLIC_DIR / "industry_etf_coverage_latest.html"
 
-    clean_payload = {key: value for key, value in payload.items() if key not in {"expanded_config", "direct_additions_config"}}
+    clean_payload = {
+        key: value
+        for key, value in payload.items()
+        if key not in {"expanded_config", "direct_additions_config"}
+    }
     json_text = json.dumps(clean_payload, ensure_ascii=False, indent=2) + "\n"
     html_text = render_html(payload)
     json_path.write_text(json_text, encoding="utf-8")
@@ -469,7 +471,9 @@ def write_outputs(payload: dict[str, Any]) -> dict[str, str]:
     write_csv(latest_csv, payload["rows"])
     html_path.write_text(html_text, encoding="utf-8")
     latest_html.write_text(html_text, encoding="utf-8")
-    expanded_config_path.write_text(json.dumps(payload["expanded_config"], ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    expanded_config_path.write_text(
+        json.dumps(payload["expanded_config"], ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
     additions_config_path.write_text(
         json.dumps(payload["direct_additions_config"], ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",

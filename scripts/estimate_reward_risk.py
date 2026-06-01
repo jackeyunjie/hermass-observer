@@ -77,6 +77,7 @@ class RREstimate:
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def load_signals(signal_date: str) -> list[dict]:
     file_date = signal_date.replace("-", "")
     path = SIGNALS_DIR / f"strategy_signal_daily_{file_date}.json"
@@ -385,7 +386,9 @@ def build_report(estimates: list[RREstimate]) -> dict:
         "summary": {
             "avg_rr": round(sum(e.rr_ratio for e in computable) / len(computable), 2) if computable else None,
             "max_rr": round(max(e.rr_ratio for e in computable), 2) if computable else None,
-            "median_rr": round(sorted(e.rr_ratio for e in computable)[len(computable) // 2], 2) if computable else None,
+            "median_rr": round(sorted(e.rr_ratio for e in computable)[len(computable) // 2], 2)
+            if computable
+            else None,
             "by_close_source": {
                 src: len([e for e in estimates if e.close_source == src])
                 for src in set(e.close_source for e in estimates)
@@ -446,21 +449,23 @@ def generate_html(report: dict) -> str:
         rr_str = f"{rr:.2f}" if rr is not None else "N/A"
         close_info = f"{r['current_close']}"
         if r.get("close_date") and r.get("close_date") != report.get("signal_date"):
-            close_info += f'<br><small style="color:#999">{r["close_date"]} ({r.get("close_source","")})</small>'
+            close_info += (
+                f'<br><small style="color:#999">{r["close_date"]} ({r.get("close_source", "")})</small>'
+            )
         return (
             f'<tr class="{cls}">'
-            f'<td>{r["stock_code"]}</td>'
-            f'<td>{r["stock_name"]}</td>'
-            f'<td>{r["strategy_id"]}</td>'
-            f'<td>{r["signal_name"]}</td>'
-            f'<td>{close_info}</td>'
-            f'<td>{r.get("upside_pct")}</td>'
-            f'<td>{r.get("downside_pct")}</td>'
-            f'<td><b>{rr_str}</b></td>'
-            f'<td>{r["confidence"]}</td>'
-            f'<td>{r["upside_method"]}</td>'
-            f'<td>{r["downside_method"]}</td>'
-            f'<td>{" ".join(r.get("tags", []))}</td>'
+            f"<td>{r['stock_code']}</td>"
+            f"<td>{r['stock_name']}</td>"
+            f"<td>{r['strategy_id']}</td>"
+            f"<td>{r['signal_name']}</td>"
+            f"<td>{close_info}</td>"
+            f"<td>{r.get('upside_pct')}</td>"
+            f"<td>{r.get('downside_pct')}</td>"
+            f"<td><b>{rr_str}</b></td>"
+            f"<td>{r['confidence']}</td>"
+            f"<td>{r['upside_method']}</td>"
+            f"<td>{r['downside_method']}</td>"
+            f"<td>{' '.join(r.get('tags', []))}</td>"
             f"</tr>"
         )
 

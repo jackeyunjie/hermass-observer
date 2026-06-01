@@ -269,15 +269,16 @@ def simulate_vcp_trade(
     contraction_low = float(entry_data.get("contraction_low", entry_price * 0.94))
     entry_atr = float(entry_data.get("entry_atr", 0))
 
-    stops = compute_vcp_stop_prices(entry_price, {
-        "atr14": entry_atr,
-        "low_20d": contraction_low,
-        "high_10d": pivot_point,
-    })
-
-    position = calculate_position_size(
-        capital, entry_price, stops["conservative_stop"], entry_atr
+    stops = compute_vcp_stop_prices(
+        entry_price,
+        {
+            "atr14": entry_atr,
+            "low_20d": contraction_low,
+            "high_10d": pivot_point,
+        },
     )
+
+    position = calculate_position_size(capital, entry_price, stops["conservative_stop"], entry_atr)
 
     # Find entry index (first date >= entry_date)
     entry_idx = next((i for i, (d, _) in enumerate(price_series) if d >= entry_date), None)
@@ -299,8 +300,13 @@ def simulate_vcp_trade(
         highest_since_entry = max(highest_since_entry, close)
 
         result = vcp_exit_check(
-            entry_price, pivot_point, contraction_low, entry_atr,
-            close, hold_days, highest_since_entry,
+            entry_price,
+            pivot_point,
+            contraction_low,
+            entry_atr,
+            close,
+            hold_days,
+            highest_since_entry,
         )
 
         if result:

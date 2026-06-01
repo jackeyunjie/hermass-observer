@@ -39,7 +39,9 @@ def quality_label(score: Any) -> str:
     return "质量谨慎"
 
 
-def ratio_label(value: Any, *, high: float, low: float, high_label: str, mid_label: str, low_label: str) -> str:
+def ratio_label(
+    value: Any, *, high: float, low: float, high_label: str, mid_label: str, low_label: str
+) -> str:
     try:
         val = float(value)
     except (TypeError, ValueError):
@@ -73,7 +75,16 @@ def build_financial_rows(con: duckdb.DuckDBPyConnection, date_str: str) -> list[
     ).fetchall()
     out = []
     for row in rows:
-        stock_code, stock_name, core_purity, cash_quality, earnings_quality, asset_safety, quality_score, final_score = row
+        (
+            stock_code,
+            stock_name,
+            core_purity,
+            cash_quality,
+            earnings_quality,
+            asset_safety,
+            quality_score,
+            final_score,
+        ) = row
         labels = [
             quality_label(quality_score),
             ratio_label(

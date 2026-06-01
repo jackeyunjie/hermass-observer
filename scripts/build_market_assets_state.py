@@ -89,11 +89,16 @@ def export_latest_state(con: duckdb.DuckDBPyConnection, date_str: str) -> dict:
         writer.writeheader()
         writer.writerows(records)
 
-    json_path.write_text(json.dumps(records, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8")
+    json_path.write_text(
+        json.dumps(records, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8"
+    )
 
     html_rows = []
     for record in records:
-        cells = "".join(f"<td>{html.escape('' if record[col] is None else str(record[col]))}</td>" for col in EXPORT_COLUMNS)
+        cells = "".join(
+            f"<td>{html.escape('' if record[col] is None else str(record[col]))}</td>"
+            for col in EXPORT_COLUMNS
+        )
         html_rows.append(f"<tr>{cells}</tr>")
     html_head = "".join(f"<th>{html.escape(col)}</th>" for col in EXPORT_COLUMNS)
     strong_count = sum(1 for item in records if (item.get("ef_count") or 0) >= 2)
@@ -228,8 +233,9 @@ def build_raw_compatible_db(market_db: Path, raw_db: Path, date_str: str) -> dic
         ORDER BY symbol
         """
     )
-    summary = con.execute(
-        """
+    summary = (
+        con.execute(
+            """
         SELECT
           COUNT(*) AS raw_rows,
           COUNT(DISTINCT stock_code) AS asset_count,
@@ -237,7 +243,10 @@ def build_raw_compatible_db(market_db: Path, raw_db: Path, date_str: str) -> dic
           MAX(date) AS max_date
         FROM blackwolf_ashare_daily_raw
         """
-    ).fetchdf().to_dict("records")[0]
+        )
+        .fetchdf()
+        .to_dict("records")[0]
+    )
     con.close()
     return {**summary, "raw_db": str(raw_db)}
 
@@ -253,15 +262,19 @@ def build_market_assets_state(date_str: str, market_db: Path, raw_db: Path, out_
         SELECT * FROM rawcompat.asset_metadata
         """
     )
-    state_summary = con.execute(
-        """
+    state_summary = (
+        con.execute(
+            """
         SELECT
           COUNT(*) AS state_rows,
           COUNT(DISTINCT stock_code) AS asset_count,
           MAX(state_date) AS latest_date
         FROM d1_perspective_state
         """
-    ).fetchdf().to_dict("records")[0]
+        )
+        .fetchdf()
+        .to_dict("records")[0]
+    )
     con.execute(
         """
         CREATE TABLE latest_market_asset_state AS
@@ -308,12 +321,16 @@ def build_market_assets_state(date_str: str, market_db: Path, raw_db: Path, out_
         "exports": exports,
     }
     summary_path = out_db.parent / "summary.json"
-    summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8")
+    summary_path.write_text(
+        json.dumps(summary, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8"
+    )
     return summary
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build P116 MN1/W1/D1 state for index and industry ETF assets.")
+    parser = argparse.ArgumentParser(
+        description="Build P116 MN1/W1/D1 state for index and industry ETF assets."
+    )
     parser.add_argument("--date", required=True)
     parser.add_argument("--market-db", type=Path, default=DEFAULT_MARKET_DB)
     parser.add_argument("--raw-db", type=Path)
@@ -321,7 +338,14 @@ def main() -> int:
     args = parser.parse_args()
     raw_db = args.raw_db or default_raw_db(args.date)
     out_db = args.out_db or default_out_db(args.date)
-    print(json.dumps(build_market_assets_state(args.date, args.market_db, raw_db, out_db), ensure_ascii=False, indent=2, default=str))
+    print(
+        json.dumps(
+            build_market_assets_state(args.date, args.market_db, raw_db, out_db),
+            ensure_ascii=False,
+            indent=2,
+            default=str,
+        )
+    )
     return 0
 
 

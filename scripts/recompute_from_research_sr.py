@@ -17,7 +17,9 @@ def state_hex(score: int) -> str:
     return ("-" if score < 0 else "") + format(abs(score), "X")
 
 
-def classify_position(close: float | None, support: float | None, resistance: float | None) -> tuple[int, str, str]:
+def classify_position(
+    close: float | None, support: float | None, resistance: float | None
+) -> tuple[int, str, str]:
     if close is None or support is None or resistance is None:
         return 0, "中", "neutral"
     if resistance and close > resistance:
@@ -75,8 +77,18 @@ def component_state(
 
 
 def load_rows(date: str) -> list[dict]:
-    p116d = RESEARCH_ROOT / "outputs" / f"p116d_ashare_omni_cycle_alignment_{date.replace('-', '')}" / "p116d_ashare_omni_cycle_alignment.duckdb"
-    p116b = RESEARCH_ROOT / "outputs" / f"p116b_ashare_d1_official_sr_key_positions_{date.replace('-', '')}" / "p116b_ashare_d1_official_sr_key_positions.duckdb"
+    p116d = (
+        RESEARCH_ROOT
+        / "outputs"
+        / f"p116d_ashare_omni_cycle_alignment_{date.replace('-', '')}"
+        / "p116d_ashare_omni_cycle_alignment.duckdb"
+    )
+    p116b = (
+        RESEARCH_ROOT
+        / "outputs"
+        / f"p116b_ashare_d1_official_sr_key_positions_{date.replace('-', '')}"
+        / "p116b_ashare_d1_official_sr_key_positions.duckdb"
+    )
     if not p116d.exists():
         raise FileNotFoundError(p116d)
     if not p116b.exists():
@@ -195,8 +207,15 @@ def build_outputs(date: str) -> dict:
     view_path.write_text(json.dumps(view, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     detail_path = ROOT / "fixtures" / f"all_products_d1_view_recomputed_detail_{ymd}.json"
-    detail_path.write_text(json.dumps({"rows": view_rows}, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8")
-    return {"view": view_path, "detail": detail_path, "symbol_count": len(grouped), "total_rows": len(public_rows)}
+    detail_path.write_text(
+        json.dumps({"rows": view_rows}, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8"
+    )
+    return {
+        "view": view_path,
+        "detail": detail_path,
+        "symbol_count": len(grouped),
+        "total_rows": len(public_rows),
+    }
 
 
 def main() -> int:

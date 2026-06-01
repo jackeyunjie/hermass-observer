@@ -124,7 +124,13 @@ def signal_name(raw_signal: str) -> str:
     }.get(raw_signal, raw_signal)
 
 
-def ma2560_raw_signal(ma25: float | None, ma60: float | None, ma25_prev: float | None, ma60_prev: float | None, close: float | None) -> str | None:
+def ma2560_raw_signal(
+    ma25: float | None,
+    ma60: float | None,
+    ma25_prev: float | None,
+    ma60_prev: float | None,
+    close: float | None,
+) -> str | None:
     """Mirror backtest.strategy_signals.ma2560.ma2560_signal."""
     if ma25 is None or ma60 is None or close is None or close <= 0:
         return None
@@ -328,7 +334,10 @@ def summarize_grouped(
 
     rows = [metric_row(key, items, window, skip_ci=True) for key, items in by_key.items()]
     rows = [row for row in rows if row["n"] >= min_samples]
-    rows.sort(key=lambda r: (safe_float(r.get("mean_excess"), -999.0), safe_float(r.get("win_rate"), 0.0), r["n"]), reverse=True)
+    rows.sort(
+        key=lambda r: (safe_float(r.get("mean_excess"), -999.0), safe_float(r.get("win_rate"), 0.0), r["n"]),
+        reverse=True,
+    )
     return rows[:top_n]
 
 
@@ -383,7 +392,10 @@ def run_search(args: argparse.Namespace) -> dict[str, Any]:
     bit_rows = summarize_grouped(labeled, "state_bit_signature", primary, args.min_samples, args.top_n)
 
     all_exact_by_window = {
-        f"{window}d": [annotate_exact_combo(row) for row in summarize_grouped(labeled, "state_combo", window, args.min_samples, args.top_n)]
+        f"{window}d": [
+            annotate_exact_combo(row)
+            for row in summarize_grouped(labeled, "state_combo", window, args.min_samples, args.top_n)
+        ]
         for window in windows
     }
 
@@ -438,7 +450,13 @@ def render_markdown(result: dict[str, Any]) -> str:
     lines.append(f"- 当前规则组合: `{', '.join(comparison['rule_hex_combos'])}`")
     lines.append(f"- 命中当前规则样本: `{comparison['current_rule_samples']}`")
     lines.append(f"- 当前规则外样本: `{comparison['outside_rule_samples']}`")
-    lines.extend(["", "| 口径 | 窗口 | n | 平均超额 | 95% CI | 胜率 | 95% CI | 盈亏比 | t-stat |", "|---|---:|---:|---:|---:|---:|---:|---:|---:|"])
+    lines.extend(
+        [
+            "",
+            "| 口径 | 窗口 | n | 平均超额 | 95% CI | 胜率 | 95% CI | 盈亏比 | t-stat |",
+            "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
+        ]
+    )
     for label in ["current_rule", "outside_rule", "all_selected"]:
         for window in result["label_windows"]:
             row = comparison[label][f"{window}d"]
@@ -461,8 +479,7 @@ def render_markdown(result: dict[str, Any]) -> str:
     for idx, row in enumerate(result["top_exact_combos_primary"], 1):
         decoded = row.get("decoded", {})
         note = "；".join(
-            f"{label}:{decoded.get(label, {}).get('label', '')}"
-            for label in ["mn1", "w1", "d1"]
+            f"{label}:{decoded.get(label, {}).get('label', '')}" for label in ["mn1", "w1", "d1"]
         )
         lines.append(
             f"| {idx} | `{row['key']}` | `{row.get('hex_combo', '')}` | {row['n']} | {pct(row['mean_excess'])} | "
@@ -511,7 +528,9 @@ def write_outputs(result: dict[str, Any], date_tag: str) -> dict[str, str]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Search best MN1/W1/D1 State environments for MA2560 historical signals.")
+    parser = argparse.ArgumentParser(
+        description="Search best MN1/W1/D1 State environments for MA2560 historical signals."
+    )
     parser.add_argument("--start-date", required=True)
     parser.add_argument("--end-date", required=True)
     parser.add_argument("--foundation-db", type=Path)
@@ -524,8 +543,12 @@ def main() -> int:
     parser.add_argument("--windows", type=int, nargs="*", default=[5, 10, 20])
     parser.add_argument("--primary-window", type=int, default=20)
     parser.add_argument("--min-samples", type=int, default=20)
-    parser.add_argument("--min-ef-count", type=int, help="Optional minimum ef_count filter for the signal date.")
-    parser.add_argument("--max-ef-count", type=int, help="Optional maximum ef_count filter for the signal date.")
+    parser.add_argument(
+        "--min-ef-count", type=int, help="Optional minimum ef_count filter for the signal date."
+    )
+    parser.add_argument(
+        "--max-ef-count", type=int, help="Optional maximum ef_count filter for the signal date."
+    )
     parser.add_argument("--top-n", type=int, default=30)
     args = parser.parse_args()
     if not args.raw_signal:

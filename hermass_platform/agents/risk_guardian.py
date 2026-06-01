@@ -49,9 +49,7 @@ def assess_portfolio_risk(
             code_str = "('" + "', '".join(stock_codes) + "')"
             code_filter = f"AND s.stock_code IN {code_str}"
 
-        latest_date_row = con.execute(
-            "SELECT MAX(state_date) FROM d1_perspective_state"
-        ).fetchone()
+        latest_date_row = con.execute("SELECT MAX(state_date) FROM d1_perspective_state").fetchone()
         actual_date = str(latest_date_row[0]) if latest_date_row and latest_date_row[0] else ""
 
         risk_rows = con.execute(f"""
@@ -107,20 +105,22 @@ def assess_portfolio_risk(
             if not sr_ready:
                 flags.append("SR 关键位未就绪，止损参考不可靠")
 
-            holdings.append({
-                "stock_code": stock_code,
-                "d1_close": d1_close,
-                "ef_count": ef_count,
-                "d1_state_hex": d1_hex,
-                "w1_state_hex": w1_hex,
-                "mn1_state_hex": mn1_hex,
-                "d1_sr_support": d1_sr_support,
-                "d1_sr_resistance": d1_sr_resistance,
-                "atr_ratio_pct": atr_pct,
-                "adx14": adx,
-                "risk_flags": flags,
-                "risk_level": "高" if len(flags) >= 2 else ("中" if len(flags) >= 1 else "低"),
-            })
+            holdings.append(
+                {
+                    "stock_code": stock_code,
+                    "d1_close": d1_close,
+                    "ef_count": ef_count,
+                    "d1_state_hex": d1_hex,
+                    "w1_state_hex": w1_hex,
+                    "mn1_state_hex": mn1_hex,
+                    "d1_sr_support": d1_sr_support,
+                    "d1_sr_resistance": d1_sr_resistance,
+                    "atr_ratio_pct": atr_pct,
+                    "adx14": adx,
+                    "risk_flags": flags,
+                    "risk_level": "高" if len(flags) >= 2 else ("中" if len(flags) >= 1 else "低"),
+                }
+            )
             risk_flags.extend(flags)
 
         ef_dist = {}
@@ -232,18 +232,22 @@ def get_stop_loss_reference(
 
         stop_refs = []
         if sr_ready and d1_support and d1_support > 0:
-            stop_refs.append({
-                "method": "SR 支撑止损",
-                "reference_price": round(d1_support * 0.97, 2),
-                "description": f"D1 支撑位 {d1_support} 下方 3% 缓冲",
-            })
+            stop_refs.append(
+                {
+                    "method": "SR 支撑止损",
+                    "reference_price": round(d1_support * 0.97, 2),
+                    "description": f"D1 支撑位 {d1_support} 下方 3% 缓冲",
+                }
+            )
         if isinstance(atr_pct, (int, float)) and atr_pct > 0 and isinstance(d1_close, (int, float)):
             atr_value = d1_close * atr_pct / 100.0
-            stop_refs.append({
-                "method": "ATR 止损",
-                "reference_price": round(d1_close - atr_value * 2.0, 2),
-                "description": f"2×ATR({atr_value:.2f}) 止损",
-            })
+            stop_refs.append(
+                {
+                    "method": "ATR 止损",
+                    "reference_price": round(d1_close - atr_value * 2.0, 2),
+                    "description": f"2×ATR({atr_value:.2f}) 止损",
+                }
+            )
 
         result.data = {
             "stock_code": stock_code,

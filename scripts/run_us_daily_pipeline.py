@@ -4,6 +4,7 @@
 Orchestrates the complete US stock analysis pipeline:
 foundation → state_cache → signal_ledger → forward_observation → daily_brief
 """
+
 from __future__ import annotations
 
 import argparse
@@ -20,15 +21,18 @@ SCRIPTS = ROOT / "scripts"
 
 def run_step(name: str, cmd: list[str], timeout: int = 600) -> dict:
     """Run a pipeline step and capture output."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  STEP: {name}")
     print(f"  CMD:  {' '.join(cmd)}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     start = time.time()
     try:
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=timeout,
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
             cwd=str(ROOT),
         )
         elapsed = time.time() - start
@@ -65,40 +69,50 @@ def run_pipeline(date_str: str, foundation_db: str | None = None) -> dict:
     # Step 1: State cache (skip if already exists)
     cache_db = ROOT / "outputs" / "us_stock" / "us_state_cache.duckdb"
     if not cache_db.exists() or not foundation_db:
-        steps.append(run_step(
-            "Build US Foundation",
-            [python, str(SCRIPTS / "build_us_foundation.py"), "--start", "2020-01-01", "--end", date_str],
-            timeout=1800,
-        ))
+        steps.append(
+            run_step(
+                "Build US Foundation",
+                [python, str(SCRIPTS / "build_us_foundation.py"), "--start", "2020-01-01", "--end", date_str],
+                timeout=1800,
+            )
+        )
         db_arg = str(ROOT / "outputs" / "us_stock" / "us_foundation.duckdb")
 
     # Step 2: State cache
-    steps.append(run_step(
-        "Build State Cache",
-        [python, str(SCRIPTS / "build_us_state_cache.py")],
-        timeout=600,
-    ))
+    steps.append(
+        run_step(
+            "Build State Cache",
+            [python, str(SCRIPTS / "build_us_state_cache.py")],
+            timeout=600,
+        )
+    )
 
     # Step 3: Strategy signal ledger
-    steps.append(run_step(
-        "Build Strategy Signals",
-        [python, str(SCRIPTS / "us_strategy_signal_ledger.py"), "--date", date_str, "--db", db_arg],
-        timeout=300,
-    ))
+    steps.append(
+        run_step(
+            "Build Strategy Signals",
+            [python, str(SCRIPTS / "us_strategy_signal_ledger.py"), "--date", date_str, "--db", db_arg],
+            timeout=300,
+        )
+    )
 
     # Step 4: Forward observation
-    steps.append(run_step(
-        "Build Forward Observation",
-        [python, str(SCRIPTS / "us_forward_observation_ledger.py"), "--date", date_str, "--db", db_arg],
-        timeout=300,
-    ))
+    steps.append(
+        run_step(
+            "Build Forward Observation",
+            [python, str(SCRIPTS / "us_forward_observation_ledger.py"), "--date", date_str, "--db", db_arg],
+            timeout=300,
+        )
+    )
 
     # Step 5: Daily brief
-    steps.append(run_step(
-        "Build Daily Brief",
-        [python, str(SCRIPTS / "build_us_daily_brief.py")],
-        timeout=300,
-    ))
+    steps.append(
+        run_step(
+            "Build Daily Brief",
+            [python, str(SCRIPTS / "build_us_daily_brief.py")],
+            timeout=300,
+        )
+    )
 
     result = {
         "date": date_str,
@@ -110,7 +124,7 @@ def run_pipeline(date_str: str, foundation_db: str | None = None) -> dict:
     # Write pipeline log
     log_dir = ROOT / "outputs" / "us_stock" / "pipeline_log"
     log_dir.mkdir(parents=True, exist_ok=True)
-    log_path = log_dir / f"pipeline_{date_str.replace('-','')}.json"
+    log_path = log_dir / f"pipeline_{date_str.replace('-', '')}.json"
     log_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
 
     return result
@@ -124,9 +138,9 @@ def main() -> int:
 
     result = run_pipeline(args.date, args.db)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("PIPELINE SUMMARY")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     for step in result["steps"]:
         icon = "✓" if step["status"] == "ok" else "✗"
         print(f"  {icon} {step['step']}: {step['status']} ({step['elapsed']:.1f}s)")

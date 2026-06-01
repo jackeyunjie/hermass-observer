@@ -59,8 +59,11 @@ def run_pipeline():
 
     try:
         result = subprocess.run(
-            ["bash", str(script)], cwd=str(ROOT),
-            capture_output=True, text=True, timeout=600,
+            ["bash", str(script)],
+            cwd=str(ROOT),
+            capture_output=True,
+            text=True,
+            timeout=600,
         )
         if result.returncode == 0:
             logger.info("流水线执行成功")
@@ -87,7 +90,9 @@ def send_report():
         result = subprocess.run(
             [sys.executable, str(script)],
             cwd=str(ROOT),
-            capture_output=True, text=True, timeout=30,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         if result.returncode == 0:
             logger.info("邮件报告发送成功")

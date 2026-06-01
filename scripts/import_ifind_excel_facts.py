@@ -166,8 +166,7 @@ def refresh_excel_evidence(
 ) -> tuple[int, int]:
     evidence_count = 0
     tracking_codes = {
-        row[0]
-        for row in con.execute("SELECT stock_code FROM ifind_tracking_pool WHERE active").fetchall()
+        row[0] for row in con.execute("SELECT stock_code FROM ifind_tracking_pool WHERE active").fetchall()
     }
     for code in sorted(tracking_codes):
         facts = con.execute(
@@ -222,9 +221,7 @@ def refresh_excel_evidence(
             lines = ["iFinD Excel aggregate facts (all imported GUI files):"]
             for metric_name, metric_value, report_period, report_type, unit, stmts in all_facts:
                 suffix = f"{stmts} {report_period} {report_type} {unit}".strip()
-                lines.append(
-                    f"- {metric_name}: {metric_value:g}" + (f" ({suffix})" if suffix else "")
-                )
+                lines.append(f"- {metric_name}: {metric_value:g}" + (f" ({suffix})" if suffix else ""))
             aggregate_id = f"ifind_excel_aggregate_{code}_{ymd(date_str)}"
             con.execute(
                 """
@@ -340,17 +337,17 @@ def import_excel(path: Path, date_str: str, statement_type: str) -> dict:
                 continue
             fact_rows.append(
                 (
-                code,
-                name,
-                date_str,
-                statement_type,
-                meta["metric_name"],
-                num_value,
-                meta["report_period"],
-                meta["report_type"],
-                meta["unit"],
-                str(path),
-                collected_at,
+                    code,
+                    name,
+                    date_str,
+                    statement_type,
+                    meta["metric_name"],
+                    num_value,
+                    meta["report_period"],
+                    meta["report_type"],
+                    meta["unit"],
+                    str(path),
+                    collected_at,
                 )
             )
             fact_count += 1
@@ -359,9 +356,7 @@ def import_excel(path: Path, date_str: str, statement_type: str) -> dict:
 
     flush_fact_rows()
 
-    evidence_count, derived_count = refresh_excel_evidence(
-        con, path, date_str, statement_type, collected_at
-    )
+    evidence_count, derived_count = refresh_excel_evidence(con, path, date_str, statement_type, collected_at)
     con.close()
     return {
         "schema_version": "ifind_excel_import_v1",

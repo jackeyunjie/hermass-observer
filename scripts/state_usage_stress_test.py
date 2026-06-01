@@ -372,7 +372,9 @@ def run_stress(date_str: str, iterations: int, workers: int, code_limit: int) ->
     elif p95 < 2000:
         verdict = "PASS_WITH_NOTES: usable, but add materialized latest-state tables for frontend/API load."
     else:
-        verdict = "ATTENTION: state query p95 is high; introduce precomputed views or indexes/materialized outputs."
+        verdict = (
+            "ATTENTION: state query p95 is high; introduce precomputed views or indexes/materialized outputs."
+        )
 
     payload = {
         "schema_version": "state_usage_stress_test_v1",

@@ -128,20 +128,24 @@ def _should_fire(record: dict[str, Any], snapshot: dict[str, Any]) -> tuple[bool
     return False, "当前 trigger_type 尚未实现自动判断。"
 
 
-def _compose_email(record: dict[str, Any], stock_name: str, snapshot: dict[str, Any], reason: str) -> MIMEMultipart:
+def _compose_email(
+    record: dict[str, Any], stock_name: str, snapshot: dict[str, Any], reason: str
+) -> MIMEMultipart:
     msg = MIMEMultipart("alternative")
     stock_code = record["stock_code"]
-    subject = f"[Hermass 盯盘提醒] {stock_name or stock_code} - {record.get('note') or record.get('trigger_type')}"
+    subject = (
+        f"[Hermass 盯盘提醒] {stock_name or stock_code} - {record.get('note') or record.get('trigger_type')}"
+    )
     msg["Subject"] = subject
     body = f"""
 <html><body>
 <h3>Hermass 盯盘提醒</h3>
 <p><b>股票：</b>{stock_name or stock_code}（{stock_code}）</p>
-<p><b>提醒类型：</b>{record.get('note') or record.get('trigger_type')}</p>
+<p><b>提醒类型：</b>{record.get("note") or record.get("trigger_type")}</p>
 <p><b>触发原因：</b>{reason}</p>
-<p><b>多周期状态：</b>MN1={snapshot.get('mn1','-')} / W1={snapshot.get('w1','-')} / D1={snapshot.get('d1','-')}</p>
-<p><b>单周期位置：</b>D1 score={snapshot.get('d1_score','-')} / ef_count={snapshot.get('ef_count','-')}</p>
-<p><b>状态日期：</b>{snapshot.get('state_date','-')}</p>
+<p><b>多周期状态：</b>MN1={snapshot.get("mn1", "-")} / W1={snapshot.get("w1", "-")} / D1={snapshot.get("d1", "-")}</p>
+<p><b>单周期位置：</b>D1 score={snapshot.get("d1_score", "-")} / ef_count={snapshot.get("ef_count", "-")}</p>
+<p><b>状态日期：</b>{snapshot.get("state_date", "-")}</p>
 <p><b>研究入口：</b><a href="http://console.supertrader.world/research?stock_code={stock_code}&render_profile=value">打开价值组合研究</a></p>
 <p style="color:#666">以上为研究观察，不构成投资建议。</p>
 </body></html>
@@ -207,7 +211,11 @@ def main() -> int:
         _save_json(SENT_LEDGER, sent)
         _save_json(LEDGER, ledger)
 
-    print(json.dumps({"date": args.date, "fired_count": len(fired), "fired": fired}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {"date": args.date, "fired_count": len(fired), "fired": fired}, ensure_ascii=False, indent=2
+        )
+    )
     return 0
 
 

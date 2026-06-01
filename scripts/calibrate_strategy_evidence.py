@@ -116,7 +116,9 @@ def load_samples(eval_paths: list[Path], weights: dict[str, float]) -> list[dict
     return samples
 
 
-def attach_labels(samples: list[dict[str, Any]], db_path: Path, windows: list[int]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def attach_labels(
+    samples: list[dict[str, Any]], db_path: Path, windows: list[int]
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     if not samples:
         return [], {"label_status": "no_samples"}
 
@@ -394,7 +396,9 @@ def write_outputs(result: dict[str, Any], date_tag: str) -> dict[str, str]:
     outputs = {"json": str(json_path), "markdown": str(md_path), "latest_json": str(latest_json)}
     config_path = OUT_DIR / f"strategy_evidence_calibrated_config_{date_tag}.json"
     if result.get("calibrated_config"):
-        config_path.write_text(json.dumps(result["calibrated_config"], ensure_ascii=False, indent=2), encoding="utf-8")
+        config_path.write_text(
+            json.dumps(result["calibrated_config"], ensure_ascii=False, indent=2), encoding="utf-8"
+        )
         outputs["calibrated_config"] = str(config_path)
     elif config_path.exists():
         config_path.unlink()
@@ -420,7 +424,15 @@ def render_markdown(result: dict[str, Any]) -> str:
         for item in result["blockers"]:
             lines.append(f"- {item}")
     if result.get("best"):
-        lines.extend(["", "## Best Thresholds", "```json", json.dumps(result["best"], ensure_ascii=False, indent=2), "```"])
+        lines.extend(
+            [
+                "",
+                "## Best Thresholds",
+                "```json",
+                json.dumps(result["best"], ensure_ascii=False, indent=2),
+                "```",
+            ]
+        )
     if result.get("next_steps"):
         lines.extend(["", "## Next Steps"])
         for item in result["next_steps"]:
@@ -430,7 +442,9 @@ def render_markdown(result: dict[str, Any]) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Calibrate strategy evidence thresholds from historical strategy_evaluation JSON files.")
+    parser = argparse.ArgumentParser(
+        description="Calibrate strategy evidence thresholds from historical strategy_evaluation JSON files."
+    )
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--start-date")
     parser.add_argument("--end-date")

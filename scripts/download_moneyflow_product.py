@@ -44,7 +44,9 @@ def suffix_code(code: str) -> str:
 
 def request_money(token: str, code: str, date: str) -> list[dict[str, Any]]:
     params = urllib.parse.urlencode({"code": code, "tradeDate": date, "token": token})
-    req = urllib.request.Request(f"{API_BASE}/wolf/money?{params}", headers={"User-Agent": "HermassResearch/1.0"})
+    req = urllib.request.Request(
+        f"{API_BASE}/wolf/money?{params}", headers={"User-Agent": "HermassResearch/1.0"}
+    )
     with urllib.request.urlopen(req, timeout=90) as resp:
         payload = json.loads(resp.read().decode("utf-8-sig", errors="replace"))
     if isinstance(payload, dict):
@@ -98,9 +100,19 @@ def main() -> int:
         if args.sleep:
             time.sleep(args.sleep)
 
-    out_csv = args.out_dir / f"blackwolf_ashare_moneyflow_{args.date.replace('-', '')}_{args.date.replace('-', '')}.csv"
+    out_csv = (
+        args.out_dir
+        / f"blackwolf_ashare_moneyflow_{args.date.replace('-', '')}_{args.date.replace('-', '')}.csv"
+    )
     fields = write_rows(rows, out_csv)
-    summary_path = args.summary or ROOT / "reports" / "p112_capital_flow_evidence_layer" / "p116_top10_moneyflow_5d" / f"summary_{args.date.replace('-', '')}.json"
+    summary_path = (
+        args.summary
+        or ROOT
+        / "reports"
+        / "p112_capital_flow_evidence_layer"
+        / "p116_top10_moneyflow_5d"
+        / f"summary_{args.date.replace('-', '')}.json"
+    )
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     summary = {
         "schema_version": "blackwolf_moneyflow_product_download_v0_1",

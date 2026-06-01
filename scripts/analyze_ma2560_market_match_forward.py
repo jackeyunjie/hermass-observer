@@ -166,7 +166,9 @@ def load_price_window(
     return dict(by_code), benchmark_by_window, sorted(trading_dates)
 
 
-def forward_return(series: list[tuple[str, float]], signal_date: str, window: int) -> tuple[float | None, str | None, float | None]:
+def forward_return(
+    series: list[tuple[str, float]], signal_date: str, window: int
+) -> tuple[float | None, str | None, float | None]:
     idx = next((i for i, item in enumerate(series) if item[0] >= signal_date), None)
     if idx is None or idx + window >= len(series):
         return None, None, None
@@ -177,7 +179,11 @@ def forward_return(series: list[tuple[str, float]], signal_date: str, window: in
     return target_close / start_close - 1.0, target_date, target_close
 
 
-def build_rows(signals: list[dict[str, Any]], prices: dict[str, list[tuple[str, float]]], benchmarks: dict[int, float | None]) -> list[dict[str, Any]]:
+def build_rows(
+    signals: list[dict[str, Any]],
+    prices: dict[str, list[tuple[str, float]]],
+    benchmarks: dict[int, float | None],
+) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for signal in signals:
         code = str(signal.get("stock_code") or "")
@@ -195,7 +201,9 @@ def build_rows(signals: list[dict[str, Any]], prices: dict[str, list[tuple[str, 
             item[f"target_close_{window}d"] = target_close
             item[f"forward_return_{window}d"] = ret
             item[f"market_equal_weight_return_{window}d"] = bench
-            item[f"forward_excess_return_{window}d"] = ret - bench if ret is not None and bench is not None else None
+            item[f"forward_excess_return_{window}d"] = (
+                ret - bench if ret is not None and bench is not None else None
+            )
         item["label_status"] = (
             "labeled"
             if all(item.get(f"forward_return_{window}d") is not None for window in [5, 10, 20])
@@ -211,13 +219,23 @@ def group_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         items = [row for row in rows if (row.get("ma2560_market_match_level") or "not_match") == level]
         data: dict[str, Any] = {"count": len(items)}
         for window in [5, 10, 20]:
-            rets = [row.get(f"forward_return_{window}d") for row in items if row.get(f"forward_return_{window}d") is not None]
-            excess = [row.get(f"forward_excess_return_{window}d") for row in items if row.get(f"forward_excess_return_{window}d") is not None]
+            rets = [
+                row.get(f"forward_return_{window}d")
+                for row in items
+                if row.get(f"forward_return_{window}d") is not None
+            ]
+            excess = [
+                row.get(f"forward_excess_return_{window}d")
+                for row in items
+                if row.get(f"forward_excess_return_{window}d") is not None
+            ]
             data[f"labeled_{window}d"] = len(rets)
             data[f"avg_return_{window}d"] = statistics.fmean(rets) if rets else None
             data[f"win_rate_{window}d"] = sum(1 for val in rets if val > 0) / len(rets) if rets else None
             data[f"avg_excess_{window}d"] = statistics.fmean(excess) if excess else None
-            data[f"excess_win_rate_{window}d"] = sum(1 for val in excess if val > 0) / len(excess) if excess else None
+            data[f"excess_win_rate_{window}d"] = (
+                sum(1 for val in excess if val > 0) / len(excess) if excess else None
+            )
         out[level] = data
     return out
 
@@ -304,10 +322,10 @@ def render_html(payload: dict[str, Any]) -> str:
             f"""
             <tr>
               <td><strong>{esc(level)}</strong><br><span>{esc(LEVEL_LABELS[level])}</span></td>
-              <td class="num">{esc(row['count'])}</td>
-              <td class="num">{esc(row['labeled_5d'])}</td><td class="num">{pct(row['avg_return_5d'])}</td><td class="num">{pct(row['win_rate_5d'])}</td><td class="num">{pct(row['avg_excess_5d'])}</td>
-              <td class="num">{esc(row['labeled_10d'])}</td><td class="num">{pct(row['avg_return_10d'])}</td><td class="num">{pct(row['win_rate_10d'])}</td><td class="num">{pct(row['avg_excess_10d'])}</td>
-              <td class="num">{esc(row['labeled_20d'])}</td><td class="num">{pct(row['avg_return_20d'])}</td><td class="num">{pct(row['win_rate_20d'])}</td><td class="num">{pct(row['avg_excess_20d'])}</td>
+              <td class="num">{esc(row["count"])}</td>
+              <td class="num">{esc(row["labeled_5d"])}</td><td class="num">{pct(row["avg_return_5d"])}</td><td class="num">{pct(row["win_rate_5d"])}</td><td class="num">{pct(row["avg_excess_5d"])}</td>
+              <td class="num">{esc(row["labeled_10d"])}</td><td class="num">{pct(row["avg_return_10d"])}</td><td class="num">{pct(row["win_rate_10d"])}</td><td class="num">{pct(row["avg_excess_10d"])}</td>
+              <td class="num">{esc(row["labeled_20d"])}</td><td class="num">{pct(row["avg_return_20d"])}</td><td class="num">{pct(row["win_rate_20d"])}</td><td class="num">{pct(row["avg_excess_20d"])}</td>
             </tr>
             """
         )
@@ -317,14 +335,14 @@ def render_html(payload: dict[str, Any]) -> str:
         detail_rows.append(
             f"""
             <tr>
-              <td><strong>{esc(row.get('stock_code'))}</strong><br><span>{esc(row.get('stock_name') or '')}</span></td>
-              <td>{esc(row.get('ma2560_market_match_level'))}<br><span>{esc(row.get('ma2560_state_combo'))}</span></td>
-              <td>{esc(row.get('strategy_environment_fit'))}<br><span>{esc(row.get('fit_reasons'))}</span></td>
-              <td class="num">{esc(row.get('reference_close'))}</td>
-              <td class="num">{pct(row.get('forward_return_5d'))}<br><span>{pct(row.get('forward_excess_return_5d'))}</span></td>
-              <td class="num">{pct(row.get('forward_return_10d'))}<br><span>{pct(row.get('forward_excess_return_10d'))}</span></td>
-              <td class="num">{pct(row.get('forward_return_20d'))}<br><span>{pct(row.get('forward_excess_return_20d'))}</span></td>
-              <td>{esc(row.get('label_status'))}</td>
+              <td><strong>{esc(row.get("stock_code"))}</strong><br><span>{esc(row.get("stock_name") or "")}</span></td>
+              <td>{esc(row.get("ma2560_market_match_level"))}<br><span>{esc(row.get("ma2560_state_combo"))}</span></td>
+              <td>{esc(row.get("strategy_environment_fit"))}<br><span>{esc(row.get("fit_reasons"))}</span></td>
+              <td class="num">{esc(row.get("reference_close"))}</td>
+              <td class="num">{pct(row.get("forward_return_5d"))}<br><span>{pct(row.get("forward_excess_return_5d"))}</span></td>
+              <td class="num">{pct(row.get("forward_return_10d"))}<br><span>{pct(row.get("forward_excess_return_10d"))}</span></td>
+              <td class="num">{pct(row.get("forward_return_20d"))}<br><span>{pct(row.get("forward_excess_return_20d"))}</span></td>
+              <td>{esc(row.get("label_status"))}</td>
             </tr>
             """
         )
@@ -333,7 +351,7 @@ def render_html(payload: dict[str, Any]) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>2560 State / 市场匹配前向观察 {esc(payload['signal_date'])}</title>
+  <title>2560 State / 市场匹配前向观察 {esc(payload["signal_date"])}</title>
   <style>
     body {{ margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f6f8fb; color: #172033; }}
     main {{ max-width: 1440px; margin: 0 auto; padding: 24px; }}
@@ -351,15 +369,15 @@ def render_html(payload: dict[str, Any]) -> str:
 <body>
   <main>
     <h1>2560 State / 市场匹配前向观察</h1>
-    <p class="meta">信号日期 {esc(payload['signal_date'])} | 样本 {esc(payload['total'])} | 生成 {esc(payload['generated_at'])}</p>
+    <p class="meta">信号日期 {esc(payload["signal_date"])} | 样本 {esc(payload["total"])} | 生成 {esc(payload["generated_at"])}</p>
     <table>
       <thead><tr><th>匹配等级</th><th>样本</th><th>5日标注</th><th>5日均值</th><th>5日胜率</th><th>5日超额</th><th>10日标注</th><th>10日均值</th><th>10日胜率</th><th>10日超额</th><th>20日标注</th><th>20日均值</th><th>20日胜率</th><th>20日超额</th></tr></thead>
-      <tbody>{''.join(summary_rows)}</tbody>
+      <tbody>{"".join(summary_rows)}</tbody>
     </table>
     <div class="table-wrap">
       <table>
         <thead><tr><th>股票</th><th>匹配等级</th><th>环境适配</th><th>参考收盘</th><th>5日收益/超额</th><th>10日收益/超额</th><th>20日收益/超额</th><th>状态</th></tr></thead>
-        <tbody>{''.join(detail_rows)}</tbody>
+        <tbody>{"".join(detail_rows)}</tbody>
       </table>
     </div>
     <p class="note">本表使用全量研究账本中的 ma2560_strong_hold，不只看提醒层；未来窗口未完成时保留 pending_future_data。</p>
@@ -369,7 +387,9 @@ def render_html(payload: dict[str, Any]) -> str:
 """
 
 
-def build_report(signal_date: str, foundation_db: Path | None = None, ledger_db: Path = LEDGER_DB) -> dict[str, Any]:
+def build_report(
+    signal_date: str, foundation_db: Path | None = None, ledger_db: Path = LEDGER_DB
+) -> dict[str, Any]:
     foundation_db = foundation_db or default_foundation_db(signal_date)
     signals = load_signals(signal_date, ledger_db)
     codes = {str(row.get("stock_code") or "") for row in signals if row.get("stock_code")}
@@ -433,12 +453,16 @@ def build_report(signal_date: str, foundation_db: Path | None = None, ledger_db:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Analyze ma2560_strong_hold forward outcomes by market match level.")
+    parser = argparse.ArgumentParser(
+        description="Analyze ma2560_strong_hold forward outcomes by market match level."
+    )
     parser.add_argument("--date", required=True)
     parser.add_argument("--foundation-db", type=Path)
     parser.add_argument("--ledger-db", type=Path, default=LEDGER_DB)
     args = parser.parse_args()
-    print(json.dumps(build_report(args.date, args.foundation_db, args.ledger_db), ensure_ascii=False, indent=2))
+    print(
+        json.dumps(build_report(args.date, args.foundation_db, args.ledger_db), ensure_ascii=False, indent=2)
+    )
     return 0
 
 

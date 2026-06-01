@@ -416,7 +416,16 @@ def build_pptx(date_str: str, ctx: dict[str, Any], out_path: Path) -> None:
         slide.background.fill.fore_color.rgb = RGBColor(245, 247, 251)
         add_textbox(slide, 0.75, 1.0, 11.8, 1.0, title, size=34, bold=True, color=RGBColor(16, 24, 40))
         add_textbox(slide, 0.78, 2.0, 11.5, 0.7, subtitle, size=18, color=RGBColor(71, 84, 103))
-        add_textbox(slide, 0.78, 6.8, 10, 0.3, f"Report date: {date_str} | Research-only system overview", size=10, color=RGBColor(102, 112, 133))
+        add_textbox(
+            slide,
+            0.78,
+            6.8,
+            10,
+            0.3,
+            f"Report date: {date_str} | Research-only system overview",
+            size=10,
+            color=RGBColor(102, 112, 133),
+        )
 
     def section(title, bullets):
         slide = prs.slides.add_slide(blank)
@@ -521,7 +530,16 @@ def build_pptx(date_str: str, ctx: dict[str, Any], out_path: Path) -> None:
     add_textbox(slide, 0.55, 0.35, 12, 0.45, "行业轮动与资金流", size=24, bold=True)
     rows = [["排名", "行业", "E/F池", "新进", "资金确认率", "轮动分"]]
     for row in rotation.get("top_industries", [])[:7]:
-        rows.append([row["rank"], row["sw_l1"], row["pool_count"], row["entered_count"], pct(row.get("moneyflow_confirm_rate")), pnum(row.get("rotation_score"))])
+        rows.append(
+            [
+                row["rank"],
+                row["sw_l1"],
+                row["pool_count"],
+                row["entered_count"],
+                pct(row.get("moneyflow_confirm_rate")),
+                pnum(row.get("rotation_score")),
+            ]
+        )
     add_table(slide, 0.55, 1.1, 12.1, 5.6, rows)
 
     section(
@@ -590,16 +608,22 @@ def main() -> int:
     latest_md.write_text(markdown, encoding="utf-8")
     latest_html.write_text(build_html(markdown, args.date), encoding="utf-8")
     latest_pptx.write_bytes(pptx_path.read_bytes())
-    print(json.dumps({
-        "ok": True,
-        "date": args.date,
-        "markdown": str(md_path),
-        "html": str(html_path),
-        "pptx": str(pptx_path),
-        "latest_markdown": str(latest_md),
-        "latest_html": str(latest_html),
-        "latest_pptx": str(latest_pptx),
-    }, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "date": args.date,
+                "markdown": str(md_path),
+                "html": str(html_path),
+                "pptx": str(pptx_path),
+                "latest_markdown": str(latest_md),
+                "latest_html": str(latest_html),
+                "latest_pptx": str(latest_pptx),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 

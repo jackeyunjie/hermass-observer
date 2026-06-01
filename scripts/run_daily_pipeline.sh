@@ -214,6 +214,52 @@ else
     log "校验未通过，请检查上述 [MISS] 项"
 fi
 
+# ── Step Last: 产出清单 ──
+log "Step Last: 产出清单..."
+
+_outputs_manifest() {
+    local total_files=0 total_bytes=0
+    local paths=(
+        "outputs/p116_foundation_${YMD}"
+        "outputs/daily_snapshot.json"
+        "outputs/daily_warning.json"
+        "outputs/daily_research_brief"
+        "outputs/daily_state_excel"
+        "outputs/strategy_signals"
+        "outputs/forward_observation"
+        "public/daily_research_brief_${YMD}.html"
+    )
+
+    for rel in "${paths[@]}"; do
+        local abs="$PRODUCT_DIR/$rel"
+        if [ ! -e "$abs" ]; then
+            echo "[PIPELINE_OUTPUTS] missing: $rel"
+            continue
+        fi
+
+        local sz lines hash
+        if [ -d "$abs" ]; then
+            sz=$(du -sk "$abs" 2>/dev/null | awk '{print $1*1024}' || echo 0)
+            lines="NA"
+            hash=$(find "$abs" -type f -exec shasum -a 256 {} + 2>/dev/null | shasum -a 256 | cut -c1-8)
+        else
+            sz=$(stat -f%z "$abs" 2>/dev/null || stat -c%s "$abs" 2>/dev/null || echo 0)
+            lines=$(wc -l < "$abs" 2>/dev/null || echo NA)
+            hash=$(shasum -a 256 "$abs" 2>/dev/null | cut -c1-8 || echo N/A)
+        fi
+
+        printf '[PIPELINE_OUTPUTS] %-50s %10s %6s %s\n' "$rel" "$sz" "$lines" "$hash"
+        total_files=$((total_files + 1))
+        total_bytes=$((total_bytes + sz))
+    done
+
+    echo "[PIPELINE_OUTPUTS] total=${total_files} files, ${total_bytes} bytes"
+}
+
+_outputs_manifest | while IFS= read -r line; do
+    log "$line"
+done
+
 # ── 流水线结束 ──
 log "========================================"
 log "流水线完成 - ${DATE_STR}"

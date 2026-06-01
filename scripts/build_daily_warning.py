@@ -29,15 +29,15 @@ OUTPUT_PATH = PROJECT_ROOT / "outputs" / "daily_warning.json"
 
 # 回溯验证阈值（基于 5/29 研究）
 THRESHOLDS = {
-    "d1_negative_yellow": 200,      # 黄色警戒：D1 负值日增 > 200 只
-    "d1_negative_orange": 500,      # 橙色警戒：D1 负值日增 > 500 只
-    "high_to_negative_red": 400,    # 红色警戒：高位正→负突变 > 400 只
-    "mn1_positive_red": -1.0,       # 红色警戒：MN1 正值占比 -1pct 以上
-    "breather_trap_ef2_delta": 0.5, # 诱多：ef2 占比环比 +0.5pct 以上
-    "breather_trap_mn1_delta": -0.5,# 诱多：MN1 正值占比仍在下降 -0.5pct 以上
+    "d1_negative_yellow": 200,  # 黄色警戒：D1 负值日增 > 200 只
+    "d1_negative_orange": 500,  # 橙色警戒：D1 负值日增 > 500 只
+    "high_to_negative_red": 400,  # 红色警戒：高位正→负突变 > 400 只
+    "mn1_positive_red": -1.0,  # 红色警戒：MN1 正值占比 -1pct 以上
+    "breather_trap_ef2_delta": 0.5,  # 诱多：ef2 占比环比 +0.5pct 以上
+    "breather_trap_mn1_delta": -0.5,  # 诱多：MN1 正值占比仍在下降 -0.5pct 以上
     "breather_trap_d1_neg_delta": 200,  # 诱多：D1 负值仍在增加 +200 只以上
-    "all_clear_d1_neg": 150,        # 预警解除：高位正→负突变 < 150 只/日
-    "all_clear_mn1_delta": -0.3,    # 预警解除：MN1 环比 ≥ -0.3pct
+    "all_clear_d1_neg": 150,  # 预警解除：高位正→负突变 < 150 只/日
+    "all_clear_mn1_delta": -0.3,  # 预警解除：MN1 环比 ≥ -0.3pct
 }
 
 
@@ -168,14 +168,11 @@ def determine_alert(metrics: dict) -> dict:
     if d1_delta > THRESHOLDS["d1_negative_orange"]:
         alert = "orange"
         messages.append(
-            f"⚠️ 结构恶化加速：今日 D1 负值暴增 {d1_delta} 只，"
-            f"高位崩跌约 {high_to_neg} 只。建议防御。"
+            f"⚠️ 结构恶化加速：今日 D1 负值暴增 {d1_delta} 只，高位崩跌约 {high_to_neg} 只。建议防御。"
         )
     elif d1_delta > THRESHOLDS["d1_negative_yellow"]:
         alert = "yellow"
-        messages.append(
-            f"注意：负值扩散加速（+{d1_delta} 只），建议减仓观察。"
-        )
+        messages.append(f"注意：负值扩散加速（+{d1_delta} 只），建议减仓观察。")
 
     # 红色警戒：高位崩跌 + MN1 侵蚀
     if (
@@ -185,16 +182,10 @@ def determine_alert(metrics: dict) -> dict:
         and mn1_delta <= THRESHOLDS["mn1_positive_red"]
     ):
         alert = "red"
-        messages.append(
-            "🔴 多周期结构同步恶化：月线支撑正在被侵蚀，不是普通回调。"
-            "强烈建议降低风险暴露。"
-        )
+        messages.append("🔴 多周期结构同步恶化：月线支撑正在被侵蚀，不是普通回调。强烈建议降低风险暴露。")
 
     if breather:
-        messages.append(
-            "⚠️ ef2 反弹但月线结构仍在恶化——当前不是止跌确认，是诱多陷阱。"
-            "建议防御，不追反弹。"
-        )
+        messages.append("⚠️ ef2 反弹但月线结构仍在恶化——当前不是止跌确认，是诱多陷阱。建议防御，不追反弹。")
 
     metrics["alert_level"] = alert
     metrics["message"] = " ".join(messages) if messages else "市场结构指标正常，无显著预警。"

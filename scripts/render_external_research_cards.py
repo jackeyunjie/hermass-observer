@@ -23,13 +23,17 @@ from hermass_platform.research.external_research_formatters import (
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Render external research cards from shared evidence payload.")
+    parser = argparse.ArgumentParser(
+        description="Render external research cards from shared evidence payload."
+    )
     parser.add_argument("--stock-code", required=True, help="A-share stock code")
     parser.add_argument("--date", required=True, help="As-of date in YYYY-MM-DD")
     parser.add_argument("--foundation-db", help="Optional foundation DB override")
     parser.add_argument("--fundamental-db", help="Optional fundamental DB override")
     parser.add_argument("--evidence-json", help="Optional existing evidence payload JSON")
-    parser.add_argument("--enable-enrichment", action="store_true", help="Attach optional enrichment placeholder metadata")
+    parser.add_argument(
+        "--enable-enrichment", action="store_true", help="Attach optional enrichment placeholder metadata"
+    )
     parser.add_argument(
         "--provider",
         action="append",
@@ -57,8 +61,10 @@ def main() -> int:
     if args.enable_enrichment or args.provider:
         evidence = apply_optional_enrichment(evidence, enable=True, providers=args.provider)
 
-    output_dir = Path(args.output_dir) if args.output_dir else (
-        ROOT / "outputs" / "external_research_cards" / args.date.replace("-", "")
+    output_dir = (
+        Path(args.output_dir)
+        if args.output_dir
+        else (ROOT / "outputs" / "external_research_cards" / args.date.replace("-", ""))
     )
     output_dir.mkdir(parents=True, exist_ok=True)
     prefix = args.stock_code.replace(".", "_")

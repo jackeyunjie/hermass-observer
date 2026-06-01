@@ -134,7 +134,11 @@ def build_brief(cache_db: Path, foundation_db: Path, target_date: date | None = 
             w1_hex = st.get("w1_state_hex", "-")
             d1_hex = st.get("d1_state_hex", "-")
             ef_count = _ef_count_from_hex(mn1_hex, w1_hex, d1_hex)
-            score_sum = (st.get("mn1_state_score") or 0) + (st.get("w1_state_score") or 0) + (st.get("d1_state_score") or 0)
+            score_sum = (
+                (st.get("mn1_state_score") or 0)
+                + (st.get("w1_state_score") or 0)
+                + (st.get("d1_state_score") or 0)
+            )
 
             d1_days_since_exit = dur.get("d1_days_since_contraction_exit")
             if d1_days_since_exit is None:
@@ -176,11 +180,13 @@ def build_brief(cache_db: Path, foundation_db: Path, target_date: date | None = 
             entries.append(entry)
 
         # Sort: A first, then by score_sum desc
-        entries.sort(key=lambda e: (
-            0 if e["grade"] == "A" else 1 if e["grade"] == "B" else 2 if e["grade"] == "C" else 3,
-            -(e["score_sum"] or 0),
-            e["ticker"],
-        ))
+        entries.sort(
+            key=lambda e: (
+                0 if e["grade"] == "A" else 1 if e["grade"] == "B" else 2 if e["grade"] == "C" else 3,
+                -(e["score_sum"] or 0),
+                e["ticker"],
+            )
+        )
 
         # Stats
         stats = {
@@ -231,17 +237,17 @@ def generate_html(brief: dict) -> str:
             dur = f"距收缩退出{e['d1_days_since_contraction_exit']}天"
 
         rows_html += f"""
-        <tr class="grade-{e['grade']}">
-            <td><span class="badge" style="background:{color}">{e['grade']}</span></td>
-            <td><strong>{e['ticker']}</strong></td>
-            <td>${e['close']}</td>
-            <td>{e['mn1']}</td>
-            <td>{e['w1']}</td>
-            <td>{e['d1']}</td>
-            <td>{e['ef_count']}</td>
-            <td>{e['score_sum']}</td>
+        <tr class="grade-{e["grade"]}">
+            <td><span class="badge" style="background:{color}">{e["grade"]}</span></td>
+            <td><strong>{e["ticker"]}</strong></td>
+            <td>${e["close"]}</td>
+            <td>{e["mn1"]}</td>
+            <td>{e["w1"]}</td>
+            <td>{e["d1"]}</td>
+            <td>{e["ef_count"]}</td>
+            <td>{e["score_sum"]}</td>
             <td>{adx_str}</td>
-            <td>{e.get('d1_trend', '-')}</td>
+            <td>{e.get("d1_trend", "-")}</td>
             <td>{sr_info}</td>
             <td class="notes">{dur}</td>
         </tr>
@@ -276,13 +282,13 @@ def generate_html(brief: dict) -> str:
 </head>
 <body>
 <h1>📊 美股 State Scan 日报</h1>
-<div class="subtitle">{date_str} | 共 {stats['total']} 只 | 生成于 {brief['generated_at'][:19]}</div>
+<div class="subtitle">{date_str} | 共 {stats["total"]} 只 | 生成于 {brief["generated_at"][:19]}</div>
 
 <div class="stats">
-    <div class="stat-card"><div class="num" style="color:#ff6b6b">{stats['grade_A']}</div><div class="label">🎯 A级 刚释放</div></div>
-    <div class="stat-card"><div class="num" style="color:#f9ca24">{stats['grade_B']}</div><div class="label">🔥 B级 双周期</div></div>
-    <div class="stat-card"><div class="num" style="color:#6c5ce7">{stats['grade_C']}</div><div class="label">⚡ C级 单周期</div></div>
-    <div class="stat-card"><div class="num" style="color:#74b9ff">{stats['grade_D']}</div><div class="label">📊 D级 无E/F</div></div>
+    <div class="stat-card"><div class="num" style="color:#ff6b6b">{stats["grade_A"]}</div><div class="label">🎯 A级 刚释放</div></div>
+    <div class="stat-card"><div class="num" style="color:#f9ca24">{stats["grade_B"]}</div><div class="label">🔥 B级 双周期</div></div>
+    <div class="stat-card"><div class="num" style="color:#6c5ce7">{stats["grade_C"]}</div><div class="label">⚡ C级 单周期</div></div>
+    <div class="stat-card"><div class="num" style="color:#74b9ff">{stats["grade_D"]}</div><div class="label">📊 D级 无E/F</div></div>
 </div>
 
 <div class="guardrail">
@@ -325,18 +331,18 @@ def generate_markdown(brief: dict) -> str:
 
     md = f"""# 📊 美股 State Scan 日报 — {date_str}
 
-> 生成时间: {brief['generated_at'][:19]}  
+> 生成时间: {brief["generated_at"][:19]}  
 > 股票池: 534 只 (S&P 500 + Nasdaq-100)  
-> 总扫描: {stats['total']} 只进入 E/F 环境
+> 总扫描: {stats["total"]} 只进入 E/F 环境
 
 ## 统计概览
 
 | 等级 | 数量 | 说明 |
 |---|---|---|
-| 🎯 A级 | {stats['grade_A']} | 三周期 E/F 刚释放 |
-| 🔥 B级 | {stats['grade_B']} | 双周期 E/F |
-| ⚡ C级 | {stats['grade_C']} | 单周期 E/F |
-| 📊 D级 | {stats['grade_D']} | 无 E/F |
+| 🎯 A级 | {stats["grade_A"]} | 三周期 E/F 刚释放 |
+| 🔥 B级 | {stats["grade_B"]} | 双周期 E/F |
+| ⚡ C级 | {stats["grade_C"]} | 单周期 E/F |
+| 📊 D级 | {stats["grade_D"]} | 无 E/F |
 
 > ⚠️ **研究用途声明**: 本报告仅为 State 环境扫描，不构成买入/卖出建议。
 
@@ -363,6 +369,7 @@ def generate_markdown(brief: dict) -> str:
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--date", default=None, help="Target date (YYYY-MM-DD), default=latest")
     parser.add_argument("--cache-db", type=Path, default=US_CACHE_DB)
@@ -401,7 +408,9 @@ def main():
     print(f"  MD:   {md_path}")
 
     print(f"\n✅ US State Scan Brief complete: {brief['date']}")
-    print(f"   Total: {brief['stats']['total']} | A: {brief['stats']['grade_A']} | B: {brief['stats']['grade_B']} | C: {brief['stats']['grade_C']} | D: {brief['stats']['grade_D']}")
+    print(
+        f"   Total: {brief['stats']['total']} | A: {brief['stats']['grade_A']} | B: {brief['stats']['grade_B']} | C: {brief['stats']['grade_C']} | D: {brief['stats']['grade_D']}"
+    )
 
 
 if __name__ == "__main__":

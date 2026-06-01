@@ -77,7 +77,9 @@ def main() -> int:
             if token in text:
                 fail(errors, f"forbidden token {token!r} in {path.relative_to(ROOT)}")
         if "prior_high_60" in text and "not official" not in text.lower():
-            fail(errors, f"prior_high_60 appears outside explicit boundary context in {path.relative_to(ROOT)}")
+            fail(
+                errors, f"prior_high_60 appears outside explicit boundary context in {path.relative_to(ROOT)}"
+            )
 
     if errors:
         print("FAIL: Hermass Observer Product release")
@@ -86,6 +88,7 @@ def main() -> int:
         return 1
     print("PASS: Hermass Observer Product release verified")
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

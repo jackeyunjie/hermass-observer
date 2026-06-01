@@ -55,23 +55,25 @@ def query_user_slice(
 
         data = []
         for row in rows:
-            data.append({
-                "stock_code": row[0],
-                "state_date": row[1],
-                "d1_close": row[2],
-                "mn1_state_hex": row[3],
-                "w1_state_hex": row[4],
-                "d1_state_hex": row[5],
-                "mn1_state_score": row[6],
-                "w1_state_score": row[7],
-                "d1_state_score": row[8],
-                "ef_count": row[9],
-                "mn1_trend": row[10] or "",
-                "mn1_volatility": row[11] or "",
-                "mn1_sr_ready": bool(row[12]) if row[12] is not None else False,
-                "w1_sr_ready": bool(row[13]) if row[13] is not None else False,
-                "d1_sr_ready": bool(row[14]) if row[14] is not None else False,
-            })
+            data.append(
+                {
+                    "stock_code": row[0],
+                    "state_date": row[1],
+                    "d1_close": row[2],
+                    "mn1_state_hex": row[3],
+                    "w1_state_hex": row[4],
+                    "d1_state_hex": row[5],
+                    "mn1_state_score": row[6],
+                    "w1_state_score": row[7],
+                    "d1_state_score": row[8],
+                    "ef_count": row[9],
+                    "mn1_trend": row[10] or "",
+                    "mn1_volatility": row[11] or "",
+                    "mn1_sr_ready": bool(row[12]) if row[12] is not None else False,
+                    "w1_sr_ready": bool(row[13]) if row[13] is not None else False,
+                    "d1_sr_ready": bool(row[14]) if row[14] is not None else False,
+                }
+            )
     finally:
         con.close()
 

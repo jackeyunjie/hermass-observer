@@ -43,15 +43,10 @@ def send_dingtalk_message(content: str, webhook: str | None = None) -> bool:
     if not url:
         logger.warning("DINGTALK_WEBHOOK_URL is not configured; skip outbound message.")
         return False
-    payload = json.dumps({
-        "msgtype": "text",
-        "text": {"content": content}
-    }).encode("utf-8")
+    payload = json.dumps({"msgtype": "text", "text": {"content": content}}).encode("utf-8")
     try:
         req = urllib.request.Request(
-            url, data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST"
+            url, data=payload, headers={"Content-Type": "application/json"}, method="POST"
         )
         urllib.request.urlopen(req, timeout=10)
         logger.info("DingTalk message sent")
@@ -62,7 +57,6 @@ def send_dingtalk_message(content: str, webhook: str | None = None) -> bool:
 
 
 class DingTalkCallbackHandler(BaseHTTPRequestHandler):
-
     def do_POST(self):
         path = urlparse(self.path).path
 
@@ -155,25 +149,21 @@ class DingTalkCallbackHandler(BaseHTTPRequestHandler):
         if session_webhook:
             self._send_reply_via_webhook(session_webhook, reply)
         else:
-            logger.warning("No sessionWebhook found; callback processed but no direct reply channel available.")
+            logger.warning(
+                "No sessionWebhook found; callback processed but no direct reply channel available."
+            )
 
         self._send_json(200, {})
 
     def _send_reply_via_webhook(self, webhook_url, message):
         """通过 sessionWebhook 发送回复"""
         import urllib.request
-        
-        payload = json.dumps({
-            "msgtype": "text",
-            "text": {"content": message}
-        }).encode("utf-8")
-        
+
+        payload = json.dumps({"msgtype": "text", "text": {"content": message}}).encode("utf-8")
+
         try:
             req = urllib.request.Request(
-                webhook_url,
-                data=payload,
-                headers={"Content-Type": "application/json"},
-                method="POST"
+                webhook_url, data=payload, headers={"Content-Type": "application/json"}, method="POST"
             )
             urllib.request.urlopen(req, timeout=10)
             logger.info("Reply sent via sessionWebhook")
@@ -194,6 +184,7 @@ class DingTalkCallbackHandler(BaseHTTPRequestHandler):
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser(description="Hermass DingTalk Bot Server")
     parser.add_argument("--port", type=int, default=8081, help="HTTP port (default 8081)")
     parser.add_argument("--host", default="0.0.0.0", help="Bind address (default 0.0.0.0)")

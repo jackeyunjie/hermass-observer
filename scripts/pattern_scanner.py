@@ -52,6 +52,7 @@ def ensure_lifecycle(con: duckdb.DuckDBPyConnection, db_path: Path) -> None:
 
 # ───────────────────── 全市场日常观测 ─────────────────────
 
+
 def scan_daily_observations(con: duckdb.DuckDBPyConnection, obs_date: str) -> int:
     # 先写基础行情 + 均线
     con.execute(f"""
@@ -119,12 +120,12 @@ def scan_daily_observations(con: duckdb.DuckDBPyConnection, obs_date: str) -> in
         a5 = atrs[-6] if len(atrs) >= 6 else now
         a10 = atrs[-11] if len(atrs) >= 11 else now
         prev_list = atrs[-4:-1] if len(atrs) >= 4 else [now, now, now]
-        phase = 'expanding'
+        phase = "expanding"
         if now > 0 and now < a5 and a5 < a10:
-            phase = 'contracting'
+            phase = "contracting"
         elif now > 0 and now < a5:
-            phase = 'tightening'
-        ct_days = sum(1 for i in range(len(atrs)-1) if len(atrs) > i+1 and atrs[i] < atrs[i+1])
+            phase = "tightening"
+        ct_days = sum(1 for i in range(len(atrs) - 1) if len(atrs) > i + 1 and atrs[i] < atrs[i + 1])
         updates.append((phase, ct_days, code, obs_date))
 
     if updates:
@@ -155,11 +156,14 @@ def scan_daily_observations(con: duckdb.DuckDBPyConnection, obs_date: str) -> in
         WHERE o.obs_date = '{obs_date}'
     """)
 
-    count = con.execute(f"SELECT COUNT(*) FROM pattern_observation_daily WHERE obs_date = '{obs_date}'").fetchone()[0]
+    count = con.execute(
+        f"SELECT COUNT(*) FROM pattern_observation_daily WHERE obs_date = '{obs_date}'"
+    ).fetchone()[0]
     return count
 
 
 # ───────────────────── VCP 潜在池更新 ─────────────────────
+
 
 def update_vcp_pool(con: duckdb.DuckDBPyConnection, obs_date: str) -> int:
     con.execute(f"""
@@ -232,6 +236,7 @@ def update_vcp_pool(con: duckdb.DuckDBPyConnection, obs_date: str) -> int:
 
 
 # ───────────────────── 2560 潜在池更新 ─────────────────────
+
 
 def update_ma2560_pool(con: duckdb.DuckDBPyConnection, obs_date: str) -> int:
     con.execute(f"""
@@ -309,6 +314,7 @@ def update_ma2560_pool(con: duckdb.DuckDBPyConnection, obs_date: str) -> int:
 
 # ───────────────────── 事件记录 ─────────────────────
 
+
 def record_events(con: duckdb.DuckDBPyConnection, obs_date: str) -> int:
     con.execute(f"""
         INSERT OR IGNORE INTO pattern_events
@@ -375,6 +381,7 @@ def record_events(con: duckdb.DuckDBPyConnection, obs_date: str) -> int:
 
 # ───────────────────── 宏观周期 ─────────────────────
 
+
 def update_macro_regime(con: duckdb.DuckDBPyConnection, obs_date: str) -> int:
     ms_csv = ROOT / "outputs" / "market_assets_state" / f"market_assets_state_{ymd(obs_date)}.csv"
     if not ms_csv.exists():
@@ -382,6 +389,7 @@ def update_macro_regime(con: duckdb.DuckDBPyConnection, obs_date: str) -> int:
         return 0
 
     import csv
+
     count = 0
     with open(ms_csv, encoding="utf-8-sig", newline="") as f:
         for row in csv.DictReader(f):
@@ -393,18 +401,22 @@ def update_macro_regime(con: duckdb.DuckDBPyConnection, obs_date: str) -> int:
             d1 = row.get("d1_state_hex") or row.get("D1_state") or "NA"
             ef = sum(1 for s in [mn1, w1, d1] if s in ("E", "F"))
             asset_type = row.get("asset_type") or ("etf" if "ETF" in (row.get("name") or "") else "index")
-            con.execute("""
+            con.execute(
+                """
                 INSERT OR REPLACE INTO macro_regime_daily
                     (regime_date, asset_code, asset_type, mn1_state_hex,
                      w1_state_hex, d1_state_hex, ef_count, breadth_bull_pct)
                 VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
-            """, (obs_date, code, asset_type, mn1, w1, d1, ef))
+            """,
+                (obs_date, code, asset_type, mn1, w1, d1, ef),
+            )
             count += 1
 
     return count
 
 
 # ───────────────────── 生命周期摘要 ─────────────────────
+
 
 def update_lifecycle_summary(con: duckdb.DuckDBPyConnection, obs_date: str) -> int:
     con.execute(f"""
@@ -459,16 +471,20 @@ def update_lifecycle_summary(con: duckdb.DuckDBPyConnection, obs_date: str) -> i
             resolution = EXCLUDED.resolution
     """)
 
-    return con.execute("SELECT COUNT(*) FROM pattern_lifecycle WHERE last_seen = ?", (obs_date,)).fetchone()[0]
+    return con.execute("SELECT COUNT(*) FROM pattern_lifecycle WHERE last_seen = ?", (obs_date,)).fetchone()[
+        0
+    ]
 
 
 # ───────────────────── 主入口 ─────────────────────
+
 
 def run_full_scan(obs_date: str, foundation_db: str | None = None) -> dict[str, Any]:
     db_path = LIFECYCLE_DB
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     import importlib.util
+
     spec = importlib.util.spec_from_file_location(
         "pattern_lifecycle_schema",
         str(ROOT / "scripts" / "pattern_lifecycle_schema.py"),

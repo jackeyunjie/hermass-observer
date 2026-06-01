@@ -337,7 +337,9 @@ def main() -> int:
                 continue
             display_code = stock_code.split(".")[0]
             stock_name = stock_name_map.get(stock_code, "")
-            title = alert["title"].replace(stock_code, f"{display_code}{(' ' + stock_name) if stock_name else ''}")
+            title = alert["title"].replace(
+                stock_code, f"{display_code}{(' ' + stock_name) if stock_name else ''}"
+            )
             message = f"{title}\n{alert['reason']}"
             messages.append(message)
             new_keys.append(key)
@@ -358,7 +360,13 @@ def main() -> int:
 
     chat_id, webhook_url = _load_chat_target()
     if args.dry_run:
-        print(json.dumps({"watchlist": watchlist, "industry_focus": industry_focus, "alerts": messages}, ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                {"watchlist": watchlist, "industry_focus": industry_focus, "alerts": messages},
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
         return 0
     if not chat_id and not webhook_url:
         print("no lark target configured")
@@ -374,7 +382,11 @@ def main() -> int:
         ledger["sent_keys"] = sorted(sent_keys)[-1000:]
         _save_alert_ledger(ledger)
 
-    print(json.dumps({"watchlist_count": len(watchlist), "alerts": len(messages), "pushed": pushed}, ensure_ascii=False))
+    print(
+        json.dumps(
+            {"watchlist_count": len(watchlist), "alerts": len(messages), "pushed": pushed}, ensure_ascii=False
+        )
+    )
     return 0 if pushed == len(messages) else 1
 
 

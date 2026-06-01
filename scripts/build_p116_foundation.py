@@ -20,7 +20,12 @@ def sql_path(path: Path) -> str:
 
 def default_raw_db(date: str) -> Path:
     ymd = date.replace("-", "")
-    return RESEARCH_ROOT / "outputs" / f"p108_blackwolf_ashare_daily_raw_{ymd}" / "p108_blackwolf_ashare_daily_raw.duckdb"
+    return (
+        RESEARCH_ROOT
+        / "outputs"
+        / f"p108_blackwolf_ashare_daily_raw_{ymd}"
+        / "p108_blackwolf_ashare_daily_raw.duckdb"
+    )
 
 
 def default_out_db(date: str) -> Path:
@@ -564,7 +569,9 @@ def build(raw_db: Path, out_db: Path, date: str) -> dict:
     summary = conn.execute("SELECT * FROM foundation_run_log").fetchdf().to_dict("records")[0]
     conn.close()
     summary_path = out_db.parent / "summary.json"
-    summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8")
+    summary_path.write_text(
+        json.dumps(summary, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8"
+    )
     return summary
 
 

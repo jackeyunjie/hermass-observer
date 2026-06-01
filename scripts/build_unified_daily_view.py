@@ -80,6 +80,7 @@ def safe_load_json(path: Path) -> Optional[dict]:
 # Data loaders
 # ---------------------------------------------------------------------------
 
+
 def load_state_ef(date: str) -> pd.DataFrame:
     """Load state_ef JSON and return rows as DataFrame."""
     path = json_path("state_cache", "state_ef_{date}.json", date)
@@ -128,17 +129,27 @@ def load_sr_boundary(date: str) -> pd.DataFrame:
     df["abs_distance"] = df["distance_pct"].abs()
     df = df.sort_values("abs_distance").groupby("stock_code", as_index=False).first()
     # Rename for clarity
-    df = df.rename(columns={
-        "boundary_type": "sr_boundary_type",
-        "distance_pct": "sr_distance_pct",
-        "boundary_direction": "sr_boundary_direction",
-        "above_resistance": "sr_above_resistance",
-        "below_support": "sr_below_support",
-        "boundary_price": "sr_boundary_price",
-        "boundary_period": "sr_boundary_period",
-    })
-    cols = ["stock_code", "sr_boundary_type", "sr_distance_pct", "sr_boundary_direction",
-            "sr_above_resistance", "sr_below_support", "sr_boundary_price", "sr_boundary_period"]
+    df = df.rename(
+        columns={
+            "boundary_type": "sr_boundary_type",
+            "distance_pct": "sr_distance_pct",
+            "boundary_direction": "sr_boundary_direction",
+            "above_resistance": "sr_above_resistance",
+            "below_support": "sr_below_support",
+            "boundary_price": "sr_boundary_price",
+            "boundary_period": "sr_boundary_period",
+        }
+    )
+    cols = [
+        "stock_code",
+        "sr_boundary_type",
+        "sr_distance_pct",
+        "sr_boundary_direction",
+        "sr_above_resistance",
+        "sr_below_support",
+        "sr_boundary_price",
+        "sr_boundary_period",
+    ]
     return df[[c for c in cols if c in df.columns]]
 
 
@@ -167,7 +178,10 @@ def compute_reward_risk(df: pd.DataFrame) -> pd.DataFrame:
 
     # Group by stock_code
     from collections import defaultdict
-    by_stock: dict[str, dict[str, Any]] = defaultdict(lambda: {"resistance": None, "support": None, "close": None})
+
+    by_stock: dict[str, dict[str, Any]] = defaultdict(
+        lambda: {"resistance": None, "support": None, "close": None}
+    )
     for row in rows:
         code = row.get("stock_code")
         if not code:
@@ -234,9 +248,7 @@ def load_strategy_signals(date: str) -> pd.DataFrame:
         return pd.DataFrame()
     try:
         con = duckdb.connect(str(ledger_db), read_only=True)
-        df = con.execute(
-            "SELECT * FROM strategy_signal_daily WHERE signal_date = ?", [date]
-        ).fetchdf()
+        df = con.execute("SELECT * FROM strategy_signal_daily WHERE signal_date = ?", [date]).fetchdf()
         con.close()
     except Exception as e:
         logger.warning("Failed to query strategy_signal_daily: %s", e)
@@ -326,12 +338,28 @@ def load_recommendation(date: str) -> pd.DataFrame:
     if "symbol" in df.columns:
         df = df.drop(columns=["stock_code"], errors="ignore")
         df = df.rename(columns={"symbol": "stock_code"})
-    keep = ["stock_code", "stock_name", "sw_l1", "sw_l2", "sw_l3",
-            "recommendation_score", "state", "state_score_sum", "ef_strength",
-            "d1_close", "d1_adx14", "best_selection_signal", "latest_vcp_signal",
-            "latest_2560_signal", "macro_etf_symbol", "macro_etf_name",
-            "macro_etf_state", "macro_etf_ef_count", "observation_reason",
-            "risk_note"]
+    keep = [
+        "stock_code",
+        "stock_name",
+        "sw_l1",
+        "sw_l2",
+        "sw_l3",
+        "recommendation_score",
+        "state",
+        "state_score_sum",
+        "ef_strength",
+        "d1_close",
+        "d1_adx14",
+        "best_selection_signal",
+        "latest_vcp_signal",
+        "latest_2560_signal",
+        "macro_etf_symbol",
+        "macro_etf_name",
+        "macro_etf_state",
+        "macro_etf_ef_count",
+        "observation_reason",
+        "risk_note",
+    ]
     cols = [c for c in keep if c in df.columns]
     df = df[cols].copy()
     # Rename d1_close to avoid collision
@@ -444,9 +472,17 @@ def load_industry_chain(date: str) -> pd.DataFrame:
     }
     df = df.rename(columns={k: v for k, v in rename.items() if k in df.columns})
     # Only keep join key + enrichment columns
-    keep = ["sw_l1", "chain_position", "chain_prosperity_score", "chain_rating",
-            "prosperity_change", "rating_change", "policy_support",
-            "etf_symbol", "etf_ef_count"]
+    keep = [
+        "sw_l1",
+        "chain_position",
+        "chain_prosperity_score",
+        "chain_rating",
+        "prosperity_change",
+        "rating_change",
+        "policy_support",
+        "etf_symbol",
+        "etf_ef_count",
+    ]
     cols = [c for c in keep if c in df.columns]
     return df[cols]
 
@@ -513,20 +549,30 @@ def load_macro_chain_prior(date: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     industry_df = pd.DataFrame()
     if industry_priors:
         industry_df = pd.DataFrame(industry_priors)
-        industry_df = industry_df.rename(columns={
-            "chain_prior_score": "industry_chain_prior_score",
-            "confidence": "industry_chain_prior_confidence",
-            "posterior_adjustment_hint": "industry_posterior_hint",
-            "posterior_adjustment_label": "industry_posterior_label",
-            "etf_symbol": "industry_etf_symbol",
-            "etf_name": "industry_etf_name",
-            "etf_state_combo": "industry_etf_state_combo",
-            "etf_ef_count": "industry_etf_ef_count",
-        })
-        keep = ["sw_l1", "industry_chain_prior_score", "industry_chain_prior_confidence",
-                "industry_posterior_hint", "industry_posterior_label",
-                "industry_etf_symbol", "industry_etf_name", "industry_etf_state_combo",
-                "industry_etf_ef_count", "mapping_status"]
+        industry_df = industry_df.rename(
+            columns={
+                "chain_prior_score": "industry_chain_prior_score",
+                "confidence": "industry_chain_prior_confidence",
+                "posterior_adjustment_hint": "industry_posterior_hint",
+                "posterior_adjustment_label": "industry_posterior_label",
+                "etf_symbol": "industry_etf_symbol",
+                "etf_name": "industry_etf_name",
+                "etf_state_combo": "industry_etf_state_combo",
+                "etf_ef_count": "industry_etf_ef_count",
+            }
+        )
+        keep = [
+            "sw_l1",
+            "industry_chain_prior_score",
+            "industry_chain_prior_confidence",
+            "industry_posterior_hint",
+            "industry_posterior_label",
+            "industry_etf_symbol",
+            "industry_etf_name",
+            "industry_etf_state_combo",
+            "industry_etf_ef_count",
+            "mapping_status",
+        ]
         cols = [c for c in keep if c in industry_df.columns]
         industry_df = industry_df[cols]
 
@@ -537,6 +583,7 @@ def load_macro_chain_prior(date: str) -> tuple[pd.DataFrame, pd.DataFrame]:
 # ---------------------------------------------------------------------------
 # Assembly
 # ---------------------------------------------------------------------------
+
 
 def build_unified_view(date: str) -> pd.DataFrame:
     """Build the unified daily view DataFrame for the given date."""
@@ -597,9 +644,7 @@ def build_unified_view(date: str) -> pd.DataFrame:
         if not need_fill.any():
             return
         # Join fallback on stock_code
-        fill_df = df.loc[need_fill, ["stock_code"]].merge(
-            fallback_df, on="stock_code", how="left"
-        )
+        fill_df = df.loc[need_fill, ["stock_code"]].merge(fallback_df, on="stock_code", how="left")
         filled_mask = fill_df["sw_l1"].notna()
         filled_count = filled_mask.sum()
         if filled_count == 0:
@@ -611,7 +656,9 @@ def build_unified_view(date: str) -> pd.DataFrame:
                 df.loc[idx, col] = fill_df[col].values
         logger.info(
             "Industry fallback %s filled %d/%d NULLs",
-            source_name, filled_count, need_fill.sum(),
+            source_name,
+            filled_count,
+            need_fill.sum(),
         )
 
     # Apply fallbacks in priority order
@@ -622,8 +669,9 @@ def build_unified_view(date: str) -> pd.DataFrame:
     # Report coverage
     if "sw_l1" in df.columns:
         coverage = df["sw_l1"].notna().mean() * 100
-        logger.info("sw_l1 coverage after fallbacks: %.1f%% (%d/%d)",
-                    coverage, df["sw_l1"].notna().sum(), len(df))
+        logger.info(
+            "sw_l1 coverage after fallbacks: %.1f%% (%d/%d)", coverage, df["sw_l1"].notna().sum(), len(df)
+        )
 
     # 7. Industry chain (joined by sw_l1)
     chain = load_industry_chain(date)
@@ -664,13 +712,25 @@ def build_unified_view(date: str) -> pd.DataFrame:
         df["snapshot_date"] = date
 
     # Coerce boolean columns robustly
-    bool_cols = [c for c in df.columns if c.startswith("has_") or c in ("sr_above_resistance", "sr_below_support", "moneyflow_confirmed")]
+    bool_cols = [
+        c
+        for c in df.columns
+        if c.startswith("has_") or c in ("sr_above_resistance", "sr_below_support", "moneyflow_confirmed")
+    ]
     for c in bool_cols:
         if c in df.columns:
             # Handle strings like "True"/"False", numeric 1/0, and actual bools
             s = df[c]
             if s.dtype == object or s.dtype.name == "string":
-                df[c] = s.map(lambda x: True if str(x).lower() == "true" else (False if str(x).lower() == "false" else None) if pd.notna(x) else None).astype("boolean")
+                df[c] = s.map(
+                    lambda x: (
+                        True
+                        if str(x).lower() == "true"
+                        else (False if str(x).lower() == "false" else None)
+                        if pd.notna(x)
+                        else None
+                    )
+                ).astype("boolean")
             else:
                 df[c] = s.astype("boolean")
 
@@ -684,6 +744,7 @@ def build_unified_view(date: str) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 # DuckDB persistence
 # ---------------------------------------------------------------------------
+
 
 def ensure_table_schema(con: duckdb.DuckDBPyConnection) -> None:
     """Create the unified_daily_snapshot table if not exists."""
@@ -892,6 +953,7 @@ def write_to_duckdb(df: pd.DataFrame, date: str) -> Path:
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build unified daily data view")
     parser.add_argument("--date", required=True, help="Snapshot date (YYYY-MM-DD)")
@@ -929,9 +991,16 @@ def main() -> int:
         logger.info("Rows for %s: %d", date, cnt)
 
         # NULL fractions for key columns
-        key_cols = ["mn1_state_hex", "w1_state_hex", "d1_state_hex",
-                    "ef_count", "moneyflow_status", "sw_l1",
-                    "macro_growth_regime", "best_strategy_id"]
+        key_cols = [
+            "mn1_state_hex",
+            "w1_state_hex",
+            "d1_state_hex",
+            "ef_count",
+            "moneyflow_status",
+            "sw_l1",
+            "macro_growth_regime",
+            "best_strategy_id",
+        ]
         for col in key_cols:
             try:
                 null_frac = con.execute(

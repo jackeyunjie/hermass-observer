@@ -313,27 +313,29 @@ def write_monthly_json(
 
     data = []
     for row in rows:
-        data.append({
-            "stock_code": row[0],
-            "mn1_state_score": row[1],
-            "mn1_state_hex": row[2],
-            "mn1_close": row[3],
-            "mn1_sr_support": row[4],
-            "mn1_sr_resistance": row[5],
-            "mn1_sr_ready": row[6],
-            "mn1_trend": row[7],
-            "mn1_volatility": row[8],
-            "mn1_compression": row[9],
-            "mn1_base": row[10],
-            "mn1_trend_bit": row[11],
-            "mn1_position_bit": row[12],
-            "mn1_volatility_bit": row[13],
-            "mn1_adx14": row[14],
-            "mn1_plus_di_14": row[15],
-            "mn1_minus_di_14": row[16],
-            "mn1_atr_ratio_pct": row[17],
-            "mn1_bb_width_pct": row[18],
-        })
+        data.append(
+            {
+                "stock_code": row[0],
+                "mn1_state_score": row[1],
+                "mn1_state_hex": row[2],
+                "mn1_close": row[3],
+                "mn1_sr_support": row[4],
+                "mn1_sr_resistance": row[5],
+                "mn1_sr_ready": row[6],
+                "mn1_trend": row[7],
+                "mn1_volatility": row[8],
+                "mn1_compression": row[9],
+                "mn1_base": row[10],
+                "mn1_trend_bit": row[11],
+                "mn1_position_bit": row[12],
+                "mn1_volatility_bit": row[13],
+                "mn1_adx14": row[14],
+                "mn1_plus_di_14": row[15],
+                "mn1_minus_di_14": row[16],
+                "mn1_atr_ratio_pct": row[17],
+                "mn1_bb_width_pct": row[18],
+            }
+        )
 
     result = {
         "schema_version": "monthly_state_independent_v1",
@@ -427,18 +429,20 @@ def run_diff_analysis(
     from collections import defaultdict
 
     def analyze(rows, label):
-        stats: dict[str, dict[str, Any]] = defaultdict(lambda: {
-            "total": 0,
-            "same_hex": 0,
-            "same_score": 0,
-            "diff_by_bits": 0,
-            "diff_by_sign_only": 0,
-            "diff_by_magnitude_only": 0,
-            "missing_in_foundation": 0,
-            "score_diff_distribution": defaultdict(int),
-            "hex_transition_counts": defaultdict(int),
-            "position_diff_count": 0,
-        })
+        stats: dict[str, dict[str, Any]] = defaultdict(
+            lambda: {
+                "total": 0,
+                "same_hex": 0,
+                "same_score": 0,
+                "diff_by_bits": 0,
+                "diff_by_sign_only": 0,
+                "diff_by_magnitude_only": 0,
+                "missing_in_foundation": 0,
+                "score_diff_distribution": defaultdict(int),
+                "hex_transition_counts": defaultdict(int),
+                "position_diff_count": 0,
+            }
+        )
 
         for row in rows:
             ym, ind_hex, ind_score, d1_hex, d1_score, stock_code, mn1_close, d1_close = row[:8]
@@ -533,7 +537,9 @@ def run_diff_analysis(
         if total == 0:
             continue
         same_pct = round(st["same_hex"] / total * 100, 2)
-        pos_pct = round(st.get("position_diff_count", 0) / total * 100, 2) if st.get("position_diff_count") else 0.0
+        pos_pct = (
+            round(st.get("position_diff_count", 0) / total * 100, 2) if st.get("position_diff_count") else 0.0
+        )
         lines.append(f"### {ym}")
         lines.append(f"- Total stocks: {total}")
         lines.append(f"- Same hex: {st['same_hex']} ({same_pct}%)")
@@ -553,7 +559,9 @@ def run_diff_analysis(
         if total == 0:
             continue
         same_pct = round(st["same_hex"] / total * 100, 2)
-        pos_pct = round(st.get("position_diff_count", 0) / total * 100, 2) if st.get("position_diff_count") else 0.0
+        pos_pct = (
+            round(st.get("position_diff_count", 0) / total * 100, 2) if st.get("position_diff_count") else 0.0
+        )
         lines.append(f"### {ym}")
         lines.append(f"- Total stocks: {total}")
         lines.append(f"- Same hex: {st['same_hex']} ({same_pct}%)")
@@ -572,10 +580,18 @@ def run_diff_analysis(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build independent monthly MN1 state cache")
-    parser.add_argument("--monthly-db", type=Path, default=ROOT / "outputs" / "monthly_bars" / "monthly_bars.duckdb")
-    parser.add_argument("--foundation-db", type=Path, default=ROOT / "outputs" / "p116_foundation_20260522" / "p116_foundation.duckdb")
+    parser.add_argument(
+        "--monthly-db", type=Path, default=ROOT / "outputs" / "monthly_bars" / "monthly_bars.duckdb"
+    )
+    parser.add_argument(
+        "--foundation-db",
+        type=Path,
+        default=ROOT / "outputs" / "p116_foundation_20260522" / "p116_foundation.duckdb",
+    )
     parser.add_argument("--out-dir", type=Path, default=ROOT / "outputs" / "state_cache")
-    parser.add_argument("--ym", type=str, default=None, help="YYYYMM like 202605. If omitted, generates all months.")
+    parser.add_argument(
+        "--ym", type=str, default=None, help="YYYYMM like 202605. If omitted, generates all months."
+    )
     parser.add_argument("--skip-diff", action="store_true", help="Skip diff analysis against foundation DB")
     args = parser.parse_args()
 
@@ -617,6 +633,7 @@ def main() -> None:
         latest_dst = out_dir / "monthly_state_latest.json"
         if latest_src.exists():
             import shutil
+
             shutil.copy(str(latest_src), str(latest_dst))
             print(f"  Copied latest to {latest_dst.name}")
 
@@ -628,6 +645,7 @@ def main() -> None:
         except Exception as e:
             print(f"  Diff analysis failed: {e}")
             import traceback
+
             traceback.print_exc()
 
     con.close()

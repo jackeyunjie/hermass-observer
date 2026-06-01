@@ -171,7 +171,9 @@ def build_rows(date_str: str, foundation_db: Path, lookback_days: int) -> list[d
     return out
 
 
-def write_outputs(rows: list[dict[str, Any]], date_str: str, foundation_db: Path, lookback_days: int) -> dict[str, Any]:
+def write_outputs(
+    rows: list[dict[str, Any]], date_str: str, foundation_db: Path, lookback_days: int
+) -> dict[str, Any]:
     out_dir = ROOT / "outputs" / "strategy_evidence"
     public_dir = ROOT / "public"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -240,14 +242,16 @@ def render_html(payload: dict[str, Any], rows: list[dict[str, Any]], fields: lis
     head = "".join(f"<th>{html.escape(field)}</th>" for field in fields)
     body = []
     for row in rows:
-        body.append("<tr>" + "".join(f"<td>{html.escape(str(row.get(field, '')))}</td>" for field in fields) + "</tr>")
+        body.append(
+            "<tr>" + "".join(f"<td>{html.escape(str(row.get(field, '')))}</td>" for field in fields) + "</tr>"
+        )
     strong = sum(1 for row in rows if safe_float(row.get("strategy_score")) >= 60)
     return f"""<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>策略证据表 - {html.escape(payload['date'])}</title>
+  <title>策略证据表 - {html.escape(payload["date"])}</title>
   <style>
     body {{ margin: 0; padding: 24px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; color: #17212b; background: #f7f8f6; }}
     header, section {{ background: #fff; border: 1px solid #dce4df; border-radius: 8px; padding: 18px; margin-bottom: 16px; }}
@@ -266,17 +270,17 @@ def render_html(payload: dict[str, Any], rows: list[dict[str, Any]], fields: lis
 </head>
 <body>
   <header>
-    <h1>策略证据表 - {html.escape(payload['date'])}</h1>
+    <h1>策略证据表 - {html.escape(payload["date"])}</h1>
     <p>范围：P116 三周期 E/F 股票池。VCP 和 2560 用于入选组合观察增强；布林强盗与 ATR 吊灯保留为完整经典策略/离场提醒选项。</p>
     <div class="kpis">
       <div class="kpi"><small>股票数</small><strong>{len(rows)}</strong></div>
       <div class="kpi"><small>策略证据强</small><strong>{strong}</strong></div>
-      <div class="kpi"><small>回看交易日</small><strong>{payload['lookback_days']}</strong></div>
+      <div class="kpi"><small>回看交易日</small><strong>{payload["lookback_days"]}</strong></div>
     </div>
   </header>
   <section>
     <div class="table-wrap">
-      <table><thead><tr>{head}</tr></thead><tbody>{''.join(body)}</tbody></table>
+      <table><thead><tr>{head}</tr></thead><tbody>{"".join(body)}</tbody></table>
     </div>
   </section>
 </body>

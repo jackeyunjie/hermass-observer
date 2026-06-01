@@ -4,6 +4,7 @@
 Records strategy signals with future return labels using SPY as benchmark.
 Equivalent to scripts/forward_observation_ledger.py for A-shares.
 """
+
 from __future__ import annotations
 
 import argparse

@@ -59,7 +59,9 @@ def load_codes(date_str: str, limit: int) -> list[str]:
     return codes
 
 
-def scenario_single_stock_snapshot(con: duckdb.DuckDBPyConnection, date_str: str, code: str) -> dict[str, Any]:
+def scenario_single_stock_snapshot(
+    con: duckdb.DuckDBPyConnection, date_str: str, code: str
+) -> dict[str, Any]:
     profile = con.execute(
         """
         SELECT p.stock_code, p.stock_name, p.sw_l1, p.sw_l2, p.sw_l3, p.main_business,
@@ -195,7 +197,11 @@ def scenario_ledger_lookup(con: duckdb.DuckDBPyConnection, date_str: str, code: 
 
 
 SCENARIOS = [
-    Scenario("single_stock_snapshot", "单股基本面账本：产业身份 + L2 质量分 + 财报事实", scenario_single_stock_snapshot),
+    Scenario(
+        "single_stock_snapshot",
+        "单股基本面账本：产业身份 + L2 质量分 + 财报事实",
+        scenario_single_stock_snapshot,
+    ),
     Scenario("evidence_packet", "证据包取证：为 LLM/台账读取已约束证据", scenario_evidence_packet),
     Scenario("quality_screen", "高质量池筛选：基本面强、异常比率已过滤", scenario_quality_screen),
     Scenario("concept_scan", "概念主题检索：同花顺概念 + 基本面质量排序", scenario_concept_scan),
@@ -312,10 +318,7 @@ def run_stress(date_str: str, iterations: int, workers: int, code_limit: int) ->
     started = time.perf_counter()
     results: list[dict[str, Any]] = []
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = [
-            pool.submit(run_one, date_str, codes, i + 1009)
-            for i in range(iterations)
-        ]
+        futures = [pool.submit(run_one, date_str, codes, i + 1009) for i in range(iterations)]
         for fut in as_completed(futures):
             results.append(fut.result())
     wall_time = time.perf_counter() - started
@@ -364,17 +367,23 @@ def main() -> int:
     args = parser.parse_args()
 
     result = run_stress(args.date, max(1, args.iterations), max(1, args.workers), args.code_limit)
-    print(json.dumps({
-        "schema_version": result["schema_version"],
-        "date": result["date"],
-        "iterations": result["iterations"],
-        "workers": result["workers"],
-        "wall_time_sec": result["wall_time_sec"],
-        "overall": result["summary"]["overall"],
-        "verdict": result["verdict"],
-        "json": result["json"],
-        "markdown": result["markdown"],
-    }, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "schema_version": result["schema_version"],
+                "date": result["date"],
+                "iterations": result["iterations"],
+                "workers": result["workers"],
+                "wall_time_sec": result["wall_time_sec"],
+                "overall": result["summary"]["overall"],
+                "verdict": result["verdict"],
+                "json": result["json"],
+                "markdown": result["markdown"],
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 

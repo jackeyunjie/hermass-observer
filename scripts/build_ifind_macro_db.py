@@ -173,13 +173,35 @@ def find_column(headers: list[Any], aliases: list[str]) -> int | None:
     return None
 
 
-def parse_gui_import_rows(path: Path, indicators: list[Indicator], fallback_date: str) -> list[dict[str, Any]]:
+def parse_gui_import_rows(
+    path: Path, indicators: list[Indicator], fallback_date: str
+) -> list[dict[str, Any]]:
     rows = read_table_file(path)
     if not rows:
         return []
-    code_aliases = ["indicator_code", "indicator", "code", "edb_code", "ths_code", "指标代码", "指标编码", "指标id", "代码"]
+    code_aliases = [
+        "indicator_code",
+        "indicator",
+        "code",
+        "edb_code",
+        "ths_code",
+        "指标代码",
+        "指标编码",
+        "指标id",
+        "代码",
+    ]
     name_aliases = ["indicator_name", "name", "指标名称", "名称", "指标"]
-    date_aliases = ["as_of_date", "date", "time", "datetime", "日期", "时间", "数据日期", "报告期", "统计日期"]
+    date_aliases = [
+        "as_of_date",
+        "date",
+        "time",
+        "datetime",
+        "日期",
+        "时间",
+        "数据日期",
+        "报告期",
+        "统计日期",
+    ]
     value_aliases = ["value", "data", "指标值", "数值", "最新值", "收盘价", "VALUE"]
     unit_aliases = ["unit", "单位"]
     frequency_aliases = ["frequency", "freq", "频率"]
@@ -269,7 +291,10 @@ def extract_record_rows(
         indicator = active_by_code.get(code)
         if not indicator:
             continue
-        obs_date = norm_date(get_first(item, ["as_of_date", "date", "time", "datetime", "report_date", "period"])) or fallback_date
+        obs_date = (
+            norm_date(get_first(item, ["as_of_date", "date", "time", "datetime", "report_date", "period"]))
+            or fallback_date
+        )
         value = to_float(get_first(item, ["value", "data", "close", "指标值", "VALUE"]))
         if value is None:
             continue
@@ -277,7 +302,9 @@ def extract_record_rows(
             {
                 "indicator_code": code,
                 "as_of_date": obs_date,
-                "indicator_name": str(get_first(item, ["indicator_name", "name", "指标名称"]) or indicator.name),
+                "indicator_name": str(
+                    get_first(item, ["indicator_name", "name", "指标名称"]) or indicator.name
+                ),
                 "value": value,
                 "unit": str(get_first(item, ["unit", "单位"]) or indicator.unit),
                 "frequency": str(get_first(item, ["frequency", "freq", "频率"]) or indicator.frequency),
@@ -299,7 +326,9 @@ def extract_table_rows(
         if not isinstance(times, list):
             times = [times]
         table = get_first(table_obj, ["table", "data", "Table"]) or {}
-        table_code = get_first(table_obj, ["indicator_code", "indicator", "code", "edb_code", "ths_code", "thscode"])
+        table_code = get_first(
+            table_obj, ["indicator_code", "indicator", "code", "edb_code", "ths_code", "thscode"]
+        )
         if isinstance(table, list) and all(isinstance(item, dict) for item in table):
             rows.extend(extract_record_rows(table, active_by_code, fallback_date))
             continue
@@ -343,7 +372,9 @@ def extract_table_rows(
     return rows
 
 
-def extract_edb_rows(result: dict[str, Any] | None, indicators: list[Indicator], fallback_date: str) -> list[dict[str, Any]]:
+def extract_edb_rows(
+    result: dict[str, Any] | None, indicators: list[Indicator], fallback_date: str
+) -> list[dict[str, Any]]:
     if not result:
         return []
     active_by_code = {item.code: item for item in indicators if item.code and item.status == "active"}
@@ -358,7 +389,9 @@ def extract_edb_rows(result: dict[str, Any] | None, indicators: list[Indicator],
     return sorted(dedup.values(), key=lambda item: (item["indicator_code"], item["as_of_date"]))
 
 
-def download_edb(codes: list[str], start_date: str, end_date: str, access_token: str) -> dict[str, Any] | None:
+def download_edb(
+    codes: list[str], start_date: str, end_date: str, access_token: str
+) -> dict[str, Any] | None:
     return _post(
         "edb_service",
         {
@@ -371,7 +404,9 @@ def download_edb(codes: list[str], start_date: str, end_date: str, access_token:
     )
 
 
-def insert_rows(db_path: Path, rows: list[dict[str, Any]], source_query: dict[str, Any], collected_at: str) -> int:
+def insert_rows(
+    db_path: Path, rows: list[dict[str, Any]], source_query: dict[str, Any], collected_at: str
+) -> int:
     if not rows:
         return 0
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -472,7 +507,9 @@ def is_stale_observation(latest_date: Any, as_of_date: str, frequency: str) -> b
     return (cutoff_key - latest_key).days > stale_limit_days(frequency)
 
 
-def build_indicator_snapshot(con: duckdb.DuckDBPyConnection, indicators: list[Indicator], as_of_date: str) -> list[dict[str, Any]]:
+def build_indicator_snapshot(
+    con: duckdb.DuckDBPyConnection, indicators: list[Indicator], as_of_date: str
+) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for indicator in indicators:
         if indicator.status not in {"active", "external_active"} or not indicator.code:
@@ -483,9 +520,19 @@ def build_indicator_snapshot(con: duckdb.DuckDBPyConnection, indicators: list[In
                 latest = history[-1]
                 previous = history[-2] if len(history) >= 2 else None
                 latest_value = float(latest["value"]) if latest.get("value") is not None else None
-                previous_value = float(previous["value"]) if previous and previous.get("value") is not None else None
-                change = round(latest_value - previous_value, 6) if latest_value is not None and previous_value is not None else None
-                change_pct = round(change * 100.0 / previous_value, 4) if change is not None and previous_value not in (None, 0.0) else None
+                previous_value = (
+                    float(previous["value"]) if previous and previous.get("value") is not None else None
+                )
+                change = (
+                    round(latest_value - previous_value, 6)
+                    if latest_value is not None and previous_value is not None
+                    else None
+                )
+                change_pct = (
+                    round(change * 100.0 / previous_value, 4)
+                    if change is not None and previous_value not in (None, 0.0)
+                    else None
+                )
                 observed_frequency = latest.get("frequency") or indicator.frequency
                 stale = is_stale_observation(latest.get("as_of_date"), as_of_date, observed_frequency)
                 out.append(
@@ -534,14 +581,28 @@ def build_indicator_snapshot(con: duckdb.DuckDBPyConnection, indicators: list[In
         previous = history[-2] if len(history) >= 2 else None
         latest_value = float(latest["value"]) if latest and latest.get("value") is not None else None
         previous_value = float(previous["value"]) if previous and previous.get("value") is not None else None
-        change = round(latest_value - previous_value, 6) if latest_value is not None and previous_value is not None else None
-        change_pct = round(change * 100.0 / previous_value, 4) if change is not None and previous_value not in (None, 0.0) else None
-        observed_frequency = latest.get("frequency") if latest and latest.get("frequency") else indicator.frequency
-        stale = bool(latest and is_stale_observation(latest.get("as_of_date"), as_of_date, observed_frequency))
+        change = (
+            round(latest_value - previous_value, 6)
+            if latest_value is not None and previous_value is not None
+            else None
+        )
+        change_pct = (
+            round(change * 100.0 / previous_value, 4)
+            if change is not None and previous_value not in (None, 0.0)
+            else None
+        )
+        observed_frequency = (
+            latest.get("frequency") if latest and latest.get("frequency") else indicator.frequency
+        )
+        stale = bool(
+            latest and is_stale_observation(latest.get("as_of_date"), as_of_date, observed_frequency)
+        )
         out.append(
             {
                 "indicator_code": indicator.code,
-                "indicator_name": latest.get("indicator_name") if latest and latest.get("indicator_name") else indicator.name,
+                "indicator_name": latest.get("indicator_name")
+                if latest and latest.get("indicator_name")
+                else indicator.name,
                 "category": indicator.category,
                 "frequency": observed_frequency,
                 "unit": latest.get("unit") if latest and latest.get("unit") else indicator.unit,
@@ -584,11 +645,23 @@ def macro_regime(indicators: list[dict[str, Any]]) -> dict[str, Any]:
 
     needs_code = [item for item in indicators if item.get("status") == "needs_ifind_code"]
     formula_only = [item for item in indicators if item.get("status") == "formula_catalog_only"]
-    legacy_needs_validation = [item for item in indicators if item.get("status") == "legacy_code_needs_validation"]
+    legacy_needs_validation = [
+        item for item in indicators if item.get("status") == "legacy_code_needs_validation"
+    ]
     active_no_observation = [item for item in indicators if item.get("status") == "no_observation"]
     stale_observation = [item for item in indicators if item.get("status") == "stale_observation"]
     ok_count = sum(1 for item in indicators if item.get("status") == "ok")
-    coverage = "partial" if (needs_code or formula_only or legacy_needs_validation or active_no_observation or stale_observation) else "complete"
+    coverage = (
+        "partial"
+        if (
+            needs_code
+            or formula_only
+            or legacy_needs_validation
+            or active_no_observation
+            or stale_observation
+        )
+        else "complete"
+    )
     one_sentence = f"{coverage}覆盖：{growth}；{liquidity}。"
     gaps: list[str] = []
     if active_no_observation:
@@ -614,8 +687,12 @@ def macro_regime(indicators: list[dict[str, Any]]) -> dict[str, Any]:
         "legacy_code_needs_validation_count": len(legacy_needs_validation),
         "active_no_observation_count": len(active_no_observation),
         "stale_observation_count": len(stale_observation),
-        "needs_code_by_category": dict(Counter(str(item.get("category") or "unknown") for item in needs_code)),
-        "formula_catalog_only_by_category": dict(Counter(str(item.get("category") or "unknown") for item in formula_only)),
+        "needs_code_by_category": dict(
+            Counter(str(item.get("category") or "unknown") for item in needs_code)
+        ),
+        "formula_catalog_only_by_category": dict(
+            Counter(str(item.get("category") or "unknown") for item in formula_only)
+        ),
     }
 
 
@@ -667,7 +744,7 @@ def write_html(snapshot: dict[str, Any], path: Path) -> None:
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <title>iFinD Macro Snapshot {html.escape(snapshot['date'])}</title>
+  <title>iFinD Macro Snapshot {html.escape(snapshot["date"])}</title>
   <style>
     body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 24px; color: #17212b; }}
     h1 {{ font-size: 22px; margin: 0 0 10px; }}
@@ -679,13 +756,13 @@ def write_html(snapshot: dict[str, Any], path: Path) -> None:
   </style>
 </head>
 <body>
-  <h1>iFinD 宏观快照 - {html.escape(snapshot['date'])}</h1>
+  <h1>iFinD 宏观快照 - {html.escape(snapshot["date"])}</h1>
   <div class="summary">
-    <strong>{html.escape(snapshot['regime']['one_sentence'])}</strong><br>
-    auth_status: {html.escape(snapshot['collection']['auth_status'])};
-    collected_rows: {html.escape(str(snapshot['collection']['collected_rows']))};
-    active_indicators: {html.escape(str(snapshot['collection']['active_indicator_count']))};
-    needs_code: {html.escape(str(snapshot['regime']['needs_code_count']))}
+    <strong>{html.escape(snapshot["regime"]["one_sentence"])}</strong><br>
+    auth_status: {html.escape(snapshot["collection"]["auth_status"])};
+    collected_rows: {html.escape(str(snapshot["collection"]["collected_rows"]))};
+    active_indicators: {html.escape(str(snapshot["collection"]["active_indicator_count"]))};
+    needs_code: {html.escape(str(snapshot["regime"]["needs_code_count"]))}
   </div>
   <table>
     <thead>
@@ -695,7 +772,7 @@ def write_html(snapshot: dict[str, Any], path: Path) -> None:
       </tr>
     </thead>
     <tbody>
-      {''.join(row_html)}
+      {"".join(row_html)}
     </tbody>
   </table>
 </body>
@@ -770,9 +847,7 @@ def build_snapshot(
         rows = extract_edb_rows(result, indicators, date_str)
         collection["ifind_errorcode"] = result.get("errorcode") if isinstance(result, dict) else None
         collection["ifind_errmsg"] = (
-            result.get("errmsg")
-            or result.get("message")
-            or result.get("errorMsg")
+            result.get("errmsg") or result.get("message") or result.get("errorMsg")
             if isinstance(result, dict)
             else None
         )
@@ -907,10 +982,10 @@ def write_indicator_catalog(config_path: Path, date_str: str) -> dict[str, str]:
 </head>
 <body>
   <h1>宏观指标目录 - {html.escape(date_str)}</h1>
-  <p>active={payload['active_count']} pending={payload['pending_count']} source={html.escape(str(payload.get('indicator_source_file') or ''))}</p>
+  <p>active={payload["active_count"]} pending={payload["pending_count"]} source={html.escape(str(payload.get("indicator_source_file") or ""))}</p>
   <table>
     <thead><tr><th>code</th><th>name</th><th>category</th><th>frequency</th><th>unit</th><th>status</th><th>formula_id</th><th>source</th><th>api_note</th><th>use</th></tr></thead>
-    <tbody>{''.join(trs)}</tbody>
+    <tbody>{"".join(trs)}</tbody>
   </table>
 </body>
 </html>
@@ -929,8 +1004,15 @@ def main() -> int:
     parser.add_argument("--config", default=str(DEFAULT_CONFIG))
     parser.add_argument("--fundamental-db", default=str(DEFAULT_DB))
     parser.add_argument("--start-date")
-    parser.add_argument("--import-file", action="append", default=[], help="iFinD GUI macro export file (.xlsx/.csv/.tsv). Can be repeated.")
-    parser.add_argument("--skip-api", action="store_true", help="Only build from existing DB and optional GUI import files.")
+    parser.add_argument(
+        "--import-file",
+        action="append",
+        default=[],
+        help="iFinD GUI macro export file (.xlsx/.csv/.tsv). Can be repeated.",
+    )
+    parser.add_argument(
+        "--skip-api", action="store_true", help="Only build from existing DB and optional GUI import files."
+    )
     parser.add_argument("--allow-missing-token", action="store_true")
     args = parser.parse_args()
 

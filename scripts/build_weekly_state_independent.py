@@ -319,27 +319,29 @@ def write_weekly_json(
 
     data = []
     for row in rows:
-        data.append({
-            "stock_code": row[0],
-            "w1_state_score": row[1],
-            "w1_state_hex": row[2],
-            "w1_close": row[3],
-            "w1_sr_support": row[4],
-            "w1_sr_resistance": row[5],
-            "w1_sr_ready": row[6],
-            "w1_trend": row[7],
-            "w1_volatility": row[8],
-            "w1_compression": row[9],
-            "w1_base": row[10],
-            "w1_trend_bit": row[11],
-            "w1_position_bit": row[12],
-            "w1_volatility_bit": row[13],
-            "w1_adx14": row[14],
-            "w1_plus_di_14": row[15],
-            "w1_minus_di_14": row[16],
-            "w1_atr_ratio_pct": row[17],
-            "w1_bb_width_pct": row[18],
-        })
+        data.append(
+            {
+                "stock_code": row[0],
+                "w1_state_score": row[1],
+                "w1_state_hex": row[2],
+                "w1_close": row[3],
+                "w1_sr_support": row[4],
+                "w1_sr_resistance": row[5],
+                "w1_sr_ready": row[6],
+                "w1_trend": row[7],
+                "w1_volatility": row[8],
+                "w1_compression": row[9],
+                "w1_base": row[10],
+                "w1_trend_bit": row[11],
+                "w1_position_bit": row[12],
+                "w1_volatility_bit": row[13],
+                "w1_adx14": row[14],
+                "w1_plus_di_14": row[15],
+                "w1_minus_di_14": row[16],
+                "w1_atr_ratio_pct": row[17],
+                "w1_bb_width_pct": row[18],
+            }
+        )
 
     result = {
         "schema_version": "weekly_state_independent_v1",
@@ -392,17 +394,19 @@ def run_diff_analysis(
     # Aggregate diff distribution per week
     from collections import defaultdict
 
-    week_stats: dict[str, dict[str, Any]] = defaultdict(lambda: {
-        "total": 0,
-        "same_hex": 0,
-        "same_score": 0,
-        "diff_by_sign": 0,
-        "diff_by_magnitude": 0,
-        "diff_by_bits": 0,
-        "missing_in_foundation": 0,
-        "score_diff_distribution": defaultdict(int),
-        "hex_transition_counts": defaultdict(int),
-    })
+    week_stats: dict[str, dict[str, Any]] = defaultdict(
+        lambda: {
+            "total": 0,
+            "same_hex": 0,
+            "same_score": 0,
+            "diff_by_sign": 0,
+            "diff_by_magnitude": 0,
+            "diff_by_bits": 0,
+            "missing_in_foundation": 0,
+            "score_diff_distribution": defaultdict(int),
+            "hex_transition_counts": defaultdict(int),
+        }
+    )
 
     for row in diff_rows:
         iso_week, ind_hex, ind_score, d1_hex, d1_score, stock_code, w1_close, d1_close = row
@@ -499,10 +503,18 @@ def run_diff_analysis(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build independent weekly W1 state cache")
-    parser.add_argument("--weekly-db", type=Path, default=ROOT / "outputs" / "weekly_bars" / "weekly_bars.duckdb")
-    parser.add_argument("--foundation-db", type=Path, default=ROOT / "outputs" / "p116_foundation_20260522" / "p116_foundation.duckdb")
+    parser.add_argument(
+        "--weekly-db", type=Path, default=ROOT / "outputs" / "weekly_bars" / "weekly_bars.duckdb"
+    )
+    parser.add_argument(
+        "--foundation-db",
+        type=Path,
+        default=ROOT / "outputs" / "p116_foundation_20260522" / "p116_foundation.duckdb",
+    )
     parser.add_argument("--out-dir", type=Path, default=ROOT / "outputs" / "state_cache")
-    parser.add_argument("--week", type=str, default=None, help="ISO week like 2026W21. If omitted, generates all weeks.")
+    parser.add_argument(
+        "--week", type=str, default=None, help="ISO week like 2026W21. If omitted, generates all weeks."
+    )
     parser.add_argument("--skip-diff", action="store_true", help="Skip diff analysis against foundation DB")
     args = parser.parse_args()
 
@@ -547,6 +559,7 @@ def main() -> None:
         latest_dst = out_dir / "weekly_state_latest.json"
         if latest_src.exists():
             import shutil
+
             shutil.copy(str(latest_src), str(latest_dst))
             print(f"  Copied latest to {latest_dst.name}")
 

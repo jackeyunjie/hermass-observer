@@ -58,9 +58,14 @@ def state_hex(value: int | None) -> str:
 def decode_state(value: int | None) -> dict[str, Any]:
     if value is None:
         return {
-            "state": None, "hex": "NA", "direction": None,
-            "base": None, "trend": None, "position": None,
-            "volatility": None, "label": "NA",
+            "state": None,
+            "hex": "NA",
+            "direction": None,
+            "base": None,
+            "trend": None,
+            "position": None,
+            "volatility": None,
+            "label": "NA",
         }
     magnitude = abs(value)
     base = 8 if magnitude >= 8 else 0
@@ -108,9 +113,11 @@ def encode_pattern(
     mn1_base_tag: str,
     mn1_trend_tag: str,
 ) -> str:
-    return (f"D{state_hex(d1_from)}_{state_hex(d1_to)}"
-            f"_W{compress_wm(w1_base_tag, w1_trend_tag)}"
-            f"_M{compress_wm(mn1_base_tag, mn1_trend_tag)}")
+    return (
+        f"D{state_hex(d1_from)}_{state_hex(d1_to)}"
+        f"_W{compress_wm(w1_base_tag, w1_trend_tag)}"
+        f"_M{compress_wm(mn1_base_tag, mn1_trend_tag)}"
+    )
 
 
 def decode_pattern_code(pattern_code: str) -> dict[str, Any]:
@@ -215,19 +222,21 @@ def load_transitions_with_returns(
 
     results = []
     for row in rows:
-        results.append({
-            "stock_code": row[0],
-            "date": str(row[1]),
-            "d1_from": int(row[2]),
-            "d1_to": int(row[3]),
-            "w1_base_tag": row[4],
-            "w1_trend_tag": row[5],
-            "mn1_base_tag": row[6],
-            "mn1_trend_tag": row[7],
-            "excess_ret_5d": float(row[8]),
-            "excess_ret_10d": float(row[9]),
-            "excess_ret_20d": float(row[10]),
-        })
+        results.append(
+            {
+                "stock_code": row[0],
+                "date": str(row[1]),
+                "d1_from": int(row[2]),
+                "d1_to": int(row[3]),
+                "w1_base_tag": row[4],
+                "w1_trend_tag": row[5],
+                "mn1_base_tag": row[6],
+                "mn1_trend_tag": row[7],
+                "excess_ret_5d": float(row[8]),
+                "excess_ret_10d": float(row[9]),
+                "excess_ret_20d": float(row[10]),
+            }
+        )
     return results
 
 
@@ -250,11 +259,13 @@ def compute_cross_period_consistency(
         mean = statistics.fmean(values) if values else 0.0
         if mean > 0:
             positive_periods += 1
-        period_details.append({
-            "period": period,
-            "n": len(values),
-            "mean_excess": round(mean, 6),
-        })
+        period_details.append(
+            {
+                "period": period,
+                "n": len(values),
+                "mean_excess": round(mean, 6),
+            }
+        )
 
     periods_present = len(periods)
     consistency_ratio = positive_periods / periods_present if periods_present > 0 else 0.0
@@ -293,9 +304,12 @@ def mine_patterns(
     by_pattern: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for t in transitions:
         code = encode_pattern(
-            t["d1_from"], t["d1_to"],
-            t["w1_base_tag"], t["w1_trend_tag"],
-            t["mn1_base_tag"], t["mn1_trend_tag"],
+            t["d1_from"],
+            t["d1_to"],
+            t["w1_base_tag"],
+            t["w1_trend_tag"],
+            t["mn1_base_tag"],
+            t["mn1_trend_tag"],
         )
         by_pattern[code].append(t)
 
@@ -304,8 +318,7 @@ def mine_patterns(
     results = []
 
     for pattern_code, items in by_pattern.items():
-        values = [t[f"excess_ret_{window}d"] for t in items
-                  if t.get(f"excess_ret_{window}d") is not None]
+        values = [t[f"excess_ret_{window}d"] for t in items if t.get(f"excess_ret_{window}d") is not None]
         n = len(values)
         if n < min_samples:
             continue
@@ -322,29 +335,31 @@ def mine_patterns(
         )
         decoded = decode_pattern_code(pattern_code)
 
-        results.append({
-            "pattern_code": pattern_code,
-            "status": status,
-            "d1_from_hex": decoded["d1_from_hex"],
-            "d1_to_hex": decoded["d1_to_hex"],
-            "d1_transition": decoded["d1_transition"],
-            "w1_context": decoded["w1_context"],
-            "mn1_context": decoded["mn1_context"],
-            "summary": decoded["summary"],
-            "n": row["n"],
-            "mean_excess": row.get("mean_excess"),
-            "mean_excess_ci_lo": row.get("mean_excess_ci_lo"),
-            "mean_excess_ci_hi": row.get("mean_excess_ci_hi"),
-            "median_excess": row.get("median_excess"),
-            "win_rate": row.get("win_rate"),
-            "win_rate_ci_lo": row.get("win_rate_ci_lo"),
-            "win_rate_ci_hi": row.get("win_rate_ci_hi"),
-            "payoff_ratio": row.get("payoff_ratio"),
-            "payoff_ratio_ci_lo": row.get("payoff_ratio_ci_lo"),
-            "payoff_ratio_ci_hi": row.get("payoff_ratio_ci_hi"),
-            "t_stat": row.get("t_stat"),
-            "cross_period": cross_period,
-        })
+        results.append(
+            {
+                "pattern_code": pattern_code,
+                "status": status,
+                "d1_from_hex": decoded["d1_from_hex"],
+                "d1_to_hex": decoded["d1_to_hex"],
+                "d1_transition": decoded["d1_transition"],
+                "w1_context": decoded["w1_context"],
+                "mn1_context": decoded["mn1_context"],
+                "summary": decoded["summary"],
+                "n": row["n"],
+                "mean_excess": row.get("mean_excess"),
+                "mean_excess_ci_lo": row.get("mean_excess_ci_lo"),
+                "mean_excess_ci_hi": row.get("mean_excess_ci_hi"),
+                "median_excess": row.get("median_excess"),
+                "win_rate": row.get("win_rate"),
+                "win_rate_ci_lo": row.get("win_rate_ci_lo"),
+                "win_rate_ci_hi": row.get("win_rate_ci_hi"),
+                "payoff_ratio": row.get("payoff_ratio"),
+                "payoff_ratio_ci_lo": row.get("payoff_ratio_ci_lo"),
+                "payoff_ratio_ci_hi": row.get("payoff_ratio_ci_hi"),
+                "t_stat": row.get("t_stat"),
+                "cross_period": cross_period,
+            }
+        )
 
     results.sort(key=lambda r: r.get("mean_excess") or -999, reverse=True)
     status_counts = {"verified": 0, "candidate": 0, "pending": 0}
@@ -414,16 +429,22 @@ def render_monthly_markdown(
 
     verified = [p for p in mined["patterns"] if p["status"] == "verified"]
     if verified:
-        lines.extend([
-            "## 已验证模式",
-            "",
-            f"| 排名 | 模式 | D1 跃迁 | W1 背景 | MN1 背景 | n | {window}d 超额 | 95% CI | 胜率 | 盈亏比 | t-stat |",
-            f"|---:|---|---|---|---|---|---:|---|---:|---:|---:|",
-        ])
+        lines.extend(
+            [
+                "## 已验证模式",
+                "",
+                f"| 排名 | 模式 | D1 跃迁 | W1 背景 | MN1 背景 | n | {window}d 超额 | 95% CI | 胜率 | 盈亏比 | t-stat |",
+                f"|---:|---|---|---|---|---|---:|---|---:|---:|---:|",
+            ]
+        )
         for idx, p in enumerate(verified, 1):
             ci_lo = p.get("mean_excess_ci_lo")
             ci_hi = p.get("mean_excess_ci_hi")
-            ci_str = f"[{fmt_num(ci_lo, 4)},{fmt_num(ci_hi, 4)}]" if ci_lo is not None and ci_hi is not None else "[-,-]"
+            ci_str = (
+                f"[{fmt_num(ci_lo, 4)},{fmt_num(ci_hi, 4)}]"
+                if ci_lo is not None and ci_hi is not None
+                else "[-,-]"
+            )
             pr = p.get("payoff_ratio")
             pr_str = fmt_num(pr, 3) if pr is not None else "-"
             lines.append(
@@ -435,12 +456,14 @@ def render_monthly_markdown(
 
     candidates = [p for p in mined["patterns"] if p["status"] == "candidate"]
     if candidates:
-        lines.extend([
-            "## 候选观察模式（待积累样本）",
-            "",
-            f"| 排名 | 模式 | D1 跃迁 | W1 背景 | MN1 背景 | n | {window}d 超额 | 胜率 | 状态 |",
-            f"|---:|---|---|---|---|---|---:|---:|:---|",
-        ])
+        lines.extend(
+            [
+                "## 候选观察模式（待积累样本）",
+                "",
+                f"| 排名 | 模式 | D1 跃迁 | W1 背景 | MN1 背景 | n | {window}d 超额 | 胜率 | 状态 |",
+                f"|---:|---|---|---|---|---|---:|---:|:---|",
+            ]
+        )
         for idx, p in enumerate(candidates, 1):
             lines.append(
                 f"| {idx} | `{p['pattern_code']}` | {p['d1_transition']} | {p['w1_context']} | {p['mn1_context']} | "
@@ -449,36 +472,42 @@ def render_monthly_markdown(
         lines.append("")
 
     top_by_abs = sorted(mined["patterns"], key=lambda r: abs(r.get("mean_excess") or 0), reverse=True)[:top_n]
-    lines.extend([
-        f"## Top {top_n} 模式（按 |{window}d 超额| 排序）",
-        "",
-        f"| 排名 | 模式 | D1 跃迁 | W1 背景 | MN1 背景 | n | {window}d 超额 | 胜率 | 状态 |",
-        f"|---:|---|---|---|---|---|---:|---:|:---|",
-    ])
+    lines.extend(
+        [
+            f"## Top {top_n} 模式（按 |{window}d 超额| 排序）",
+            "",
+            f"| 排名 | 模式 | D1 跃迁 | W1 背景 | MN1 背景 | n | {window}d 超额 | 胜率 | 状态 |",
+            f"|---:|---|---|---|---|---|---:|---:|:---|",
+        ]
+    )
     for idx, p in enumerate(top_by_abs, 1):
-        status_label = {"verified": "已验证", "candidate": "候选", "pending": "待观察"}.get(p["status"], p["status"])
+        status_label = {"verified": "已验证", "candidate": "候选", "pending": "待观察"}.get(
+            p["status"], p["status"]
+        )
         lines.append(
             f"| {idx} | `{p['pattern_code']}` | {p['d1_transition']} | {p['w1_context']} | {p['mn1_context']} | "
             f"{p['n']:,} | {pct(p.get('mean_excess'), 2)} | {pct(p.get('win_rate'), 1)} | {status_label} |"
         )
     lines.append("")
 
-    lines.extend([
-        "---",
-        "",
-        "## 统计边界说明",
-        "",
-        "1. **超额收益计算**：个股 forward return 减去当日全市场等权平均 return。",
-        f"2. **样本充足标准**：≥{MIN_SAMPLE_SIZE} 个样本。",
-        "3. **已验证标准**：n ≥ 100 + 95% CI 不含零 + 跨期方向一致率 ≥ 60%。",
-        "4. **t-stat 解读**：|t-stat| > 1.96 表示 95% 置信度下显著不为零。",
-        "5. **模式压缩**：W1/MN1 压缩为 4 类（扩张/收缩 × 有趋势/无趋势），降低组合爆炸。",
-        "",
-        "---",
-        "",
-        "*本报告为研究性质，不构成交易建议。所有数字均为历史统计，不代表未来表现。*",
-        "",
-    ])
+    lines.extend(
+        [
+            "---",
+            "",
+            "## 统计边界说明",
+            "",
+            "1. **超额收益计算**：个股 forward return 减去当日全市场等权平均 return。",
+            f"2. **样本充足标准**：≥{MIN_SAMPLE_SIZE} 个样本。",
+            "3. **已验证标准**：n ≥ 100 + 95% CI 不含零 + 跨期方向一致率 ≥ 60%。",
+            "4. **t-stat 解读**：|t-stat| > 1.96 表示 95% 置信度下显著不为零。",
+            "5. **模式压缩**：W1/MN1 压缩为 4 类（扩张/收缩 × 有趋势/无趋势），降低组合爆炸。",
+            "",
+            "---",
+            "",
+            "*本报告为研究性质，不构成交易建议。所有数字均为历史统计，不代表未来表现。*",
+            "",
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -488,9 +517,18 @@ def main() -> int:
     parser.add_argument("--start-date", type=str, help="Start date (YYYY-MM-DD)")
     parser.add_argument("--end-date", type=str, help="End date (YYYY-MM-DD)")
     parser.add_argument("--window", type=int, default=20, help="Forward return window (default: 20)")
-    parser.add_argument("--min-samples", type=int, default=MIN_SAMPLE_SIZE, help=f"Min samples (default: {MIN_SAMPLE_SIZE})")
-    parser.add_argument("--top-n", type=int, default=DEFAULT_TOP_N, help=f"Top N patterns (default: {DEFAULT_TOP_N})")
-    parser.add_argument("--n-bootstrap", type=int, default=DEFAULT_N_BOOTSTRAP, help=f"Bootstrap iterations (default: {DEFAULT_N_BOOTSTRAP})")
+    parser.add_argument(
+        "--min-samples", type=int, default=MIN_SAMPLE_SIZE, help=f"Min samples (default: {MIN_SAMPLE_SIZE})"
+    )
+    parser.add_argument(
+        "--top-n", type=int, default=DEFAULT_TOP_N, help=f"Top N patterns (default: {DEFAULT_TOP_N})"
+    )
+    parser.add_argument(
+        "--n-bootstrap",
+        type=int,
+        default=DEFAULT_N_BOOTSTRAP,
+        help=f"Bootstrap iterations (default: {DEFAULT_N_BOOTSTRAP})",
+    )
     parser.add_argument("--skip-ci", action="store_true", help="Skip bootstrap CI (faster)")
     parser.add_argument("--output-dir", type=Path, default=OUT_DIR, help="Output directory")
     args = parser.parse_args()
@@ -522,22 +560,35 @@ def main() -> int:
     )
     print(f"  -> {mined['total_patterns_scanned']} patterns scanned", file=sys.stderr)
     print(f"  -> {mined['patterns_with_sufficient_samples']} with sufficient samples", file=sys.stderr)
-    print(f"  -> verified: {mined['status_counts'].get('verified', 0)}, candidate: {mined['status_counts'].get('candidate', 0)}", file=sys.stderr)
+    print(
+        f"  -> verified: {mined['status_counts'].get('verified', 0)}, candidate: {mined['status_counts'].get('candidate', 0)}",
+        file=sys.stderr,
+    )
 
     generated_at = datetime.now(timezone.utc).isoformat()
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     daily_json = render_daily_json(
-        mined, db_path, args.start_date, args.end_date,
-        args.window, args.min_samples, generated_at,
+        mined,
+        db_path,
+        args.start_date,
+        args.end_date,
+        args.window,
+        args.min_samples,
+        generated_at,
     )
     json_path = args.output_dir / "opportunity_patterns_daily.json"
     json_path.write_text(json.dumps(daily_json, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"JSON written: {json_path}", file=sys.stderr)
 
     md = render_monthly_markdown(
-        mined, db_path, args.start_date, args.end_date,
-        args.window, generated_at, top_n=args.top_n,
+        mined,
+        db_path,
+        args.start_date,
+        args.end_date,
+        args.window,
+        generated_at,
+        top_n=args.top_n,
     )
     year_month = (args.end_date or datetime.now(timezone.utc).strftime("%Y-%m-%d"))[:7]
     md_path = args.output_dir / f"opportunity_patterns_monthly_{year_month}.md"

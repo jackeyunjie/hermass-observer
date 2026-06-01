@@ -43,9 +43,7 @@ def build(date_str: str) -> dict:
 
     con = duckdb.connect(str(db_path), read_only=True)
 
-    latest_date = con.execute(
-        "SELECT MAX(state_date) FROM d1_perspective_state"
-    ).fetchone()[0]
+    latest_date = con.execute("SELECT MAX(state_date) FROM d1_perspective_state").fetchone()[0]
 
     stock_rows = con.execute(f"""
         SELECT
@@ -128,16 +126,21 @@ def build(date_str: str) -> dict:
     SNAPSHOT_FILE.write_text(json.dumps(snapshot, ensure_ascii=False), encoding="utf-8")
 
     size_kb = SNAPSHOT_FILE.stat().st_size / 1024
-    print(json.dumps({
-        "status": "ok",
-        "date": str(latest_date),
-        "stocks": len(stocks),
-        "size_kb": round(size_kb, 1),
-        "outputs": {
-            "latest": str(SNAPSHOT_FILE),
-            "dated": str(dated_path),
-        },
-    }, ensure_ascii=False))
+    print(
+        json.dumps(
+            {
+                "status": "ok",
+                "date": str(latest_date),
+                "stocks": len(stocks),
+                "size_kb": round(size_kb, 1),
+                "outputs": {
+                    "latest": str(SNAPSHOT_FILE),
+                    "dated": str(dated_path),
+                },
+            },
+            ensure_ascii=False,
+        )
+    )
 
     return snapshot
 

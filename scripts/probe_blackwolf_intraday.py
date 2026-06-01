@@ -83,7 +83,11 @@ def main() -> int:
             sample = sample_shape(records[0] if records else payload)
             print(json.dumps({"period": period, "count": len(records), "sample": sample}, ensure_ascii=False))
         except Exception as exc:
-            print(json.dumps({"period": period, "error": f"{type(exc).__name__}: {str(exc)[:220]}"}, ensure_ascii=False))
+            print(
+                json.dumps(
+                    {"period": period, "error": f"{type(exc).__name__}: {str(exc)[:220]}"}, ensure_ascii=False
+                )
+            )
     return 0
 
 

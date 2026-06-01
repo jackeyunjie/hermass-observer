@@ -57,7 +57,11 @@ def load_industry(date_str: str) -> dict[str, dict[str, Any]]:
 
 def load_asset_industries() -> set[str]:
     payload = load_json(INDUSTRY_ASSETS_PATH, required=True)
-    return {str(row.get("sw_l1") or "").strip() for row in payload.get("industry_etf_assets", []) if row.get("sw_l1")}
+    return {
+        str(row.get("sw_l1") or "").strip()
+        for row in payload.get("industry_etf_assets", [])
+        if row.get("sw_l1")
+    }
 
 
 def load_proxy_whitelist() -> dict[str, Any]:
@@ -67,7 +71,12 @@ def load_proxy_whitelist() -> dict[str, Any]:
     return payload
 
 
-def classify_gap(row: dict[str, Any], industry: dict[str, Any], mapped_industries: set[str], proxy_whitelist: dict[str, Any]) -> str:
+def classify_gap(
+    row: dict[str, Any],
+    industry: dict[str, Any],
+    mapped_industries: set[str],
+    proxy_whitelist: dict[str, Any],
+) -> str:
     sw_l1 = str(industry.get("sw_l1") or "").strip()
     if not sw_l1:
         return "missing_industry_profile"
@@ -111,11 +120,11 @@ def render_html(payload: dict[str, Any]) -> str:
     detail_rows = "".join(
         f"""
         <tr>
-          <td><strong>{esc(row.get('stock_code'))}</strong><br><span>{esc(row.get('stock_name'))}</span></td>
-          <td>{esc(row.get('sw_l1'))}<br><span>{esc(row.get('sw_l2'))}</span></td>
-          <td>{esc(row.get('gap_reason'))}</td>
-          <td>{esc(row.get('ma2560_state_combo'))}</td>
-          <td>{esc(row.get('strategy_environment_fit'))}</td>
+          <td><strong>{esc(row.get("stock_code"))}</strong><br><span>{esc(row.get("stock_name"))}</span></td>
+          <td>{esc(row.get("sw_l1"))}<br><span>{esc(row.get("sw_l2"))}</span></td>
+          <td>{esc(row.get("gap_reason"))}</td>
+          <td>{esc(row.get("ma2560_state_combo"))}</td>
+          <td>{esc(row.get("strategy_environment_fit"))}</td>
         </tr>
         """
         for row in payload["rows"]
@@ -125,7 +134,7 @@ def render_html(payload: dict[str, Any]) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>2560 stock_only 行业缺口审计 {esc(payload['date'])}</title>
+  <title>2560 stock_only 行业缺口审计 {esc(payload["date"])}</title>
   <style>
     body {{ margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f6f8fb; color: #172033; }}
     main {{ max-width: 1280px; margin: 0 auto; padding: 24px; }}
@@ -142,7 +151,7 @@ def render_html(payload: dict[str, Any]) -> str:
 <body>
   <main>
     <h1>2560 stock_only 行业缺口审计</h1>
-    <p class="meta">日期 {esc(payload['date'])} | stock_only {esc(payload['total'])} 条 | 生成 {esc(payload['generated_at'])}</p>
+    <p class="meta">日期 {esc(payload["date"])} | stock_only {esc(payload["total"])} 条 | 生成 {esc(payload["generated_at"])}</p>
     <h2>缺口原因</h2>
     <table><thead><tr><th>原因</th><th>数量</th></tr></thead><tbody>{summary_rows}</tbody></table>
     <h2>行业分布</h2>

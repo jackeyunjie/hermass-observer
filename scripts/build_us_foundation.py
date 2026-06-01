@@ -87,8 +87,19 @@ def build_us_stock_pool() -> list[str]:
 
     # Founder trades not in core indices (small/mid caps from case studies)
     founder_extra = [
-        "ANF", "STAA", "NNOX", "UAVS", "MP", "YETI", "ZIM", "BNTX",
-        "SKY", "PAG", "OLN", "UPST", "ASYS",
+        "ANF",
+        "STAA",
+        "NNOX",
+        "UAVS",
+        "MP",
+        "YETI",
+        "ZIM",
+        "BNTX",
+        "SKY",
+        "PAG",
+        "OLN",
+        "UPST",
+        "ASYS",
         # Note: GBOX, HSKA, TSP are delisted/acquired; keep for completeness
         # "GBOX", "HSKA", "TSP",
     ]
@@ -130,8 +141,25 @@ def fetch_us_daily(tickers: list[str], start: str, end: str) -> list[dict]:
                 continue
             tdf = df[ticker].dropna()
             for idx, row in tdf.iterrows():
-                rows.append({
-                    "stock_code": ticker,
+                rows.append(
+                    {
+                        "stock_code": ticker,
+                        "date": idx.date(),
+                        "open": float(row.get("Open", 0) or 0),
+                        "high": float(row.get("High", 0) or 0),
+                        "low": float(row.get("Low", 0) or 0),
+                        "close": float(row.get("Close", 0) or 0),
+                        "volume": int(row.get("Volume", 0) or 0),
+                        "amount": float(row.get("Volume", 0) or 0) * float(row.get("Close", 0) or 0),
+                    }
+                )
+    else:
+        # Single ticker
+        tdf = df.dropna()
+        for idx, row in tdf.iterrows():
+            rows.append(
+                {
+                    "stock_code": tickers[0],
                     "date": idx.date(),
                     "open": float(row.get("Open", 0) or 0),
                     "high": float(row.get("High", 0) or 0),
@@ -139,21 +167,8 @@ def fetch_us_daily(tickers: list[str], start: str, end: str) -> list[dict]:
                     "close": float(row.get("Close", 0) or 0),
                     "volume": int(row.get("Volume", 0) or 0),
                     "amount": float(row.get("Volume", 0) or 0) * float(row.get("Close", 0) or 0),
-                })
-    else:
-        # Single ticker
-        tdf = df.dropna()
-        for idx, row in tdf.iterrows():
-            rows.append({
-                "stock_code": tickers[0],
-                "date": idx.date(),
-                "open": float(row.get("Open", 0) or 0),
-                "high": float(row.get("High", 0) or 0),
-                "low": float(row.get("Low", 0) or 0),
-                "close": float(row.get("Close", 0) or 0),
-                "volume": int(row.get("Volume", 0) or 0),
-                "amount": float(row.get("Volume", 0) or 0) * float(row.get("Close", 0) or 0),
-            })
+                }
+            )
     print(f"  Total rows fetched: {len(rows)}")
     return rows
 
@@ -169,14 +184,28 @@ def build_foundation(rows: list[dict], out_db: Path, cutoff_date: str) -> dict:
     tmp_dir.mkdir(parents=True, exist_ok=True)
     conn.execute("SET preserve_insertion_order=false")
     conn.execute("SET threads=4")
-    conn.execute(f"SET temp_directory='{str(tmp_dir).replace(chr(39), chr(39)+chr(39))}'")
+    conn.execute(f"SET temp_directory='{str(tmp_dir).replace(chr(39), chr(39) + chr(39))}'")
 
     # 1. daily_bars
-    conn.execute("CREATE TABLE daily_bars (stock_code VARCHAR, date DATE, open DOUBLE, high DOUBLE, low DOUBLE, close DOUBLE, volume BIGINT, amount DOUBLE)")
-    for batch in [rows[i:i+10000] for i in range(0, len(rows), 10000)]:
+    conn.execute(
+        "CREATE TABLE daily_bars (stock_code VARCHAR, date DATE, open DOUBLE, high DOUBLE, low DOUBLE, close DOUBLE, volume BIGINT, amount DOUBLE)"
+    )
+    for batch in [rows[i : i + 10000] for i in range(0, len(rows), 10000)]:
         conn.executemany(
             "INSERT INTO daily_bars VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            [(r["stock_code"], r["date"], r["open"], r["high"], r["low"], r["close"], r["volume"], r["amount"]) for r in batch]
+            [
+                (
+                    r["stock_code"],
+                    r["date"],
+                    r["open"],
+                    r["high"],
+                    r["low"],
+                    r["close"],
+                    r["volume"],
+                    r["amount"],
+                )
+                for r in batch
+            ],
         )
     print(f"  daily_bars: {conn.execute('SELECT COUNT(*) FROM daily_bars').fetchone()[0]} rows")
 
@@ -594,12 +623,20 @@ def build_foundation(rows: list[dict], out_db: Path, cutoff_date: str) -> dict:
           ? AS latest_date,
           true AS research_only_flag
         """,
-        [datetime.now(timezone.utc).isoformat(timespec="seconds"), str(out_db), stats["daily_rows"], stats["state_rows"], stats["latest_date"]],
+        [
+            datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            str(out_db),
+            stats["daily_rows"],
+            stats["state_rows"],
+            stats["latest_date"],
+        ],
     )
 
     conn.close()
     print(f"  Foundation built: {out_db}")
-    print(f"    tickers={stats['tickers']}, daily={stats['daily_rows']}, state={stats['state_rows']}, latest={stats['latest_date']}")
+    print(
+        f"    tickers={stats['tickers']}, daily={stats['daily_rows']}, state={stats['state_rows']}, latest={stats['latest_date']}"
+    )
     return stats
 
 
@@ -626,8 +663,10 @@ def main():
     # yfinance works best with batches; download all at once for speed
     all_rows = []
     for i in range(0, len(tickers), args.batch_size):
-        batch = tickers[i:i + args.batch_size]
-        print(f"Batch {i//args.batch_size + 1}/{(len(tickers) + args.batch_size - 1)//args.batch_size}: {batch[:5]}...")
+        batch = tickers[i : i + args.batch_size]
+        print(
+            f"Batch {i // args.batch_size + 1}/{(len(tickers) + args.batch_size - 1) // args.batch_size}: {batch[:5]}..."
+        )
         rows = fetch_us_daily(batch, args.start, args.end)
         all_rows.extend(rows)
 
@@ -637,7 +676,9 @@ def main():
 
     stats = build_foundation(all_rows, args.foundation_db, args.end)
     print(f"\n✅ US Foundation complete: {args.foundation_db}")
-    print(f"   Tickers: {stats['tickers']}, Daily rows: {stats['daily_rows']}, State rows: {stats['state_rows']}")
+    print(
+        f"   Tickers: {stats['tickers']}, Daily rows: {stats['daily_rows']}, State rows: {stats['state_rows']}"
+    )
 
 
 if __name__ == "__main__":

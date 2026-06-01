@@ -244,13 +244,20 @@ def data_status(history_count: int, category: str) -> str:
     return "missing"
 
 
-def build_summary(target_db: Path, date_str: str, metadata: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+def build_summary(
+    target_db: Path, date_str: str, metadata: dict[str, dict[str, Any]]
+) -> list[dict[str, Any]]:
     init_timeseries_db(target_db)
     con = duckdb.connect(str(target_db))
     cutoff = date_key(date_str)
     out: list[dict[str, Any]] = []
     try:
-        codes = [row[0] for row in con.execute("SELECT DISTINCT indicator_code FROM macro_indicator_history ORDER BY indicator_code").fetchall()]
+        codes = [
+            row[0]
+            for row in con.execute(
+                "SELECT DISTINCT indicator_code FROM macro_indicator_history ORDER BY indicator_code"
+            ).fetchall()
+        ]
         now = datetime.now(timezone.utc).isoformat()
         con.execute("DELETE FROM macro_indicator_summary")
         for code in codes:
@@ -276,8 +283,16 @@ def build_summary(target_db: Path, date_str: str, metadata: dict[str, dict[str, 
             values = [float(row[4]) for row in ordered if safe_float(row[4]) is not None]
             latest_value = safe_float(latest[4])
             previous_value = safe_float(previous[4]) if previous else None
-            delta = round(latest_value - previous_value, 6) if latest_value is not None and previous_value is not None else None
-            delta_pct = round(delta * 100.0 / previous_value, 4) if delta is not None and previous_value not in (None, 0.0) else None
+            delta = (
+                round(latest_value - previous_value, 6)
+                if latest_value is not None and previous_value is not None
+                else None
+            )
+            delta_pct = (
+                round(delta * 100.0 / previous_value, 4)
+                if delta is not None and previous_value not in (None, 0.0)
+                else None
+            )
             category = latest[3] or (metadata.get(code, {}) or {}).get("category") or "unknown"
             row_out = {
                 "indicator_code": code,
@@ -377,7 +392,7 @@ def render_html(payload: dict[str, Any]) -> str:
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <title>宏观时间序列 {esc(payload['date'])}</title>
+  <title>宏观时间序列 {esc(payload["date"])}</title>
   <style>
     body {{ margin:24px; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:#172033; }}
     .summary {{ margin:12px 0 18px; padding:12px 14px; background:#f4f7f6; border:1px solid #d9e4e0; border-radius:6px; }}
@@ -390,14 +405,14 @@ def render_html(payload: dict[str, Any]) -> str:
 <body>
   <h1>宏观时间序列</h1>
   <div class="summary">
-    日期 {esc(payload['date'])} ｜ 指标 {esc(summary['indicator_count'])} ｜
-    12期可判趋势 {esc(summary['trend_ready_count'])} ｜
-    部分历史 {esc(summary['partial_history_count'])} ｜
-    单点 {esc(summary['single_point_count'])}
+    日期 {esc(payload["date"])} ｜ 指标 {esc(summary["indicator_count"])} ｜
+    12期可判趋势 {esc(summary["trend_ready_count"])} ｜
+    部分历史 {esc(summary["partial_history_count"])} ｜
+    单点 {esc(summary["single_point_count"])}
   </div>
   <table>
     <thead><tr><th>code</th><th>name</th><th>category</th><th>latest</th><th>value</th><th>change</th><th>percentile</th><th>trend</th><th>history</th><th>status</th></tr></thead>
-    <tbody>{''.join(trs)}</tbody>
+    <tbody>{"".join(trs)}</tbody>
   </table>
 </body>
 </html>
@@ -462,7 +477,23 @@ def main() -> int:
     shutil.copyfile(json_path, OUT_DIR / "macro_trend_summary_latest.json")
     shutil.copyfile(csv_path, OUT_DIR / "macro_trend_summary_latest.csv")
     shutil.copyfile(html_path, PUBLIC_DIR / "macro_trend_summary_latest.html")
-    print(json.dumps({"ok": True, "date": args.date, "summary": summary, "outputs": {"json": str(json_path), "csv": str(csv_path), "html": str(html_path), "db": str(Path(args.out_db))}}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "date": args.date,
+                "summary": summary,
+                "outputs": {
+                    "json": str(json_path),
+                    "csv": str(csv_path),
+                    "html": str(html_path),
+                    "db": str(Path(args.out_db)),
+                },
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 

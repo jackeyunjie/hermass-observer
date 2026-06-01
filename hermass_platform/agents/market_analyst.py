@@ -44,9 +44,7 @@ def analyze_market_environment(
     try:
         con = duckdb.connect(foundation_db, read_only=True)
 
-        latest_date_row = con.execute(
-            "SELECT MAX(state_date) FROM d1_perspective_state"
-        ).fetchone()
+        latest_date_row = con.execute("SELECT MAX(state_date) FROM d1_perspective_state").fetchone()
         actual_date = str(latest_date_row[0]) if latest_date_row and latest_date_row[0] else ""
 
         base_row = con.execute(f"""

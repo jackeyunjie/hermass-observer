@@ -17,7 +17,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from calibrate_strategy_evidence import attach_labels, discover_evaluations, foundation_db_for, safe_float, ymd
+from calibrate_strategy_evidence import (
+    attach_labels,
+    discover_evaluations,
+    foundation_db_for,
+    safe_float,
+    ymd,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -142,7 +148,10 @@ def diagnose(args: argparse.Namespace) -> dict[str, Any]:
         item: dict[str, Any] = {}
         for window in args.windows:
             pairs = [
-                (safe_float(sample.get("features", {}).get(name)), safe_float(sample.get(f"excess_ret_{window}d")))
+                (
+                    safe_float(sample.get("features", {}).get(name)),
+                    safe_float(sample.get(f"excess_ret_{window}d")),
+                )
                 for sample in labeled
                 if sample.get(f"excess_ret_{window}d") is not None and name in sample.get("features", {})
             ]
@@ -198,7 +207,15 @@ def render_markdown(result: dict[str, Any]) -> str:
         quantiles = item.get(f"{result['primary_window']}d", {}).get("quantiles") or []
         if not quantiles:
             continue
-        lines.extend(["", f"### {name}", "", "| bucket | n | min | max | mean excess | win rate |", "|---:|---:|---:|---:|---:|---:|"])
+        lines.extend(
+            [
+                "",
+                f"### {name}",
+                "",
+                "| bucket | n | min | max | mean excess | win rate |",
+                "|---:|---:|---:|---:|---:|---:|",
+            ]
+        )
         for row in quantiles:
             mean = row.get("mean_excess")
             win = row.get("win_rate")
@@ -220,7 +237,9 @@ def write_outputs(result: dict[str, Any], date_tag: str) -> dict[str, str]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Diagnose State lifecycle features in all-three E/F strategy evaluations.")
+    parser = argparse.ArgumentParser(
+        description="Diagnose State lifecycle features in all-three E/F strategy evaluations."
+    )
     parser.add_argument("--start-date", required=True)
     parser.add_argument("--end-date", required=True)
     parser.add_argument("--foundation-db", type=Path)

@@ -109,15 +109,19 @@ def normalize_row(row: dict[str, Any], observed_at: str) -> dict[str, Any]:
 
 
 def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
-    fieldnames = list(rows[0].keys()) if rows else [
-        "signal_date",
-        "stock_code",
-        "strategy_id",
-        "signal_type",
-        "lifecycle_stage",
-        "strategy_environment_fit",
-        "fit_reasons",
-    ]
+    fieldnames = (
+        list(rows[0].keys())
+        if rows
+        else [
+            "signal_date",
+            "stock_code",
+            "strategy_id",
+            "signal_type",
+            "lifecycle_stage",
+            "strategy_environment_fit",
+            "fit_reasons",
+        ]
+    )
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()

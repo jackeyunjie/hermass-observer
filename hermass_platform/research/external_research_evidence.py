@@ -154,7 +154,9 @@ def _metric_importance(company_profile: dict[str, Any], metric: str) -> tuple[bo
     text = _industry_keyword_text(company_profile)
     bank_like = any(token in text for token in ["银行", "保险", "证券", "多元金融"])
     light_asset_chip = any(token in text for token in ["半导体", "芯片", "集成电路", "软件", "SaaS"])
-    heavy_asset = any(token in text for token in ["电力", "公用事业", "地产", "建筑", "钢铁", "化工", "机械", "制造"])
+    heavy_asset = any(
+        token in text for token in ["电力", "公用事业", "地产", "建筑", "钢铁", "化工", "机械", "制造"]
+    )
 
     if metric == "revenue":
         return True, "营收同比通常直接反映需求、订单和出货节奏变化。"
@@ -341,13 +343,22 @@ def _next_state_change_hint(state_core: dict[str, Any], duration: dict[str, Any]
 
     if d1_state in {"F", "E"} and isinstance(d1_days, (int, float)) and d1_days <= 3:
         return "短周期 D1 刚进入强状态不久，最可能先变化的仍是 D1。"
-    if ef_count == 3 and isinstance(d1_days, (int, float)) and isinstance(w1_days, (int, float)) and d1_days < w1_days:
+    if (
+        ef_count == 3
+        and isinstance(d1_days, (int, float))
+        and isinstance(w1_days, (int, float))
+        and d1_days < w1_days
+    ):
         return "三周期共振已形成，但最短的是 D1 持续段，后续若有变化通常先从 D1 开始。"
     if ef_count == 2 and d1_state not in {"E", "F"} and w1_state in {"E", "F"}:
         return "中周期已保持强势，短周期 D1 仍在确认，下一步最值得观察的是 D1 是否补齐。"
     if ef_count == 1 and mn1_state in {"E", "F"}:
         return "当前更多是大级别背景支撑，下一步最值得观察的是 W1 / D1 是否跟随增强。"
-    if isinstance(mn1_days, (int, float)) and isinstance(w1_days, (int, float)) and isinstance(d1_days, (int, float)):
+    if (
+        isinstance(mn1_days, (int, float))
+        and isinstance(w1_days, (int, float))
+        and isinstance(d1_days, (int, float))
+    ):
         min_cycle = min(
             [("MN1", mn1_days), ("W1", w1_days), ("D1", d1_days)],
             key=lambda item: item[1],
@@ -630,7 +641,9 @@ def _load_financial_trend(
         updated_at = str(facts.get("__collected_at") or latest_snapshot)
         field_map = {
             "revenue": "营业总收入" if facts.get("营业总收入") is not None else "营业收入",
-            "net_profit": "归属于母公司所有者的净利润" if facts.get("归属于母公司所有者的净利润") is not None else "净利润",
+            "net_profit": "归属于母公司所有者的净利润"
+            if facts.get("归属于母公司所有者的净利润") is not None
+            else "净利润",
             "eps": "基本每股收益",
             "operating_cashflow": "经营活动产生的现金流量净额",
             "debt_ratio": "负债合计/资产总计",
@@ -869,7 +882,9 @@ def _load_strategy_fit_overlay(
                 source_field,
                 snapshot_date,
                 source_confidence=0.9 if field == "fit_strategy" else 0.95,
-                derivation="strategy_id selected from highest signal_strength row" if field == "fit_strategy" else None,
+                derivation="strategy_id selected from highest signal_strength row"
+                if field == "fit_strategy"
+                else None,
             )
     return overlay, source_map, {"snapshot_date": snapshot_date}
 
@@ -903,7 +918,9 @@ def _load_industry_state(
     if not sw_l1:
         return state, source_map, meta
 
-    position_payload, position_date = _load_json_by_date(ROOT / "outputs" / "industry_chain", "industry_position_summary", as_of_date)
+    position_payload, position_date = _load_json_by_date(
+        ROOT / "outputs" / "industry_chain", "industry_position_summary", as_of_date
+    )
     position_record = None
     if position_payload:
         for record in position_payload.get("records", []):
@@ -917,7 +934,13 @@ def _load_industry_state(
         state["chain_position"] = position_record.get("chain_position") or ""
         state["etf_symbol"] = position_record.get("etf_symbol") or ""
         state["etf_ef_count"] = position_record.get("etf_ef_count")
-        for field in ["prosperity_score", "prosperity_change", "chain_position", "etf_symbol", "etf_ef_count"]:
+        for field in [
+            "prosperity_score",
+            "prosperity_change",
+            "chain_position",
+            "etf_symbol",
+            "etf_ef_count",
+        ]:
             if state.get(field) not in ("", None):
                 source_map[f"industry_state.{field}"] = _source_entry(
                     "derived",
@@ -927,7 +950,9 @@ def _load_industry_state(
                     source_confidence=0.9,
                 )
 
-    rotation_payload, rotation_date = _load_json_by_date(ROOT / "outputs" / "industry_rotation", "industry_rotation", as_of_date)
+    rotation_payload, rotation_date = _load_json_by_date(
+        ROOT / "outputs" / "industry_rotation", "industry_rotation", as_of_date
+    )
     rotation_record = None
     if rotation_payload:
         for record in rotation_payload.get("top_industries", []):
@@ -970,7 +995,9 @@ def _load_industry_state(
                 source_confidence=0.9,
             )
 
-    market_assets_payload, market_state_date = _load_json_by_date(ROOT / "outputs" / "market_assets_state", "market_assets_state", as_of_date)
+    market_assets_payload, market_state_date = _load_json_by_date(
+        ROOT / "outputs" / "market_assets_state", "market_assets_state", as_of_date
+    )
     if market_assets_payload and state.get("etf_symbol"):
         meta["market_state_date"] = market_state_date
         etf_symbol = state["etf_symbol"]
@@ -999,8 +1026,12 @@ def _load_industry_state(
     return state, source_map, meta
 
 
-def _load_valuation_reference(stock_code: str, as_of_date: str) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-    parquet_path = _find_latest_file(ROOT / "data" / "akshare_fundamental", "stock_value", ".parquet", as_of_date)
+def _load_valuation_reference(
+    stock_code: str, as_of_date: str
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    parquet_path = _find_latest_file(
+        ROOT / "data" / "akshare_fundamental", "stock_value", ".parquet", as_of_date
+    )
     valuation = {
         "pe_ttm": None,
         "pe_static": None,
@@ -1058,8 +1089,12 @@ def _load_valuation_reference(stock_code: str, as_of_date: str) -> tuple[dict[st
     return valuation, source_map, {"snapshot_date": snapshot_date}
 
 
-def _load_market_views(stock_code: str, as_of_date: str) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-    parquet_path = _find_latest_file(ROOT / "data" / "akshare_fundamental", "stock_forecast", ".parquet", as_of_date)
+def _load_market_views(
+    stock_code: str, as_of_date: str
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    parquet_path = _find_latest_file(
+        ROOT / "data" / "akshare_fundamental", "stock_forecast", ".parquet", as_of_date
+    )
     market_views = {
         "rating_distribution": {},
         "target_price_low": None,
@@ -1165,6 +1200,7 @@ def _build_risk_flags(
     latest_row = financial_trend.get("period_rows", [{}])[0] if financial_trend.get("period_rows") else {}
     debt_ratio = latest_row.get("debt_ratio")
     cashflow = latest_row.get("operating_cashflow")
+
     def _latest_same_quarter(metric_key: str) -> float | None:
         rows = financial_trend.get(metric_key) or []
         if rows:
@@ -1204,7 +1240,11 @@ def _build_risk_flags(
                 reason=revenue_reason,
             )
         )
-    if net_profit_yoy_same_quarter is not None and float(net_profit_yoy_same_quarter) < 0 and profit_important:
+    if (
+        net_profit_yoy_same_quarter is not None
+        and float(net_profit_yoy_same_quarter) < 0
+        and profit_important
+    ):
         risks["financial_risks"].append(
             _risk_item(
                 risk=f"最近一期净利润较上年同期下降 {abs(float(net_profit_yoy_same_quarter)):.1f}%，盈利兑现承压。",
@@ -1212,7 +1252,11 @@ def _build_risk_flags(
                 reason=profit_reason,
             )
         )
-    if operating_cashflow_yoy_same_quarter is not None and float(operating_cashflow_yoy_same_quarter) < 0 and cashflow_important:
+    if (
+        operating_cashflow_yoy_same_quarter is not None
+        and float(operating_cashflow_yoy_same_quarter) < 0
+        and cashflow_important
+    ):
         risks["financial_risks"].append(
             _risk_item(
                 risk=f"最近一期经营现金流较上年同期下降 {abs(float(operating_cashflow_yoy_same_quarter)):.1f}%，经营质量需复核。",
@@ -1258,7 +1302,9 @@ def _build_risk_flags(
         )
     pb = valuation_reference.get("pb")
     if pb is not None and float(pb) > 8:
-        if "半导体" in str(company_profile.get("sw_l2") or "") or "数字芯片设计" in str(company_profile.get("sw_l3") or ""):
+        if "半导体" in str(company_profile.get("sw_l2") or "") or "数字芯片设计" in str(
+            company_profile.get("sw_l3") or ""
+        ):
             risks["valuation_risks"].append(
                 _risk_item(
                     risk=f"市净率 {float(pb):.1f} 倍，处于高位。",
@@ -1391,7 +1437,11 @@ def _status_strategy_overlay(overlay: dict[str, Any]) -> str:
 
 
 def _status_valuation_reference(valuation: dict[str, Any]) -> str:
-    if valuation.get("pe_ttm") is not None and valuation.get("pb") is not None and valuation.get("industry_pe_avg") is not None:
+    if (
+        valuation.get("pe_ttm") is not None
+        and valuation.get("pb") is not None
+        and valuation.get("industry_pe_avg") is not None
+    ):
         return "sufficient"
     if valuation.get("pe_ttm") is not None or valuation.get("pb") is not None:
         return "partial"
@@ -1520,9 +1570,13 @@ def build_external_research_evidence(
     finally:
         foundation_con.close()
 
-    strategy_fit_overlay, overlay_sources, overlay_meta = _load_strategy_fit_overlay(canonical_code, as_of_date)
+    strategy_fit_overlay, overlay_sources, overlay_meta = _load_strategy_fit_overlay(
+        canonical_code, as_of_date
+    )
     industry_state, industry_sources, industry_meta = _load_industry_state(company_profile, as_of_date)
-    valuation_reference, valuation_sources, valuation_meta = _load_valuation_reference(canonical_code, as_of_date)
+    valuation_reference, valuation_sources, valuation_meta = _load_valuation_reference(
+        canonical_code, as_of_date
+    )
     market_views, market_view_sources, market_views_meta = _load_market_views(canonical_code, as_of_date)
 
     payload: dict[str, Any] = {

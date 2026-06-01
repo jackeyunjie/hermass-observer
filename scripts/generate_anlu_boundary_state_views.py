@@ -117,10 +117,16 @@ def price_text(item: dict[str, Any]) -> str:
 def observation_text(item: dict[str, Any]) -> str:
     observation = item.get("observation", {})
     fields = [
-        ("观察周期", TF_LABELS.get(observation.get("observing_timeframe"), observation.get("observing_timeframe"))),
+        (
+            "观察周期",
+            TF_LABELS.get(observation.get("observing_timeframe"), observation.get("observing_timeframe")),
+        ),
         ("观察时间", observation.get("observing_time")),
         ("观察收盘价", observation.get("observing_close")),
-        ("被观察周期", TF_LABELS.get(observation.get("observed_timeframe"), observation.get("observed_timeframe"))),
+        (
+            "被观察周期",
+            TF_LABELS.get(observation.get("observed_timeframe"), observation.get("observed_timeframe")),
+        ),
         ("被观察周期时间", observation.get("observed_time")),
         ("被观察周期原收盘价", observation.get("native_close")),
         ("被观察周期原状态码", observation.get("native_state_hex")),
@@ -158,11 +164,15 @@ def audit_block(tf: str, item: dict[str, Any]) -> str:
     )
 
 
-def render_table(title: str, rows: list[dict[str, Any]], columns: list[str], audits: list[dict[str, Any]]) -> str:
+def render_table(
+    title: str, rows: list[dict[str, Any]], columns: list[str], audits: list[dict[str, Any]]
+) -> str:
     body = []
     detail_parts = []
     for idx, row in enumerate(rows):
-        body.append("<tr>" + "".join(f"<td>{html.escape(str(row.get(col, '')))}</td>" for col in columns) + "</tr>")
+        body.append(
+            "<tr>" + "".join(f"<td>{html.escape(str(row.get(col, '')))}</td>" for col in columns) + "</tr>"
+        )
         audit = audits[idx] if idx < len(audits) else {}
         row_title = f"{idx + 1}. {row.get('时间', '')}"
         audit_lines = [f"<h3 class='row-title'>{html.escape(row_title)}</h3>"]
@@ -176,8 +186,8 @@ def render_table(title: str, rows: list[dict[str, Any]], columns: list[str], aud
     <span class="count">{len(rows)} 行</span>
   </div>
   <div class="result-detail-grid">
-    <div class="table-wrap"><table><thead><tr>{''.join(f'<th>{html.escape(COLUMN_CN.get(col, col))}</th>' for col in columns)}</tr></thead><tbody>{''.join(body)}</tbody></table></div>
-    <div class="detail-wrap">{''.join(detail_parts)}</div>
+    <div class="table-wrap"><table><thead><tr>{"".join(f"<th>{html.escape(COLUMN_CN.get(col, col))}</th>" for col in columns)}</tr></thead><tbody>{"".join(body)}</tbody></table></div>
+    <div class="detail-wrap">{"".join(detail_parts)}</div>
   </div>
 </section>"""
 
@@ -188,9 +198,21 @@ def render_html(payload: dict[str, Any]) -> str:
     sections = [
         render_table("月线视角", views["MN1"], ["品种", "时间", "MN1state"], row_audit["MN1"]),
         render_table("周线视角", views["W1"], ["品种", "时间", "MN1state", "W1state"], row_audit["W1"]),
-        render_table("日线视角", views["D1"], ["品种", "时间", "MN1state", "W1state", "D1state"], row_audit["D1"]),
-        render_table("四小时视角", views["H4"], ["品种", "时间", "MN1state", "W1state", "D1state", "H4state"], row_audit["H4"]),
-        render_table("小时视角", views["H1"], ["品种", "时间", "MN1state", "W1state", "D1state", "H4state", "H1state"], row_audit["H1"]),
+        render_table(
+            "日线视角", views["D1"], ["品种", "时间", "MN1state", "W1state", "D1state"], row_audit["D1"]
+        ),
+        render_table(
+            "四小时视角",
+            views["H4"],
+            ["品种", "时间", "MN1state", "W1state", "D1state", "H4state"],
+            row_audit["H4"],
+        ),
+        render_table(
+            "小时视角",
+            views["H1"],
+            ["品种", "时间", "MN1state", "W1state", "D1state", "H4state", "H1state"],
+            row_audit["H1"],
+        ),
     ]
     debug = payload.get("debug", {})
     return f"""<!doctype html>
@@ -218,11 +240,11 @@ def render_html(payload: dict[str, Any]) -> str:
     <div class="meta">
       <div><small>公式</small><strong>底座 0 或 8 互斥；状态分数绝对值等于底座加波动、位置、趋势</strong></div>
       <div><small>指标</small><strong>考夫曼宽度、布林宽度、真实波幅、趋势强度、支撑压力、吊灯止损</strong></div>
-      <div><small>行数</small><strong>月线 {len(views['MN1'])} / 周线 {len(views['W1'])} / 日线 {len(views['D1'])} / 四小时 {len(views['H4'])} / 小时 {len(views['H1'])}</strong></div>
-      <div><small>分钟源</small><strong>五分钟 {html.escape(str(debug.get('raw_5m_rows')))} 行</strong></div>
+      <div><small>行数</small><strong>月线 {len(views["MN1"])} / 周线 {len(views["W1"])} / 日线 {len(views["D1"])} / 四小时 {len(views["H4"])} / 小时 {len(views["H1"])}</strong></div>
+      <div><small>分钟源</small><strong>五分钟 {html.escape(str(debug.get("raw_5m_rows")))} 行</strong></div>
     </div>
   </header>
-  {''.join(sections)}
+  {"".join(sections)}
 </main>
 </body>
 </html>
@@ -242,7 +264,11 @@ def main() -> int:
     }
     OUT_JSON.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     OUT_HTML.write_text(render_html(payload), encoding="utf-8")
-    print(json.dumps({key: len(payload["views"][key]) for key in ["MN1", "W1", "D1", "H4", "H1"]}, ensure_ascii=False))
+    print(
+        json.dumps(
+            {key: len(payload["views"][key]) for key in ["MN1", "W1", "D1", "H4", "H1"]}, ensure_ascii=False
+        )
+    )
     return 0
 
 

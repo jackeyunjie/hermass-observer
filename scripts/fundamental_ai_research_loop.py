@@ -27,6 +27,7 @@ import duckdb
 
 ROOT = Path(__file__).resolve().parents[1]
 import sys
+
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -59,22 +60,21 @@ def call_deepseek(user_prompt: str) -> str:
     api_base = os.environ.get("DEEPSEEK_API_BASE", "https://api.deepseek.com")
     if not api_key:
         return "⚠️ DEEPSEEK_API_KEY 未设置，跳过 AI 分析。以下为原始数据特征："
-    
+
     url = f"{api_base}/v1/chat/completions"
     body = {
         "model": "deepseek-chat",
         "messages": [
             {"role": "system", "content": with_deepseek_context(SYSTEM_PROMPT)},
-            {"role": "user", "content": user_prompt}
+            {"role": "user", "content": user_prompt},
         ],
         "temperature": 0.3,
-        "max_tokens": 4000
+        "max_tokens": 4000,
     }
     data = json.dumps(body).encode("utf-8")
-    req = urllib.request.Request(url, data=data, headers={
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    })
+    req = urllib.request.Request(
+        url, data=data, headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    )
     try:
         with urllib.request.urlopen(req, timeout=120) as resp:
             result = json.loads(resp.read().decode("utf-8"))
@@ -106,15 +106,15 @@ def clip_text(value, max_len: int = 80) -> str:
 
 
 def run_research_loop(date_str: str) -> None:
-    p116_path = P116_DB_DIR / f"p116_foundation_{date_str.replace('-','')}" / "p116_foundation.duckdb"
-    
+    p116_path = P116_DB_DIR / f"p116_foundation_{date_str.replace('-', '')}" / "p116_foundation.duckdb"
+
     con = duckdb.connect()
     con.execute(f"ATTACH '{EVIDENCE_DB}' AS fund")
-    
+
     has_p116 = p116_path.exists()
     if has_p116:
         con.execute(f"ATTACH '{p116_path}' AS p116")
-        
+
     prompt_lines = [f"## 数据截面日期: {date_str}", ""]
 
     # 1. 基本面身份重新理解
@@ -139,7 +139,7 @@ def run_research_loop(date_str: str) -> None:
             f"质量分={fmt_num(r[6])} | 主业纯度={fmt_pct(r[7])} | 主营={clip_text(r[5], 70)}"
         )
     prompt_lines.append("")
-    
+
     # 2. 真主业 vs 蹭概念
     # 筛选：有热门概念，分别抽主业纯度高/低两端，避免只把分母异常的高倍数喂给 LLM。
     q2 = """
@@ -155,18 +155,18 @@ def run_research_loop(date_str: str) -> None:
     rows2_high = sorted(rows2_valid, key=lambda r: r[3], reverse=True)[:8]
     rows2_low = sorted(rows2_valid, key=lambda r: r[3])[:8]
     prompt_lines.append("### 议题2：热门概念中的【真主业 vs 蹭概念】对比数据")
-    prompt_lines.append("（注：主业纯度 > 80% 倾向真主业，< 30% 倾向边缘蹭概念；超过 3x 标为异常值，通常需要回看利润分母）")
+    prompt_lines.append(
+        "（注：主业纯度 > 80% 倾向真主业，< 30% 倾向边缘蹭概念；超过 3x 标为异常值，通常需要回看利润分母）"
+    )
     prompt_lines.append("#### 主业纯度高的一端")
     for r in rows2_high:
         prompt_lines.append(
-            f"- {r[1]} ({r[0]}): 纯度={fmt_pct(r[3])} | "
-            f"质量分={fmt_num(r[4])} | 概念={clip_text(r[2], 60)}"
+            f"- {r[1]} ({r[0]}): 纯度={fmt_pct(r[3])} | 质量分={fmt_num(r[4])} | 概念={clip_text(r[2], 60)}"
         )
     prompt_lines.append("#### 主业纯度低的一端")
     for r in rows2_low:
         prompt_lines.append(
-            f"- {r[1]} ({r[0]}): 纯度={fmt_pct(r[3])} | "
-            f"质量分={fmt_num(r[4])} | 概念={clip_text(r[2], 60)}"
+            f"- {r[1]} ({r[0]}): 纯度={fmt_pct(r[3])} | 质量分={fmt_num(r[4])} | 概念={clip_text(r[2], 60)}"
         )
     prompt_lines.append("")
 
@@ -188,7 +188,9 @@ def run_research_loop(date_str: str) -> None:
     """
     rows3 = con.execute(q3, (date_str, date_str)).fetchall()
     prompt_lines.append("### 议题3：【产业链地位改善迹象】候选基线")
-    prompt_lines.append("（注：首版暂无历史环比，先用高质量分 + 合理区间内的主业纯度/现金质量/盈利质量作为后续跟踪基线）")
+    prompt_lines.append(
+        "（注：首版暂无历史环比，先用高质量分 + 合理区间内的主业纯度/现金质量/盈利质量作为后续跟踪基线）"
+    )
     for r in rows3:
         prompt_lines.append(
             f"- {r[1]} ({r[0]}): 行业={r[2]}/{r[3]}/{r[4]} | "
@@ -212,13 +214,15 @@ def run_research_loop(date_str: str) -> None:
         rows4 = con.execute(q4, (date_str, date_str)).fetchall()
         prompt_lines.append("### 议题4：【技术面极强 (D1=E/F) 但基本面极差 (质量分<30)】的异常品种")
         for r in rows4:
-            prompt_lines.append(f"- {r[1]} ({r[0]}): D1={r[2]} | 质量分={fmt_num(r[3])} | 主业纯度={fmt_pct(r[4])}")
+            prompt_lines.append(
+                f"- {r[1]} ({r[0]}): D1={r[2]} | 质量分={fmt_num(r[3])} | 主业纯度={fmt_pct(r[4])}"
+            )
         prompt_lines.append("")
     else:
         prompt_lines.append("### 议题4：【技术面极强但基本面极差】的异常品种")
         prompt_lines.append(f"- 未找到 P116 foundation DB: {p116_path}")
         prompt_lines.append("")
-    
+
     # 5. 基本面强股技术面刚改善
     if has_p116:
         q5 = """
@@ -234,26 +238,28 @@ def run_research_loop(date_str: str) -> None:
         rows5 = con.execute(q5, (date_str, date_str)).fetchall()
         prompt_lines.append("### 议题5：【基本面极优 (质量分>80) 且技术面刚启动或维持强势】的共振品种")
         for r in rows5:
-            prompt_lines.append(f"- {r[1]} ({r[0]}): D1={r[2]} | 质量分={fmt_num(r[3])} | 盈利质量={fmt_pct(r[4])}")
+            prompt_lines.append(
+                f"- {r[1]} ({r[0]}): D1={r[2]} | 质量分={fmt_num(r[3])} | 盈利质量={fmt_pct(r[4])}"
+            )
         prompt_lines.append("")
     else:
         prompt_lines.append("### 议题5：【基本面极优且技术面刚启动或维持强势】的共振品种")
         prompt_lines.append(f"- 未找到 P116 foundation DB: {p116_path}")
         prompt_lines.append("")
-        
+
     con.close()
-    
+
     prompt = "\n".join(prompt_lines)
     print("======== SQL 筛选数据 ========")
     print(prompt)
     print("=============================\n")
-    
+
     print("正在调用 DeepSeek 进行 AI Research Loop 分析...")
     report = call_deepseek(prompt)
-    
+
     output_dir = ROOT / "outputs" / "fundamental"
-    report_path = output_dir / f"ai_research_loop_{date_str.replace('-','')}.md"
-    prompt_path = output_dir / f"ai_research_loop_input_{date_str.replace('-','')}.md"
+    report_path = output_dir / f"ai_research_loop_{date_str.replace('-', '')}.md"
+    prompt_path = output_dir / f"ai_research_loop_input_{date_str.replace('-', '')}.md"
     report_path.parent.mkdir(parents=True, exist_ok=True)
     prompt_path.write_text(prompt, encoding="utf-8")
     report_path.write_text(prompt + "\n\n" + report, encoding="utf-8")

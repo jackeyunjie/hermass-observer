@@ -390,10 +390,14 @@ def dedup_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for row in rows:
         key = (str(row.get("indicator_code")), str(row.get("as_of_date")), str(row.get("source_api")))
         dedup[key] = row
-    return sorted(dedup.values(), key=lambda item: (str(item.get("indicator_code")), str(item.get("as_of_date"))))
+    return sorted(
+        dedup.values(), key=lambda item: (str(item.get("indicator_code")), str(item.get("as_of_date")))
+    )
 
 
-def collect_sources(config: dict[str, Any], date_str: str, sources: list[str]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def collect_sources(
+    config: dict[str, Any], date_str: str, sources: list[str]
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     collectors = {
         "blackwolf": blackwolf_rows,
         "tencent": tencent_rows,
@@ -435,7 +439,9 @@ def write_collection_outputs(payload: dict[str, Any]) -> dict[str, str]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Collect fallback macro data from Blackwolf/Tencent/Sina/AKShare/Tushare.")
+    parser = argparse.ArgumentParser(
+        description="Collect fallback macro data from Blackwolf/Tencent/Sina/AKShare/Tushare."
+    )
     parser.add_argument("--date", required=True)
     parser.add_argument("--config", default=str(DEFAULT_CONFIG))
     parser.add_argument("--ifind-config", default=str(DEFAULT_IFIND_CONFIG))
@@ -445,7 +451,9 @@ def main() -> int:
         default="blackwolf,tencent,sina,akshare,tushare",
         help="Comma-separated source list: blackwolf,tencent,sina,akshare,tushare",
     )
-    parser.add_argument("--no-snapshot", action="store_true", help="Only collect/insert rows; do not rebuild macro snapshot.")
+    parser.add_argument(
+        "--no-snapshot", action="store_true", help="Only collect/insert rows; do not rebuild macro snapshot."
+    )
     args = parser.parse_args()
 
     config_path = Path(args.config)

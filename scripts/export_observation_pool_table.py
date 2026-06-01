@@ -112,7 +112,7 @@ def write_html(path: Path, data: dict, rows: list[dict[str, str]]) -> None:
         cls = "group-start" if symbol != current_symbol else ""
         current_symbol = symbol
         body_rows.append(
-            "<tr class=\"{}\">{}</tr>".format(
+            '<tr class="{}">{}</tr>'.format(
                 cls,
                 "".join(
                     f"<td>{html.escape(row[col])}</td>"
@@ -233,7 +233,7 @@ def write_html(path: Path, data: dict, rows: list[dict[str, str]]) -> None:
 <main>
   <h1>{html.escape(title)}</h1>
   <div class="meta">
-    {''.join(f'<div class="stat"><div class="label">{html.escape(k)}</div><div class="value">{html.escape(str(v))}</div></div>' for k, v in stat_items)}
+    {"".join(f'<div class="stat"><div class="label">{html.escape(k)}</div><div class="value">{html.escape(str(v))}</div></div>' for k, v in stat_items)}
   </div>
   <div class="table-wrap">
     <table>
@@ -252,7 +252,7 @@ def write_html(path: Path, data: dict, rows: list[dict[str, str]]) -> None:
         </tr>
       </thead>
       <tbody>
-        {''.join(body_rows)}
+        {"".join(body_rows)}
       </tbody>
     </table>
   </div>

@@ -25,7 +25,9 @@ def main() -> int:
     parser.add_argument("--date", required=True, help="As-of date in YYYY-MM-DD")
     parser.add_argument("--foundation-db", help="Optional foundation DB override")
     parser.add_argument("--fundamental-db", help="Optional fundamental DB override")
-    parser.add_argument("--enable-enrichment", action="store_true", help="Attach optional enrichment placeholder metadata")
+    parser.add_argument(
+        "--enable-enrichment", action="store_true", help="Attach optional enrichment placeholder metadata"
+    )
     parser.add_argument(
         "--provider",
         action="append",
@@ -44,11 +46,15 @@ def main() -> int:
     if args.enable_enrichment or args.provider:
         payload = apply_optional_enrichment(payload, enable=True, providers=args.provider)
 
-    out_path = Path(args.output) if args.output else (
-        ROOT
-        / "outputs"
-        / "external_research_evidence"
-        / f"external_research_evidence_{args.stock_code.replace('.', '_')}_{args.date.replace('-', '')}.json"
+    out_path = (
+        Path(args.output)
+        if args.output
+        else (
+            ROOT
+            / "outputs"
+            / "external_research_evidence"
+            / f"external_research_evidence_{args.stock_code.replace('.', '_')}_{args.date.replace('-', '')}.json"
+        )
     )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

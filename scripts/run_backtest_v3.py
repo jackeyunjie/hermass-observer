@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Run backtest v3 with quality score + market breadth filter."""
+
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from backtest.config import BacktestConfig
@@ -18,13 +20,14 @@ config = BacktestConfig(
     max_single_pct=0.05,
 )
 
-result = run_backtest('2026-05-20', config)
+result = run_backtest("2026-05-20", config)
 
 import json
-out = Path('outputs/backtest_v3_20260520')
+
+out = Path("outputs/backtest_v3_20260520")
 out.mkdir(parents=True, exist_ok=True)
-(out / 'backtest_result.json').write_text(
-    json.dumps(result, ensure_ascii=False, indent=2, default=str) + '\n',
-    encoding='utf-8',
+(out / "backtest_result.json").write_text(
+    json.dumps(result, ensure_ascii=False, indent=2, default=str) + "\n",
+    encoding="utf-8",
 )
 print(f"\nSaved to {out}")

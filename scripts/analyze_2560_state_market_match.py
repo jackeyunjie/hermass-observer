@@ -214,7 +214,13 @@ def analyze_recommendation(date_ymd: str) -> dict[str, object]:
     }
 
 
-def write_report(path: Path, top_rows: list[dict[str, object]], top_summary: dict[str, object], rec: dict[str, object], date_ymd: str) -> None:
+def write_report(
+    path: Path,
+    top_rows: list[dict[str, object]],
+    top_summary: dict[str, object],
+    rec: dict[str, object],
+    date_ymd: str,
+) -> None:
     total = int(top_summary["total"])
     lines = [
         "# 2560 state 与市场匹配复现检查",

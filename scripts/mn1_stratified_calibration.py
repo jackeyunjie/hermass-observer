@@ -25,9 +25,28 @@ INPUT_FILES = {
 }
 
 HEX_TO_SCORE = {
-    "0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7,
-    "8": 8, "9": 9, "A": 10, "B": 11, "C": 12, "D": 13, "E": 14, "F": 15,
-    "-1": -1, "-2": -2, "-3": -3, "-C": -12, "-E": -14, "-F": -15,
+    "0": 0,
+    "1": 1,
+    "2": 2,
+    "3": 3,
+    "4": 4,
+    "5": 5,
+    "6": 6,
+    "7": 7,
+    "8": 8,
+    "9": 9,
+    "A": 10,
+    "B": 11,
+    "C": 12,
+    "D": 13,
+    "E": 14,
+    "F": 15,
+    "-1": -1,
+    "-2": -2,
+    "-3": -3,
+    "-C": -12,
+    "-E": -14,
+    "-F": -15,
 }
 
 
@@ -74,14 +93,16 @@ def load_combo_data(path: Path) -> list[dict]:
 
 
 def compute_mn1_stratified(strategy_id: str, combos: list[dict]) -> dict:
-    regime_data: dict[str, dict] = defaultdict(lambda: {
-        "weighted_mean_excess": 0.0,
-        "weighted_n": 0,
-        "total_n": 0,
-        "win_rate_samples": [],
-        "t_stats": [],
-        "combos": 0,
-    })
+    regime_data: dict[str, dict] = defaultdict(
+        lambda: {
+            "weighted_mean_excess": 0.0,
+            "weighted_n": 0,
+            "total_n": 0,
+            "win_rate_samples": [],
+            "t_stats": [],
+            "combos": 0,
+        }
+    )
 
     for c in combos:
         mn1_score = _mn1_score_from_hex(c["hex_combo"])
@@ -106,8 +127,10 @@ def compute_mn1_stratified(strategy_id: str, combos: list[dict]) -> dict:
     for regime, rd in sorted(regime_data.items()):
         wme = rd["weighted_mean_excess"] / max(rd["weighted_n"], 1)
         avg_wr = (
-            sum(wr * n for wr, n in rd["win_rate_samples"]) / max(sum(n for _, n in rd["win_rate_samples"]), 1)
-            if rd["win_rate_samples"] else 0
+            sum(wr * n for wr, n in rd["win_rate_samples"])
+            / max(sum(n for _, n in rd["win_rate_samples"]), 1)
+            if rd["win_rate_samples"]
+            else 0
         )
         avg_t = statistics.mean(rd["t_stats"]) if rd["t_stats"] else 0
 
@@ -156,17 +179,19 @@ def main():
         stratified = compute_mn1_stratified(strategy_id, combos)
         all_strategy_results[strategy_id] = stratified
 
-        print(f"\n{'='*65}")
+        print(f"\n{'=' * 65}")
         print(f"  {strategy_id.upper()} — MN1 环境分层校准")
         print(f"  {len(combos)} 个 Hex 组合 (n≥5), 可用")
-        print(f"{'='*65}")
+        print(f"{'=' * 65}")
         print(f"  {'环境':16s} {'样本':>6s} {'超额':>8s} {'胜率':>7s} {'t-stat':>6s} {'质量':>4s}")
-        print(f"  {'-'*50}")
+        print(f"  {'-' * 50}")
 
         for regime in ["牛市环境_E/F", "震荡偏强_C/D", "扩张未突破_8-B", "收缩环境_0-7", "破位环境"]:
             rd = stratified.get(regime)
             if rd:
-                print(f"  {rd['regime_label'][:14]:14s} {rd['total_samples']:>6d} {rd['weighted_mean_excess']:>8.4f} {rd['avg_win_rate']:>7.4f} {rd['avg_t_stat']:>6.2f} {rd['signal_quality']:>4s}")
+                print(
+                    f"  {rd['regime_label'][:14]:14s} {rd['total_samples']:>6d} {rd['weighted_mean_excess']:>8.4f} {rd['avg_win_rate']:>7.4f} {rd['avg_t_stat']:>6.2f} {rd['signal_quality']:>4s}"
+                )
                 overview_rows.append(rd)
 
     output = {

@@ -163,8 +163,7 @@ def calculate_dynamic_position(
     industry_factor = industry_mn1_coeff if industry_mn1_coeff is not None else 1.0
 
     # 核心公式：三层过滤
-    raw_allocation = (BASE_ALLOCATION * phase_factor * strategy_boost
-                      * macro_factor * industry_factor)
+    raw_allocation = BASE_ALLOCATION * phase_factor * strategy_boost * macro_factor * industry_factor
 
     # 安全钳：上限 100%，下限 0%
     total_allocation = max(0.0, min(1.0, raw_allocation))
@@ -184,9 +183,13 @@ def calculate_dynamic_position(
     # 原因说明
     reasons: list[str] = []
     if phase_factor != 1.0:
-        label = {"contraction": "收缩期防御", "emergence": "趋势新生",
-                 "progression": "趋势行进+20%", "extension": "趋势延展-30%",
-                 "risk_release": "风险释放禁开新仓"}.get(market_phase, f"阶段系数={phase_factor}")
+        label = {
+            "contraction": "收缩期防御",
+            "emergence": "趋势新生",
+            "progression": "趋势行进+20%",
+            "extension": "趋势延展-30%",
+            "risk_release": "风险释放禁开新仓",
+        }.get(market_phase, f"阶段系数={phase_factor}")
         reasons.append(label)
     if strategy_boost != 1.0:
         reasons.append(f"策略加成={strategy_boost:.2f}")
@@ -219,9 +222,12 @@ def render_quick_reference_table() -> str:
     phases = ["emergence", "progression", "extension", "contraction", "risk_release", "undetermined"]
     fit_levels = ["最佳适配", "适配", "弱适配", "待观察"]
     phase_labels = {
-        "emergence": "趋势新生", "progression": "趋势行进",
-        "extension": "趋势延展", "contraction": "收缩期",
-        "risk_release": "风险释放", "undetermined": "未分类",
+        "emergence": "趋势新生",
+        "progression": "趋势行进",
+        "extension": "趋势延展",
+        "contraction": "收缩期",
+        "risk_release": "风险释放",
+        "undetermined": "未分类",
     }
 
     lines = [
@@ -234,7 +240,10 @@ def render_quick_reference_table() -> str:
     for phase in phases:
         for fit in fit_levels:
             result = calculate_dynamic_position(
-                phase, 1.0, "复苏", fit,
+                phase,
+                1.0,
+                "复苏",
+                fit,
             )
             risk = result["per_trade_risk_pct"]
             alloc = f"{result['total_allocation_pct']:.0%}"

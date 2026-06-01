@@ -69,7 +69,7 @@ def init_profiles(username_list: list[str] | None = None) -> None:
     defaults.append(("admin", "管理员", DEFAULT_USER_TYPE, "", "", now))
 
     # 批量为 htpasswd 用户创建占位 profile
-    for username in (username_list or []):
+    for username in username_list or []:
         if not username or username == "admin":
             continue
         defaults.append((username, username, DEFAULT_USER_TYPE, "", "", now))
@@ -117,9 +117,7 @@ def upsert_profile(username: str, **kwargs: Any) -> dict[str, Any]:
     now = datetime.now(timezone.utc).isoformat()
 
     # 先查是否存在
-    existing = con.execute(
-        "SELECT * FROM user_profiles WHERE username = ?", (username,)
-    ).fetchone()
+    existing = con.execute("SELECT * FROM user_profiles WHERE username = ?", (username,)).fetchone()
 
     if existing is None:
         # 创建
@@ -158,9 +156,7 @@ def upsert_profile(username: str, **kwargs: Any) -> dict[str, Any]:
         con.execute(f"UPDATE user_profiles SET {sets} WHERE username = :username", updates)
         con.commit()
 
-    row = con.execute(
-        "SELECT * FROM user_profiles WHERE username = ?", (username,)
-    ).fetchone()
+    row = con.execute("SELECT * FROM user_profiles WHERE username = ?", (username,)).fetchone()
     con.close()
     return dict(row) if row else {}
 

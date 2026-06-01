@@ -21,7 +21,7 @@ from typing import Any
 
 from build_industry_etf_coverage import (
     DEFAULT_BLACKWOLF_LIST,
-DEFAULT_CONFIG,
+    DEFAULT_CONFIG,
     DIRECT_KEYWORDS,
     PROXY_KEYWORDS,
     candidate_score,
@@ -168,7 +168,9 @@ def load_ifind_etfs(date_str: str, path: Path | None = None) -> list[dict[str, A
     return rows
 
 
-def merge_etf_sources(blackwolf_rows: list[dict[str, Any]], ifind_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def merge_etf_sources(
+    blackwolf_rows: list[dict[str, Any]], ifind_rows: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     by_symbol: dict[str, dict[str, Any]] = {}
     for source_name, rows in [("blackwolf_stock_list", blackwolf_rows), ("ifind_etf_snapshot", ifind_rows)]:
         for row in rows:
@@ -314,7 +316,8 @@ def build_candidate_pool(etfs: list[dict[str, Any]], industries: list[str]) -> l
                 "best_match_keyword": best.get("match_keyword", ""),
                 "best_score": best.get("score", ""),
                 "all_matches": "；".join(
-                    f"{item['sw_l1']}:{item['match_type']}:{item['match_keyword']}:{item['score']}" for item in matches[:12]
+                    f"{item['sw_l1']}:{item['match_type']}:{item['match_keyword']}:{item['score']}"
+                    for item in matches[:12]
                 ),
             }
         )
@@ -381,7 +384,9 @@ def build_payload(
     industries = sorted(ifind_counts)
     config = load_current_config(config_path)
     proxy_whitelist = load_proxy_whitelist(proxy_whitelist_path)
-    no_etf_coverage = {str(item).strip() for item in proxy_whitelist.get("no_etf_coverage", []) if str(item).strip()}
+    no_etf_coverage = {
+        str(item).strip() for item in proxy_whitelist.get("no_etf_coverage", []) if str(item).strip()
+    }
     configured = current_by_industry(config)
     market_state = load_market_state(date_str)
     state_by_key, state_by_symbol = market_state_indexes(market_state)
@@ -395,18 +400,22 @@ def build_payload(
         current = configured.get(sw_l1, [])
         configured_symbols = {str(row.get("symbol") or "") for row in current}
         configured_state_rows = [
-            state_by_key[(symbol, sw_l1)]
-            for symbol in configured_symbols
-            if (symbol, sw_l1) in state_by_key
+            state_by_key[(symbol, sw_l1)] for symbol in configured_symbols if (symbol, sw_l1) in state_by_key
         ]
-        direct = market_adjusted_candidates(find_candidates(etfs, sw_l1, DIRECT_KEYWORDS, "direct"), state_by_key, state_by_symbol)
-        proxy = market_adjusted_candidates(find_candidates(etfs, sw_l1, PROXY_KEYWORDS, "proxy"), state_by_key, state_by_symbol)
+        direct = market_adjusted_candidates(
+            find_candidates(etfs, sw_l1, DIRECT_KEYWORDS, "direct"), state_by_key, state_by_symbol
+        )
+        proxy = market_adjusted_candidates(
+            find_candidates(etfs, sw_l1, PROXY_KEYWORDS, "proxy"), state_by_key, state_by_symbol
+        )
         selected: dict[str, Any] = {}
 
         proxy_review_status = proxy_status(proxy_whitelist, sw_l1)
         if current:
             mapping_status = "configured_active" if configured_state_rows else "configured_pending_download"
-            recommended_action = "keep_current_config" if configured_state_rows else "download_or_refresh_configured_asset"
+            recommended_action = (
+                "keep_current_config" if configured_state_rows else "download_or_refresh_configured_asset"
+            )
             if direct:
                 selected = direct[0]
             elif proxy:
@@ -421,7 +430,9 @@ def build_payload(
             if selected.get("symbol_used_by_other_industry"):
                 recommended_action = "manual_review_symbol_reused_by_other_industry"
             else:
-                auto_assets.append(make_asset(selected, "auto_mapped_from_blackwolf_ifind", "auto_direct_candidate"))
+                auto_assets.append(
+                    make_asset(selected, "auto_mapped_from_blackwolf_ifind", "auto_direct_candidate")
+                )
         elif proxy:
             selected = proxy[0]
             upsert_proxy_candidate(proxy_whitelist, sw_l1, selected, generated_at)
@@ -433,7 +444,9 @@ def build_payload(
                 mapping_status = f"proxy_{proxy_review_status or 'pending_review'}"
                 recommended_action = "manual_review_proxy_candidate"
             if include_proxy or is_proxy_approved(proxy_whitelist, sw_l1, selected):
-                auto_assets.append(make_asset(selected, "auto_mapped_proxy_from_blackwolf_ifind", "proxy_review_candidate"))
+                auto_assets.append(
+                    make_asset(selected, "auto_mapped_proxy_from_blackwolf_ifind", "proxy_review_candidate")
+                )
         else:
             mapping_status = "missing_candidate"
             recommended_action = "manual_research_or_ifind_etf_scan"
@@ -490,7 +503,8 @@ def build_payload(
     gap_rows = [
         row
         for row in mapping_rows
-        if row["mapping_status"] not in {"configured_active", "no_etf_coverage"} or int(row.get("stock_only_gap_count") or 0) > 0
+        if row["mapping_status"] not in {"configured_active", "no_etf_coverage"}
+        or int(row.get("stock_only_gap_count") or 0) > 0
     ]
     return {
         "schema_version": "industry_etf_config_loop_v1",
@@ -549,18 +563,18 @@ def render_html(payload: dict[str, Any]) -> str:
     for row in payload["mapping_rows"]:
         map_rows.append(
             f"""
-            <tr class="{esc(row.get('mapping_status'))}">
-              <td><strong>{esc(row.get('sw_l1'))}</strong><br><span>{esc(row.get('ifind_stock_count'))} 只 / stock_only {esc(row.get('stock_only_gap_count'))}</span></td>
-              <td>{esc(row.get('mapping_status'))}<br><span>{esc(row.get('recommended_action'))}</span></td>
-              <td>{esc(row.get('proxy_review_status'))}</td>
-              <td>{esc(row.get('configured_symbols'))}</td>
-              <td>{esc(row.get('configured_market_best_symbol'))}<br><span>{esc(row.get('configured_market_best_name'))} EF={esc(row.get('configured_market_best_ef_count'))}</span></td>
-              <td><strong>{esc(row.get('selected_symbol'))}</strong><br><span>{esc(row.get('selected_name'))}</span></td>
-              <td>{esc(row.get('selected_match_type'))}<br><span>{esc(row.get('selected_match_keyword'))} / {esc(row.get('selected_score'))}</span></td>
-              <td>{esc(row.get('selected_data_status'))}<br><span>EF={esc(row.get('selected_market_ef_count'))} {esc(row.get('selected_market_state_combo'))}</span></td>
-              <td>{esc(row.get('direct_candidates'))}</td>
-              <td>{esc(row.get('proxy_candidates'))}</td>
-              <td>{esc(row.get('stock_only_examples'))}</td>
+            <tr class="{esc(row.get("mapping_status"))}">
+              <td><strong>{esc(row.get("sw_l1"))}</strong><br><span>{esc(row.get("ifind_stock_count"))} 只 / stock_only {esc(row.get("stock_only_gap_count"))}</span></td>
+              <td>{esc(row.get("mapping_status"))}<br><span>{esc(row.get("recommended_action"))}</span></td>
+              <td>{esc(row.get("proxy_review_status"))}</td>
+              <td>{esc(row.get("configured_symbols"))}</td>
+              <td>{esc(row.get("configured_market_best_symbol"))}<br><span>{esc(row.get("configured_market_best_name"))} EF={esc(row.get("configured_market_best_ef_count"))}</span></td>
+              <td><strong>{esc(row.get("selected_symbol"))}</strong><br><span>{esc(row.get("selected_name"))}</span></td>
+              <td>{esc(row.get("selected_match_type"))}<br><span>{esc(row.get("selected_match_keyword"))} / {esc(row.get("selected_score"))}</span></td>
+              <td>{esc(row.get("selected_data_status"))}<br><span>EF={esc(row.get("selected_market_ef_count"))} {esc(row.get("selected_market_state_combo"))}</span></td>
+              <td>{esc(row.get("direct_candidates"))}</td>
+              <td>{esc(row.get("proxy_candidates"))}</td>
+              <td>{esc(row.get("stock_only_examples"))}</td>
             </tr>
             """
         )
@@ -571,11 +585,11 @@ def render_html(payload: dict[str, Any]) -> str:
         candidate_rows.append(
             f"""
             <tr>
-              <td><strong>{esc(row.get('symbol'))}</strong><br><span>{esc(row.get('source'))}</span></td>
-              <td>{esc(row.get('name'))}</td>
-              <td>{esc(row.get('best_sw_l1'))}</td>
-              <td>{esc(row.get('best_match_type'))}<br><span>{esc(row.get('best_match_keyword'))} / {esc(row.get('best_score'))}</span></td>
-              <td>{esc(row.get('all_matches'))}</td>
+              <td><strong>{esc(row.get("symbol"))}</strong><br><span>{esc(row.get("source"))}</span></td>
+              <td>{esc(row.get("name"))}</td>
+              <td>{esc(row.get("best_sw_l1"))}</td>
+              <td>{esc(row.get("best_match_type"))}<br><span>{esc(row.get("best_match_keyword"))} / {esc(row.get("best_score"))}</span></td>
+              <td>{esc(row.get("all_matches"))}</td>
             </tr>
             """
         )
@@ -584,7 +598,7 @@ def render_html(payload: dict[str, Any]) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>行业ETF配置闭环 - {esc(payload['date'])}</title>
+  <title>行业ETF配置闭环 - {esc(payload["date"])}</title>
   <style>
     body {{ margin:0; background:#f6f8fb; color:#172033; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }}
     main {{ max-width:1500px; margin:0 auto; padding:24px; }}
@@ -607,7 +621,7 @@ def render_html(payload: dict[str, Any]) -> str:
 <body>
   <main>
     <h1>行业ETF配置闭环</h1>
-    <div class="meta">日期 {esc(payload['date'])} | 黑狼ETF {esc(payload['data_sources']['blackwolf_stock_list'])} | iFind ETF {esc(payload['data_sources']['ifind_etf_snapshot'])} | 合并候选 {esc(payload['data_sources']['merged_etf_candidates'])} | 自动资产 {esc(payload['auto_asset_count'])} | stock_only缺口 {esc(payload['stock_only_gap_total'])}</div>
+    <div class="meta">日期 {esc(payload["date"])} | 黑狼ETF {esc(payload["data_sources"]["blackwolf_stock_list"])} | iFind ETF {esc(payload["data_sources"]["ifind_etf_snapshot"])} | 合并候选 {esc(payload["data_sources"]["merged_etf_candidates"])} | 自动资产 {esc(payload["auto_asset_count"])} | stock_only缺口 {esc(payload["stock_only_gap_total"])}</div>
     <div class="grid">
       <section>
         <h2>映射状态</h2>
@@ -622,14 +636,14 @@ def render_html(payload: dict[str, Any]) -> str:
     <div class="wrap">
       <table>
         <thead><tr><th>行业</th><th>状态</th><th>代理审核</th><th>当前配置</th><th>当前State</th><th>候选</th><th>匹配</th><th>候选数据</th><th>直接候选</th><th>代理候选</th><th>stock_only样本</th></tr></thead>
-        <tbody>{''.join(map_rows)}</tbody>
+        <tbody>{"".join(map_rows)}</tbody>
       </table>
     </div>
     <h2>ETF候选池（已命中关键词）</h2>
     <div class="wrap">
       <table>
         <thead><tr><th>代码</th><th>名称</th><th>最佳行业</th><th>最佳匹配</th><th>全部匹配</th></tr></thead>
-        <tbody>{''.join(candidate_rows)}</tbody>
+        <tbody>{"".join(candidate_rows)}</tbody>
       </table>
     </div>
   </main>
@@ -653,8 +667,14 @@ def write_outputs(payload: dict[str, Any], config_path: Path, apply: bool = Fals
     proxy_whitelist_path = Path(str(payload.get("proxy_whitelist") or DEFAULT_PROXY_WHITELIST))
     html_path = PUBLIC_DIR / f"{stem}.html"
 
-    mapping_payload = {key: value for key, value in payload.items() if key not in {"candidate_pool", "generated_config", "proxy_whitelist_payload"}}
-    mapping_json.write_text(json.dumps(mapping_payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    mapping_payload = {
+        key: value
+        for key, value in payload.items()
+        if key not in {"candidate_pool", "generated_config", "proxy_whitelist_payload"}
+    }
+    mapping_json.write_text(
+        json.dumps(mapping_payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
     write_csv(mapping_csv, payload["mapping_rows"])
     write_proxy_whitelist(proxy_whitelist_path, payload["proxy_whitelist_payload"])
     candidates_json.write_text(
@@ -708,11 +728,15 @@ def write_outputs(payload: dict[str, Any], config_path: Path, apply: bool = Fals
     applied = False
     backup_path = ""
     if apply and payload.get("auto_assets"):
-        backup = config_path.with_name(f"{config_path.stem}.bak_{date_ymd}_{datetime.now().strftime('%H%M%S')}{config_path.suffix}")
+        backup = config_path.with_name(
+            f"{config_path.stem}.bak_{date_ymd}_{datetime.now().strftime('%H%M%S')}{config_path.suffix}"
+        )
         shutil.copyfile(config_path, backup)
         production_config = load_current_config(config_path)
         add_assets_to_config(production_config, payload["auto_assets"])
-        config_path.write_text(json.dumps(production_config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        config_path.write_text(
+            json.dumps(production_config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
         applied = True
         backup_path = str(backup)
 
@@ -740,10 +764,16 @@ def main() -> int:
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--proxy-whitelist", type=Path, default=DEFAULT_PROXY_WHITELIST)
     parser.add_argument("--ifind-etf-file", type=Path)
-    parser.add_argument("--include-proxy", action="store_true", help="Include proxy candidates in generated config.")
-    parser.add_argument("--apply", action="store_true", help="Write generated compatible config back to config path.")
+    parser.add_argument(
+        "--include-proxy", action="store_true", help="Include proxy candidates in generated config."
+    )
+    parser.add_argument(
+        "--apply", action="store_true", help="Write generated compatible config back to config path."
+    )
     args = parser.parse_args()
-    payload = build_payload(args.date, args.stock_list, args.config, args.ifind_etf_file, args.include_proxy, args.proxy_whitelist)
+    payload = build_payload(
+        args.date, args.stock_list, args.config, args.ifind_etf_file, args.include_proxy, args.proxy_whitelist
+    )
     outputs = write_outputs(payload, args.config, apply=args.apply)
     print(
         json.dumps(

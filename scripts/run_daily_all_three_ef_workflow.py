@@ -25,9 +25,15 @@ def main() -> int:
     parser.add_argument("--date", required=True, help="Trading date, e.g. 2026-05-20")
     parser.add_argument("--raw-db", type=Path, help="Blackwolf raw daily DuckDB for rebuilding foundation.")
     parser.add_argument("--foundation-db", type=Path, help="Existing or target foundation DuckDB.")
-    parser.add_argument("--previous-date", help="Previous trading date snapshot for entered/left/stayed comparison.")
-    parser.add_argument("--skip-foundation", action="store_true", help="Use an existing foundation DB instead of rebuilding.")
-    parser.add_argument("--model", default="deepseekV4", help="Default LLM model for downstream text/report steps.")
+    parser.add_argument(
+        "--previous-date", help="Previous trading date snapshot for entered/left/stayed comparison."
+    )
+    parser.add_argument(
+        "--skip-foundation", action="store_true", help="Use an existing foundation DB instead of rebuilding."
+    )
+    parser.add_argument(
+        "--model", default="deepseekV4", help="Default LLM model for downstream text/report steps."
+    )
     args = parser.parse_args()
 
     foundation_db = args.foundation_db or default_foundation_db(args.date)
@@ -69,7 +75,9 @@ def main() -> int:
     ]
     try:
         run_step(report_cmd)
-        report_md = str(ROOT / "outputs" / "p116_daily_all_three_ef" / f"p116_report_{args.date.replace('-', '')}.md")
+        report_md = str(
+            ROOT / "outputs" / "p116_daily_all_three_ef" / f"p116_report_{args.date.replace('-', '')}.md"
+        )
     except Exception as e:
         print(f"Warning: DeepSeek report generation failed: {e}", file=sys.stderr)
         report_md = "failed"

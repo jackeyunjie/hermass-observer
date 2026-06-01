@@ -40,7 +40,11 @@ if str(_project_root) not in sys.path:
 if str(_project_root / "scripts") not in sys.path:
     sys.path.insert(0, str(_project_root / "scripts"))
 
-from position_sizing import calculate_dynamic_position, compute_macro_coeff_from_mn1, compute_industry_coeff_from_mn1
+from position_sizing import (
+    calculate_dynamic_position,
+    compute_macro_coeff_from_mn1,
+    compute_industry_coeff_from_mn1,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -80,6 +84,7 @@ def safe_load_json(path: Path) -> Optional[dict]:
 # ═════════════════════════════════════════════════════════════════════════════
 # Data loaders
 # ═════════════════════════════════════════════════════════════════════════════
+
 
 def load_market_phase(date: str) -> dict:
     path = OUTPUTS_DIR / "market_phase" / f"market_phase_{_fmt_date(date)}.json"
@@ -126,6 +131,7 @@ def load_close_prices_from_foundation(date: str, stock_codes: list[str]) -> dict
     if not foundation_db.exists():
         # Try previous date
         from datetime import datetime, timedelta
+
         dt = datetime.strptime(date, "%Y-%m-%d") - timedelta(days=1)
         prev_date = dt.strftime("%Y-%m-%d")
         foundation_db = OUTPUTS_DIR / f"p116_foundation_{_fmt_date(prev_date)}" / "p116_foundation.duckdb"
@@ -152,7 +158,9 @@ def load_close_prices_from_foundation(date: str, stock_codes: list[str]) -> dict
 
 def load_market_asset_state(date: str) -> dict:
     """加载 market_assets_state DuckDB，返回 HS300 月线 + 行业 ETF 月线映射。"""
-    db_path = OUTPUTS_DIR / f"market_assets_state_expanded_v2_{_fmt_date(date)}" / "market_assets_state.duckdb"
+    db_path = (
+        OUTPUTS_DIR / f"market_assets_state_expanded_v2_{_fmt_date(date)}" / "market_assets_state.duckdb"
+    )
     if not db_path.exists():
         db_path = OUTPUTS_DIR / f"market_assets_state_{_fmt_date(date)}" / "market_assets_state.duckdb"
     if not db_path.exists():
@@ -194,6 +202,7 @@ def load_market_asset_state(date: str) -> dict:
 # Eligibility & scoring
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 def is_eligible(rem: dict) -> bool:
     """Determine if a reminder should be included in the SOP candidate list."""
     strategy = rem.get("strategy", {})
@@ -212,7 +221,7 @@ def is_eligible(rem: dict) -> bool:
 
 def score_reminder(rem: dict) -> float:
     """Higher score = higher priority in candidate list.
-    
+
     NOTE: RR sorting removed. Now sorted by: 适配度 + 大周期背景.
     """
     w1_mn1 = rem.get("w1_mn1_env", {})
@@ -234,9 +243,10 @@ def score_reminder(rem: dict) -> float:
 # Stop price & position sizing
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 def compute_stop_price(rem: dict, d1_close: float) -> float:
     """Compute a conservative stop price for a reminder.
-    
+
     NOTE: nearest_support removed as primary stop. Strategy default rules only.
     阻力位不再作为止损依据，改用策略原生出场规则。
     """
@@ -284,6 +294,7 @@ def compute_position_size(entry: float, stop: float, capital: float, max_risk_pc
 # ═════════════════════════════════════════════════════════════════════════════
 # Environment analysis
 # ═════════════════════════════════════════════════════════════════════════════
+
 
 def analyze_market_env(market_phase: dict, macro_prior: dict) -> dict:
     """Produce pre-market environment summary."""
@@ -343,6 +354,7 @@ def analyze_market_env(market_phase: dict, macro_prior: dict) -> dict:
 # Risk warnings
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 def generate_risk_warnings(candidates: list[dict]) -> list[str]:
     warnings = []
     if not candidates:
@@ -361,8 +373,7 @@ def generate_risk_warnings(candidates: list[dict]) -> list[str]:
 
     if resonance < 3:
         warnings.append(
-            f"⚠️ 大周期共振标的稀缺：仅 {resonance}/{total} 只候选股处于大周期共振环境，"
-            f"趋势持续性可能偏弱。"
+            f"⚠️ 大周期共振标的稀缺：仅 {resonance}/{total} 只候选股处于大周期共振环境，趋势持续性可能偏弱。"
         )
 
     # Strategy concentration
@@ -374,8 +385,7 @@ def generate_risk_warnings(candidates: list[dict]) -> list[str]:
     dominant_pct = strategy_counts.get(dominant, 0) / total if total > 0 else 0
     if dominant_pct > 0.7:
         warnings.append(
-            f"⚠️ 策略集中度偏高：{dominant} 占比 {dominant_pct:.0%}，"
-            f"建议分散策略暴露以降低相关性风险。"
+            f"⚠️ 策略集中度偏高：{dominant} 占比 {dominant_pct:.0%}，建议分散策略暴露以降低相关性风险。"
         )
 
     if not warnings:
@@ -387,6 +397,7 @@ def generate_risk_warnings(candidates: list[dict]) -> list[str]:
 # ═════════════════════════════════════════════════════════════════════════════
 # Output generators
 # ═════════════════════════════════════════════════════════════════════════════
+
 
 def generate_md(sop_data: dict, date: str) -> str:
     env = sop_data["environment"]
@@ -431,17 +442,19 @@ def generate_md(sop_data: dict, date: str) -> str:
     for sid, info in env.get("strategy_implications", {}).items():
         lines.append(f"| {sid} | {info.get('fit', '-')} | {info.get('factor', '-')} |")
 
-    lines.extend([
-        "",
-        "---",
-        "",
-        "## 二、候选交易清单",
-        "",
-        f"> 共筛选出 **{len(candidates)}** 只符合条件的候选股（原始信号 {sop_data['total_signals']} 只）",
-        "",
-        "| 排序 | 代码 | 名称 | 策略 | RR | 大周期背景 | 适配度 | 生命周期 | 风险提示 |",
-        "|---|---|---|---|---|---|---|---|---|",
-    ])
+    lines.extend(
+        [
+            "",
+            "---",
+            "",
+            "## 二、候选交易清单",
+            "",
+            f"> 共筛选出 **{len(candidates)}** 只符合条件的候选股（原始信号 {sop_data['total_signals']} 只）",
+            "",
+            "| 排序 | 代码 | 名称 | 策略 | RR | 大周期背景 | 适配度 | 生命周期 | 风险提示 |",
+            "|---|---|---|---|---|---|---|---|---|",
+        ]
+    )
 
     for i, c in enumerate(candidates, 1):
         bg = c.get("w1_mn1_label", "-")
@@ -454,65 +467,75 @@ def generate_md(sop_data: dict, date: str) -> str:
             f"| {i} | {c['stock_code']} | {c['stock_name']} | {c['strategy_id']} | {bg} | {fit} | {lifecycle} | {risk_note} |"
         )
 
-    lines.extend([
-        "",
-        "---",
-        "",
-        "## 三、前 5 只执行参数",
-        "",
-        "> **注意**：入场价以次日开盘价为准，以下使用最新收盘价作为参考估算。止损价按策略默认规则计算。",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "---",
+            "",
+            "## 三、前 5 只执行参数",
+            "",
+            "> **注意**：入场价以次日开盘价为准，以下使用最新收盘价作为参考估算。止损价按策略默认规则计算。",
+            "",
+        ]
+    )
 
     for i, item in enumerate(top5, 1):
         p = item["params"]
-        lines.extend([
-            f"### {i}. {item['stock_code']} {item['stock_name']} — {item['strategy_id']}",
-            "",
-            "| 参数 | 数值 | 说明 |",
-            "|---|---|---|",
-            f"| 入场价（参考） | ¥{item['entry_price']:.2f} | 次日开盘价，以下为收盘价参考 |",
-            f"| 止损价 | ¥{item['stop_price']:.2f} | {item['stop_method']} |",
-            f"| 单笔风险 | ¥{p['risk_amount']:,.0f} ({p['risk_pct_of_capital']:.2f}%) | 动态风险预算 {item.get('dynamic_risk_pct', 2.0):.1f}% |",
-            # NOTE: RR display removed — 阻力位止盈违背"让利润奔跑"原则
-            f"| 仓位模型 | {item.get('dynamic_reason', '标准')} | 阶段 × 策略加成 × 适配度 |",
-            f"| 大周期背景 | {item['w1_mn1_label']} | {item['w1_mn1_desc']} |",
-            f"| 适配度 | {item['strategy_fit']} | {item['fit_reasons'][:60]}... |" if len(item.get('fit_reasons', '')) > 60 else f"| 适配度 | {item['strategy_fit']} | {item.get('fit_reasons', '-')} |",
-            "",
-            "**出场规则优先级：**",
-            "",
-        ])
+        lines.extend(
+            [
+                f"### {i}. {item['stock_code']} {item['stock_name']} — {item['strategy_id']}",
+                "",
+                "| 参数 | 数值 | 说明 |",
+                "|---|---|---|",
+                f"| 入场价（参考） | ¥{item['entry_price']:.2f} | 次日开盘价，以下为收盘价参考 |",
+                f"| 止损价 | ¥{item['stop_price']:.2f} | {item['stop_method']} |",
+                f"| 单笔风险 | ¥{p['risk_amount']:,.0f} ({p['risk_pct_of_capital']:.2f}%) | 动态风险预算 {item.get('dynamic_risk_pct', 2.0):.1f}% |",
+                # NOTE: RR display removed — 阻力位止盈违背"让利润奔跑"原则
+                f"| 仓位模型 | {item.get('dynamic_reason', '标准')} | 阶段 × 策略加成 × 适配度 |",
+                f"| 大周期背景 | {item['w1_mn1_label']} | {item['w1_mn1_desc']} |",
+                f"| 适配度 | {item['strategy_fit']} | {item['fit_reasons'][:60]}... |"
+                if len(item.get("fit_reasons", "")) > 60
+                else f"| 适配度 | {item['strategy_fit']} | {item.get('fit_reasons', '-')} |",
+                "",
+                "**出场规则优先级：**",
+                "",
+            ]
+        )
         for rule in item["exit_rules"]:
             lines.append(f"1. {rule}")
         lines.append("")
 
-    lines.extend([
-        "---",
-        "",
-        "## 四、风险预警",
-        "",
-    ])
+    lines.extend(
+        [
+            "---",
+            "",
+            "## 四、风险预警",
+            "",
+        ]
+    )
     for w in warnings:
         lines.append(f"- {w}")
 
-    lines.extend([
-        "",
-        "### 当日信号统计",
-        "",
-        f"- 总候选信号：{len(candidates)} 只",
-        # NOTE: RR statistics removed — 阻力位止盈违背"让利润奔跑"原则
-        f"- 大周期共振：{sum(1 for c in candidates if c.get('w1_mn1_label') == '大周期共振')} 只",
-        f"- 双重收缩：{sum(1 for c in candidates if c.get('w1_mn1_label') == '双重收缩')} 只",
-        f"- VCP 信号：{sum(1 for c in candidates if c.get('strategy_id') == 'vcp')} 只",
-        f"- MA2560 信号：{sum(1 for c in candidates if c.get('strategy_id') == 'ma2560')} 只",
-        f"- Bollinger 信号：{sum(1 for c in candidates if c.get('strategy_id') == 'bollinger_bandit')} 只",
-        "",
-        "---",
-        "",
-        "> ⚠️ **免责声明**：本清单由系统自动生成，仅供研究参考。所有交易决策需结合实时盘口、",
-        "> 资金流向及个股公告综合判断。Past performance is not indicative of future results.",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "### 当日信号统计",
+            "",
+            f"- 总候选信号：{len(candidates)} 只",
+            # NOTE: RR statistics removed — 阻力位止盈违背"让利润奔跑"原则
+            f"- 大周期共振：{sum(1 for c in candidates if c.get('w1_mn1_label') == '大周期共振')} 只",
+            f"- 双重收缩：{sum(1 for c in candidates if c.get('w1_mn1_label') == '双重收缩')} 只",
+            f"- VCP 信号：{sum(1 for c in candidates if c.get('strategy_id') == 'vcp')} 只",
+            f"- MA2560 信号：{sum(1 for c in candidates if c.get('strategy_id') == 'ma2560')} 只",
+            f"- Bollinger 信号：{sum(1 for c in candidates if c.get('strategy_id') == 'bollinger_bandit')} 只",
+            "",
+            "---",
+            "",
+            "> ⚠️ **免责声明**：本清单由系统自动生成，仅供研究参考。所有交易决策需结合实时盘口、",
+            "> 资金流向及个股公告综合判断。Past performance is not indicative of future results.",
+            "",
+        ]
+    )
 
     return "\n".join(lines)
 
@@ -554,41 +577,55 @@ def generate_html(sop_data: dict, date: str) -> str:
         stripped = line.strip()
         if stripped.startswith("# "):
             if in_table:
-                html_lines.append("</table>"); in_table = False
+                html_lines.append("</table>")
+                in_table = False
             if in_ul:
-                html_lines.append("</ul>"); in_ul = False
+                html_lines.append("</ul>")
+                in_ul = False
             if in_ol:
-                html_lines.append("</ol>"); in_ol = False
+                html_lines.append("</ol>")
+                in_ol = False
             html_lines.append(f"<h1>{stripped[2:]}</h1>")
         elif stripped.startswith("## "):
             if in_table:
-                html_lines.append("</table>"); in_table = False
+                html_lines.append("</table>")
+                in_table = False
             if in_ul:
-                html_lines.append("</ul>"); in_ul = False
+                html_lines.append("</ul>")
+                in_ul = False
             if in_ol:
-                html_lines.append("</ol>"); in_ol = False
+                html_lines.append("</ol>")
+                in_ol = False
             html_lines.append(f"<h2>{stripped[3:]}</h2>")
         elif stripped.startswith("### "):
             if in_table:
-                html_lines.append("</table>"); in_table = False
+                html_lines.append("</table>")
+                in_table = False
             if in_ul:
-                html_lines.append("</ul>"); in_ul = False
+                html_lines.append("</ul>")
+                in_ul = False
             if in_ol:
-                html_lines.append("</ol>"); in_ol = False
+                html_lines.append("</ol>")
+                in_ol = False
             html_lines.append(f"<h3>{stripped[4:]}</h3>")
         elif stripped.startswith("> "):
             if in_table:
-                html_lines.append("</table>"); in_table = False
+                html_lines.append("</table>")
+                in_table = False
             if in_ul:
-                html_lines.append("</ul>"); in_ul = False
+                html_lines.append("</ul>")
+                in_ul = False
             if in_ol:
-                html_lines.append("</ol>"); in_ol = False
+                html_lines.append("</ol>")
+                in_ol = False
             html_lines.append(f"<blockquote>{stripped[2:]}</blockquote>")
         elif stripped.startswith("| ") and "|" in stripped[2:]:
             if in_ul:
-                html_lines.append("</ul>"); in_ul = False
+                html_lines.append("</ul>")
+                in_ul = False
             if in_ol:
-                html_lines.append("</ol>"); in_ol = False
+                html_lines.append("</ol>")
+                in_ol = False
             if not in_table:
                 html_lines.append("<table>")
                 in_table = True
@@ -599,35 +636,47 @@ def generate_html(sop_data: dict, date: str) -> str:
             html_lines.append("<tr>" + "".join(f"<{tag}>{c}</{tag}>" for c in cells) + "</tr>")
         elif stripped == "":
             if in_table:
-                html_lines.append("</table>"); in_table = False
+                html_lines.append("</table>")
+                in_table = False
             if in_ul:
-                html_lines.append("</ul>"); in_ul = False
+                html_lines.append("</ul>")
+                in_ul = False
             if in_ol:
-                html_lines.append("</ol>"); in_ol = False
+                html_lines.append("</ol>")
+                in_ol = False
             html_lines.append("<p></p>")
         elif stripped.startswith("- "):
             if in_table:
-                html_lines.append("</table>"); in_table = False
+                html_lines.append("</table>")
+                in_table = False
             if in_ol:
-                html_lines.append("</ol>"); in_ol = False
+                html_lines.append("</ol>")
+                in_ol = False
             if not in_ul:
-                html_lines.append("<ul>"); in_ul = True
+                html_lines.append("<ul>")
+                in_ul = True
             html_lines.append(f"<li>{stripped[2:]}</li>")
         elif stripped.startswith("1. "):
             if in_table:
-                html_lines.append("</table>"); in_table = False
+                html_lines.append("</table>")
+                in_table = False
             if in_ul:
-                html_lines.append("</ul>"); in_ul = False
+                html_lines.append("</ul>")
+                in_ul = False
             if not in_ol:
-                html_lines.append("<ol>"); in_ol = True
+                html_lines.append("<ol>")
+                in_ol = True
             html_lines.append(f"<li>{stripped[3:]}</li>")
         else:
             if in_table:
-                html_lines.append("</table>"); in_table = False
+                html_lines.append("</table>")
+                in_table = False
             if in_ul:
-                html_lines.append("</ul>"); in_ul = False
+                html_lines.append("</ul>")
+                in_ul = False
             if in_ol:
-                html_lines.append("</ol>"); in_ol = False
+                html_lines.append("</ol>")
+                in_ol = False
             html_lines.append(f"<p>{stripped}</p>")
 
     if in_table:
@@ -637,16 +686,19 @@ def generate_html(sop_data: dict, date: str) -> str:
     if in_ol:
         html_lines.append("</ol>")
 
-    html_lines.extend([
-        "</body>",
-        "</html>",
-    ])
+    html_lines.extend(
+        [
+            "</body>",
+            "</html>",
+        ]
+    )
     return "\n".join(html_lines)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
 # Main builder
 # ═════════════════════════════════════════════════════════════════════════════
+
 
 def build_sop(date: str, capital: float = 1_000_000) -> dict:
     logger.info("Building daily trading SOP for %s (capital=%.0f)", date, capital)
@@ -678,8 +730,12 @@ def build_sop(date: str, capital: float = 1_000_000) -> dict:
     hs300_mn1_score = mas.get("hs300_mn1_score")
     industry_mn1_map = mas.get("industry_mn1_map", {})
     macro_mn1_coeff = compute_macro_coeff_from_mn1(hs300_mn1_score)
-    logger.info("HS300 MN1 score=%s → macro_coeff=%.2f, %d industry ETFs",
-                hs300_mn1_score, macro_mn1_coeff, len(industry_mn1_map))
+    logger.info(
+        "HS300 MN1 score=%s → macro_coeff=%.2f, %d industry ETFs",
+        hs300_mn1_score,
+        macro_mn1_coeff,
+        len(industry_mn1_map),
+    )
 
     # 2. Environment analysis
     env = analyze_market_env(market_phase, macro_prior)
@@ -706,7 +762,12 @@ def build_sop(date: str, capital: float = 1_000_000) -> dict:
     env["hs300_mn1_hex"] = mas.get("hs300_mn1_hex", "")
     env["hs300_mn1_score"] = hs300_mn1_score
     env["macro_mn1_coeff"] = macro_mn1_coeff
-    logger.info("Market phase: %s (%s), position: %s", env["phase_label"], env["phase"], env["position_recommendation"])
+    logger.info(
+        "Market phase: %s (%s), position: %s",
+        env["phase_label"],
+        env["phase"],
+        env["position_recommendation"],
+    )
 
     # 3. Filter & score candidates
     candidates_raw = []
@@ -756,27 +817,29 @@ def build_sop(date: str, capital: float = 1_000_000) -> dict:
             ],
         }.get(strategy_id, ["按策略默认规则出场"])
 
-        candidates_raw.append({
-            "stock_code": stock_code,
-            "stock_name": rem.get("stock_name", ""),
-            "strategy_id": strategy_id,
-            "signal_name": strategy.get("signal_name", ""),
-            "signal_strength": strategy.get("signal_strength", 0),
-            "strategy_fit": rem.get("strategy_environment_fit", ""),
-            "fit_reasons": rem.get("fit_reasons", ""),
-            "lifecycle_stage": rem.get("lifecycle_stage", ""),
-            "maturity": rem.get("maturity", ""),
-            # NOTE: RR fields removed — 阻力位止盈违背"让利润奔跑"原则
-            "w1_mn1_label": w1_mn1.get("label", ""),
-            "w1_mn1_desc": w1_mn1.get("description", ""),
-            "d1_close": float(d1_close) if d1_close else 0,
-            "stop_price": stop_price,
-            "stop_method": f"策略默认止损 ¥{stop_price:.2f}",
-            "exit_rules": exit_rules,
-            "risk_note": unified_row.get("risk_note", "") or rem.get("local_stat_note", ""),
-            "score": score_reminder(rem),
-            "ifind": rem.get("ifind", {}),
-        })
+        candidates_raw.append(
+            {
+                "stock_code": stock_code,
+                "stock_name": rem.get("stock_name", ""),
+                "strategy_id": strategy_id,
+                "signal_name": strategy.get("signal_name", ""),
+                "signal_strength": strategy.get("signal_strength", 0),
+                "strategy_fit": rem.get("strategy_environment_fit", ""),
+                "fit_reasons": rem.get("fit_reasons", ""),
+                "lifecycle_stage": rem.get("lifecycle_stage", ""),
+                "maturity": rem.get("maturity", ""),
+                # NOTE: RR fields removed — 阻力位止盈违背"让利润奔跑"原则
+                "w1_mn1_label": w1_mn1.get("label", ""),
+                "w1_mn1_desc": w1_mn1.get("description", ""),
+                "d1_close": float(d1_close) if d1_close else 0,
+                "stop_price": stop_price,
+                "stop_method": f"策略默认止损 ¥{stop_price:.2f}",
+                "exit_rules": exit_rules,
+                "risk_note": unified_row.get("risk_note", "") or rem.get("local_stat_note", ""),
+                "score": score_reminder(rem),
+                "ifind": rem.get("ifind", {}),
+            }
+        )
 
     # Sort by score descending
     candidates_raw.sort(key=lambda x: x["score"], reverse=True)
@@ -814,13 +877,15 @@ def build_sop(date: str, capital: float = 1_000_000) -> dict:
         max_risk_pct = dyn["per_trade_risk_pct"] / 100.0
 
         pos = compute_position_size(entry, stop, capital, max_risk_pct=max_risk_pct)
-        top5.append({
-            **c,
-            "entry_price": entry,
-            "params": pos,
-            "dynamic_risk_pct": dyn["per_trade_risk_pct"],
-            "dynamic_reason": dyn["reason"],
-        })
+        top5.append(
+            {
+                **c,
+                "entry_price": entry,
+                "params": pos,
+                "dynamic_risk_pct": dyn["per_trade_risk_pct"],
+                "dynamic_reason": dyn["reason"],
+            }
+        )
 
     # 5. Risk warnings
     warnings = generate_risk_warnings(candidates_raw)
@@ -843,6 +908,7 @@ def build_sop(date: str, capital: float = 1_000_000) -> dict:
 # ═════════════════════════════════════════════════════════════════════════════
 # CLI
 # ═════════════════════════════════════════════════════════════════════════════
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate daily trading SOP")

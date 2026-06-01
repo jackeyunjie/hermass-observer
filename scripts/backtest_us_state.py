@@ -40,7 +40,9 @@ class Trade:
     holding_days: int = 0
 
 
-def load_state_data(foundation_db: Path, start_date: date | None = None, end_date: date | None = None) -> pd.DataFrame:
+def load_state_data(
+    foundation_db: Path, start_date: date | None = None, end_date: date | None = None
+) -> pd.DataFrame:
     """Load state data from foundation DB."""
     con = duckdb.connect(str(foundation_db), read_only=True)
     try:
@@ -69,7 +71,9 @@ def load_state_data(foundation_db: Path, start_date: date | None = None, end_dat
             params,
         ).df()
         df["date"] = pd.to_datetime(df["date"])
-        df["ef_count"] = df.apply(lambda r: _ef_count(r["mn1_state_hex"], r["w1_state_hex"], r["d1_state_hex"]), axis=1)
+        df["ef_count"] = df.apply(
+            lambda r: _ef_count(r["mn1_state_hex"], r["w1_state_hex"], r["d1_state_hex"]), axis=1
+        )
         return df
     finally:
         con.close()
@@ -80,7 +84,7 @@ def run_backtest(
     initial_capital: float = 100_000,
     max_positions: int = 10,
     entry_threshold: int = 2,  # ef_count >= 2 (B-grade)
-    exit_threshold: int = 2,   # ef_count < 2
+    exit_threshold: int = 2,  # ef_count < 2
     max_holding_days: int = 20,
     stop_loss_pct: float = 0.08,
     commission_pct: float = 0.001,  # 0.1% commission
@@ -147,18 +151,20 @@ def run_backtest(
                 net_pnl = gross_pnl - commission
                 capital += shares * price - commission
 
-                trades.append(Trade(
-                    ticker=ticker,
-                    entry_date=pos["entry_date"],
-                    entry_price=pos["entry_price"],
-                    exit_date=current_date,
-                    exit_price=price,
-                    exit_reason=exit_reason,
-                    pnl=net_pnl,
-                    pnl_pct=(price - pos["entry_price"]) / pos["entry_price"] - 2 * commission_pct,
-                    max_drawdown_pct=pos["max_dd"],
-                    holding_days=holding_days,
-                ))
+                trades.append(
+                    Trade(
+                        ticker=ticker,
+                        entry_date=pos["entry_date"],
+                        entry_price=pos["entry_price"],
+                        exit_date=current_date,
+                        exit_price=price,
+                        exit_reason=exit_reason,
+                        pnl=net_pnl,
+                        pnl_pct=(price - pos["entry_price"]) / pos["entry_price"] - 2 * commission_pct,
+                        max_drawdown_pct=pos["max_dd"],
+                        holding_days=holding_days,
+                    )
+                )
                 exited.append(ticker)
 
         for t in exited:
@@ -217,13 +223,15 @@ def run_backtest(
                 portfolio_value += pos["shares"] * row["close"]
 
         spy_close = spy_data.get(current_date, {}).get("close")
-        daily_nav.append({
-            "date": current_date,
-            "nav": portfolio_value,
-            "cash": capital,
-            "positions": len(positions),
-            "spy_close": spy_close,
-        })
+        daily_nav.append(
+            {
+                "date": current_date,
+                "nav": portfolio_value,
+                "cash": capital,
+                "positions": len(positions),
+                "spy_close": spy_close,
+            }
+        )
 
     # Calculate metrics
     closed_trades = [t for t in trades if t.exit_date is not None]
@@ -234,7 +242,11 @@ def run_backtest(
     win_rate = len(winning_trades) / len(closed_trades) * 100 if closed_trades else 0
     avg_win = sum(t.pnl_pct for t in winning_trades) / len(winning_trades) if winning_trades else 0
     avg_loss = sum(t.pnl_pct for t in losing_trades) / len(losing_trades) if losing_trades else 0
-    profit_factor = abs(sum(t.pnl for t in winning_trades) / sum(t.pnl for t in losing_trades)) if losing_trades and sum(t.pnl for t in losing_trades) != 0 else float('inf')
+    profit_factor = (
+        abs(sum(t.pnl for t in winning_trades) / sum(t.pnl for t in losing_trades))
+        if losing_trades and sum(t.pnl for t in losing_trades) != 0
+        else float("inf")
+    )
 
     # Calculate max drawdown from NAV curve
     nav_df = pd.DataFrame(daily_nav)
@@ -263,7 +275,9 @@ def run_backtest(
         "avg_loss_pct": round(avg_loss * 100, 2),
         "profit_factor": round(profit_factor, 2),
         "max_drawdown_pct": round(max_dd * 100, 2),
-        "avg_holding_days": round(sum(t.holding_days for t in closed_trades) / len(closed_trades), 1) if closed_trades else 0,
+        "avg_holding_days": round(sum(t.holding_days for t in closed_trades) / len(closed_trades), 1)
+        if closed_trades
+        else 0,
         "trades": [
             {
                 "ticker": t.ticker,
@@ -280,7 +294,12 @@ def run_backtest(
             for t in closed_trades
         ],
         "daily_nav": [
-            {"date": str(r["date"]), "nav": round(r["nav"], 2), "cash": round(r["cash"], 2), "positions": r["positions"]}
+            {
+                "date": str(r["date"]),
+                "nav": round(r["nav"], 2),
+                "cash": round(r["cash"], 2),
+                "positions": r["positions"],
+            }
             for r in daily_nav
         ],
     }
@@ -302,14 +321,14 @@ def generate_html(report: dict, params: dict) -> str:
         color = "#27ae60" if (t["pnl"] or 0) > 0 else "#e74c3c"
         rows += f"""
         <tr>
-            <td><strong>{t['ticker']}</strong></td>
-            <td>{t['entry_date']}</td>
-            <td>${t['entry_price']}</td>
-            <td>{t['exit_date']}</td>
-            <td>${t['exit_price']}</td>
-            <td style="color:{color}">{t['pnl_pct']:+.2f}%</td>
-            <td>{t['holding_days']}</td>
-            <td>{t['exit_reason']}</td>
+            <td><strong>{t["ticker"]}</strong></td>
+            <td>{t["entry_date"]}</td>
+            <td>${t["entry_price"]}</td>
+            <td>{t["exit_date"]}</td>
+            <td>${t["exit_price"]}</td>
+            <td style="color:{color}">{t["pnl_pct"]:+.2f}%</td>
+            <td>{t["holding_days"]}</td>
+            <td>{t["exit_reason"]}</td>
         </tr>
         """
 
@@ -332,15 +351,15 @@ tr:hover {{ background:#1a1a2e; }}
 .guardrail {{ background:#1a1a2e; border-left:3px solid #e74c3c; padding:15px; margin:20px 0; border-radius:4px; font-size:13px; color:#ccc; }}
 </style></head><body>
 <h1>📈 US State Backtest Report</h1>
-<div class="subtitle">Strategy: Buy on B-grade entry (≥2 E/F), Sell on state exit / {params['max_holding_days']} days / -{params['stop_loss_pct']*100:.0f}% stop | Max positions: {params['max_positions']}</div>
+<div class="subtitle">Strategy: Buy on B-grade entry (≥2 E/F), Sell on state exit / {params["max_holding_days"]} days / -{params["stop_loss_pct"] * 100:.0f}% stop | Max positions: {params["max_positions"]}</div>
 
 <div class="stats">
-    <div class="stat-card"><div class="num" style="color:#3498db">${report['final_nav']:,.0f}</div><div class="label">Final NAV</div></div>
-    <div class="stat-card"><div class="num" style="color:#{'27ae60' if report['total_return_pct'] > 0 else 'e74c3c'}">{report['total_return_pct']:+.2f}%</div><div class="label">Strategy Return</div></div>
-    <div class="stat-card"><div class="num" style="color:#f39c12">{report['win_rate']:.1f}%</div><div class="label">Win Rate</div></div>
-    <div class="stat-card"><div class="num" style="color:#e74c3c">{report['max_drawdown_pct']:.2f}%</div><div class="label">Max Drawdown</div></div>
-    <div class="stat-card"><div class="num">{report['total_trades']}</div><div class="label">Total Trades</div></div>
-    <div class="stat-card"><div class="num">{report['profit_factor']:.2f}</div><div class="label">Profit Factor</div></div>
+    <div class="stat-card"><div class="num" style="color:#3498db">${report["final_nav"]:,.0f}</div><div class="label">Final NAV</div></div>
+    <div class="stat-card"><div class="num" style="color:#{"27ae60" if report["total_return_pct"] > 0 else "e74c3c"}">{report["total_return_pct"]:+.2f}%</div><div class="label">Strategy Return</div></div>
+    <div class="stat-card"><div class="num" style="color:#f39c12">{report["win_rate"]:.1f}%</div><div class="label">Win Rate</div></div>
+    <div class="stat-card"><div class="num" style="color:#e74c3c">{report["max_drawdown_pct"]:.2f}%</div><div class="label">Max Drawdown</div></div>
+    <div class="stat-card"><div class="num">{report["total_trades"]}</div><div class="label">Total Trades</div></div>
+    <div class="stat-card"><div class="num">{report["profit_factor"]:.2f}</div><div class="label">Profit Factor</div></div>
 </div>
 
 <div class="chart-container">
@@ -406,7 +425,7 @@ def main():
     print(f"Capital: ${args.capital:,.0f}")
     print(f"Max positions: {args.max_positions}")
     print(f"Entry: ef_count >= {args.entry_threshold}")
-    print(f"Exit: state_exit / {args.max_holding_days} days / -{args.stop_loss*100:.0f}% stop")
+    print(f"Exit: state_exit / {args.max_holding_days} days / -{args.stop_loss * 100:.0f}% stop")
     print()
 
     start = date.fromisoformat(args.start)
@@ -427,12 +446,12 @@ def main():
     )
 
     # Print summary
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"📊 RESULTS")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"Final NAV:       ${report['final_nav']:,.2f}")
     print(f"Total Return:    {report['total_return_pct']:+.2f}%")
-    if report['spy_return_pct'] is not None:
+    if report["spy_return_pct"] is not None:
         print(f"SPY Return:      {report['spy_return_pct']:+.2f}%")
         print(f"Alpha:           {report['total_return_pct'] - report['spy_return_pct']:+.2f}%")
     print(f"Total Trades:    {report['total_trades']}")
@@ -445,6 +464,7 @@ def main():
 
     # Exit reason breakdown
     from collections import Counter
+
     reasons = Counter(t["exit_reason"] for t in report["trades"])
     print(f"\nExit Reasons:")
     for reason, count in reasons.most_common():

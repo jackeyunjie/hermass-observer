@@ -284,10 +284,7 @@ def score_row(
     # Diagnostics show that stable volatility and a sufficiently deep prior D1
     # contraction carry more information than simply having more F states.
     state_component = (
-        0.40 * volatility_stability
-        + 0.30 * d1_prior_depth
-        + 0.20 * d1_recent_exit
-        + 0.10 * w1_recent_exit
+        0.40 * volatility_stability + 0.30 * d1_prior_depth + 0.20 * d1_recent_exit + 0.10 * w1_recent_exit
     )
     state_component = max(0.0, min(1.0, state_component))
     state_points = state_component * 45.0
@@ -426,7 +423,9 @@ def evaluate(date_str: str, top_n: int = 80, paths: dict[str, Path] | None = Non
     pattern = load_json(paths["pattern_cross"], required=False)
     ledger = load_json(paths["stock_ledger"], required=False)
 
-    strategy_map = {code6(row.get("stock_code") or row.get("symbol")): row for row in strategy.get("rows", []) or []}
+    strategy_map = {
+        code6(row.get("stock_code") or row.get("symbol")): row for row in strategy.get("rows", []) or []
+    }
     transition_map = build_transition_map(transition.get("rows", []) or [])
     duration_map = build_duration_map(duration.get("rows", []) or [])
     pattern_map = build_pattern_map(pattern)
@@ -446,7 +445,13 @@ def evaluate(date_str: str, top_n: int = 80, paths: dict[str, Path] | None = Non
             )
         )
 
-    rows.sort(key=lambda r: (-safe_float(r["evidence_score"]), -safe_float(r["strategy_score"]), str(r["stock_code"])))
+    rows.sort(
+        key=lambda r: (
+            -safe_float(r["evidence_score"]),
+            -safe_float(r["strategy_score"]),
+            str(r["stock_code"]),
+        )
+    )
     for idx, row in enumerate(rows, 1):
         row["evidence_rank"] = idx
 
@@ -606,7 +611,7 @@ def render_html(payload: dict[str, Any], fields: list[str]) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>策略证据评估 - {html.escape(payload['date'])}</title>
+  <title>策略证据评估 - {html.escape(payload["date"])}</title>
   <style>
     body {{ margin:0; padding:24px; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif; color:#17212b; background:#f7f8f6; }}
     header, section {{ background:#fff; border:1px solid #dce4df; border-radius:8px; padding:18px; margin-bottom:16px; }}
@@ -629,13 +634,13 @@ def render_html(payload: dict[str, Any], fields: list[str]) -> str:
 <body>
   <header>
     <h1>策略证据评估</h1>
-    <p>{html.escape(payload['date'])} · 只读消费 State 缓存、VCP/2560 证据、长期形态与基本面账本。Research-only，不构成投资建议。</p>
+    <p>{html.escape(payload["date"])} · 只读消费 State 缓存、VCP/2560 证据、长期形态与基本面账本。Research-only，不构成投资建议。</p>
     <div class="kpis">{kpi_html}</div>
   </header>
   <section>
     <p><strong>Top industries:</strong> {html.escape(industries)}</p>
     <p><strong>Signals:</strong> {html.escape(signals)}</p>
-    <p class="note">{html.escape(payload['scoring_note'])}</p>
+    <p class="note">{html.escape(payload["scoring_note"])}</p>
   </section>
   <section>
     <div class="table-wrap">
@@ -647,7 +652,9 @@ def render_html(payload: dict[str, Any], fields: list[str]) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Evaluate strategy evidence from State cache and related read-only outputs.")
+    parser = argparse.ArgumentParser(
+        description="Evaluate strategy evidence from State cache and related read-only outputs."
+    )
     parser.add_argument("--date", required=True)
     parser.add_argument("--top-n", type=int, default=80)
     args = parser.parse_args()

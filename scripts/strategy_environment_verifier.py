@@ -140,10 +140,18 @@ def macro_quadrant_segments(payload: dict[str, Any], start_date: str, end_date: 
     for d, q in points[1:]:
         is_contiguous = d <= prev_date + timedelta(days=4)
         if q != current_q or not is_contiguous:
-            segments.append({"start_date": seg_start.isoformat(), "end_date": prev_date.isoformat(), "quadrant": current_q})
+            segments.append(
+                {
+                    "start_date": seg_start.isoformat(),
+                    "end_date": prev_date.isoformat(),
+                    "quadrant": current_q,
+                }
+            )
             seg_start, current_q = d, q
         prev_date = d
-    segments.append({"start_date": seg_start.isoformat(), "end_date": prev_date.isoformat(), "quadrant": current_q})
+    segments.append(
+        {"start_date": seg_start.isoformat(), "end_date": prev_date.isoformat(), "quadrant": current_q}
+    )
     return segments
 
 
@@ -263,7 +271,9 @@ def run_adapter(strategy_id: str, strategy_cfg: dict[str, Any], args: argparse.N
     }
 
     if adapter_result:
-        comparison = adapter_result.get("hypothesis_comparison") or adapter_result.get("current_rule_comparison") or {}
+        comparison = (
+            adapter_result.get("hypothesis_comparison") or adapter_result.get("current_rule_comparison") or {}
+        )
         result.update(
             {
                 "selected_samples": adapter_result.get("selected_samples"),
@@ -399,7 +409,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--raw-signal", help="Optional single raw signal override for one strategy.")
     parser.add_argument("--min-ef-count", type=int)
     parser.add_argument("--max-ef-count", type=int)
-    parser.add_argument("--macro-snapshot", type=Path, help="Optional macro snapshot JSON for quadrant metadata/splitting.")
+    parser.add_argument(
+        "--macro-snapshot", type=Path, help="Optional macro snapshot JSON for quadrant metadata/splitting."
+    )
     return parser.parse_args()
 
 
@@ -426,7 +438,9 @@ def verify_with_macro_split(
     for segment in segments:
         args.start_date = segment["start_date"]
         args.end_date = segment["end_date"]
-        segment_results = [run_adapter(strategy_id, strategies[strategy_id], args) for strategy_id in strategy_ids]
+        segment_results = [
+            run_adapter(strategy_id, strategies[strategy_id], args) for strategy_id in strategy_ids
+        ]
         macro_result["segments"].append(
             {
                 "quadrant": segment["quadrant"],
@@ -453,7 +467,11 @@ def main() -> int:
             raise SystemExit(f"unknown strategy: {args.strategy}")
         strategy_ids = [args.strategy]
 
-    macro_split = verify_with_macro_split(strategy_ids, strategies, args, args.macro_snapshot) if args.macro_snapshot else {}
+    macro_split = (
+        verify_with_macro_split(strategy_ids, strategies, args, args.macro_snapshot)
+        if args.macro_snapshot
+        else {}
+    )
     results = [run_adapter(strategy_id, strategies[strategy_id], args) for strategy_id in strategy_ids]
     aggregate = {
         "ok": all(item["ok"] for item in results),
@@ -470,7 +488,9 @@ def main() -> int:
     }
     if macro_split:
         aggregate["macro_split"] = macro_split
-    outputs = write_outputs(aggregate, registry, args.output_dir if args.output_dir.is_absolute() else ROOT / args.output_dir)
+    outputs = write_outputs(
+        aggregate, registry, args.output_dir if args.output_dir.is_absolute() else ROOT / args.output_dir
+    )
     aggregate["outputs"] = outputs
     Path(outputs["json"]).write_text(json.dumps(aggregate, ensure_ascii=False, indent=2), encoding="utf-8")
     cli_strategies = [
@@ -484,7 +504,13 @@ def main() -> int:
         }
         for item in results
     ]
-    print(json.dumps({"ok": aggregate["ok"], "research_only": True, "outputs": outputs, "strategies": cli_strategies}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {"ok": aggregate["ok"], "research_only": True, "outputs": outputs, "strategies": cli_strategies},
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0 if aggregate["ok"] else 1
 
 

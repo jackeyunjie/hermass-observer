@@ -66,6 +66,7 @@ def verify_signature(timestamp: str, nonce: str, body: str, secret: str) -> bool
 
 def _resolve_foundation_db() -> str:
     from hermass_platform.slice.slice_engine import find_latest_foundation_db
+
     db_path = find_latest_foundation_db()
     if db_path is None:
         return ""
@@ -254,7 +255,9 @@ def _record_research_event(user_id: str, user_message: str) -> None:
     )
 
 
-def _dispatch_agent(user_id: str, intent: str, user_message: str, foundation_db: str, session_id: str = "") -> str:
+def _dispatch_agent(
+    user_id: str, intent: str, user_message: str, foundation_db: str, session_id: str = ""
+) -> str:
     config = INTENT_AGENT_METHODS.get(intent)
     if config is None:
         return "抱歉，我暂时无法处理这个请求。你可以试试问我：市场环境、策略适配、我的画像、交易知识等。"
@@ -273,20 +276,27 @@ def _dispatch_agent(user_id: str, intent: str, user_message: str, foundation_db:
 
     try:
         import importlib
+
         mod = importlib.import_module(module_path)
         func = getattr(mod, method_name)
 
         kwargs = {"user_id": user_id}
 
-        if method_name in ("analyze_market_environment", "analyze_industry_heat",
-                           "analyze_strategy_fit", "explore_top_signals",
-                           "assess_portfolio_risk", "get_stop_loss_reference"):
+        if method_name in (
+            "analyze_market_environment",
+            "analyze_industry_heat",
+            "analyze_strategy_fit",
+            "explore_top_signals",
+            "assess_portfolio_risk",
+            "get_stop_loss_reference",
+        ):
             kwargs["foundation_db"] = foundation_db
 
         if method_name == "explore_top_signals":
             kwargs["top_n"] = 10
         elif method_name == "analyze_industry_heat":
             from hermass_platform.chat.intent_router import classify_intent
+
             result_info = classify_intent(user_message)
             if "电子" in user_message:
                 kwargs["sw_l1_name"] = "电子"
@@ -299,7 +309,8 @@ def _dispatch_agent(user_id: str, intent: str, user_message: str, foundation_db:
 
         if method_name == "get_stop_loss_reference":
             import re
-            codes = re.findall(r'(?<!\d)\d{6}(?!\d)', user_message)
+
+            codes = re.findall(r"(?<!\d)\d{6}(?!\d)", user_message)
             if codes:
                 kwargs["stock_code"] = codes[0] + ".SZ"
             else:
@@ -324,6 +335,7 @@ def _dispatch_agent(user_id: str, intent: str, user_message: str, foundation_db:
 def _handle_sector_resonance(foundation_db: str) -> str:
     try:
         from hermass_platform.slice.industry_slice import detect_sector_resonance
+
         results = detect_sector_resonance(foundation_db)
     except Exception as e:
         logger.exception("Sector resonance detection failed")
@@ -338,9 +350,7 @@ def _handle_sector_resonance(foundation_db: str) -> str:
     for r in results:
         conf = r["confidence"]
         icon = "🟢" if conf == "高" else ("🟡" if conf == "中" else "🟠")
-        lines.append(
-            f"{icon} **{r['sw_l1']}** — {r['resonance_count']} 只共振（置信度：{conf}）"
-        )
+        lines.append(f"{icon} **{r['sw_l1']}** — {r['resonance_count']} 只共振（置信度：{conf}）")
 
         top3 = r["signals"][:3]
         code_mentions = []
@@ -369,7 +379,11 @@ def _handle_coach_intent(intent: str, user_message: str, user_id: str) -> str:
     )
 
     if intent == "learn_topic":
-        words = [w for w in user_message.replace("什么是", "").replace("什么叫", "").replace("解释", "").split() if len(w) > 1]
+        words = [
+            w
+            for w in user_message.replace("什么是", "").replace("什么叫", "").replace("解释", "").split()
+            if len(w) > 1
+        ]
         results = search_knowledge(words[:3])
         if not results:
             results = search_knowledge([user_message])
@@ -419,20 +433,24 @@ def handle_lark_message(
     session = conv_mgr.get_or_create(user_id, session_id)
     conv_mgr.add_message(session.session_id, "user", user_message, intent, agent_name)
 
-    record_event(BehaviorEvent(
-        user_id=user_id,
-        event_type=intent if intent in BehaviorEvent.VALID_TYPES else "market_query",
-        payload={"message": user_message[:200], "intent": intent, "agent": agent_name},
-    ))
+    record_event(
+        BehaviorEvent(
+            user_id=user_id,
+            event_type=intent if intent in BehaviorEvent.VALID_TYPES else "market_query",
+            payload={"message": user_message[:200], "intent": intent, "agent": agent_name},
+        )
+    )
 
     response_text = _dispatch_agent(user_id, intent, user_message, foundation_db, session.session_id)
 
     from hermass_platform.chat.response_enricher import enrich_stock_response, enrich_market_response
+
     if intent in ("signal_explore", "exit_rule") and foundation_db:
         pass
     elif intent in ("market_phase", "sector_heat"):
         try:
             import duckdb
+
             con = duckdb.connect(foundation_db, read_only=True)
             row = con.execute(
                 "SELECT SUM(CASE WHEN ef_count>=2 THEN 1 ELSE 0 END), COUNT(*) FROM d1_perspective_state "
@@ -445,6 +463,7 @@ def handle_lark_message(
             pass
     elif intent in ("my_fit", "strategy_fit"):
         from hermass_platform.chat.response_enricher import _STATS as stats
+
         st = stats["strategy_tracking"]
         response_text += (
             "\n\n**📊 验证数据参考**\n"

@@ -4,6 +4,7 @@
 Integrates signal ledger, forward observation, and backtest data
 to produce a comprehensive validation report.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -169,7 +170,9 @@ def build_validation_report(date_str: str) -> dict:
             "sharpe_ratio": backtest.get("sharpe_ratio"),
             "total_trades": backtest.get("total_trades"),
             "win_rate": backtest.get("win_rate"),
-        } if backtest else None,
+        }
+        if backtest
+        else None,
         "verdict": {
             "fit_ordering_valid": fit_ordering_valid,
             "overall": "pass" if fit_ordering_valid else "review_needed",
@@ -213,57 +216,61 @@ def build_validation_report(date_str: str) -> dict:
             f"{stats['win_rate']:.1%} | {stats['median_excess']:.2%} |"
         )
 
-    md_lines.extend([
-        "",
-        "## Strategy Return Table (20d excess vs SPY)",
-        "",
-        "| Strategy | n | Mean Excess | Win Rate |",
-        "|---|---:|---:|---:|",
-    ])
+    md_lines.extend(
+        [
+            "",
+            "## Strategy Return Table (20d excess vs SPY)",
+            "",
+            "| Strategy | n | Mean Excess | Win Rate |",
+            "|---|---:|---:|---:|",
+        ]
+    )
     for sid, stats in strategy_table.items():
-        md_lines.append(
-            f"| {sid} | {stats['n']} | {stats['mean_excess']:.2%} | {stats['win_rate']:.1%} |"
-        )
+        md_lines.append(f"| {sid} | {stats['n']} | {stats['mean_excess']:.2%} | {stats['win_rate']:.1%} |")
 
-    md_lines.extend([
-        "",
-        "## Lifecycle Return Table",
-        "",
-        "| Lifecycle | n | Mean Excess | Win Rate |",
-        "|---|---:|---:|---:|",
-    ])
+    md_lines.extend(
+        [
+            "",
+            "## Lifecycle Return Table",
+            "",
+            "| Lifecycle | n | Mean Excess | Win Rate |",
+            "|---|---:|---:|---:|",
+        ]
+    )
     for lc, stats in lifecycle_table.items():
-        md_lines.append(
-            f"| {lc} | {stats['n']} | {stats['mean_excess']:.2%} | {stats['win_rate']:.1%} |"
-        )
+        md_lines.append(f"| {lc} | {stats['n']} | {stats['mean_excess']:.2%} | {stats['win_rate']:.1%} |")
 
     if backtest:
-        md_lines.extend([
-            "",
-            "## Backtest Summary",
-            f"- Total return: {backtest.get('total_return', 0):.2%}",
-            f"- SPY return: {backtest.get('spy_return', 0):.2%}",
-            f"- Excess: {backtest.get('excess_return', 0):.2%}",
-            f"- Max drawdown: {backtest.get('max_drawdown', 0):.2%}",
-            f"- Sharpe: {backtest.get('sharpe_ratio', 0):.3f}",
-            f"- Trades: {backtest.get('total_trades', 0)}",
-            f"- Win rate: {backtest.get('win_rate', 0):.2%}",
-        ])
+        md_lines.extend(
+            [
+                "",
+                "## Backtest Summary",
+                f"- Total return: {backtest.get('total_return', 0):.2%}",
+                f"- SPY return: {backtest.get('spy_return', 0):.2%}",
+                f"- Excess: {backtest.get('excess_return', 0):.2%}",
+                f"- Max drawdown: {backtest.get('max_drawdown', 0):.2%}",
+                f"- Sharpe: {backtest.get('sharpe_ratio', 0):.3f}",
+                f"- Trades: {backtest.get('total_trades', 0)}",
+                f"- Win rate: {backtest.get('win_rate', 0):.2%}",
+            ]
+        )
 
-    md_lines.extend([
-        "",
-        "## Verdict",
-        f"- Fit ordering valid: {fit_ordering_valid}",
-        f"- Overall: {result['verdict']['overall']}",
-        "",
-        "## A-Share Comparison",
-        f"- A-share VCP excess: +1.67%",
-        f"- A-share Bollinger vol=0 excess: +0.59%",
-        f"- US VCP excess: {strategy_table.get('vcp', {}).get('mean_excess', 'N/A')}",
-        f"- US Bollinger excess: {strategy_table.get('bollinger_bandit', {}).get('mean_excess', 'N/A')}",
-        "",
-        "*Research-only. Not investment advice.*",
-    ])
+    md_lines.extend(
+        [
+            "",
+            "## Verdict",
+            f"- Fit ordering valid: {fit_ordering_valid}",
+            f"- Overall: {result['verdict']['overall']}",
+            "",
+            "## A-Share Comparison",
+            f"- A-share VCP excess: +1.67%",
+            f"- A-share Bollinger vol=0 excess: +0.59%",
+            f"- US VCP excess: {strategy_table.get('vcp', {}).get('mean_excess', 'N/A')}",
+            f"- US Bollinger excess: {strategy_table.get('bollinger_bandit', {}).get('mean_excess', 'N/A')}",
+            "",
+            "*Research-only. Not investment advice.*",
+        ]
+    )
 
     md_path = OUT_DIR / f"us_validation_{ymd(date_str)}.md"
     md_path.write_text("\n".join(md_lines), encoding="utf-8")

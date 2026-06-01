@@ -65,38 +65,43 @@ def download_etf(symbol: str, name: str) -> pd.DataFrame | None:
     """Download ETF daily data from yfinance."""
     try:
         import yfinance as yf
+
         # Convert SH/SZ suffix to yfinance format
         yf_symbol = name
-        if name.endswith('.SH'):
-            yf_symbol = name.replace('.SH', '.SS')
+        if name.endswith(".SH"):
+            yf_symbol = name.replace(".SH", ".SS")
         df = yf.download(yf_symbol, start="2018-01-01", end="2026-05-23", progress=False, auto_adjust=False)
         if df is None or df.empty:
             return None
         df = df.reset_index()
         # Flatten multi-index columns if present
         if isinstance(df.columns, pd.MultiIndex):
-            df.columns = [' '.join(col).strip() if col[1] else col[0] for col in df.columns.values]
+            df.columns = [" ".join(col).strip() if col[1] else col[0] for col in df.columns.values]
         # Find columns by suffix/pattern
-        cols = {c.lower().replace(' ', '_'): c for c in df.columns}
-        date_col = next((c for c in df.columns if 'date' in c.lower() or c.lower() == 'index'), df.columns[0])
-        open_col = next((c for c in df.columns if 'open' in c.lower() and 'adj' not in c.lower()), None)
-        close_col = next((c for c in df.columns if 'close' in c.lower() and 'adj' not in c.lower()), None)
-        high_col = next((c for c in df.columns if 'high' in c.lower()), None)
-        low_col = next((c for c in df.columns if 'low' in c.lower()), None)
-        vol_col = next((c for c in df.columns if 'volume' in c.lower()), None)
+        cols = {c.lower().replace(" ", "_"): c for c in df.columns}
+        date_col = next((c for c in df.columns if "date" in c.lower() or c.lower() == "index"), df.columns[0])
+        open_col = next((c for c in df.columns if "open" in c.lower() and "adj" not in c.lower()), None)
+        close_col = next((c for c in df.columns if "close" in c.lower() and "adj" not in c.lower()), None)
+        high_col = next((c for c in df.columns if "high" in c.lower()), None)
+        low_col = next((c for c in df.columns if "low" in c.lower()), None)
+        vol_col = next((c for c in df.columns if "volume" in c.lower()), None)
         if not all([open_col, close_col, high_col, low_col, vol_col]):
-            print(f"  Missing columns in {symbol}: open={open_col}, close={close_col}, high={high_col}, low={low_col}, vol={vol_col}")
+            print(
+                f"  Missing columns in {symbol}: open={open_col}, close={close_col}, high={high_col}, low={low_col}, vol={vol_col}"
+            )
             return None
-        result = pd.DataFrame({
-            "stock_code": name,
-            "date": pd.to_datetime(df[date_col]).dt.tz_localize(None).dt.strftime("%Y-%m-%d"),
-            "open": df[open_col].astype(float).values,
-            "high": df[high_col].astype(float).values,
-            "low": df[low_col].astype(float).values,
-            "close": df[close_col].astype(float).values,
-            "volume": df[vol_col].astype(float).values,
-            "amount": 0.0,
-        })
+        result = pd.DataFrame(
+            {
+                "stock_code": name,
+                "date": pd.to_datetime(df[date_col]).dt.tz_localize(None).dt.strftime("%Y-%m-%d"),
+                "open": df[open_col].astype(float).values,
+                "high": df[high_col].astype(float).values,
+                "low": df[low_col].astype(float).values,
+                "close": df[close_col].astype(float).values,
+                "volume": df[vol_col].astype(float).values,
+                "amount": 0.0,
+            }
+        )
         return result
     except Exception as e:
         print(f"  Failed to download {symbol} ({name}): {e}")
@@ -108,15 +113,19 @@ def compute_monthly_state(df: pd.DataFrame) -> pd.DataFrame:
     df["date"] = pd.to_datetime(df["date"])
     df["month"] = df["date"].dt.to_period("M")
 
-    monthly = df.groupby(["stock_code", "month"]).agg(
-        month_start_date=("date", "min"),
-        month_end_date=("date", "max"),
-        open=("open", "first"),
-        high=("high", "max"),
-        low=("low", "min"),
-        close=("close", "last"),
-        volume=("volume", "sum"),
-    ).reset_index()
+    monthly = (
+        df.groupby(["stock_code", "month"])
+        .agg(
+            month_start_date=("date", "min"),
+            month_end_date=("date", "max"),
+            open=("open", "first"),
+            high=("high", "max"),
+            low=("low", "min"),
+            close=("close", "last"),
+            volume=("volume", "sum"),
+        )
+        .reset_index()
+    )
 
     monthly["month_start_date"] = monthly["month_start_date"].dt.strftime("%Y-%m-%d")
     monthly["month_end_date"] = monthly["month_end_date"].dt.strftime("%Y-%m-%d")
@@ -384,7 +393,21 @@ def build_monthly_states(monthly_df: pd.DataFrame) -> None:
     months: dict[str, dict[str, Any]] = {}
 
     for row in rows:
-        stock_code, month_start, month_end, mn1_close, sr_support, sr_resistance, sr_ready, base, trend_bit, position_bit, volatility_bit, bull_context, bear_context = row
+        (
+            stock_code,
+            month_start,
+            month_end,
+            mn1_close,
+            sr_support,
+            sr_resistance,
+            sr_ready,
+            base,
+            trend_bit,
+            position_bit,
+            volatility_bit,
+            bull_context,
+            bear_context,
+        ) = row
 
         ym = month_start[:4] + month_start[5:7]
         if ym not in months:
@@ -415,20 +438,22 @@ def build_monthly_states(monthly_df: pd.DataFrame) -> None:
         else:
             state_hex = f"{state_score:X}"
 
-        months[ym]["data"].append({
-            "stock_code": stock_code,
-            "mn1_state_score": state_score,
-            "mn1_state_hex": state_hex,
-            "mn1_base": base,
-            "mn1_trend_bit": trend_bit,
-            "mn1_position_bit": position_bit,
-            "mn1_volatility_bit": volatility_bit,
-            "mn1_close": round(mn1_close, 4) if mn1_close else None,
-            "mn1_sr_support": round(sr_support, 4) if sr_support else None,
-            "mn1_sr_resistance": round(sr_resistance, 4) if sr_resistance else None,
-            "mn1_sr_ready": bool(sr_ready) if sr_ready is not None else False,
-            "mn1_trend": str(row[6]) if len(row) > 6 else None,
-        })
+        months[ym]["data"].append(
+            {
+                "stock_code": stock_code,
+                "mn1_state_score": state_score,
+                "mn1_state_hex": state_hex,
+                "mn1_base": base,
+                "mn1_trend_bit": trend_bit,
+                "mn1_position_bit": position_bit,
+                "mn1_volatility_bit": volatility_bit,
+                "mn1_close": round(mn1_close, 4) if mn1_close else None,
+                "mn1_sr_support": round(sr_support, 4) if sr_support else None,
+                "mn1_sr_resistance": round(sr_resistance, 4) if sr_resistance else None,
+                "mn1_sr_ready": bool(sr_ready) if sr_ready is not None else False,
+                "mn1_trend": str(row[6]) if len(row) > 6 else None,
+            }
+        )
         months[ym]["total_stocks"] += 1
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)

@@ -55,7 +55,9 @@ def run(
     brief = build_brief(US_CACHE_DB, US_FOUNDATION_DB)
     date_str = brief["date"].replace("-", "")
     print(f"   Date: {brief['date']}")
-    print(f"   Signals: {brief['stats']['total']} total | A:{brief['stats']['grade_A']} B:{brief['stats']['grade_B']} C:{brief['stats']['grade_C']} D:{brief['stats']['grade_D']}")
+    print(
+        f"   Signals: {brief['stats']['total']} total | A:{brief['stats']['grade_A']} B:{brief['stats']['grade_B']} C:{brief['stats']['grade_C']} D:{brief['stats']['grade_D']}"
+    )
 
     # Step 2: Filter signals
     print(f"\n🔍 Step 2: Filtering signals (min grade: {min_grade})...")
@@ -134,6 +136,7 @@ def run(
 
 def main() -> int:
     import argparse
+
     parser = argparse.ArgumentParser(description="US Stock Daily Trading Workflow")
     parser.add_argument("--live", action="store_true", help="Submit real orders to Alpaca")
     parser.add_argument("--min-grade", default="B", choices=["A", "B", "C"])

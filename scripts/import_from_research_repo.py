@@ -12,11 +12,21 @@ from pathlib import Path
 PRODUCT_ROOT = Path(__file__).resolve().parents[1]
 RESEARCH_ROOT = PRODUCT_ROOT.parent / "hongrun-chaos-trading-system"
 
-SOURCE_DAILY_FIXTURE = RESEARCH_ROOT / "reports/p108_daily_consumer_observation_card_20260518/fixtures/daily_observation_card.json"
+SOURCE_DAILY_FIXTURE = (
+    RESEARCH_ROOT
+    / "reports/p108_daily_consumer_observation_card_20260518/fixtures/daily_observation_card.json"
+)
 SOURCE_DAILY_HTML = RESEARCH_ROOT / "reports/p108_daily_consumer_observation_card_20260518/index.html"
-SOURCE_OMNI_SUMMARY = RESEARCH_ROOT / "reports/p116_data_foundation_acceleration_20260518/p116d_ashare_omni_cycle_alignment_summary.json"
-SOURCE_STATE_DB = RESEARCH_ROOT / "outputs/p116_ashare_d1_native_state_20260518/p116_ashare_d1_native_state.duckdb"
-SOURCE_POOL_CSV = RESEARCH_ROOT / "reports/p25_ashare_research_universe_20260509/ashare_research_pool_a250.csv"
+SOURCE_OMNI_SUMMARY = (
+    RESEARCH_ROOT
+    / "reports/p116_data_foundation_acceleration_20260518/p116d_ashare_omni_cycle_alignment_summary.json"
+)
+SOURCE_STATE_DB = (
+    RESEARCH_ROOT / "outputs/p116_ashare_d1_native_state_20260518/p116_ashare_d1_native_state.duckdb"
+)
+SOURCE_POOL_CSV = (
+    RESEARCH_ROOT / "reports/p25_ashare_research_universe_20260509/ashare_research_pool_a250.csv"
+)
 
 OUT_FIXTURES = PRODUCT_ROOT / "fixtures"
 OUT_PUBLIC = PRODUCT_ROOT / "public"
@@ -42,6 +52,7 @@ def load_pool_symbols(pool_path: Path) -> set[str]:
     if not pool_path.exists():
         return symbols
     import csv
+
     with open(pool_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
@@ -95,31 +106,33 @@ def filter_cards_from_state_db() -> tuple[list[dict], set[str], str]:
         code = r[0]
         name = pool_names.get(code, "")
         ef_count = sum([r[1] in {"E", "F"}, r[2] in {"E", "F"}, r[3] in {"E", "F"}])
-        cards.append({
-            "rank": i,
-            "code": code,
-            "name": name,
-            "name_display_cn": name,
-            "date": str(max_date),
-            "close": r[13],
-            "MN1_state_hex": r[1],
-            "W_state_hex": r[2],
-            "D_state_hex": r[3],
-            "MN1_state_date": str(max_date),
-            "W_state_date": str(max_date),
-            "D_state_date": str(max_date),
-            "MN1_trend_cn": r[4],
-            "W_trend_cn": r[5],
-            "D_trend_cn": r[6],
-            "MN1_position_cn": r[7],
-            "W_position_cn": r[8],
-            "D_position_cn": r[9],
-            "MN1_compression_cn": r[10],
-            "W_compression_cn": r[11],
-            "D_compression_cn": r[12],
-            "observation_reason": f"A250股票池筛选：MN1={r[1]} W1={r[2]} D1={r[3]}（{ef_count}个周期为E/F）",
-            "research_only_flag": True,
-        })
+        cards.append(
+            {
+                "rank": i,
+                "code": code,
+                "name": name,
+                "name_display_cn": name,
+                "date": str(max_date),
+                "close": r[13],
+                "MN1_state_hex": r[1],
+                "W_state_hex": r[2],
+                "D_state_hex": r[3],
+                "MN1_state_date": str(max_date),
+                "W_state_date": str(max_date),
+                "D_state_date": str(max_date),
+                "MN1_trend_cn": r[4],
+                "W_trend_cn": r[5],
+                "D_trend_cn": r[6],
+                "MN1_position_cn": r[7],
+                "W_position_cn": r[8],
+                "D_position_cn": r[9],
+                "MN1_compression_cn": r[10],
+                "W_compression_cn": r[11],
+                "D_compression_cn": r[12],
+                "observation_reason": f"A250股票池筛选：MN1={r[1]} W1={r[2]} D1={r[3]}（{ef_count}个周期为E/F）",
+                "research_only_flag": True,
+            }
+        )
 
     return cards, pool_symbols, str(max_date)
 
@@ -146,7 +159,9 @@ def build_product_home(daily: dict, omni: dict, source_html_name: str, filtered_
             """
         )
     if not card_items:
-        card_items.append('<article class="card"><h3>今日无正式观察对象</h3><p>系统没有用排序补位。</p></article>')
+        card_items.append(
+            '<article class="card"><h3>今日无正式观察对象</h3><p>系统没有用排序补位。</p></article>'
+        )
 
     return f"""<!doctype html>
 <html lang="zh-CN">
@@ -177,24 +192,24 @@ def build_product_home(daily: dict, omni: dict, source_html_name: str, filtered_
   <header>
     <h1>Hermass 每日观察产品</h1>
     <p>前端简单，后端数据说话。当前页面只展示研究母库已经验收的观察对象，不在产品层重新计算公式。</p>
-    <p class="note">当前 as_of_date：{daily.get('as_of_date', 'unknown')}；数据层级：{daily.get('data_level_current', 'unknown')}；Research-only。</p>
+    <p class="note">当前 as_of_date：{daily.get("as_of_date", "unknown")}；数据层级：{daily.get("data_level_current", "unknown")}；Research-only。</p>
   </header>
 
   <section>
     <h2>Observer / Omni 数据底座</h2>
     <div class="kpis">
-      <div class="kpi"><small>D1 observer rows</small><strong>{omni.get('d1_observer_rows', 'NA')}</strong></div>
-      <div class="kpi"><small>W1 observer rows</small><strong>{omni.get('w1_observer_rows', 'NA')}</strong></div>
-      <div class="kpi"><small>MN1 observer rows</small><strong>{omni.get('mn1_observer_rows', 'NA')}</strong></div>
-      <div class="kpi"><small>Omni rows</small><strong>{omni.get('omni_rows', 'NA')}</strong></div>
-      <div class="kpi"><small>Latest sync date</small><strong>{omni.get('latest_sync_date', 'NA')}</strong></div>
-      <div class="kpi"><small>Symbols</small><strong>{omni.get('symbol_count', 'NA')}</strong></div>
+      <div class="kpi"><small>D1 observer rows</small><strong>{omni.get("d1_observer_rows", "NA")}</strong></div>
+      <div class="kpi"><small>W1 observer rows</small><strong>{omni.get("w1_observer_rows", "NA")}</strong></div>
+      <div class="kpi"><small>MN1 observer rows</small><strong>{omni.get("mn1_observer_rows", "NA")}</strong></div>
+      <div class="kpi"><small>Omni rows</small><strong>{omni.get("omni_rows", "NA")}</strong></div>
+      <div class="kpi"><small>Latest sync date</small><strong>{omni.get("latest_sync_date", "NA")}</strong></div>
+      <div class="kpi"><small>Symbols</small><strong>{omni.get("symbol_count", "NA")}</strong></div>
     </div>
   </section>
 
   <section>
     <h2>今日观察卡</h2>
-    <div class="grid">{''.join(card_items)}</div>
+    <div class="grid">{"".join(card_items)}</div>
   </section>
 
   <section>
@@ -263,7 +278,9 @@ def main() -> int:
         "omni_data_level": omni.get("data_level"),
         "research_only_flag": True,
     }
-    (OUT_REPORTS / "import_manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    (OUT_REPORTS / "import_manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     print(json.dumps(manifest, ensure_ascii=False, indent=2))
     return 0
 

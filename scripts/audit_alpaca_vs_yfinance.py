@@ -36,6 +36,7 @@ PUBLIC_DIR = ROOT / "public"
 
 def load_alpaca_credentials() -> dict:
     from alpaca_trading.client import load_credentials
+
     return load_credentials()
 
 
@@ -98,13 +99,15 @@ def get_alpaca_data(ticker: str, start: date, end: date, api_key: str, secret_ke
         df = df.reset_index().rename(columns={"timestamp": "date"})
     df["date"] = pd.to_datetime(df["date"]).dt.tz_localize(None)
     df = df.set_index("date")
-    df = df.rename(columns={
-        "open": "open",
-        "high": "high",
-        "low": "low",
-        "close": "close",
-        "volume": "volume",
-    })
+    df = df.rename(
+        columns={
+            "open": "open",
+            "high": "high",
+            "low": "low",
+            "close": "close",
+            "volume": "volume",
+        }
+    )
     return df
 
 
@@ -126,7 +129,9 @@ def compare_series(yf_df: pd.DataFrame, alp_df: pd.DataFrame, ticker: str) -> di
 
     merged["close_diff"] = merged["close_yf"] - merged["close_alp"]
     merged["close_diff_pct"] = (merged["close_diff"] / merged["close_alp"]).abs() * 100
-    merged["volume_diff_pct"] = ((merged["volume_yf"] - merged["volume_alp"]).abs() / merged["volume_alp"]) * 100
+    merged["volume_diff_pct"] = (
+        (merged["volume_yf"] - merged["volume_alp"]).abs() / merged["volume_alp"]
+    ) * 100
 
     return {
         "ticker": ticker,
@@ -176,17 +181,23 @@ def generate_html(report: dict) -> str:
 
     rows = ""
     for d in sorted(valid, key=lambda x: x["close_max_diff_pct"], reverse=True):
-        color = "#ff6b6b" if d["close_max_diff_pct"] > 1 else "#f9ca24" if d["close_max_diff_pct"] > 0.1 else "#74b9ff"
+        color = (
+            "#ff6b6b"
+            if d["close_max_diff_pct"] > 1
+            else "#f9ca24"
+            if d["close_max_diff_pct"] > 0.1
+            else "#74b9ff"
+        )
         rows += f"""
         <tr>
-            <td><strong>{d['ticker']}</strong></td>
-            <td>{d['overlap_days']}</td>
-            <td>{d['yf_rows']}</td>
-            <td>{d['alp_rows']}</td>
-            <td style="color:{color}">{d['close_max_diff_pct']:.4f}%</td>
-            <td>{d['close_avg_diff_pct']:.4f}%</td>
-            <td>{d['days_with_diff_gt_0_1pct']}</td>
-            <td>{d['days_with_diff_gt_1pct']}</td>
+            <td><strong>{d["ticker"]}</strong></td>
+            <td>{d["overlap_days"]}</td>
+            <td>{d["yf_rows"]}</td>
+            <td>{d["alp_rows"]}</td>
+            <td style="color:{color}">{d["close_max_diff_pct"]:.4f}%</td>
+            <td>{d["close_avg_diff_pct"]:.4f}%</td>
+            <td>{d["days_with_diff_gt_0_1pct"]}</td>
+            <td>{d["days_with_diff_gt_1pct"]}</td>
         </tr>
         """
 
@@ -211,12 +222,12 @@ tr:hover {{ background:#1a1a2e; }}
 .guardrail {{ background:#1a1a2e; border-left:3px solid #e74c3c; padding:15px; margin:20px 0; border-radius:4px; font-size:13px; color:#ccc; }}
 </style></head><body>
 <h1>🔍 Alpaca vs yfinance 数据交叉验证报告</h1>
-<div class="subtitle">{report['start_date']} ~ {report['end_date']} | 测试 {report['tickers_tested']} 只股票</div>
+<div class="subtitle">{report["start_date"]} ~ {report["end_date"]} | 测试 {report["tickers_tested"]} 只股票</div>
 <div class="stats">
-    <div class="stat-card"><div class="num" style="color:#74b9ff">{report['valid_comparisons']}</div><div class="label">有效对比</div></div>
-    <div class="stat-card"><div class="num" style="color:#f9ca24">{report['close_avg_diff_pct_mean']:.4f}%</div><div class="label">平均差异</div></div>
-    <div class="stat-card"><div class="num" style="color:#ff6b6b">{report['worst_diff_pct']:.4f}%</div><div class="label">最大差异</div></div>
-    <div class="stat-card"><div class="num">{report['tickers_with_diff_gt_1pct']}</div><div class="label">差异&gt;1%的股票数</div></div>
+    <div class="stat-card"><div class="num" style="color:#74b9ff">{report["valid_comparisons"]}</div><div class="label">有效对比</div></div>
+    <div class="stat-card"><div class="num" style="color:#f9ca24">{report["close_avg_diff_pct_mean"]:.4f}%</div><div class="label">平均差异</div></div>
+    <div class="stat-card"><div class="num" style="color:#ff6b6b">{report["worst_diff_pct"]:.4f}%</div><div class="label">最大差异</div></div>
+    <div class="stat-card"><div class="num">{report["tickers_with_diff_gt_1pct"]}</div><div class="label">差异&gt;1%的股票数</div></div>
 </div>
 <div class="guardrail"><strong>⚠️ 说明</strong><br>
 yfinance 使用 split-adjusted 数据，Alpaca 默认返回 raw + adjustment_factor。差异主要来源于复权方式不同、拆股日期差异、或数据源本身的不一致。差异 &gt; 1% 需要重点排查。
@@ -268,7 +279,7 @@ def main():
 
     results = []
     for i, ticker in enumerate(tickers):
-        print(f"\n[{i+1}/{len(tickers)}] {ticker}...")
+        print(f"\n[{i + 1}/{len(tickers)}] {ticker}...")
         try:
             yf_df = get_yfinance_data(FOUNDATION_DB, ticker, start, end)
             alp_df = get_alpaca_data(ticker, start, end, api_key, secret_key)
@@ -277,7 +288,9 @@ def main():
             if "error" in result:
                 print(f"   ⚠️ {result['error']}: yf={result['yf_rows']}, alp={result['alp_rows']}")
             else:
-                print(f"   ✓ overlap={result['overlap_days']} days, max_diff={result['close_max_diff_pct']:.4f}%, avg_diff={result['close_avg_diff_pct']:.4f}%")
+                print(
+                    f"   ✓ overlap={result['overlap_days']} days, max_diff={result['close_max_diff_pct']:.4f}%, avg_diff={result['close_avg_diff_pct']:.4f}%"
+                )
         except Exception as e:
             print(f"   ❌ Error: {e}")
             results.append({"ticker": ticker, "error": str(e)})
@@ -317,8 +330,14 @@ def main():
         f"| 代码 | 重叠天数 | yf行数 | alp行数 | 最大差异% | 平均差异% | >0.1%天数 | >1%天数 |",
         f"|---|---|---|---|---|---|---|---|",
     ]
-    for d in sorted([r for r in report.get("details", []) if "error" not in r], key=lambda x: x["close_max_diff_pct"], reverse=True):
-        md_lines.append(f"| {d['ticker']} | {d['overlap_days']} | {d['yf_rows']} | {d['alp_rows']} | {d['close_max_diff_pct']:.4f}% | {d['close_avg_diff_pct']:.4f}% | {d['days_with_diff_gt_0_1pct']} | {d['days_with_diff_gt_1pct']} |")
+    for d in sorted(
+        [r for r in report.get("details", []) if "error" not in r],
+        key=lambda x: x["close_max_diff_pct"],
+        reverse=True,
+    ):
+        md_lines.append(
+            f"| {d['ticker']} | {d['overlap_days']} | {d['yf_rows']} | {d['alp_rows']} | {d['close_max_diff_pct']:.4f}% | {d['close_avg_diff_pct']:.4f}% | {d['days_with_diff_gt_0_1pct']} | {d['days_with_diff_gt_1pct']} |"
+        )
     md_path = OUT_DIR / f"alpaca_yfinance_audit_{date_str}.md"
     md_path.write_text("\n".join(md_lines), encoding="utf-8")
     print(f"📄 MD:   {md_path}")
@@ -329,7 +348,7 @@ def main():
     html_path.write_text(html, encoding="utf-8")
     print(f"📄 HTML: {html_path}")
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"✅ Audit complete!")
     print(f"   Valid comparisons: {report['valid_comparisons']}/{report['tickers_tested']}")
     print(f"   Avg diff: {report['close_avg_diff_pct_mean']:.4f}%")

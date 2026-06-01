@@ -6,7 +6,12 @@ import bisect
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DB_PATH = REPO_ROOT / "outputs" / "p116_ashare_d1_native_state_v2_20260518" / "p116_ashare_d1_native_state_v2.duckdb"
+DB_PATH = (
+    REPO_ROOT
+    / "outputs"
+    / "p116_ashare_d1_native_state_v2_20260518"
+    / "p116_ashare_d1_native_state_v2.duckdb"
+)
 
 
 def find_latest(date_list, target_date):
@@ -55,9 +60,7 @@ def main():
         }
 
     # Get all D1 dates (daily dates), sorted descending (newest first)
-    d1_dates = sorted(
-        [d for d in data_by_date.keys() if "D1" in data_by_date[d]], reverse=True
-    )
+    d1_dates = sorted([d for d in data_by_date.keys() if "D1" in data_by_date[d]], reverse=True)
 
     # Get W1 and MN1 dates (sorted ascending for bisect)
     w1_dates = sorted([d for d in data_by_date.keys() if "W1" in data_by_date[d]])
@@ -67,16 +70,14 @@ def main():
     recent_60_dates = d1_dates[:60]
 
     # Print header
-    print(f"\n{'='*140}")
-    print(
-        f"股票: {stock_name} ({stock_code}) - 最近60天 P116 State v2 (SR-based position)"
-    )
-    print(f"{'='*140}")
+    print(f"\n{'=' * 140}")
+    print(f"股票: {stock_name} ({stock_code}) - 最近60天 P116 State v2 (SR-based position)")
+    print(f"{'=' * 140}")
     print(
         f"{'日期':<12} {'MN1':<6} {'W1':<6} {'D1':<6} {'收盘价':<10} "
         f"{'MN1_R':<10} {'MN1_S':<10} {'W1_R':<10} {'W1_S':<10} {'D1_R':<10} {'D1_S':<10}"
     )
-    print(f"{'-'*140}")
+    print(f"{'-' * 140}")
 
     # Print data (newest first)
     for d in recent_60_dates:
@@ -86,16 +87,8 @@ def main():
         w1_date = find_latest(w1_dates, d)
         mn1_date = find_latest(mn1_dates, d)
 
-        w1_data = (
-            data_by_date[w1_date]["W1"]
-            if w1_date and w1_date in data_by_date
-            else None
-        )
-        mn1_data = (
-            data_by_date[mn1_date]["MN1"]
-            if mn1_date and mn1_date in data_by_date
-            else None
-        )
+        w1_data = data_by_date[w1_date]["W1"] if w1_date and w1_date in data_by_date else None
+        mn1_data = data_by_date[mn1_date]["MN1"] if mn1_date and mn1_date in data_by_date else None
 
         mn1_hex = mn1_data["state_hex"] if mn1_data else "N/A"
         w1_hex = w1_data["state_hex"] if w1_data else "N/A"
@@ -115,7 +108,7 @@ def main():
             f"{str(d1_r):<10} {str(d1_s):<10}"
         )
 
-    print(f"{'='*140}")
+    print(f"{'=' * 140}")
     print(f"共 {len(recent_60_dates)} 行数据")
 
     conn.close()

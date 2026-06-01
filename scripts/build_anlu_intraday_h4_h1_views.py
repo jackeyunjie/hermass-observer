@@ -37,7 +37,17 @@ VIEW_START = date(2025, 6, 1)
 INTRADAY_START = date(2026, 2, 1)
 END = date(2026, 5, 19)
 ROW_LIMITS = {"MN1": 12, "W1": 12, "D1": 36, "H4": 36, "H1": 120}
-STATE_COMPONENTS = ["compression", "trend", "position", "volatility", "atr_stop", "blp", "tbd", "state_score", "state_hex"]
+STATE_COMPONENTS = [
+    "compression",
+    "trend",
+    "position",
+    "volatility",
+    "atr_stop",
+    "blp",
+    "tbd",
+    "state_score",
+    "state_hex",
+]
 INDICATOR_COLUMNS = [
     "kaufman_width_20",
     "bb_width_20",
@@ -60,9 +70,30 @@ TF_LABELS = {"MN1": "月线", "W1": "周线", "D1": "日线", "H4": "四小时",
 VIEW_COLUMNS = {
     "MN1": [("品种", "品种"), ("时间", "时间"), ("MN1state", "月线状态")],
     "W1": [("品种", "品种"), ("时间", "时间"), ("MN1state", "月线状态"), ("W1state", "周线状态")],
-    "D1": [("品种", "品种"), ("时间", "时间"), ("MN1state", "月线状态"), ("W1state", "周线状态"), ("D1state", "日线状态")],
-    "H4": [("品种", "品种"), ("时间", "时间"), ("MN1state", "月线状态"), ("W1state", "周线状态"), ("D1state", "日线状态"), ("H4state", "四小时状态")],
-    "H1": [("品种", "品种"), ("时间", "时间"), ("MN1state", "月线状态"), ("W1state", "周线状态"), ("D1state", "日线状态"), ("H4state", "四小时状态"), ("H1state", "小时状态")],
+    "D1": [
+        ("品种", "品种"),
+        ("时间", "时间"),
+        ("MN1state", "月线状态"),
+        ("W1state", "周线状态"),
+        ("D1state", "日线状态"),
+    ],
+    "H4": [
+        ("品种", "品种"),
+        ("时间", "时间"),
+        ("MN1state", "月线状态"),
+        ("W1state", "周线状态"),
+        ("D1state", "日线状态"),
+        ("H4state", "四小时状态"),
+    ],
+    "H1": [
+        ("品种", "品种"),
+        ("时间", "时间"),
+        ("MN1state", "月线状态"),
+        ("W1state", "周线状态"),
+        ("D1state", "日线状态"),
+        ("H4state", "四小时状态"),
+        ("H1state", "小时状态"),
+    ],
 }
 VALUE_CN = {
     None: "无",
@@ -511,10 +542,17 @@ def compute_state_levels(bars: list[dict[str, Any]], timeframe: str) -> list[dic
         audit = {
             "timeframe": timeframe,
             "time": pd.Timestamp(ts).isoformat(sep=" "),
-            "ohlcv": {key: clean_value(base.get(key)) for key in ["open", "high", "low", "close", "volume", "amount"]},
+            "ohlcv": {
+                key: clean_value(base.get(key))
+                for key in ["open", "high", "low", "close", "volume", "amount"]
+            },
             "components": {key: clean_value(state_row.get(key)) for key in STATE_COMPONENTS},
             "bits": decode_state(state_score),
-            "indicators": {key: clean_value(indicators_row.get(key)) for key in INDICATOR_COLUMNS if key in indicators_row.index},
+            "indicators": {
+                key: clean_value(indicators_row.get(key))
+                for key in INDICATOR_COLUMNS
+                if key in indicators_row.index
+            },
         }
         out.append(
             {
@@ -563,7 +601,9 @@ def label() -> str:
     return f"{CODE} {NAME}"
 
 
-def view_row(bar: dict[str, Any], level_names: list[str], levels: dict[str, list[dict[str, Any]]]) -> tuple[dict[str, Any], dict[str, Any]]:
+def view_row(
+    bar: dict[str, Any], level_names: list[str], levels: dict[str, list[dict[str, Any]]]
+) -> tuple[dict[str, Any], dict[str, Any]]:
     asof = bar["close_at"]
     row: dict[str, Any] = {"品种": label(), "时间": asof.isoformat(sep=" ")}
     audit: dict[str, Any] = {"品种": label(), "时间": asof.isoformat(sep=" "), "states": {}}
@@ -653,10 +693,16 @@ def price_text(item: dict[str, Any]) -> str:
 def observation_text(item: dict[str, Any]) -> str:
     observation = item.get("observation", {})
     fields = [
-        ("观察周期", TF_LABELS.get(observation.get("observing_timeframe"), observation.get("observing_timeframe"))),
+        (
+            "观察周期",
+            TF_LABELS.get(observation.get("observing_timeframe"), observation.get("observing_timeframe")),
+        ),
         ("观察时间", observation.get("observing_time")),
         ("观察收盘价", observation.get("observing_close")),
-        ("被观察周期", TF_LABELS.get(observation.get("observed_timeframe"), observation.get("observed_timeframe"))),
+        (
+            "被观察周期",
+            TF_LABELS.get(observation.get("observed_timeframe"), observation.get("observed_timeframe")),
+        ),
         ("被观察周期时间", observation.get("observed_time")),
         ("被观察周期原收盘价", observation.get("native_close")),
         ("被观察周期原状态码", observation.get("native_state_hex")),
@@ -664,10 +710,14 @@ def observation_text(item: dict[str, Any]) -> str:
     return "；".join(f"{label}={cn_value(value)}" for label, value in fields)
 
 
-def render_table(title: str, rows: list[dict[str, Any]], columns: list[str], audits: list[dict[str, Any]]) -> str:
+def render_table(
+    title: str, rows: list[dict[str, Any]], columns: list[str], audits: list[dict[str, Any]]
+) -> str:
     body_parts = []
     for idx, row in enumerate(rows):
-        body_parts.append("<tr>" + "".join(f"<td>{html.escape(str(row.get(col, '')))}</td>" for col in columns) + "</tr>")
+        body_parts.append(
+            "<tr>" + "".join(f"<td>{html.escape(str(row.get(col, '')))}</td>" for col in columns) + "</tr>"
+        )
         audit = audits[idx] if idx < len(audits) else {}
         audit_lines = []
         for tf, item in audit.get("states", {}).items():
@@ -698,11 +748,13 @@ def render_table(title: str, rows: list[dict[str, Any]], columns: list[str], aud
                 f"<p>指标：{html.escape(indicator_text(indicators))}</p>"
                 "</div>"
             )
-        body_parts.append(f"<tr class='audit-row'><td colspan='{len(columns)}'>{''.join(audit_lines)}</td></tr>")
+        body_parts.append(
+            f"<tr class='audit-row'><td colspan='{len(columns)}'>{''.join(audit_lines)}</td></tr>"
+        )
     return f"""
 <section>
   <div class="section-head"><h2>{html.escape(title)}</h2><span>{len(rows)} 行</span></div>
-  <div class="table-wrap"><table><thead><tr>{''.join(f'<th>{html.escape(COLUMN_CN.get(col, col))}</th>' for col in columns)}</tr></thead><tbody>{''.join(body_parts)}</tbody></table></div>
+  <div class="table-wrap"><table><thead><tr>{"".join(f"<th>{html.escape(COLUMN_CN.get(col, col))}</th>" for col in columns)}</tr></thead><tbody>{"".join(body_parts)}</tbody></table></div>
 </section>"""
 
 
@@ -732,15 +784,15 @@ def render_html(payload: dict[str, Any]) -> str:
     <div class="meta">
       <div><small>指标管道</small><strong>状态源码与指标源码</strong></div>
       <div><small>核心指标</small><strong>考夫曼宽度、布林宽度、真实波幅、趋势强度、支撑压力、吊灯止损</strong></div>
-      <div><small>分钟源</small><strong>五分钟原始数据 {payload['debug']['raw_5m_rows']} 行</strong></div>
-      <div><small>五视角行数</small><strong>月线 {len(views['MN1'])} / 周线 {len(views['W1'])} / 日线 {len(views['D1'])} / 四小时 {len(views['H4'])} / 小时 {len(views['H1'])}</strong></div>
+      <div><small>分钟源</small><strong>五分钟原始数据 {payload["debug"]["raw_5m_rows"]} 行</strong></div>
+      <div><small>五视角行数</small><strong>月线 {len(views["MN1"])} / 周线 {len(views["W1"])} / 日线 {len(views["D1"])} / 四小时 {len(views["H4"])} / 小时 {len(views["H1"])}</strong></div>
     </div>
   </header>
-  {render_table('月线视角', views['MN1'], mn1_cols, row_audit['MN1'])}
-  {render_table('周线视角', views['W1'], w1_cols, row_audit['W1'])}
-  {render_table('日线视角', views['D1'], d1_cols, row_audit['D1'])}
-  {render_table('四小时视角', views['H4'], h4_cols, row_audit['H4'])}
-  {render_table('小时视角', views['H1'], h1_cols, row_audit['H1'])}
+  {render_table("月线视角", views["MN1"], mn1_cols, row_audit["MN1"])}
+  {render_table("周线视角", views["W1"], w1_cols, row_audit["W1"])}
+  {render_table("日线视角", views["D1"], d1_cols, row_audit["D1"])}
+  {render_table("四小时视角", views["H4"], h4_cols, row_audit["H4"])}
+  {render_table("小时视角", views["H1"], h1_cols, row_audit["H1"])}
 </main>
 </body>
 </html>
@@ -748,7 +800,9 @@ def render_html(payload: dict[str, Any]) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Download Blackwolf 5m data and build 688107 auditable state_hex view tables.")
+    parser = argparse.ArgumentParser(
+        description="Download Blackwolf 5m data and build 688107 auditable state_hex view tables."
+    )
     parser.add_argument("--token-stdin", action="store_true")
     parser.add_argument("--use-existing-raw", action="store_true")
     args = parser.parse_args()
@@ -807,7 +861,13 @@ def main() -> int:
     }
     OUT_JSON.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     OUT_HTML.write_text(render_html(payload), encoding="utf-8")
-    print(json.dumps({"status": "PASS", "json": str(OUT_JSON), "html": str(OUT_HTML), **views["debug"]}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {"status": "PASS", "json": str(OUT_JSON), "html": str(OUT_HTML), **views["debug"]},
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 

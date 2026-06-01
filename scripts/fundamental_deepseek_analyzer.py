@@ -78,7 +78,10 @@ OUTPUT_SCHEMA = {
         "industry_chain": {"type": "string", "enum": ["导入期", "成长期", "成熟期", "衰退期", "unknown"]},
         "chain_position": {"type": "string", "enum": ["上游", "中游", "下游", "平台", "unknown"]},
         "company_position": {"type": "string", "enum": ["龙头", "一线", "二线", "利基", "边缘", "unknown"]},
-        "development_cycle": {"type": "string", "enum": ["加速成长", "稳定增长", "增速放缓", "转型调整", "unknown"]},
+        "development_cycle": {
+            "type": "string",
+            "enum": ["加速成长", "稳定增长", "增速放缓", "转型调整", "unknown"],
+        },
         "placement_assessment": {"type": "string", "enum": ["积极", "中性", "负面", "unknown", "无定增"]},
         "primary_drivers": {
             "type": "array",
@@ -87,20 +90,34 @@ OUTPUT_SCHEMA = {
                 "properties": {
                     "factor": {"type": "string"},
                     "weight": {"type": "number", "minimum": 0, "maximum": 1},
-                    "evidence_ids": {"type": "array", "items": {"type": "string"}}
+                    "evidence_ids": {"type": "array", "items": {"type": "string"}},
                 },
-                "required": ["factor", "weight", "evidence_ids"]
+                "required": ["factor", "weight", "evidence_ids"],
             },
-            "maxItems": 3
+            "maxItems": 3,
         },
         "risk_factors": {
             "type": "array",
-            "items": {"type": "object", "properties": {"factor": {"type": "string"}, "evidence_ids": {"type": "array", "items": {"type": "string"}}}},
-            "maxItems": 2
+            "items": {
+                "type": "object",
+                "properties": {
+                    "factor": {"type": "string"},
+                    "evidence_ids": {"type": "array", "items": {"type": "string"}},
+                },
+            },
+            "maxItems": 2,
         },
-        "confidence": {"type": "number", "minimum": 0, "maximum": 1}
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
     },
-    "required": ["stock_code", "industry_chain", "chain_position", "company_position", "development_cycle", "placement_assessment", "confidence"]
+    "required": [
+        "stock_code",
+        "industry_chain",
+        "chain_position",
+        "company_position",
+        "development_cycle",
+        "placement_assessment",
+        "confidence",
+    ],
 }
 
 
@@ -110,29 +127,31 @@ def call_deepseek(system_prompt: str, user_prompt: str, api_key: str, api_base: 
         "model": "deepseek-chat",
         "messages": [
             {"role": "system", "content": with_deepseek_context(system_prompt)},
-            {"role": "user", "content": user_prompt}
+            {"role": "user", "content": user_prompt},
         ],
         "temperature": 0.2,
         "max_tokens": 1500,
-        "response_format": {"type": "json_object"}
+        "response_format": {"type": "json_object"},
     }
     data = json.dumps(body).encode("utf-8")
-    req = urllib.request.Request(url, data=data, headers={
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    })
+    req = urllib.request.Request(
+        url, data=data, headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    )
     with urllib.request.urlopen(req, timeout=90) as resp:
         result = json.loads(resp.read().decode("utf-8"))
     return json.loads(result["choices"][0]["message"]["content"])
 
 
 def load_evidence(con: duckdb.DuckDBPyConnection, stock_code: str, as_of_date: str) -> list[dict]:
-    rows = con.execute("""
+    rows = con.execute(
+        """
         SELECT evidence_id, evidence_type, evidence_text, source_api, unmapped, unavailable
         FROM fundamental_evidence_packet
         WHERE stock_code = ? AND as_of_date = ?
         ORDER BY evidence_type, evidence_id
-    """, (stock_code, as_of_date)).fetchall()
+    """,
+        (stock_code, as_of_date),
+    ).fetchall()
     return [
         {
             "evidence_id": r[0],
@@ -191,11 +210,14 @@ def analyze(date_str: str, limit: int = 20) -> dict:
 
     con = duckdb.connect(str(db_path))
 
-    stocks = con.execute("""
+    stocks = con.execute(
+        """
         SELECT DISTINCT stock_code FROM fundamental_evidence_packet
         WHERE as_of_date = ?
         ORDER BY stock_code
-    """, (date_str,)).fetchall()
+    """,
+        (date_str,),
+    ).fetchall()
 
     stock_list = [r[0] for r in stocks]
     if limit and limit > 0:
@@ -233,38 +255,51 @@ def analyze(date_str: str, limit: int = 20) -> dict:
         confidence = min(r1.get("confidence", 0), r2.get("confidence", 0))
 
         if not ok:
-            con.execute("""
+            con.execute(
+                """
                 INSERT OR REPLACE INTO fundamental_review_queue
                 (stock_code, as_of_date, conflict_type, analyst_result, rating_agency_result, conflict_detail, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (code, date_str, "cross_validation_mismatch",
-                   json.dumps(r1, ensure_ascii=False)[:3000],
-                   json.dumps(r2, ensure_ascii=False)[:3000],
-                   json.dumps(conflicts, ensure_ascii=False)[:1000],
-                   datetime.now(timezone.utc).isoformat()))
+            """,
+                (
+                    code,
+                    date_str,
+                    "cross_validation_mismatch",
+                    json.dumps(r1, ensure_ascii=False)[:3000],
+                    json.dumps(r2, ensure_ascii=False)[:3000],
+                    json.dumps(conflicts, ensure_ascii=False)[:1000],
+                    datetime.now(timezone.utc).isoformat(),
+                ),
+            )
             failed += 1
             print(f"  ✗ {code} → review_queue ({'; '.join(conflicts[:2])})")
             continue
 
         ev_ids = [e["evidence_id"] for e in evidence]
-        con.execute("""
+        con.execute(
+            """
             INSERT OR REPLACE INTO fundamental_profile
             (stock_code, as_of_date, industry_chain, chain_position, company_position,
              development_cycle, placement_assessment, primary_drivers_json,
              risk_factors_json, evidence_ids_json, llm_model, llm_confidence,
              analyst_pass, rating_agency_pass, cross_validated, generated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'deepseek-chat', ?, TRUE, TRUE, TRUE, ?)
-        """, (code, date_str,
-               r1.get("industry_chain", "unknown"),
-               r1.get("chain_position", "unknown"),
-               r1.get("company_position", "unknown"),
-               r1.get("development_cycle", "unknown"),
-               r1.get("placement_assessment", "unknown"),
-               json.dumps(drivers, ensure_ascii=False),
-               json.dumps(risks, ensure_ascii=False),
-               json.dumps(ev_ids, ensure_ascii=False),
-               confidence,
-               datetime.now(timezone.utc).isoformat()))
+        """,
+            (
+                code,
+                date_str,
+                r1.get("industry_chain", "unknown"),
+                r1.get("chain_position", "unknown"),
+                r1.get("company_position", "unknown"),
+                r1.get("development_cycle", "unknown"),
+                r1.get("placement_assessment", "unknown"),
+                json.dumps(drivers, ensure_ascii=False),
+                json.dumps(risks, ensure_ascii=False),
+                json.dumps(ev_ids, ensure_ascii=False),
+                confidence,
+                datetime.now(timezone.utc).isoformat(),
+            ),
+        )
         passed += 1
         print(f"  ✓ {code} → profile (conf={confidence:.2f})")
 

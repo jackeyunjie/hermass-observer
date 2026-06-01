@@ -179,19 +179,21 @@ def build_d1_transition_matrix(db_path: Path) -> dict[str, Any]:
         stats_5d = compute_metrics(data["excess_5d"])
         stats_10d = compute_metrics(data["excess_10d"])
         stats_20d = compute_metrics(data["excess_20d"])
-        transition_stats.append({
-            "prev_state": prev,
-            "curr_state": curr,
-            "prev_hex": state_hex(prev),
-            "curr_hex": state_hex(curr),
-            "prev_decoded": decode_state(prev),
-            "curr_decoded": decode_state(curr),
-            "sample_size": stats_5d["n"],
-            "sample_adequate": stats_5d["n"] >= MIN_SAMPLE_SIZE,
-            "excess_5d": stats_5d,
-            "excess_10d": stats_10d,
-            "excess_20d": stats_20d,
-        })
+        transition_stats.append(
+            {
+                "prev_state": prev,
+                "curr_state": curr,
+                "prev_hex": state_hex(prev),
+                "curr_hex": state_hex(curr),
+                "prev_decoded": decode_state(prev),
+                "curr_decoded": decode_state(curr),
+                "sample_size": stats_5d["n"],
+                "sample_adequate": stats_5d["n"] >= MIN_SAMPLE_SIZE,
+                "excess_5d": stats_5d,
+                "excess_10d": stats_10d,
+                "excess_20d": stats_20d,
+            }
+        )
 
     # Sort by absolute 20d excess (most interesting first)
     transition_stats.sort(
@@ -355,7 +357,7 @@ def render_markdown(
         e10 = t["excess_10d"]
         e20 = t["excess_20d"]
         adequate = "✅ 充足" if t["sample_adequate"] else "⚠️ 待积累"
-        pr_str = f"{e5['payoff_ratio']:.3f}" if e5['payoff_ratio'] is not None else "-"
+        pr_str = f"{e5['payoff_ratio']:.3f}" if e5["payoff_ratio"] is not None else "-"
         lines.append(
             f"| {idx} | `{t['prev_hex']}->{t['curr_hex']}` | {t['sample_size']:,} | "
             f"{e5['mean']:.4f} | {e5['win_rate']:.2%} | "
@@ -364,13 +366,15 @@ def render_markdown(
             f"{pr_str} | {e5['t_stat']:.2f} | {adequate} |"
         )
 
-    lines.extend([
-        "",
-        "### 样本量矩阵（D1 State 跃迁）",
-        "",
-        "行=前一日 State，列=当日 State。数值=样本量，空白=无样本。",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "### 样本量矩阵（D1 State 跃迁）",
+            "",
+            "行=前一日 State，列=当日 State。数值=样本量，空白=无样本。",
+            "",
+        ]
+    )
 
     # Build sample size matrix
     sample_matrix: dict[int, dict[int, int]] = defaultdict(dict)
@@ -378,7 +382,10 @@ def render_markdown(
         sample_matrix[t["prev_state"]][t["curr_state"]] = t["sample_size"]
 
     # Get all observed states
-    all_states = sorted(set(t["prev_state"] for t in d1_matrix["transitions"]) | set(t["curr_state"] for t in d1_matrix["transitions"]))
+    all_states = sorted(
+        set(t["prev_state"] for t in d1_matrix["transitions"])
+        | set(t["curr_state"] for t in d1_matrix["transitions"])
+    )
 
     # Header
     header = "| 前\\后 | " + " | ".join(f"{state_hex(s)}" for s in all_states) + " |"
@@ -397,15 +404,17 @@ def render_markdown(
                 row_cells.append("")
         lines.append("| " + " | ".join(row_cells) + " |")
 
-    lines.extend([
-        "",
-        "---",
-        "",
-        "## 二、三周期协同跃迁统计",
-        "",
-        "| 场景 | 样本量 | 充足? | 5日超额 | 5日胜率 | 10日超额 | 10日胜率 | 20日超额 | 20日胜率 | 盈亏比 |",
-        "|---|---:|:---|---:|---:|---:|---:|---:|---:|---:|",
-    ])
+    lines.extend(
+        [
+            "",
+            "---",
+            "",
+            "## 二、三周期协同跃迁统计",
+            "",
+            "| 场景 | 样本量 | 充足? | 5日超额 | 5日胜率 | 10日超额 | 10日胜率 | 20日超额 | 20日胜率 | 盈亏比 |",
+            "|---|---:|:---|---:|---:|---:|---:|---:|---:|---:|",
+        ]
+    )
 
     scenario_labels = {
         "any_enter_ef": "任意周期进入 E/F",
@@ -428,13 +437,13 @@ def render_markdown(
         e10 = s.get("excess_10d", {})
         e20 = s.get("excess_20d", {})
         adequate = "✅ 充足" if s.get("sample_adequate") else "⚠️ 待积累"
-        pr_str = f"{e5.get('payoff_ratio'):.3f}" if e5.get('payoff_ratio') is not None else "-"
-        m5 = e5.get('mean', 0) or 0
-        wr5 = e5.get('win_rate', 0) or 0
-        m10 = e10.get('mean', 0) or 0
-        wr10 = e10.get('win_rate', 0) or 0
-        m20 = e20.get('mean', 0) or 0
-        wr20 = e20.get('win_rate', 0) or 0
+        pr_str = f"{e5.get('payoff_ratio'):.3f}" if e5.get("payoff_ratio") is not None else "-"
+        m5 = e5.get("mean", 0) or 0
+        wr5 = e5.get("win_rate", 0) or 0
+        m10 = e10.get("mean", 0) or 0
+        wr10 = e10.get("win_rate", 0) or 0
+        m20 = e20.get("mean", 0) or 0
+        wr20 = e20.get("win_rate", 0) or 0
         lines.append(
             f"| {label} | {s.get('sample_size', 0):,} | {adequate} | "
             f"{m5:.4f} | {wr5:.2%} | "
@@ -443,23 +452,25 @@ def render_markdown(
             f"{pr_str} |"
         )
 
-    lines.extend([
-        "",
-        "---",
-        "",
-        "## 三、统计边界说明",
-        "",
-        "1. **超额收益计算**: 个股 forward return 减去当日全市场等权平均 return。",
-        "2. **样本充足标准**: ≥30 个样本。低于此阈值的结论仅作为'候选观察'。",
-        "3. **t-stat 解读**: |t-stat| > 1.96 表示 95% 置信度下显著不为零。",
-        "4. **过拟合警告**: 精确 State 组合存在过拟合风险，需结合模糊 bit 聚合和样本外验证。",
-        "5. **数据范围**: 2018-05-15 至 2026-05-22，全市场 A 股。",
-        "",
-        "---",
-        "",
-        "*本报告为研究性质，不构成交易建议。所有数字均为历史统计，不代表未来表现。*",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "---",
+            "",
+            "## 三、统计边界说明",
+            "",
+            "1. **超额收益计算**: 个股 forward return 减去当日全市场等权平均 return。",
+            "2. **样本充足标准**: ≥30 个样本。低于此阈值的结论仅作为'候选观察'。",
+            "3. **t-stat 解读**: |t-stat| > 1.96 表示 95% 置信度下显著不为零。",
+            "4. **过拟合警告**: 精确 State 组合存在过拟合风险，需结合模糊 bit 聚合和样本外验证。",
+            "5. **数据范围**: 2018-05-15 至 2026-05-22，全市场 A 股。",
+            "",
+            "---",
+            "",
+            "*本报告为研究性质，不构成交易建议。所有数字均为历史统计，不代表未来表现。*",
+            "",
+        ]
+    )
 
     return "\n".join(lines)
 
@@ -468,7 +479,10 @@ def run_analysis(db_path: Path) -> dict[str, Any]:
     generated_at = datetime.now(timezone.utc).isoformat()
     print("Building D1 transition matrix...", file=sys.stderr)
     d1_matrix = build_d1_transition_matrix(db_path)
-    print(f"  -> {d1_matrix['total_transitions_observed']} transitions, {d1_matrix['total_transition_events']} events", file=sys.stderr)
+    print(
+        f"  -> {d1_matrix['total_transitions_observed']} transitions, {d1_matrix['total_transition_events']} events",
+        file=sys.stderr,
+    )
 
     print("Building three-period协同跃迁...", file=sys.stderr)
     three_period = build_three_period_transitions(db_path)

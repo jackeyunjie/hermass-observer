@@ -406,11 +406,11 @@ def monitor_positions(positions: list[Position], date_str: str) -> list[Position
 
 def print_terminal_report(positions: list[Position]) -> None:
     """Print colored terminal report."""
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print(f"  持仓监控报告 — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
     print(f"  {RESEARCH_ONLY_DISCLAIMER}")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
 
     if not positions:
         print("  暂无持仓")
@@ -418,11 +418,13 @@ def print_terminal_report(positions: list[Position]) -> None:
 
     header = f"  {'代码':<12} {'策略':<14} {'入场价':>8} {'现价':>8} {'盈亏':>8} {'持有':>4} {'状态':<12} {'触发原因':<20}"
     print(header)
-    print(f"  {'-'*78}")
+    print(f"  {'-' * 78}")
 
     for pos in positions:
         pnl_str = f"{pos.pnl_pct:+.1%}"
-        status_color = "\033[32m" if pos.status == "正常持有" else "\033[31m" if pos.status == "已触发" else "\033[33m"
+        status_color = (
+            "\033[32m" if pos.status == "正常持有" else "\033[31m" if pos.status == "已触发" else "\033[33m"
+        )
         reset = "\033[0m"
         line = (
             f"  {pos.stock_code:<12} {pos.strategy:<14} "
@@ -432,12 +434,14 @@ def print_terminal_report(positions: list[Position]) -> None:
         )
         print(line)
 
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
     triggered = [p for p in positions if p.status == "已触发"]
     holding = [p for p in positions if p.status == "正常持有"]
     proximity = [p for p in positions if p.status == "接近止损"]
-    print(f"  总计: {len(positions)} | 正常持有: {len(holding)} | 接近止损: {len(proximity)} | 已触发: {len(triggered)}")
-    print(f"{'='*80}\n")
+    print(
+        f"  总计: {len(positions)} | 正常持有: {len(holding)} | 接近止损: {len(proximity)} | 已触发: {len(triggered)}"
+    )
+    print(f"{'=' * 80}\n")
 
 
 def generate_html(positions: list[Position]) -> str:
@@ -460,7 +464,7 @@ def generate_html(positions: list[Position]) -> str:
             return f'<span style="color:#16a34a;font-weight:600;">{pnl:+.1%}</span>'
         if pnl < 0:
             return f'<span style="color:#dc2626;font-weight:600;">{pnl:+.1%}</span>'
-        return f'<span>{pnl:+.1%}</span>'
+        return f"<span>{pnl:+.1%}</span>"
 
     rows = []
     for pos in positions:
@@ -468,14 +472,14 @@ def generate_html(positions: list[Position]) -> str:
         rows.append(
             f"<tr>"
             f'<td><strong>{esc(pos.stock_code)}</strong><br><span style="color:#6b7280;font-size:12px;">{esc(pos.stock_name)}</span></td>'
-            f'<td>{esc(pos.strategy)}</td>'
-            f'<td>{pos.entry_price:.2f}</td>'
-            f'<td>{pos.current_close:.2f}</td>'
-            f'<td>{pnl_color(pos.pnl_pct)}</td>'
-            f'<td>{pos.hold_days}</td>'
-            f'<td>{status_badge(pos)}</td>'
-            f'<td>{f"{pos.stop_price:.2f}" if pos.stop_price else "-"}</td>'
-            f'<td>{esc(exit_detail)}</td>'
+            f"<td>{esc(pos.strategy)}</td>"
+            f"<td>{pos.entry_price:.2f}</td>"
+            f"<td>{pos.current_close:.2f}</td>"
+            f"<td>{pnl_color(pos.pnl_pct)}</td>"
+            f"<td>{pos.hold_days}</td>"
+            f"<td>{status_badge(pos)}</td>"
+            f"<td>{f'{pos.stop_price:.2f}' if pos.stop_price else '-'}</td>"
+            f"<td>{esc(exit_detail)}</td>"
             f"</tr>"
         )
 
@@ -505,7 +509,7 @@ def generate_html(positions: list[Position]) -> str:
 <body>
   <div class="disclaimer">{RESEARCH_ONLY_DISCLAIMER}</div>
   <h1>持仓监控面板</h1>
-  <p class="meta">生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+  <p class="meta">生成时间：{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
   <div class="summary">
     <div class="summary-card"><strong>{len(positions)}</strong><span>总持仓</span></div>
     <div class="summary-card"><strong style="color:#16a34a;">{len(holding)}</strong><span>正常持有</span></div>
@@ -527,7 +531,7 @@ def generate_html(positions: list[Position]) -> str:
       </tr>
     </thead>
     <tbody>
-      {''.join(rows)}
+      {"".join(rows)}
     </tbody>
   </table>
 </body>

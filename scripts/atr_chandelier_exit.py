@@ -19,6 +19,7 @@ from typing import Any
 @dataclass
 class ATRChandelierPositionState:
     """ATR Chandelier 持仓状态（用于回测引擎中的 pos.bb_state 替代）。"""
+
     entry_price: float
     entry_date: str
     entry_atr: float

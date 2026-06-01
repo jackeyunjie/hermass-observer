@@ -276,9 +276,7 @@ def init_schema(db_path: Path | None = None) -> Path:
     con = duckdb.connect(str(db_path))
     for stmt in CREATE_STATEMENTS:
         con.execute(stmt)
-    con.execute(
-        "CREATE TABLE IF NOT EXISTS schema_info (schema_version VARCHAR, created_at VARCHAR)"
-    )
+    con.execute("CREATE TABLE IF NOT EXISTS schema_info (schema_version VARCHAR, created_at VARCHAR)")
     con.execute("DELETE FROM schema_info")
     con.execute(
         "INSERT INTO schema_info VALUES (?, ?)",

@@ -46,11 +46,37 @@ INDUSTRY_ROTATION_ASSETS_PATH = CONFIG_DIR / "industry_rotation_assets.json"
 
 # ── 31 个申万一级行业列表 ─────────────────────────────
 SW_L1_INDUSTRIES = [
-    "农林牧渔", "基础化工", "钢铁", "有色金属", "电子", "家用电器", "食品饮料",
-    "纺织服饰", "轻工制造", "医药生物", "公用事业", "交通运输", "房地产",
-    "商贸零售", "社会服务", "综合", "建筑材料", "建筑装饰", "电力设备",
-    "国防军工", "计算机", "传媒", "通信", "银行", "非银金融", "汽车",
-    "机械设备", "煤炭", "石油石化", "环保", "美容护理",
+    "农林牧渔",
+    "基础化工",
+    "钢铁",
+    "有色金属",
+    "电子",
+    "家用电器",
+    "食品饮料",
+    "纺织服饰",
+    "轻工制造",
+    "医药生物",
+    "公用事业",
+    "交通运输",
+    "房地产",
+    "商贸零售",
+    "社会服务",
+    "综合",
+    "建筑材料",
+    "建筑装饰",
+    "电力设备",
+    "国防军工",
+    "计算机",
+    "传媒",
+    "通信",
+    "银行",
+    "非银金融",
+    "汽车",
+    "机械设备",
+    "煤炭",
+    "石油石化",
+    "环保",
+    "美容护理",
 ]
 
 # ── 产业链目录 ────────────────────────────────────────
@@ -65,15 +91,37 @@ CHAIN_CATALOG = {
 
 # ── 产业链位置映射 ────────────────────────────────────
 CHAIN_POSITION_MAP = {
-    "有色金属": "上游", "基础化工": "上游", "钢铁": "上游", "煤炭": "上游", "石油石化": "上游",
-    "农林牧渔": "上游", "建筑材料": "上游",
-    "电子": "综合", "国防军工": "综合", "医药生物": "综合", "综合": "综合",
-    "电力设备": "中游", "机械设备": "中游", "通信": "中游", "建筑装饰": "中游",
-    "轻工制造": "中游", "环保": "中游",
-    "汽车": "下游", "食品饮料": "下游", "家用电器": "下游", "计算机": "下游",
-    "房地产": "下游", "商贸零售": "下游", "社会服务": "下游", "纺织服饰": "下游",
-    "传媒": "下游", "美容护理": "下游",
-    "银行": "配套", "非银金融": "配套", "公用事业": "配套", "交通运输": "配套",
+    "有色金属": "上游",
+    "基础化工": "上游",
+    "钢铁": "上游",
+    "煤炭": "上游",
+    "石油石化": "上游",
+    "农林牧渔": "上游",
+    "建筑材料": "上游",
+    "电子": "综合",
+    "国防军工": "综合",
+    "医药生物": "综合",
+    "综合": "综合",
+    "电力设备": "中游",
+    "机械设备": "中游",
+    "通信": "中游",
+    "建筑装饰": "中游",
+    "轻工制造": "中游",
+    "环保": "中游",
+    "汽车": "下游",
+    "食品饮料": "下游",
+    "家用电器": "下游",
+    "计算机": "下游",
+    "房地产": "下游",
+    "商贸零售": "下游",
+    "社会服务": "下游",
+    "纺织服饰": "下游",
+    "传媒": "下游",
+    "美容护理": "下游",
+    "银行": "配套",
+    "非银金融": "配套",
+    "公用事业": "配套",
+    "交通运输": "配套",
 }
 
 # ── trend 到数值分的映射 ──────────────────────────────
@@ -87,6 +135,7 @@ TREND_SCORE = {
 
 
 # ── 数据加载 ──────────────────────────────────────────
+
 
 def load_json(path: Path) -> dict:
     with open(path, "r", encoding="utf-8") as f:
@@ -170,7 +219,8 @@ def load_etf_state(date_str: str) -> dict[str, dict[str, Any]]:
 def load_chain_dynamics_latest(db_path: Path) -> list[dict]:
     """从 chain_dynamics 读取每个指标的最新记录。"""
     con = duckdb.connect(str(db_path), read_only=True)
-    rows = con.execute("""
+    rows = (
+        con.execute("""
         SELECT
             chain_id, chain_node, indicator_name, latest_value,
             prev_value, trend, percentile_1y, percentile_3y,
@@ -180,7 +230,10 @@ def load_chain_dynamics_latest(db_path: Path) -> list[dict]:
             PARTITION BY chain_id, chain_node, indicator_name
             ORDER BY as_of_date DESC
         ) = 1
-    """).fetchdf().to_dict("records")
+    """)
+        .fetchdf()
+        .to_dict("records")
+    )
     con.close()
     return rows
 
@@ -192,9 +245,7 @@ def load_breadth_data(date_str: str) -> dict[str, tuple[int, int]]:
         return {}
 
     fund_con = duckdb.connect(str(FUNDAMENTAL_DB), read_only=True)
-    ifind_df = fund_con.execute(
-        "SELECT stock_code, sw_l1 FROM ifind_industry_chain_profile"
-    ).fetchdf()
+    ifind_df = fund_con.execute("SELECT stock_code, sw_l1 FROM ifind_industry_chain_profile").fetchdf()
     fund_con.close()
 
     cache_con = duckdb.connect(str(cache_db), read_only=True)
@@ -219,6 +270,7 @@ def load_breadth_data(date_str: str) -> dict[str, tuple[int, int]]:
 
 
 # ── 评分计算 ──────────────────────────────────────────
+
 
 def compute_price_score(chain_rows: list[dict]) -> float | None:
     """基于趋势和分位数综合计算价格分（0-10）。"""
@@ -320,46 +372,47 @@ def build_industry_position(
         # price_score 为 None 时取中性 5.0
         effective_price = price_score if price_score is not None else 5.0
         prosperity_score = round(
-            max(0.0, min(10.0,
-                0.40 * effective_price + 0.35 * etf_score + 0.25 * breadth_score
-            )), 2
+            max(0.0, min(10.0, 0.40 * effective_price + 0.35 * etf_score + 0.25 * breadth_score)), 2
         )
 
         rating = map_rating(prosperity_score)
         chain_position = derive_chain_position(sw_l1)
         chain_ids = derive_chain_ids(sw_l1)
 
-        results.append({
-            "sw_l1": sw_l1,
-            "chain_position": chain_position,
-            "chain_ids": json.dumps(chain_ids, ensure_ascii=False) if chain_ids else None,
-            "prosperity_score": prosperity_score,
-            "prosperity_prev": None,
-            "prosperity_change": None,
-            "rating": rating,
-            "rating_prev": None,
-            "rating_change": None,
-            "evidence_summary": f"price={price_score}, etf={etf_score}, breadth={breadth_score}",
-            "upstream_score": None,
-            "midstream_score": None,
-            "downstream_score": None,
-            "policy_support": None,
-            "etf_symbol": etf_symbol,
-            "etf_ef_count": etf_count,
-            "dynamic_indicator_count": len(rows),
-            "dynamic_event_count": 0,
-            "source_vendor": "Hermass_Phase2",
-            "as_of_date": as_of_date,
-            "collected_at": collected_at,
-            "_price_score": price_score,
-            "_etf_score": etf_score,
-            "_breadth_score": breadth_score,
-        })
+        results.append(
+            {
+                "sw_l1": sw_l1,
+                "chain_position": chain_position,
+                "chain_ids": json.dumps(chain_ids, ensure_ascii=False) if chain_ids else None,
+                "prosperity_score": prosperity_score,
+                "prosperity_prev": None,
+                "prosperity_change": None,
+                "rating": rating,
+                "rating_prev": None,
+                "rating_change": None,
+                "evidence_summary": f"price={price_score}, etf={etf_score}, breadth={breadth_score}",
+                "upstream_score": None,
+                "midstream_score": None,
+                "downstream_score": None,
+                "policy_support": None,
+                "etf_symbol": etf_symbol,
+                "etf_ef_count": etf_count,
+                "dynamic_indicator_count": len(rows),
+                "dynamic_event_count": 0,
+                "source_vendor": "Hermass_Phase2",
+                "as_of_date": as_of_date,
+                "collected_at": collected_at,
+                "_price_score": price_score,
+                "_etf_score": etf_score,
+                "_breadth_score": breadth_score,
+            }
+        )
 
     return results
 
 
 # ── 数据库写入 ──────────────────────────────────────────
+
 
 def write_industry_position(records: list[dict], db_path: Path) -> None:
     con = duckdb.connect(str(db_path))
@@ -391,7 +444,8 @@ def write_industry_position(records: list[dict], db_path: Path) -> None:
     """)
 
     for rec in records:
-        con.execute("""
+        con.execute(
+            """
             INSERT OR REPLACE INTO industry_position (
                 sw_l1, chain_position, chain_ids, prosperity_score,
                 prosperity_prev, prosperity_change, rating, rating_prev,
@@ -400,14 +454,31 @@ def write_industry_position(records: list[dict], db_path: Path) -> None:
                 dynamic_indicator_count, dynamic_event_count, source_vendor,
                 as_of_date, collected_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            rec["sw_l1"], rec["chain_position"], rec["chain_ids"], rec["prosperity_score"],
-            rec["prosperity_prev"], rec["prosperity_change"], rec["rating"], rec["rating_prev"],
-            rec["rating_change"], rec["evidence_summary"], rec["upstream_score"], rec["midstream_score"],
-            rec["downstream_score"], rec["policy_support"], rec["etf_symbol"], rec["etf_ef_count"],
-            rec["dynamic_indicator_count"], rec["dynamic_event_count"], rec["source_vendor"],
-            rec["as_of_date"], rec["collected_at"],
-        ))
+        """,
+            (
+                rec["sw_l1"],
+                rec["chain_position"],
+                rec["chain_ids"],
+                rec["prosperity_score"],
+                rec["prosperity_prev"],
+                rec["prosperity_change"],
+                rec["rating"],
+                rec["rating_prev"],
+                rec["rating_change"],
+                rec["evidence_summary"],
+                rec["upstream_score"],
+                rec["midstream_score"],
+                rec["downstream_score"],
+                rec["policy_support"],
+                rec["etf_symbol"],
+                rec["etf_ef_count"],
+                rec["dynamic_indicator_count"],
+                rec["dynamic_event_count"],
+                rec["source_vendor"],
+                rec["as_of_date"],
+                rec["collected_at"],
+            ),
+        )
 
     con.close()
     print(f"[OK] 写入 {len(records)} 条记录到 {db_path}")
@@ -415,11 +486,12 @@ def write_industry_position(records: list[dict], db_path: Path) -> None:
 
 # ── 报告生成 ──────────────────────────────────────────
 
+
 def generate_report(records: list[dict], as_of_date: str) -> Path:
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     report_path = REPORT_DIR / f"industry_position_report_{as_of_date.replace('-', '')}.md"
 
-    sorted_records = sorted(records, key=lambda r: (r["prosperity_score"] or -1), reverse=True)
+    sorted_records = sorted(records, key=lambda r: r["prosperity_score"] or -1, reverse=True)
 
     rating_dist: dict[str, int] = {"high": 0, "medium": 0, "low": 0, "unknown": 0}
     for r in records:
@@ -442,9 +514,9 @@ def generate_report(records: list[dict], as_of_date: str) -> Path:
     ]
 
     for i, r in enumerate(sorted_records, 1):
-        ps = f"{r['_price_score']:.2f}" if r.get('_price_score') is not None else "-"
-        es = f"{r['_etf_score']:.2f}" if r.get('_etf_score') is not None else "-"
-        bs = f"{r['_breadth_score']:.2f}" if r.get('_breadth_score') is not None else "-"
+        ps = f"{r['_price_score']:.2f}" if r.get("_price_score") is not None else "-"
+        es = f"{r['_etf_score']:.2f}" if r.get("_etf_score") is not None else "-"
+        bs = f"{r['_breadth_score']:.2f}" if r.get("_breadth_score") is not None else "-"
         lines.append(
             f"| {i} | {r['sw_l1']} | {r['chain_position']} | "
             f"{r['prosperity_score'] if r['prosperity_score'] is not None else '-'} | "
@@ -452,27 +524,31 @@ def generate_report(records: list[dict], as_of_date: str) -> Path:
             f"{r['dynamic_indicator_count']} | {r['etf_symbol'] or '-'} |"
         )
 
-    lines.extend([
-        "",
-        "## 2. 评级分布",
-        "",
-        f"- **high** (景气): {rating_dist['high']} 个行业",
-        f"- **medium** (中性): {rating_dist['medium']} 个行业",
-        f"- **low** (低迷): {rating_dist['low']} 个行业",
-        f"- **unknown** (未知): {rating_dist['unknown']} 个行业",
-        "",
-        "## 3. 数据覆盖情况",
-        "",
-        f"- **有产业链价格数据覆盖**: {len(covered)} 个行业",
-        f"- **无产业链价格数据覆盖**: {len(uncovered)} 个行业",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "## 2. 评级分布",
+            "",
+            f"- **high** (景气): {rating_dist['high']} 个行业",
+            f"- **medium** (中性): {rating_dist['medium']} 个行业",
+            f"- **low** (低迷): {rating_dist['low']} 个行业",
+            f"- **unknown** (未知): {rating_dist['unknown']} 个行业",
+            "",
+            "## 3. 数据覆盖情况",
+            "",
+            f"- **有产业链价格数据覆盖**: {len(covered)} 个行业",
+            f"- **无产业链价格数据覆盖**: {len(uncovered)} 个行业",
+            "",
+        ]
+    )
 
     if covered:
         lines.append("### 有数据覆盖的行业")
         lines.append("")
         for r in covered:
-            lines.append(f"- {r['sw_l1']} ({r['chain_position']}) — 指标数: {r['dynamic_indicator_count']}, 评分: {r['prosperity_score']}")
+            lines.append(
+                f"- {r['sw_l1']} ({r['chain_position']}) — 指标数: {r['dynamic_indicator_count']}, 评分: {r['prosperity_score']}"
+            )
         lines.append("")
 
     if uncovered:
@@ -482,20 +558,22 @@ def generate_report(records: list[dict], as_of_date: str) -> Path:
             lines.append(f"- {r['sw_l1']} ({r['chain_position']})")
         lines.append("")
 
-    lines.extend([
-        "## 4. 评分方法说明",
-        "",
-        "```",
-        "prosperity_score = 0.40 * price_score + 0.35 * etf_score + 0.25 * breadth_score",
-        "```",
-        "",
-        "- **价格分**: chain_dynamics 期货价格数据的趋势(0-10)和分位数(0-10)加权，权重 60%/40%",
-        "- **ETF分**: 行业 ETF 的 ef_count × 2.5 + 综合 state score 映射(0-2.5)",
-        "- **覆盖分**: 该行业 EF 股票占比 × 100，上限 10 分（来自 state_ef_daily × ifind_profile）",
-        "",
-        "---",
-        "*报告由 build_industry_position.py 自动生成*",
-    ])
+    lines.extend(
+        [
+            "## 4. 评分方法说明",
+            "",
+            "```",
+            "prosperity_score = 0.40 * price_score + 0.35 * etf_score + 0.25 * breadth_score",
+            "```",
+            "",
+            "- **价格分**: chain_dynamics 期货价格数据的趋势(0-10)和分位数(0-10)加权，权重 60%/40%",
+            "- **ETF分**: 行业 ETF 的 ef_count × 2.5 + 综合 state score 映射(0-2.5)",
+            "- **覆盖分**: 该行业 EF 股票占比 × 100，上限 10 分（来自 state_ef_daily × ifind_profile）",
+            "",
+            "---",
+            "*报告由 build_industry_position.py 自动生成*",
+        ]
+    )
 
     report_path.write_text("\n".join(lines), encoding="utf-8")
     print(f"[OK] 报告已生成: {report_path}")
@@ -503,6 +581,7 @@ def generate_report(records: list[dict], as_of_date: str) -> Path:
 
 
 # ── CLI ───────────────────────────────────────────────
+
 
 def infer_date() -> str:
     """从 chain_dynamics 推断最新可用日期，否则返回今天。"""

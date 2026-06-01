@@ -5,6 +5,7 @@ Adapts A-share strategy signal modules (backtest/strategy_signals/) to work
 with US stock data from us_foundation.duckdb. Reuses all strategy logic;
 only data format mapping differs.
 """
+
 from __future__ import annotations
 
 import sys
@@ -164,7 +165,7 @@ def build_indicator_context(
             recent = closes[-period:]
             mean = sum(recent) / period
             variance = sum((x - mean) ** 2 for x in recent) / period
-            std = variance ** 0.5
+            std = variance**0.5
             return mean + std_mult * std
 
         # ATR calculation (simplified)
@@ -175,7 +176,7 @@ def build_indicator_context(
             for i in range(-period, 0):
                 h = bars[i][2]
                 l = bars[i][3]
-                pc = bars[i-1][4]
+                pc = bars[i - 1][4]
                 tr = max(h - l, abs(h - pc), abs(l - pc))
                 trs.append(tr)
             return sum(trs) / len(trs)
@@ -206,7 +207,7 @@ def build_indicator_context(
             for i in range(-period, 0):
                 h = bars_slice[i][2]
                 l = bars_slice[i][3]
-                pc = bars_slice[i-1][4]
+                pc = bars_slice[i - 1][4]
                 tr = max(h - l, abs(h - pc), abs(l - pc))
                 trs.append(tr)
             return sum(trs) / len(trs)
@@ -238,9 +239,9 @@ def build_indicator_context(
 
         state_dict = {}
         if state:
-            state_cols = [desc[0] for desc in con.execute(
-                "SELECT * FROM d1_perspective_state WHERE 1=0"
-            ).description]
+            state_cols = [
+                desc[0] for desc in con.execute("SELECT * FROM d1_perspective_state WHERE 1=0").description
+            ]
             state_dict = dict(zip(state_cols, state))
 
         # Close 30 days ago (for BB momentum filter)
@@ -323,23 +324,25 @@ def compute_us_signals_for_date(
                 continue
             strategy_id, signal_type, signal_name = meta
 
-            signals.append({
-                "signal_date": target_date,
-                "stock_code": stock_code,
-                "strategy_id": strategy_id,
-                "signal_type": signal_type,
-                "signal_name": signal_name,
-                "signal_strength": float(strength or 0),
-                "raw_signal": raw_signal,
-                "source_module": source_module,
-                "ef_count": ef,
-                "mn1_state_hex": row.get("mn1_state_hex"),
-                "w1_state_hex": row.get("w1_state_hex"),
-                "d1_state_hex": row.get("d1_state_hex"),
-                "mn1_state_score": row.get("mn1_state_score"),
-                "w1_state_score": row.get("w1_state_score"),
-                "d1_state_score": row.get("d1_state_score"),
-            })
+            signals.append(
+                {
+                    "signal_date": target_date,
+                    "stock_code": stock_code,
+                    "strategy_id": strategy_id,
+                    "signal_type": signal_type,
+                    "signal_name": signal_name,
+                    "signal_strength": float(strength or 0),
+                    "raw_signal": raw_signal,
+                    "source_module": source_module,
+                    "ef_count": ef,
+                    "mn1_state_hex": row.get("mn1_state_hex"),
+                    "w1_state_hex": row.get("w1_state_hex"),
+                    "d1_state_hex": row.get("d1_state_hex"),
+                    "mn1_state_score": row.get("mn1_state_score"),
+                    "w1_state_score": row.get("w1_state_score"),
+                    "d1_state_score": row.get("d1_state_score"),
+                }
+            )
 
     return signals
 
@@ -347,6 +350,7 @@ def compute_us_signals_for_date(
 # ---------------------------------------------------------------------------
 # 核心模块过滤 — 生命周期推断 + Environment Fit + 空间评估
 # ---------------------------------------------------------------------------
+
 
 def compute_us_lifecycle_stage(state_row: dict[str, Any]) -> tuple[str, list[str]]:
     """基于美股 d1_perspective_state 现有字段推断生命周期阶段。
@@ -538,39 +542,42 @@ def compute_enriched_us_signals_for_date(
                 foundation_db, stock_code, target_date, close, signal_name, strategy_id
             )
 
-            signals.append({
-                "signal_date": target_date,
-                "stock_code": stock_code,
-                "strategy_id": strategy_id,
-                "signal_type": signal_type,
-                "signal_name": signal_name,
-                "signal_strength": float(strength or 0),
-                "raw_signal": raw_signal,
-                "source_module": source_module,
-                "ef_count": ef,
-                "mn1_state_hex": row.get("mn1_state_hex"),
-                "w1_state_hex": row.get("w1_state_hex"),
-                "d1_state_hex": row.get("d1_state_hex"),
-                "mn1_state_score": row.get("mn1_state_score"),
-                "w1_state_score": row.get("w1_state_score"),
-                "d1_state_score": row.get("d1_state_score"),
-                # ── 新增核心字段 ──
-                "lifecycle_stage": lifecycle_stage,
-                "lifecycle_reasons": ";".join(lifecycle_reasons),
-                "fit_level": fit_level,
-                "fit_reasons": fit_reasons,
-                "market_phase": market_phase,
-                "rr_ratio": rr_data_strategy.get("rr_ratio"),
-                "rr_upside_pct": rr_data_strategy.get("upside_pct"),
-                "rr_downside_pct": rr_data_strategy.get("downside_pct"),
-                "rr_ready": rr_data_strategy.get("rr_ready"),
-            })
+            signals.append(
+                {
+                    "signal_date": target_date,
+                    "stock_code": stock_code,
+                    "strategy_id": strategy_id,
+                    "signal_type": signal_type,
+                    "signal_name": signal_name,
+                    "signal_strength": float(strength or 0),
+                    "raw_signal": raw_signal,
+                    "source_module": source_module,
+                    "ef_count": ef,
+                    "mn1_state_hex": row.get("mn1_state_hex"),
+                    "w1_state_hex": row.get("w1_state_hex"),
+                    "d1_state_hex": row.get("d1_state_hex"),
+                    "mn1_state_score": row.get("mn1_state_score"),
+                    "w1_state_score": row.get("w1_state_score"),
+                    "d1_state_score": row.get("d1_state_score"),
+                    # ── 新增核心字段 ──
+                    "lifecycle_stage": lifecycle_stage,
+                    "lifecycle_reasons": ";".join(lifecycle_reasons),
+                    "fit_level": fit_level,
+                    "fit_reasons": fit_reasons,
+                    "market_phase": market_phase,
+                    "rr_ratio": rr_data_strategy.get("rr_ratio"),
+                    "rr_upside_pct": rr_data_strategy.get("upside_pct"),
+                    "rr_downside_pct": rr_data_strategy.get("downside_pct"),
+                    "rr_ready": rr_data_strategy.get("rr_ready"),
+                }
+            )
 
     return signals
 
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--date", required=True)
     parser.add_argument("--db", default=str(US_FOUNDATION_DB))
@@ -584,6 +591,7 @@ if __name__ == "__main__":
         sigs = compute_us_signals_for_date(Path(args.db), args.date, args.min_ef)
 
     import json
+
     out = {
         "date": args.date,
         "signal_count": len(sigs),

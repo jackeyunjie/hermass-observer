@@ -40,7 +40,14 @@ def state_hex(value: int | None) -> str:
 
 def decode_state(value: int | None) -> dict[str, Any]:
     if value is None:
-        return {"hex": "NA", "direction": None, "base": None, "trend": None, "position": None, "volatility": None}
+        return {
+            "hex": "NA",
+            "direction": None,
+            "base": None,
+            "trend": None,
+            "position": None,
+            "volatility": None,
+        }
     magnitude = abs(value)
     base = 8 if magnitude >= 8 else 0
     trend = 1 if magnitude & 4 else 0
@@ -61,7 +68,15 @@ def decode_state(value: int | None) -> dict[str, Any]:
 def compute_metrics(returns: list[float]) -> dict[str, Any]:
     n = len(returns)
     if n == 0:
-        return {"n": 0, "mean": None, "win_rate": None, "payoff_ratio": None, "std": None, "t_stat": None, "sharpe": None}
+        return {
+            "n": 0,
+            "mean": None,
+            "win_rate": None,
+            "payoff_ratio": None,
+            "std": None,
+            "t_stat": None,
+            "sharpe": None,
+        }
     mean = statistics.fmean(returns)
     wins = [r for r in returns if r > 0]
     losses = [r for r in returns if r < 0]
@@ -95,29 +110,38 @@ def load_weekly_states(cache_dir: Path) -> list[dict[str, Any]]:
         week_end = data.get("week_end_date")
         stocks = data.get("data") or data.get("stocks", [])
         for s in stocks:
-            records.append({
-                "iso_week": iso_week,
-                "week_start_date": s.get("week_start_date") or week_start,
-                "week_end_date": s.get("week_end_date") or week_end,
-                "stock_code": s["stock_code"],
-                "w1_state_score": s.get("w1_state") if "w1_state" in s else s.get("w1_state_score"),
-                "w1_state_hex": s.get("w1_state_hex"),
-                "w1_base": s.get("w1_base"),
-                "w1_trend_bit": s.get("w1_trend") if isinstance(s.get("w1_trend"), int) else s.get("w1_trend_bit"),
-                "w1_position_bit": s.get("w1_position") if isinstance(s.get("w1_position"), int) else s.get("w1_position_bit"),
-                "w1_volatility_bit": s.get("w1_volatility") if isinstance(s.get("w1_volatility"), int) else s.get("w1_volatility_bit"),
-                "w1_close": s.get("w1_close"),
-            })
+            records.append(
+                {
+                    "iso_week": iso_week,
+                    "week_start_date": s.get("week_start_date") or week_start,
+                    "week_end_date": s.get("week_end_date") or week_end,
+                    "stock_code": s["stock_code"],
+                    "w1_state_score": s.get("w1_state") if "w1_state" in s else s.get("w1_state_score"),
+                    "w1_state_hex": s.get("w1_state_hex"),
+                    "w1_base": s.get("w1_base"),
+                    "w1_trend_bit": s.get("w1_trend")
+                    if isinstance(s.get("w1_trend"), int)
+                    else s.get("w1_trend_bit"),
+                    "w1_position_bit": s.get("w1_position")
+                    if isinstance(s.get("w1_position"), int)
+                    else s.get("w1_position_bit"),
+                    "w1_volatility_bit": s.get("w1_volatility")
+                    if isinstance(s.get("w1_volatility"), int)
+                    else s.get("w1_volatility_bit"),
+                    "w1_close": s.get("w1_close"),
+                }
+            )
     return records
 
 
 def build_w1_transition_matrix(records: list[dict[str, Any]], weekly_db: Path) -> dict[str, Any]:
     """Build W1→W1 transition matrix with forward weekly returns."""
     con = duckdb.connect(":memory:")
-    con.execute(f"ATTACH '{str(weekly_db).replace(chr(39), chr(39)+chr(39))}' AS wdb (READ_ONLY)")
+    con.execute(f"ATTACH '{str(weekly_db).replace(chr(39), chr(39) + chr(39))}' AS wdb (READ_ONLY)")
 
     # Write temp JSON and load into DuckDB
     import tempfile
+
     temp_json = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8")
     json.dump(records, temp_json, ensure_ascii=False)
     temp_json.close()
@@ -136,15 +160,17 @@ def build_w1_transition_matrix(records: list[dict[str, Any]], weekly_db: Path) -
                 w1_position_bit,
                 w1_volatility_bit,
                 w1_close
-            FROM read_json_auto('{temp_json.name.replace(chr(39), chr(39)+chr(39))}')
+            FROM read_json_auto('{temp_json.name.replace(chr(39), chr(39) + chr(39))}')
         )
     """)
 
     # Build transitions with forward returns
-    leads = ", ".join([
-        f"LEAD(w1_close, {fw}) OVER (PARTITION BY stock_code ORDER BY week_start_date) AS close_{fw}w"
-        for fw in FORWARD_WEEKS
-    ])
+    leads = ", ".join(
+        [
+            f"LEAD(w1_close, {fw}) OVER (PARTITION BY stock_code ORDER BY week_start_date) AS close_{fw}w"
+            for fw in FORWARD_WEEKS
+        ]
+    )
 
     sql = f"""
         WITH transitions AS (
@@ -203,17 +229,19 @@ def build_w1_transition_matrix(records: list[dict[str, Any]], weekly_db: Path) -
     transition_stats: list[dict[str, Any]] = []
     for (prev, curr), data in by_transition.items():
         stats = {f"excess_{fw}w": compute_metrics(data[f"excess_{fw}w"]) for fw in FORWARD_WEEKS}
-        transition_stats.append({
-            "prev_state": prev,
-            "curr_state": curr,
-            "prev_hex": state_hex(prev),
-            "curr_hex": state_hex(curr),
-            "prev_decoded": decode_state(prev),
-            "curr_decoded": decode_state(curr),
-            "sample_size": stats["excess_1w"]["n"],
-            "sample_adequate": stats["excess_1w"]["n"] >= MIN_SAMPLE_SIZE,
-            **stats,
-        })
+        transition_stats.append(
+            {
+                "prev_state": prev,
+                "curr_state": curr,
+                "prev_hex": state_hex(prev),
+                "curr_hex": state_hex(curr),
+                "prev_decoded": decode_state(prev),
+                "curr_decoded": decode_state(curr),
+                "sample_size": stats["excess_1w"]["n"],
+                "sample_adequate": stats["excess_1w"]["n"] >= MIN_SAMPLE_SIZE,
+                **stats,
+            }
+        )
 
     transition_stats.sort(key=lambda x: abs(x["excess_4w"]["mean"] or 0.0), reverse=True)
 
@@ -235,11 +263,12 @@ def build_three_period_transitions(
         return {"error": "Foundation DB not available for three-period analysis"}
 
     con = duckdb.connect(":memory:")
-    con.execute(f"ATTACH '{str(weekly_db).replace(chr(39), chr(39)+chr(39))}' AS wdb (READ_ONLY)")
-    con.execute(f"ATTACH '{str(foundation_db).replace(chr(39), chr(39)+chr(39))}' AS fdb (READ_ONLY)")
+    con.execute(f"ATTACH '{str(weekly_db).replace(chr(39), chr(39) + chr(39))}' AS wdb (READ_ONLY)")
+    con.execute(f"ATTACH '{str(foundation_db).replace(chr(39), chr(39) + chr(39))}' AS fdb (READ_ONLY)")
 
     # Write temp JSON and load into DuckDB
     import tempfile
+
     temp_json = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8")
     json.dump(records, temp_json, ensure_ascii=False)
     temp_json.close()
@@ -258,7 +287,7 @@ def build_three_period_transitions(
                 w1_position_bit,
                 w1_volatility_bit,
                 w1_close
-            FROM read_json_auto('{temp_json.name.replace(chr(39), chr(39)+chr(39))}')
+            FROM read_json_auto('{temp_json.name.replace(chr(39), chr(39) + chr(39))}')
         )
     """)
 
@@ -356,7 +385,10 @@ def build_three_period_transitions(
         """
 
         rows = con.execute(sql).fetchall()
-        returns = {f"excess_{fw}w": [float(r[i]) for r in rows if r[i] is not None] for i, fw in enumerate(FORWARD_WEEKS)}
+        returns = {
+            f"excess_{fw}w": [float(r[i]) for r in rows if r[i] is not None]
+            for i, fw in enumerate(FORWARD_WEEKS)
+        }
 
         scenario_results[scenario_name] = {
             "event_count": len(rows),
@@ -383,14 +415,26 @@ def build_hotspots(transition_matrix: dict[str, Any]) -> dict[str, Any]:
     best_sharpe = sorted(adequate, key=lambda x: x["excess_4w"]["sharpe"] or -999, reverse=True)[:20]
 
     # By bit component
-    base_expansion = [t for t in adequate if t["prev_decoded"]["base"] == 0 and t["curr_decoded"]["base"] == 8]
-    base_contraction = [t for t in adequate if t["prev_decoded"]["base"] == 8 and t["curr_decoded"]["base"] == 0]
+    base_expansion = [
+        t for t in adequate if t["prev_decoded"]["base"] == 0 and t["curr_decoded"]["base"] == 8
+    ]
+    base_contraction = [
+        t for t in adequate if t["prev_decoded"]["base"] == 8 and t["curr_decoded"]["base"] == 0
+    ]
     trend_on = [t for t in adequate if t["prev_decoded"]["trend"] == 0 and t["curr_decoded"]["trend"] == 1]
     trend_off = [t for t in adequate if t["prev_decoded"]["trend"] == 1 and t["curr_decoded"]["trend"] == 0]
-    pos_breakout = [t for t in adequate if t["prev_decoded"]["position"] == 0 and t["curr_decoded"]["position"] == 1]
-    pos_retrace = [t for t in adequate if t["prev_decoded"]["position"] == 1 and t["curr_decoded"]["position"] == 0]
-    vol_on = [t for t in adequate if t["prev_decoded"]["volatility"] == 0 and t["curr_decoded"]["volatility"] == 1]
-    vol_off = [t for t in adequate if t["prev_decoded"]["volatility"] == 1 and t["curr_decoded"]["volatility"] == 0]
+    pos_breakout = [
+        t for t in adequate if t["prev_decoded"]["position"] == 0 and t["curr_decoded"]["position"] == 1
+    ]
+    pos_retrace = [
+        t for t in adequate if t["prev_decoded"]["position"] == 1 and t["curr_decoded"]["position"] == 0
+    ]
+    vol_on = [
+        t for t in adequate if t["prev_decoded"]["volatility"] == 0 and t["curr_decoded"]["volatility"] == 1
+    ]
+    vol_off = [
+        t for t in adequate if t["prev_decoded"]["volatility"] == 1 and t["curr_decoded"]["volatility"] == 0
+    ]
 
     def avg_4w(tlist: list[dict]) -> float:
         if not tlist:
@@ -403,11 +447,20 @@ def build_hotspots(transition_matrix: dict[str, Any]) -> dict[str, Any]:
         "lowest_4w_return": lowest_return,
         "best_sharpe": best_sharpe,
         "component_summary": {
-            "base_expansion": {"count": len(base_expansion), "avg_4w_excess": round(avg_4w(base_expansion), 6)},
-            "base_contraction": {"count": len(base_contraction), "avg_4w_excess": round(avg_4w(base_contraction), 6)},
+            "base_expansion": {
+                "count": len(base_expansion),
+                "avg_4w_excess": round(avg_4w(base_expansion), 6),
+            },
+            "base_contraction": {
+                "count": len(base_contraction),
+                "avg_4w_excess": round(avg_4w(base_contraction), 6),
+            },
             "trend_on": {"count": len(trend_on), "avg_4w_excess": round(avg_4w(trend_on), 6)},
             "trend_off": {"count": len(trend_off), "avg_4w_excess": round(avg_4w(trend_off), 6)},
-            "position_breakout": {"count": len(pos_breakout), "avg_4w_excess": round(avg_4w(pos_breakout), 6)},
+            "position_breakout": {
+                "count": len(pos_breakout),
+                "avg_4w_excess": round(avg_4w(pos_breakout), 6),
+            },
             "position_retrace": {"count": len(pos_retrace), "avg_4w_excess": round(avg_4w(pos_retrace), 6)},
             "volatility_on": {"count": len(vol_on), "avg_4w_excess": round(avg_4w(vol_on), 6)},
             "volatility_off": {"count": len(vol_off), "avg_4w_excess": round(avg_4w(vol_off), 6)},
@@ -425,7 +478,7 @@ def generate_report(
 
 > 基于原生 W1 State（真实周线收盘价计算）  
 > 生成时间：{datetime.now(timezone.utc).isoformat()}  
-> 样本范围：{len([t for t in transition_matrix['transitions'] if t['sample_adequate']])} 种转换（样本≥{MIN_SAMPLE_SIZE}）
+> 样本范围：{len([t for t in transition_matrix["transitions"] if t["sample_adequate"]])} 种转换（样本≥{MIN_SAMPLE_SIZE}）
 
 ---
 
@@ -433,9 +486,9 @@ def generate_report(
 
 | 指标 | 数值 |
 |------|------|
-| 观察到的转换类型 | {transition_matrix['total_transitions_observed']:,} |
-| 总转换事件 | {transition_matrix['total_transition_events']:,} |
-| 样本充足（≥{MIN_SAMPLE_SIZE}）的转换 | {len([t for t in transition_matrix['transitions'] if t['sample_adequate']]):,} |
+| 观察到的转换类型 | {transition_matrix["total_transitions_observed"]:,} |
+| 总转换事件 | {transition_matrix["total_transition_events"]:,} |
+| 样本充足（≥{MIN_SAMPLE_SIZE}）的转换 | {len([t for t in transition_matrix["transitions"] if t["sample_adequate"]]):,} |
 
 ---
 
@@ -530,37 +583,53 @@ def generate_report(
     # Best single transition
     best = hotspots["highest_4w_return"][0] if hotspots["highest_4w_return"] else None
     if best and best["excess_4w"]["mean"] and best["excess_4w"]["mean"] > 0.05:
-        insights.append(f"1. **最强转换**：`{best['prev_hex']} → {best['curr_hex']}`，4周平均超额收益 {best['excess_4w']['mean']*100:.2f}%，胜率 {best['excess_4w']['win_rate']*100:.1f}%，样本 {best['sample_size']:,} 个。")
+        insights.append(
+            f"1. **最强转换**：`{best['prev_hex']} → {best['curr_hex']}`，4周平均超额收益 {best['excess_4w']['mean'] * 100:.2f}%，胜率 {best['excess_4w']['win_rate'] * 100:.1f}%，样本 {best['sample_size']:,} 个。"
+        )
 
     worst = hotspots["lowest_4w_return"][0] if hotspots["lowest_4w_return"] else None
     if worst and worst["excess_4w"]["mean"] and worst["excess_4w"]["mean"] < -0.05:
-        insights.append(f"2. **最弱转换**：`{worst['prev_hex']} → {worst['curr_hex']}`，4周平均超额收益 {worst['excess_4w']['mean']*100:.2f}%，胜率 {worst['excess_4w']['win_rate']*100:.1f}%，样本 {worst['sample_size']:,} 个。")
+        insights.append(
+            f"2. **最弱转换**：`{worst['prev_hex']} → {worst['curr_hex']}`，4周平均超额收益 {worst['excess_4w']['mean'] * 100:.2f}%，胜率 {worst['excess_4w']['win_rate'] * 100:.1f}%，样本 {worst['sample_size']:,} 个。"
+        )
 
     # Component insights
     be = comp["base_expansion"]["avg_4w_excess"]
     bc = comp["base_contraction"]["avg_4w_excess"]
     if be > bc:
-        insights.append(f"3. **Base切换**：收缩→扩张的平均4周超额（{be*100:.2f}%）优于扩张→收缩（{bc*100:.2f}%），说明收缩后释放通常带来正向收益。")
+        insights.append(
+            f"3. **Base切换**：收缩→扩张的平均4周超额（{be * 100:.2f}%）优于扩张→收缩（{bc * 100:.2f}%），说明收缩后释放通常带来正向收益。"
+        )
     else:
-        insights.append(f"3. **Base切换**：扩张→收缩的平均4周超额（{bc*100:.2f}%）优于收缩→扩张（{be*100:.2f}%），说明趋势延续更重要。")
+        insights.append(
+            f"3. **Base切换**：扩张→收缩的平均4周超额（{bc * 100:.2f}%）优于收缩→扩张（{be * 100:.2f}%），说明趋势延续更重要。"
+        )
 
     po = comp["position_breakout"]["avg_4w_excess"]
     pr = comp["position_retrace"]["avg_4w_excess"]
     if po > pr:
-        insights.append(f"4. **Position切换**：突破SR的平均4周超额（{po*100:.2f}%）优于退回区间（{pr*100:.2f}%），确认突破有正向动量。")
+        insights.append(
+            f"4. **Position切换**：突破SR的平均4周超额（{po * 100:.2f}%）优于退回区间（{pr * 100:.2f}%），确认突破有正向动量。"
+        )
     else:
-        insights.append(f"4. **Position切换**：退回SR区间的平均4周超额（{pr*100:.2f}%）优于突破（{po*100:.2f}%），说明假突破风险较高。")
+        insights.append(
+            f"4. **Position切换**：退回SR区间的平均4周超额（{pr * 100:.2f}%）优于突破（{po * 100:.2f}%），说明假突破风险较高。"
+        )
 
     # Three period insights
     all_enter = three_period.get("all_three_enter_ef")
     if all_enter and all_enter.get("excess_4w", {}).get("mean"):
         v = all_enter["excess_4w"]["mean"]
-        insights.append(f"5. **三周期EF共振**：当 MN1/W1/D1 同时进入 E/F 时，4周平均超额收益为 {v*100:.2f}%（事件数 {all_enter['excess_4w']['n']:,}）。")
+        insights.append(
+            f"5. **三周期EF共振**：当 MN1/W1/D1 同时进入 E/F 时，4周平均超额收益为 {v * 100:.2f}%（事件数 {all_enter['excess_4w']['n']:,}）。"
+        )
 
     all_exit = three_period.get("all_three_exit_ef")
     if all_exit and all_exit.get("excess_4w", {}).get("mean"):
         v = all_exit["excess_4w"]["mean"]
-        insights.append(f"6. **三周期EF退出**：当 MN1/W1/D1 同时退出 E/F 时，4周平均超额收益为 {v*100:.2f}%（事件数 {all_exit['excess_4w']['n']:,}）。")
+        insights.append(
+            f"6. **三周期EF退出**：当 MN1/W1/D1 同时退出 E/F 时，4周平均超额收益为 {v * 100:.2f}%（事件数 {all_exit['excess_4w']['n']:,}）。"
+        )
 
     for insight in insights:
         md += insight + "\n\n"
@@ -584,7 +653,7 @@ def generate_report(
 def fmt_pct(val: float | None) -> str:
     if val is None:
         return "-"
-    return f"{val*100:+.2f}%"
+    return f"{val * 100:+.2f}%"
 
 
 def main() -> None:
@@ -609,7 +678,9 @@ def main() -> None:
 
     print("Building W1 transition matrix...")
     transition_matrix = build_w1_transition_matrix(records, args.weekly_db)
-    print(f"Observed {transition_matrix['total_transitions_observed']} transition types, {transition_matrix['total_transition_events']:,} events")
+    print(
+        f"Observed {transition_matrix['total_transitions_observed']} transition types, {transition_matrix['total_transition_events']:,} events"
+    )
 
     print("Analyzing hotspots...")
     hotspots = build_hotspots(transition_matrix)
@@ -620,12 +691,20 @@ def main() -> None:
     # Write JSON
     json_path = args.out_dir / "weekly_state_transition_analysis.json"
     json_path.parent.mkdir(parents=True, exist_ok=True)
-    json_path.write_text(json.dumps({
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "transition_matrix": transition_matrix,
-        "hotspots": hotspots,
-        "three_period": three_period,
-    }, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+    json_path.write_text(
+        json.dumps(
+            {
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "transition_matrix": transition_matrix,
+                "hotspots": hotspots,
+                "three_period": three_period,
+            },
+            ensure_ascii=False,
+            indent=2,
+            default=str,
+        ),
+        encoding="utf-8",
+    )
     print(f"JSON written to: {json_path}")
 
     # Write MD

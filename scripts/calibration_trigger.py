@@ -282,7 +282,9 @@ def check_trigger(date_str: str, config: dict[str, Any], strategy_id: str | None
 # ── Bootstrap CI (inline to avoid dependency issues) ────────────────────────
 
 
-def _bootstrap_ci(values: list[float], stat_fn: callable, n_bootstrap: int = 2000, seed: int = 42) -> tuple[float | None, float | None]:
+def _bootstrap_ci(
+    values: list[float], stat_fn: callable, n_bootstrap: int = 2000, seed: int = 42
+) -> tuple[float | None, float | None]:
     if len(values) < 5:
         return (None, None)
     rng = np.random.default_rng(seed)
@@ -293,7 +295,10 @@ def _bootstrap_ci(values: list[float], stat_fn: callable, n_bootstrap: int = 200
         sample = rng.choice(arr, size=n, replace=True)
         boot_stats[i] = stat_fn(sample)
     alpha = 0.025
-    return (float(np.percentile(boot_stats, alpha * 100)), float(np.percentile(boot_stats, (1.0 - alpha) * 100)))
+    return (
+        float(np.percentile(boot_stats, alpha * 100)),
+        float(np.percentile(boot_stats, (1.0 - alpha) * 100)),
+    )
 
 
 def _bootstrap_mean_ci(values: list[float], n_bootstrap: int = 2000) -> tuple[float | None, float | None]:
@@ -318,7 +323,9 @@ def _payoff_ratio(values: list[float]) -> float | None:
     return statistics.fmean(wins) / abs(loss_mean)
 
 
-def metric_row(key: str, samples: list[dict[str, Any]], window: int, n_bootstrap: int = 2000) -> dict[str, Any]:
+def metric_row(
+    key: str, samples: list[dict[str, Any]], window: int, n_bootstrap: int = 2000
+) -> dict[str, Any]:
     """Compute point estimates + 95% Bootstrap CI for a group of samples."""
     field = f"forward_excess_return_{window}d"
     values = [float(s[field]) for s in samples if s.get(field) is not None]
@@ -393,7 +400,9 @@ def find_earliest_observation(observations: list[dict[str, Any]]) -> str | None:
     return min(dates) if dates else None
 
 
-def build_run_card(date_str: str, config: dict[str, Any], observations: list[dict[str, Any]], fit_groups: dict[str, Any]) -> dict[str, Any]:
+def build_run_card(
+    date_str: str, config: dict[str, Any], observations: list[dict[str, Any]], fit_groups: dict[str, Any]
+) -> dict[str, Any]:
     """Build a concise run card for the calibration."""
     return {
         "date": date_str,
@@ -509,28 +518,38 @@ def write_calibration_report(date_str: str, calibration_result: dict[str, Any]) 
     for level in ["最佳适配", "适配", "弱适配", "待观察", "不适配"]:
         if level in calibration_result.get("fit_return_table", {}):
             r = calibration_result["fit_return_table"][level]
-            ci_mean = f"[{r.get('mean_excess_ci_lo') or 'N/A':.2%}, {r.get('mean_excess_ci_hi') or 'N/A':.2%}]" if r.get("mean_excess_ci_lo") is not None else "N/A"
-            ci_wr = f"[{r.get('win_rate_ci_lo') or 0:.1%}, {r.get('win_rate_ci_hi') or 0:.1%}]" if r.get("win_rate_ci_lo") is not None else "N/A"
-            t_stat_str = f"{r.get('t_stat'):.2f}" if r.get('t_stat') is not None else "N/A"
+            ci_mean = (
+                f"[{r.get('mean_excess_ci_lo') or 'N/A':.2%}, {r.get('mean_excess_ci_hi') or 'N/A':.2%}]"
+                if r.get("mean_excess_ci_lo") is not None
+                else "N/A"
+            )
+            ci_wr = (
+                f"[{r.get('win_rate_ci_lo') or 0:.1%}, {r.get('win_rate_ci_hi') or 0:.1%}]"
+                if r.get("win_rate_ci_lo") is not None
+                else "N/A"
+            )
+            t_stat_str = f"{r.get('t_stat'):.2f}" if r.get("t_stat") is not None else "N/A"
             lines.append(
                 f"| {level} | {r.get('n', 0)} | {r.get('mean_excess') or 0:.2%} | {ci_mean} | "
                 f"{r.get('win_rate') or 0:.1%} | {ci_wr} | {r.get('payoff_ratio') or 'N/A'} | {t_stat_str} |"
             )
 
-    lines.extend([
-        "",
-        "## 校准判定",
-        "",
-        f"- 适配度排序有效: {'是' if calibration_result['verdict']['fit_ordering_valid'] else '否'}",
-        f"- 总体判定: **{calibration_result['verdict']['overall']}**",
-        "",
-        "## 边界",
-        "",
-        "- 本报告为研究只读输出，不构成投资建议。",
-        "- 校准通过不代表策略\"有效\"，只代表适配度排序与历史收益方向一致。",
-        "- 任何规则变更仍需人工确认。",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "## 校准判定",
+            "",
+            f"- 适配度排序有效: {'是' if calibration_result['verdict']['fit_ordering_valid'] else '否'}",
+            f"- 总体判定: **{calibration_result['verdict']['overall']}**",
+            "",
+            "## 边界",
+            "",
+            "- 本报告为研究只读输出，不构成投资建议。",
+            '- 校准通过不代表策略"有效"，只代表适配度排序与历史收益方向一致。',
+            "- 任何规则变更仍需人工确认。",
+            "",
+        ]
+    )
 
     md_path.write_text("\n".join(lines), encoding="utf-8")
 
@@ -581,11 +600,13 @@ def apply_feedback(calibration_result: dict[str, Any], config: dict[str, Any]) -
         # 4. Update manifest
         manifest = load_json(MANIFEST_PATH) if MANIFEST_PATH.exists() else {}
         manifest["latest_calibration_date"] = date_str
-        manifest["calibrations"] = manifest.get("calibrations", []) + [{
-            "date": date_str,
-            "verdict": "pass",
-            "baseline_updated": True,
-        }]
+        manifest["calibrations"] = manifest.get("calibrations", []) + [
+            {
+                "date": date_str,
+                "verdict": "pass",
+                "baseline_updated": True,
+            }
+        ]
         save_json(MANIFEST_PATH, manifest)
 
         return {
@@ -620,7 +641,9 @@ def apply_feedback(calibration_result: dict[str, Any], config: dict[str, Any]) -
 # ── Main entry ──────────────────────────────────────────────────────────────
 
 
-def run(date_str: str, config_path: Path, force: bool = False, dry_run: bool = False, strategy: str = "all") -> dict[str, Any]:
+def run(
+    date_str: str, config_path: Path, force: bool = False, dry_run: bool = False, strategy: str = "all"
+) -> dict[str, Any]:
     """Main orchestration function."""
     config = load_config(config_path)
     strategy_id = None if strategy == "all" else strategy
@@ -678,12 +701,24 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Calibration trigger for forward observation ledger.")
     parser.add_argument("--date", required=True, help="Check date, e.g. 2026-05-27")
     parser.add_argument("--config", type=Path, default=CONFIG_PATH, help="Path to calibration_trigger.json")
-    parser.add_argument("--force", action="store_true", help="Force calibration regardless of trigger conditions")
-    parser.add_argument("--dry-run", action="store_true", help="Check conditions only, do not run calibration")
-    parser.add_argument("--strategy", default="all", help="Strategy to calibrate: all / vcp / ma2560 / bollinger_bandit")
+    parser.add_argument(
+        "--force", action="store_true", help="Force calibration regardless of trigger conditions"
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Check conditions only, do not run calibration"
+    )
+    parser.add_argument(
+        "--strategy", default="all", help="Strategy to calibrate: all / vcp / ma2560 / bollinger_bandit"
+    )
     args = parser.parse_args()
 
-    result = run(date_str=args.date, config_path=args.config, force=args.force, dry_run=args.dry_run, strategy=args.strategy)
+    result = run(
+        date_str=args.date,
+        config_path=args.config,
+        force=args.force,
+        dry_run=args.dry_run,
+        strategy=args.strategy,
+    )
     print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
     return 0
 

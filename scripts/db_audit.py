@@ -59,7 +59,7 @@ def db_summary(db_path: Path, con: duckdb.DuckDBPyConnection) -> dict:
             row_cnt = -1
 
         try:
-            col_cnt = con.execute(f'SELECT COUNT(*) FROM pragma_table_info(\'{tname}\')').fetchone()[0]
+            col_cnt = con.execute(f"SELECT COUNT(*) FROM pragma_table_info('{tname}')").fetchone()[0]
         except Exception:
             col_cnt = -1
 
@@ -73,14 +73,16 @@ def db_summary(db_path: Path, con: duckdb.DuckDBPyConnection) -> dict:
         except Exception:
             size_bytes = -1
 
-        table_info.append({
-            "table_name": tname,
-            "row_count": row_cnt,
-            "column_count": col_cnt,
-            "expected_pk": pk_info,
-            "estimated_size_bytes": size_bytes,
-            "estimated_size_mb": round(size_bytes / 1024 / 1024, 2) if size_bytes > 0 else None,
-        })
+        table_info.append(
+            {
+                "table_name": tname,
+                "row_count": row_cnt,
+                "column_count": col_cnt,
+                "expected_pk": pk_info,
+                "estimated_size_bytes": size_bytes,
+                "estimated_size_mb": round(size_bytes / 1024 / 1024, 2) if size_bytes > 0 else None,
+            }
+        )
         if row_cnt > 0:
             total_rows += row_cnt
 
@@ -102,12 +104,12 @@ def check_pk_unique(con: duckdb.DuckDBPyConnection, tname: str, pk_cols: list[st
     try:
         total = con.execute(f'SELECT COUNT(*) FROM "{tname}"').fetchone()[0]
         unique = con.execute(
-            f"SELECT COUNT(*) FROM (SELECT {cols} FROM \"{tname}\" GROUP BY {cols})"
+            f'SELECT COUNT(*) FROM (SELECT {cols} FROM "{tname}" GROUP BY {cols})'
         ).fetchone()[0]
         dup_count = total - unique
         if dup_count > 0:
             samples = con.execute(
-                f"SELECT {cols}, COUNT(*) as cnt FROM \"{tname}\" GROUP BY {cols} HAVING COUNT(*) > 1 ORDER BY cnt DESC LIMIT 5"
+                f'SELECT {cols}, COUNT(*) as cnt FROM "{tname}" GROUP BY {cols} HAVING COUNT(*) > 1 ORDER BY cnt DESC LIMIT 5'
             ).fetchall()
         else:
             samples = []
@@ -132,16 +134,19 @@ def check_cross_db_integrity(con_main: duckdb.DuckDBPyConnection, main_path: str
     """检查统一底座 vs 各源数据表的 stock_code 交集"""
     results = []
     try:
-        unified_codes = set(r[0] for r in con_main.execute(
-            "SELECT DISTINCT stock_code FROM unified_daily_snapshot WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM unified_daily_snapshot)"
-        ).fetchall())
+        unified_codes = set(
+            r[0]
+            for r in con_main.execute(
+                "SELECT DISTINCT stock_code FROM unified_daily_snapshot WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM unified_daily_snapshot)"
+            ).fetchall()
+        )
     except Exception:
         return [{"check": "unified_daily_snapshot", "error": "table not found"}]
 
     source_dbs = {
-        "p116_foundation_latest": str(
-            sorted(OUTPUT_DIR.glob("p116_foundation_*/p116_foundation.duckdb"))[-1]
-        ) if list(OUTPUT_DIR.glob("p116_foundation_*/p116_foundation.duckdb")) else None,
+        "p116_foundation_latest": str(sorted(OUTPUT_DIR.glob("p116_foundation_*/p116_foundation.duckdb"))[-1])
+        if list(OUTPUT_DIR.glob("p116_foundation_*/p116_foundation.duckdb"))
+        else None,
         "fundamental_evidence": str(OUTPUT_DIR / "fundamental" / "fundamental_evidence.duckdb"),
         "strategy_signals": str(OUTPUT_DIR / "strategy_signals" / "strategy_signals.duckdb"),
     }
@@ -153,33 +158,44 @@ def check_cross_db_integrity(con_main: duckdb.DuckDBPyConnection, main_path: str
         try:
             con_main.execute(f"ATTACH '{src_path}' AS _src_{label}")
             if label == "p116_foundation_latest":
-                src_codes = set(r[0] for r in con_main.execute(
-                    "SELECT DISTINCT stock_code FROM _src_p116_foundation_latest.d1_perspective_state WHERE state_date = (SELECT MAX(state_date) FROM _src_p116_foundation_latest.d1_perspective_state)"
-                ).fetchall())
+                src_codes = set(
+                    r[0]
+                    for r in con_main.execute(
+                        "SELECT DISTINCT stock_code FROM _src_p116_foundation_latest.d1_perspective_state WHERE state_date = (SELECT MAX(state_date) FROM _src_p116_foundation_latest.d1_perspective_state)"
+                    ).fetchall()
+                )
             elif label == "fundamental_evidence":
-                src_codes = set(r[0] for r in con_main.execute(
-                    "SELECT DISTINCT stock_code FROM _src_fundamental_evidence.fundamental_quality_score WHERE as_of_date = (SELECT MAX(as_of_date) FROM _src_fundamental_evidence.fundamental_quality_score)"
-                ).fetchall())
+                src_codes = set(
+                    r[0]
+                    for r in con_main.execute(
+                        "SELECT DISTINCT stock_code FROM _src_fundamental_evidence.fundamental_quality_score WHERE as_of_date = (SELECT MAX(as_of_date) FROM _src_fundamental_evidence.fundamental_quality_score)"
+                    ).fetchall()
+                )
             elif label == "strategy_signals":
-                src_codes = set(r[0] for r in con_main.execute(
-                    "SELECT DISTINCT stock_code FROM _src_strategy_signals.strategy_signal_ledger"
-                ).fetchall())
+                src_codes = set(
+                    r[0]
+                    for r in con_main.execute(
+                        "SELECT DISTINCT stock_code FROM _src_strategy_signals.strategy_signal_ledger"
+                    ).fetchall()
+                )
 
             common = unified_codes & src_codes
             unified_only = unified_codes - src_codes
             src_only = src_codes - unified_codes
 
-            results.append({
-                "source": label,
-                "unified_count": len(unified_codes),
-                "source_count": len(src_codes),
-                "common_count": len(common),
-                "only_in_unified": len(unified_only),
-                "only_in_source": len(src_only),
-                "coverage_pct": round(len(common) / len(unified_codes) * 100, 1) if unified_codes else 0,
-                "samples_only_in_unified": sorted(unified_only)[:5] if unified_only else [],
-                "samples_only_in_source": sorted(src_only)[:5] if src_only else [],
-            })
+            results.append(
+                {
+                    "source": label,
+                    "unified_count": len(unified_codes),
+                    "source_count": len(src_codes),
+                    "common_count": len(common),
+                    "only_in_unified": len(unified_only),
+                    "only_in_source": len(src_only),
+                    "coverage_pct": round(len(common) / len(unified_codes) * 100, 1) if unified_codes else 0,
+                    "samples_only_in_unified": sorted(unified_only)[:5] if unified_only else [],
+                    "samples_only_in_source": sorted(src_only)[:5] if src_only else [],
+                }
+            )
         except Exception as e:
             results.append({"source": label, "error": str(e)})
         finally:
@@ -198,7 +214,7 @@ def storage_efficiency(db_path: Path, con: duckdb.DuckDBPyConnection) -> list[di
     for (tname,) in tables:
         try:
             row_cnt = con.execute(f'SELECT COUNT(*) FROM "{tname}"').fetchone()[0]
-            col_cnt = con.execute(f'SELECT COUNT(*) FROM pragma_table_info(\'{tname}\')').fetchone()[0]
+            col_cnt = con.execute(f"SELECT COUNT(*) FROM pragma_table_info('{tname}')").fetchone()[0]
             disk_bytes = db_path.stat().st_size
             try:
                 est_bytes = con.execute(
@@ -210,18 +226,22 @@ def storage_efficiency(db_path: Path, con: duckdb.DuckDBPyConnection) -> list[di
 
             bytes_per_row = round(est_bytes / row_cnt, 1) if row_cnt > 0 else 0
 
-            results.append({
-                "table": tname,
-                "rows": row_cnt,
-                "cols": col_cnt,
-                "est_size_mb": round(est_bytes / 1024 / 1024, 2),
-                "bytes_per_row": bytes_per_row,
-                "efficiency_note": (
-                    "⚠️ 每行 > 500 bytes，可能含冗余宽列" if bytes_per_row > 500
-                    else "✅ 行列比合理" if bytes_per_row < 500 and bytes_per_row > 0
-                    else "—"
-                ),
-            })
+            results.append(
+                {
+                    "table": tname,
+                    "rows": row_cnt,
+                    "cols": col_cnt,
+                    "est_size_mb": round(est_bytes / 1024 / 1024, 2),
+                    "bytes_per_row": bytes_per_row,
+                    "efficiency_note": (
+                        "⚠️ 每行 > 500 bytes，可能含冗余宽列"
+                        if bytes_per_row > 500
+                        else "✅ 行列比合理"
+                        if bytes_per_row < 500 and bytes_per_row > 0
+                        else "—"
+                    ),
+                }
+            )
         except Exception:
             pass
     return results
@@ -268,22 +288,26 @@ def run_performance_baselines() -> list[dict]:
             try:
                 rows = con.execute(sql).fetchall()
                 elapsed = time.perf_counter() - t0
-                baselines.append({
-                    "db": label,
-                    "table": table,
-                    "query": qname,
-                    "sql": sql[:120],
-                    "elapsed_ms": round(elapsed * 1000, 1),
-                    "result_rows": len(rows),
-                })
+                baselines.append(
+                    {
+                        "db": label,
+                        "table": table,
+                        "query": qname,
+                        "sql": sql[:120],
+                        "elapsed_ms": round(elapsed * 1000, 1),
+                        "result_rows": len(rows),
+                    }
+                )
             except Exception as e:
-                baselines.append({
-                    "db": label,
-                    "table": table,
-                    "query": qname,
-                    "sql": sql[:120],
-                    "error": str(e),
-                })
+                baselines.append(
+                    {
+                        "db": label,
+                        "table": table,
+                        "query": qname,
+                        "sql": sql[:120],
+                        "error": str(e),
+                    }
+                )
 
         # Cross-DB JOIN test
         if label == "small":
@@ -300,29 +324,37 @@ def run_performance_baselines() -> list[dict]:
                       AND q.as_of_date = (SELECT MAX(as_of_date) FROM _fund.fundamental_quality_score)
                 """).fetchall()
                 elapsed = time.perf_counter() - t0
-                baselines.append({
-                    "db": "small × medium (JOIN)",
-                    "table": "unified + fundamental_quality_score",
-                    "query": "跨库 JOIN（基本面评分 × 统一底座）",
-                    "sql": "unified_daily_snapshot JOIN fundamental_quality_score ON stock_code",
-                    "elapsed_ms": round(elapsed * 1000, 1),
-                    "result_rows": len(rows),
-                })
+                baselines.append(
+                    {
+                        "db": "small × medium (JOIN)",
+                        "table": "unified + fundamental_quality_score",
+                        "query": "跨库 JOIN（基本面评分 × 统一底座）",
+                        "sql": "unified_daily_snapshot JOIN fundamental_quality_score ON stock_code",
+                        "elapsed_ms": round(elapsed * 1000, 1),
+                        "result_rows": len(rows),
+                    }
+                )
                 con.execute("DETACH _fund")
             except Exception as e:
-                baselines.append({
-                    "db": "small × medium (JOIN)",
-                    "query": "跨库 JOIN",
-                    "error": str(e),
-                })
+                baselines.append(
+                    {
+                        "db": "small × medium (JOIN)",
+                        "query": "跨库 JOIN",
+                        "error": str(e),
+                    }
+                )
 
         con.close()
     return baselines
 
 
-def generate_report(summaries: list[dict], pk_results: list[dict],
-                    integrity_results: list[dict], storage_results: list[list],
-                    perf_baselines: list[dict]) -> str:
+def generate_report(
+    summaries: list[dict],
+    pk_results: list[dict],
+    integrity_results: list[dict],
+    storage_results: list[list],
+    perf_baselines: list[dict],
+) -> str:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     total_disksize = sum(s["disk_size_bytes"] for s in summaries)
     total_rows = sum(s["total_rows"] for s in summaries)
@@ -340,11 +372,13 @@ def generate_report(summaries: list[dict], pk_results: list[dict],
     ]
 
     for i, s in enumerate(summaries, 1):
-        lines.append(f"| {i} | {s['db_name']} | {s['table_count']} | {s['total_rows']:,} | {s['disk_size_mb']} MB |")
+        lines.append(
+            f"| {i} | {s['db_name']} | {s['table_count']} | {s['total_rows']:,} | {s['disk_size_mb']} MB |"
+        )
 
     lines += [
         "",
-        f"**总计**：{len(summaries)} 个数据库，{total_rows:,} 行，{round(total_disksize/1024/1024/1024,2)} GB",
+        f"**总计**：{len(summaries)} 个数据库，{total_rows:,} 行，{round(total_disksize / 1024 / 1024 / 1024, 2)} GB",
         "",
         "---",
         "",
@@ -360,7 +394,7 @@ def generate_report(summaries: list[dict], pk_results: list[dict],
         for t in s["tables"]:
             pk_str = ", ".join(t.get("expected_pk") or []) or "—"
             lines.append(
-                f"| {t['table_name']} | {t['row_count']:,} | {t['column_count']} | {t.get('estimated_size_mb') or '—'} | {'' if t['row_count']<=0 else ''} | {pk_str} |"
+                f"| {t['table_name']} | {t['row_count']:,} | {t['column_count']} | {t.get('estimated_size_mb') or '—'} | {'' if t['row_count'] <= 0 else ''} | {pk_str} |"
             )
         lines.append("")
 
@@ -378,7 +412,9 @@ def generate_report(summaries: list[dict], pk_results: list[dict],
     lines.append("|-----|---------|--------|--------|--------|------|")
     for r in pk_tables:
         status = "✅ 唯一" if r["is_unique"] else f"❌ {r['duplicate_count']}条重复"
-        lines.append(f"| {r['table']} | {', '.join(r['pk_columns'])} | {r['total_rows']:,} | {r['unique_rows']:,} | {r['duplicate_count']} | {status} |")
+        lines.append(
+            f"| {r['table']} | {', '.join(r['pk_columns'])} | {r['total_rows']:,} | {r['unique_rows']:,} | {r['duplicate_count']} | {status} |"
+        )
 
     if pk_errors:
         lines.append("")
@@ -415,7 +451,9 @@ def generate_report(summaries: list[dict], pk_results: list[dict],
                 f"| {r['source']} | {r['unified_count']} | {r['source_count']:,} | {r['common_count']} | {r['only_in_unified']} | {r['only_in_source']:,} | {r['coverage_pct']}% |"
             )
             if r.get("samples_only_in_unified"):
-                lines.append(f"| → 仅底座有（{r['only_in_unified']}只） | — | — | — | {r['samples_only_in_unified'][:3]}… | — | — |")
+                lines.append(
+                    f"| → 仅底座有（{r['only_in_unified']}只） | — | — | — | {r['samples_only_in_unified'][:3]}… | — | — |"
+                )
 
     lines += [
         "",
@@ -449,7 +487,9 @@ def generate_report(summaries: list[dict], pk_results: list[dict],
         if "error" in b:
             lines.append(f"| {b['db']} | {b['table']} | {b['query']} | ❌ {b['error']} | — |")
         else:
-            lines.append(f"| {b['db']} | {b['table']} | {b['query']} | {b['elapsed_ms']} | {b['result_rows']:,} |")
+            lines.append(
+                f"| {b['db']} | {b['table']} | {b['query']} | {b['elapsed_ms']} | {b['result_rows']:,} |"
+            )
 
     lines += [
         "",
@@ -465,7 +505,9 @@ def generate_report(summaries: list[dict], pk_results: list[dict],
     large_dbs = [s for s in summaries if s["disk_size_mb"] > 500]
     if large_dbs:
         names = ", ".join(s["db_name"] for s in large_dbs)
-        suggestions.append(f"- **大库优化**：{names} 均超过 500MB，建议启用索引：`CREATE INDEX idx_stock_date ON d1_perspective_state(stock_code, state_date);`")
+        suggestions.append(
+            f"- **大库优化**：{names} 均超过 500MB，建议启用索引：`CREATE INDEX idx_stock_date ON d1_perspective_state(stock_code, state_date);`"
+        )
 
     # 重复 DB 建议
     db_groups: dict[str, list] = {}
@@ -477,19 +519,23 @@ def generate_report(summaries: list[dict], pk_results: list[dict],
             sizes = [g["disk_size_mb"] for g in grp]
             if max(sizes) > 100:
                 suggestions.append(
-                    f"- **历史版本清理**：`{stem}` 存在 {len(grp)} 个日期版本（{', '.join(str(s['disk_size_mb'])+'MB' for s in grp)}），合计 {sum(sizes):.0f}MB。建议仅保留最新 2 个版本，旧版归档或删除。"
+                    f"- **历史版本清理**：`{stem}` 存在 {len(grp)} 个日期版本（{', '.join(str(s['disk_size_mb']) + 'MB' for s in grp)}），合计 {sum(sizes):.0f}MB。建议仅保留最新 2 个版本，旧版归档或删除。"
                 )
 
     # 主键问题
     dup_tbls = [r for r in pk_results if not r.get("is_unique", True) and "error" not in r]
     if dup_tbls:
         names = ", ".join(r["table"] for r in dup_tbls)
-        suggestions.append(f"- **主键重复**：{names} 存在重复行，建议 `DELETE FROM t WHERE rowid NOT IN (SELECT MIN(rowid) FROM t GROUP BY pk_cols);`")
+        suggestions.append(
+            f"- **主键重复**：{names} 存在重复行，建议 `DELETE FROM t WHERE rowid NOT IN (SELECT MIN(rowid) FROM t GROUP BY pk_cols);`"
+        )
 
     # 统一底座覆盖
     for r in integrity_results:
         if r.get("coverage_pct") is not None and r["coverage_pct"] < 50:
-            suggestions.append(f"- **覆盖缺口**：统一底座与 `{r['source']}` 覆盖率仅 {r['coverage_pct']}%，建议检查为何 {r['only_in_unified']} 只标的不在源库中。")
+            suggestions.append(
+                f"- **覆盖缺口**：统一底座与 `{r['source']}` 覆盖率仅 {r['coverage_pct']}%，建议检查为何 {r['only_in_unified']} 只标的不在源库中。"
+            )
 
     if suggestions:
         for sg in suggestions:
@@ -540,16 +586,18 @@ def main():
             con.close()
         except Exception as e:
             print(f"❌ {e}")
-            summaries.append({
-                "db_path": str(db_path),
-                "db_name": db_path.parent.name + "/" + db_path.name,
-                "disk_size_bytes": db_path.stat().st_size,
-                "disk_size_mb": round(db_path.stat().st_size / 1024 / 1024, 2),
-                "table_count": 0,
-                "total_rows": 0,
-                "tables": [],
-                "error": str(e),
-            })
+            summaries.append(
+                {
+                    "db_path": str(db_path),
+                    "db_name": db_path.parent.name + "/" + db_path.name,
+                    "disk_size_bytes": db_path.stat().st_size,
+                    "disk_size_mb": round(db_path.stat().st_size / 1024 / 1024, 2),
+                    "table_count": 0,
+                    "total_rows": 0,
+                    "tables": [],
+                    "error": str(e),
+                }
+            )
 
     # Integrity
     print("  检查跨库完整性...")
@@ -571,9 +619,12 @@ def main():
 
     print(f"\n✅ 审计完成 → {REPORT_PATH}")
     print(f"   {len(dbs)} 个数据库，{sum(s['total_rows'] for s in summaries):,} 行")
-    print(f"   主键检查：{len(all_pk_results)} 表，{sum(1 for r in all_pk_results if not r.get('is_unique', True))} 个异常")
+    print(
+        f"   主键检查：{len(all_pk_results)} 表，{sum(1 for r in all_pk_results if not r.get('is_unique', True))} 个异常"
+    )
     print(f"   跨库完整性：{len(all_integrity)} 项")
     print(f"   性能基线：{len(perf_baselines)} 条")
+
 
 if __name__ == "__main__":
     main()

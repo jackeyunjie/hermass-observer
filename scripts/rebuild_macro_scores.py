@@ -267,7 +267,9 @@ def compute_dimension_score(
     }
 
 
-def classify_quadrant(S_growth: float, S_liquidity: float, S_credit: float, S_inflation: float) -> dict[str, Any]:
+def classify_quadrant(
+    S_growth: float, S_liquidity: float, S_credit: float, S_inflation: float
+) -> dict[str, Any]:
     """四象限判定。"""
     growth_cycle = 0.60 * S_growth + 0.40 * S_inflation
     money_credit_cycle = 0.55 * S_liquidity + 0.45 * S_credit
@@ -327,14 +329,16 @@ def build_macro_scores(date_str: str, db_path: Path) -> dict[str, Any]:
         history = values[:-1]
 
         result = compute_indicator_score(current, history, cfg["type"])
-        result.update({
-            "code": code,
-            "name": cfg["name"],
-            "dimension": cfg["dimension"],
-            "weight": cfg["weight"],
-            "latest_value": current,
-            "latest_date": df["as_of_date"].iloc[-1].strftime("%Y-%m-%d"),
-        })
+        result.update(
+            {
+                "code": code,
+                "name": cfg["name"],
+                "dimension": cfg["dimension"],
+                "weight": cfg["weight"],
+                "latest_value": current,
+                "latest_date": df["as_of_date"].iloc[-1].strftime("%Y-%m-%d"),
+            }
+        )
         indicators_by_dim[cfg["dimension"]].append(result)
 
     # 2. 计算四维评分
@@ -346,8 +350,7 @@ def build_macro_scores(date_str: str, db_path: Path) -> dict[str, Any]:
 
     # 3. 合成总评分
     total_score = sum(
-        sub_scores.get(dim, 5.0) * DIMENSION_WEIGHTS.get(dim, 0.25)
-        for dim in dimensions.keys()
+        sub_scores.get(dim, 5.0) * DIMENSION_WEIGHTS.get(dim, 0.25) for dim in dimensions.keys()
     ) / sum(DIMENSION_WEIGHTS.get(dim, 0.25) for dim in dimensions.keys())
 
     # 4. 象限
@@ -435,30 +438,33 @@ def write_macro_prior_db(db_path: Path, payload: dict[str, Any]) -> None:
     """)
 
     sub = payload.get("sub_scores", {})
-    con.execute("""
+    con.execute(
+        """
         INSERT OR REPLACE INTO macro_prior VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        payload["date"],
-        payload["score_0_10"],
-        sub.get("growth", {}).get("score"),
-        sub.get("growth", {}).get("confidence"),
-        sub.get("liquidity", {}).get("score"),
-        sub.get("liquidity", {}).get("confidence"),
-        sub.get("credit", {}).get("score"),
-        sub.get("credit", {}).get("confidence"),
-        sub.get("inflation", {}).get("score"),
-        sub.get("inflation", {}).get("confidence"),
-        payload.get("quadrant", {}).get("name"),
-        payload.get("quadrant", {}).get("growth_cycle"),
-        payload.get("quadrant", {}).get("money_credit_cycle"),
-        payload["confidence"],
-        payload["display_level"],
-        payload.get("strategy_adj", {}).get("vcp"),
-        payload.get("strategy_adj", {}).get("ma2560"),
-        payload.get("strategy_adj", {}).get("bollinger_bandit"),
-        json.dumps(payload, ensure_ascii=False, default=str),
-        payload["generated_at"],
-    ))
+    """,
+        (
+            payload["date"],
+            payload["score_0_10"],
+            sub.get("growth", {}).get("score"),
+            sub.get("growth", {}).get("confidence"),
+            sub.get("liquidity", {}).get("score"),
+            sub.get("liquidity", {}).get("confidence"),
+            sub.get("credit", {}).get("score"),
+            sub.get("credit", {}).get("confidence"),
+            sub.get("inflation", {}).get("score"),
+            sub.get("inflation", {}).get("confidence"),
+            payload.get("quadrant", {}).get("name"),
+            payload.get("quadrant", {}).get("growth_cycle"),
+            payload.get("quadrant", {}).get("money_credit_cycle"),
+            payload["confidence"],
+            payload["display_level"],
+            payload.get("strategy_adj", {}).get("vcp"),
+            payload.get("strategy_adj", {}).get("ma2560"),
+            payload.get("strategy_adj", {}).get("bollinger_bandit"),
+            json.dumps(payload, ensure_ascii=False, default=str),
+            payload["generated_at"],
+        ),
+    )
     con.close()
     print(f"[OK] 写入 macro_prior 表: {db_path}")
 
@@ -496,40 +502,48 @@ def generate_report(payload: dict[str, Any]) -> Path:
             f"{sub.get('status', 'N/A')} | {sub.get('indicators_used', 0)} | {sub.get('indicators_total', 0)} |"
         )
 
-    lines.extend([
-        "",
-        "## 3. 策略加成系数",
-        "",
-        "| 策略 | 加成系数 |",
-        "|------|----------|",
-    ])
+    lines.extend(
+        [
+            "",
+            "## 3. 策略加成系数",
+            "",
+            "| 策略 | 加成系数 |",
+            "|------|----------|",
+        ]
+    )
     for strategy, adj in payload.get("strategy_adj", {}).items():
         lines.append(f"| {strategy} | {adj:+.2f} |")
 
-    lines.extend([
-        "",
-        "## 4. 数据缺口",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "## 4. 数据缺口",
+            "",
+        ]
+    )
     for gap in payload.get("data_gaps", []):
         lines.append(f"- {gap}")
 
     if not payload.get("data_gaps"):
         lines.append("- 无显著数据缺口")
 
-    lines.extend([
-        "",
-        "## 5. 证据摘要",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "## 5. 证据摘要",
+            "",
+        ]
+    )
     for ev in payload.get("evidence", []):
         lines.append(f"- {ev}")
 
-    lines.extend([
-        "",
-        "---",
-        "*报告由 rebuild_macro_scores.py 自动生成*",
-    ])
+    lines.extend(
+        [
+            "",
+            "---",
+            "*报告由 rebuild_macro_scores.py 自动生成*",
+        ]
+    )
 
     report_path.write_text("\n".join(lines), encoding="utf-8")
     print(f"[OK] 报告已生成: {report_path}")
@@ -538,8 +552,9 @@ def generate_report(payload: dict[str, Any]) -> Path:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="宏观四维评分重建")
-    parser.add_argument("--date", default=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-                        help="基准日期 YYYY-MM-DD")
+    parser.add_argument(
+        "--date", default=datetime.now(timezone.utc).strftime("%Y-%m-%d"), help="基准日期 YYYY-MM-DD"
+    )
     parser.add_argument("--db", default=str(DEFAULT_MACRO_DB), help="宏观指标 DuckDB 路径")
     parser.add_argument("--out-dir", default=str(DEFAULT_OUT_DIR), help="输出目录")
     parser.add_argument("--dry-run", action="store_true", help="仅计算不写入")
@@ -565,9 +580,11 @@ def main() -> int:
     print(f"[RESULT] 置信度: {payload['confidence']} ({payload['display_level']})")
     for dim, sub in payload.get("sub_scores", {}).items():
         print(f"  {dim}: {sub['score']}/10 (conf={sub['confidence']}, {sub['status']})")
-    print(f"[RESULT] 策略加成: VCP={payload['strategy_adj']['vcp']:+.2f}, "
-          f"MA2560={payload['strategy_adj']['ma2560']:+.2f}, "
-          f"Bollinger={payload['strategy_adj']['bollinger_bandit']:+.2f}")
+    print(
+        f"[RESULT] 策略加成: VCP={payload['strategy_adj']['vcp']:+.2f}, "
+        f"MA2560={payload['strategy_adj']['ma2560']:+.2f}, "
+        f"Bollinger={payload['strategy_adj']['bollinger_bandit']:+.2f}"
+    )
 
     if not args.dry_run:
         # 写入 JSON

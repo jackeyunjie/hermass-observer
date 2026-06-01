@@ -150,9 +150,11 @@ SIGNAL_NAMES = {
 # 数据类
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class Trade:
     """单笔交易记录"""
+
     stock_code: str
     entry_date: str
     entry_price: float
@@ -171,6 +173,7 @@ class Trade:
 @dataclass
 class DailyRecord:
     """每日账户状态记录"""
+
     date: str
     total_value: float
     cash: float
@@ -184,6 +187,7 @@ class DailyRecord:
 @dataclass
 class Position:
     """持仓状态"""
+
     stock_code: str
     entry_date: str
     entry_price: float
@@ -208,6 +212,7 @@ class Position:
 # ===========================================================================
 # Numba JIT 加速核心函数
 # ===========================================================================
+
 
 @njit(cache=True)
 def _compute_rolling_mean_nb(arr: np.ndarray, window: int) -> np.ndarray:
@@ -280,15 +285,15 @@ def _scan_signals_vcp_nb(
         # 计算5日/20日高低点（从当前日向前）
         i5 = max(0, i - 4)
         i20 = max(0, i - 19)
-        high_5 = highs[i5:i+1].max()
-        low_5 = lows[i5:i+1].min()
-        high_20 = highs[i20:i+1].max()
-        low_20 = lows[i20:i+1].min()
+        high_5 = highs[i5 : i + 1].max()
+        low_5 = lows[i5 : i + 1].min()
+        high_20 = highs[i20 : i + 1].max()
+        low_20 = lows[i20 : i + 1].min()
 
         # ATR收缩
         atr_now = atr14[i] if i < len(atr14) else 0.0
-        atr_5d = atr14[max(0, i-5)] if i < len(atr14) else 0.0
-        atr_10d = atr14[max(0, i-10)] if i < len(atr14) else 0.0
+        atr_5d = atr14[max(0, i - 5)] if i < len(atr14) else 0.0
+        atr_10d = atr14[max(0, i - 10)] if i < len(atr14) else 0.0
 
         contraction_score = 0
         if atr_now > 0 and atr_5d > 0 and atr_10d > 0:
@@ -403,13 +408,24 @@ def _scan_signals_atr_chandelier_nb(
         w1 = int(w1_scores[i])
         d1 = int(d1_scores[i])
 
-        mn1_ok = (mn1 == 0 or mn1 == 1 or mn1 == 2 or mn1 == 3 or
-                  mn1 == 6 or mn1 == 7 or mn1 == 10 or mn1 == 11)
-        w1_ok = (w1 == 0 or w1 == 1 or w1 == 2 or w1 == 3 or
-                 w1 == 6 or w1 == 7 or w1 == 10 or w1 == 11)
-        d1_ok = (d1 == 2 or d1 == 3 or d1 == 4 or d1 == 5 or
-                 d1 == 6 or d1 == 7 or d1 == 10 or d1 == 11 or
-                 d1 == 12 or d1 == 13 or d1 == 14 or d1 == 15)
+        mn1_ok = (
+            mn1 == 0 or mn1 == 1 or mn1 == 2 or mn1 == 3 or mn1 == 6 or mn1 == 7 or mn1 == 10 or mn1 == 11
+        )
+        w1_ok = w1 == 0 or w1 == 1 or w1 == 2 or w1 == 3 or w1 == 6 or w1 == 7 or w1 == 10 or w1 == 11
+        d1_ok = (
+            d1 == 2
+            or d1 == 3
+            or d1 == 4
+            or d1 == 5
+            or d1 == 6
+            or d1 == 7
+            or d1 == 10
+            or d1 == 11
+            or d1 == 12
+            or d1 == 13
+            or d1 == 14
+            or d1 == 15
+        )
 
         if mn1_ok and w1_ok and d1_ok:
             signals[i] = SIGNAL_ATR_CHANDELIER_ENTRY
@@ -484,6 +500,7 @@ def _check_exit_ma2560_nb(
 # 向量化数据加载层（DuckDB 单次连接 + SQL 预聚合）
 # ===========================================================================
 
+
 class VectorizedDataStore:
     """向量化数据存储：一次性从 DuckDB 加载所有数据，避免重复连接和循环查询。"""
 
@@ -545,8 +562,13 @@ class VectorizedDataStore:
 
         # 按股票分组
         dtype = [
-            ("date", "U10"), ("open", "f8"), ("high", "f8"),
-            ("low", "f8"), ("close", "f8"), ("volume", "f8"), ("amount", "f8"),
+            ("date", "U10"),
+            ("open", "f8"),
+            ("high", "f8"),
+            ("low", "f8"),
+            ("close", "f8"),
+            ("volume", "f8"),
+            ("amount", "f8"),
         ]
         for stock_code, group in df.groupby("stock_code"):
             group = group.sort_values("date")
@@ -573,8 +595,12 @@ class VectorizedDataStore:
         df = conn.execute(query, [self.start_date, self.end_date]).fetchdf()
 
         dtype = [
-            ("date", "U10"), ("atr14", "f8"), ("volume", "f8"),
-            ("prev_close", "f8"), ("bb_middle_20", "f8"), ("bb_std_20", "f8"),
+            ("date", "U10"),
+            ("atr14", "f8"),
+            ("volume", "f8"),
+            ("prev_close", "f8"),
+            ("bb_middle_20", "f8"),
+            ("bb_std_20", "f8"),
         ]
         for stock_code, group in df.groupby("stock_code"):
             group = group.sort_values("date")
@@ -600,9 +626,13 @@ class VectorizedDataStore:
         df = conn.execute(query, [self.start_date, self.end_date]).fetchdf()
 
         dtype = [
-            ("date", "U10"), ("d1_trend", "U20"),
-            ("d1_volatility", "U20"), ("d1_compression", "U20"),
-            ("mn1_state_score", "i4"), ("w1_state_score", "i4"), ("d1_state_score", "i4"),
+            ("date", "U10"),
+            ("d1_trend", "U20"),
+            ("d1_volatility", "U20"),
+            ("d1_compression", "U20"),
+            ("mn1_state_score", "i4"),
+            ("w1_state_score", "i4"),
+            ("d1_state_score", "i4"),
         ]
         for stock_code, group in df.groupby("stock_code"):
             group = group.sort_values("date")
@@ -631,8 +661,11 @@ class VectorizedDataStore:
                     self.market_phases[date_str] = data.get("market_phase", "undetermined")
 
         # 缺失日期用 DuckDB SQL 一次性聚合
-        missing_dates = [d.strftime("%Y-%m-%d") for d in _date_range(start_dt, end_dt)
-                         if d.strftime("%Y-%m-%d") not in self.market_phases]
+        missing_dates = [
+            d.strftime("%Y-%m-%d")
+            for d in _date_range(start_dt, end_dt)
+            if d.strftime("%Y-%m-%d") not in self.market_phases
+        ]
         if missing_dates:
             query = """
                 SELECT
@@ -816,9 +849,15 @@ class VectorizedDataStore:
             # 从 indicators 获取已有数据
             ind = self.indicators.get(stock_code)
             atr14 = ind["atr14"].astype(np.float64) if ind is not None else np.zeros(n, dtype=np.float64)
-            prev_close = ind["prev_close"].astype(np.float64) if ind is not None else np.zeros(n, dtype=np.float64)
-            bb_middle_20 = ind["bb_middle_20"].astype(np.float64) if ind is not None else np.zeros(n, dtype=np.float64)
-            bb_std_20 = ind["bb_std_20"].astype(np.float64) if ind is not None else np.zeros(n, dtype=np.float64)
+            prev_close = (
+                ind["prev_close"].astype(np.float64) if ind is not None else np.zeros(n, dtype=np.float64)
+            )
+            bb_middle_20 = (
+                ind["bb_middle_20"].astype(np.float64) if ind is not None else np.zeros(n, dtype=np.float64)
+            )
+            bb_std_20 = (
+                ind["bb_std_20"].astype(np.float64) if ind is not None else np.zeros(n, dtype=np.float64)
+            )
 
             # 预计算滚动指标
             ma25 = _compute_rolling_mean_nb(closes, 25)
@@ -851,13 +890,19 @@ class VectorizedDataStore:
             high_10d = np.empty(n, dtype=np.float64)
             for i in range(n):
                 i10 = max(0, i - 9)
-                high_10d[i] = highs[i10:i+1].max()
+                high_10d[i] = highs[i10 : i + 1].max()
 
             # 从 states 获取多周期 State score
             st = self.states.get(stock_code)
-            mn1_scores = st["mn1_state_score"].astype(np.float64) if st is not None else np.zeros(n, dtype=np.float64)
-            w1_scores = st["w1_state_score"].astype(np.float64) if st is not None else np.zeros(n, dtype=np.float64)
-            d1_scores = st["d1_state_score"].astype(np.float64) if st is not None else np.zeros(n, dtype=np.float64)
+            mn1_scores = (
+                st["mn1_state_score"].astype(np.float64) if st is not None else np.zeros(n, dtype=np.float64)
+            )
+            w1_scores = (
+                st["w1_state_score"].astype(np.float64) if st is not None else np.zeros(n, dtype=np.float64)
+            )
+            d1_scores = (
+                st["d1_state_score"].astype(np.float64) if st is not None else np.zeros(n, dtype=np.float64)
+            )
 
             self.precomputed[stock_code] = {
                 "closes": closes,
@@ -914,6 +959,7 @@ class VectorizedDataStore:
 # 回测引擎（优化版）
 # ===========================================================================
 
+
 class LeveragedBacktestEngine:
     """带杠杆的回测引擎 — 高性能版"""
 
@@ -956,9 +1002,7 @@ class LeveragedBacktestEngine:
         """加载所有必要数据。"""
         print(f"[{self.strategy}] 加载数据...")
         if self.data_store is None:
-            self.data_store = VectorizedDataStore(
-                str(FOUNDATION_DB), self.start_date, self.end_date
-            )
+            self.data_store = VectorizedDataStore(str(FOUNDATION_DB), self.start_date, self.end_date)
             self.data_store.load_all()
 
         self.all_dates = list(self.data_store.dates)
@@ -1046,22 +1090,42 @@ class LeveragedBacktestEngine:
 
             if self.strategy == "vcp":
                 signals = _scan_signals_vcp_nb(
-                    pc["closes"], pc["opens"], pc["highs"], pc["lows"],
-                    pc["volumes"], pc["atr14"], pc["vol_ma50"], pc["high_10d"],
+                    pc["closes"],
+                    pc["opens"],
+                    pc["highs"],
+                    pc["lows"],
+                    pc["volumes"],
+                    pc["atr14"],
+                    pc["vol_ma50"],
+                    pc["high_10d"],
                 )
                 for i in range(n):
                     sid = signals[i]
                     if sid != 0:
-                        conf = 0.95 if sid == SIGNAL_VCP_BREAKOUT else (
-                            0.70 if sid == SIGNAL_VCP_BREAKOUT_WEAK_VOL else (
-                            0.55 if sid == SIGNAL_VCP_BREAKOUT_NO_VOL else (
-                            0.40 if sid == SIGNAL_VCP_CONTRACTION else 0.20)))
-                        if sid in (SIGNAL_VCP_BREAKOUT, SIGNAL_VCP_BREAKOUT_WEAK_VOL,
-                                   SIGNAL_VCP_BREAKOUT_NO_VOL, SIGNAL_VCP_CONTRACTION,
-                                   SIGNAL_VCP_EARLY_CONTRACTION):
+                        conf = (
+                            0.95
+                            if sid == SIGNAL_VCP_BREAKOUT
+                            else (
+                                0.70
+                                if sid == SIGNAL_VCP_BREAKOUT_WEAK_VOL
+                                else (
+                                    0.55
+                                    if sid == SIGNAL_VCP_BREAKOUT_NO_VOL
+                                    else (0.40 if sid == SIGNAL_VCP_CONTRACTION else 0.20)
+                                )
+                            )
+                        )
+                        if sid in (
+                            SIGNAL_VCP_BREAKOUT,
+                            SIGNAL_VCP_BREAKOUT_WEAK_VOL,
+                            SIGNAL_VCP_BREAKOUT_NO_VOL,
+                            SIGNAL_VCP_CONTRACTION,
+                            SIGNAL_VCP_EARLY_CONTRACTION,
+                        ):
                             date_str = dates[i]
                             self._signal_cache.setdefault(date_str, []).append(
-                                (stock_code, sid, conf, pc["closes"][i]))
+                                (stock_code, sid, conf, pc["closes"][i])
+                            )
 
             elif self.strategy == "ma2560":
                 signals = _scan_signals_ma2560_nb(pc["closes"], pc["ma25"], pc["ma60"])
@@ -1070,30 +1134,38 @@ class LeveragedBacktestEngine:
                     if sid == SIGNAL_MA2560_GOLDEN_CROSS:
                         date_str = dates[i]
                         self._signal_cache.setdefault(date_str, []).append(
-                            (stock_code, sid, 0.85, pc["closes"][i]))
+                            (stock_code, sid, 0.85, pc["closes"][i])
+                        )
 
             elif self.strategy == "bollinger_bandit":
                 signals = _scan_signals_bollinger_nb(
-                    pc["closes"], pc["prev_close"], pc["close_30_ago"],
-                    pc["bb_upper_50_1"], pc["bb_upper_50_1_prev"],
+                    pc["closes"],
+                    pc["prev_close"],
+                    pc["close_30_ago"],
+                    pc["bb_upper_50_1"],
+                    pc["bb_upper_50_1_prev"],
                 )
                 for i in range(n):
                     sid = signals[i]
                     if sid == SIGNAL_BB_BANDIT_LONG_ENTRY:
                         date_str = dates[i]
                         self._signal_cache.setdefault(date_str, []).append(
-                            (stock_code, sid, 0.80, pc["closes"][i]))
+                            (stock_code, sid, 0.80, pc["closes"][i])
+                        )
 
             elif self.strategy == "atr_chandelier":
                 signals = _scan_signals_atr_chandelier_nb(
-                    pc["mn1_scores"], pc["w1_scores"], pc["d1_scores"],
+                    pc["mn1_scores"],
+                    pc["w1_scores"],
+                    pc["d1_scores"],
                 )
                 for i in range(n):
                     sid = signals[i]
                     if sid == SIGNAL_ATR_CHANDELIER_ENTRY:
                         date_str = dates[i]
                         self._signal_cache.setdefault(date_str, []).append(
-                            (stock_code, sid, 0.75, pc["closes"][i]))
+                            (stock_code, sid, 0.75, pc["closes"][i])
+                        )
 
         # 对每个日期的信号按置信度排序
         for date_str in self._signal_cache:
@@ -1110,18 +1182,20 @@ class LeveragedBacktestEngine:
             bar = self.data_store.get_bar_for_date(stock_code, date_str)
             if bar is None:
                 continue
-            result.append({
-                "date": date_str,
-                "stock_code": stock_code,
-                "signal_name": SIGNAL_NAMES.get(sid, ""),
-                "confidence": confidence,
-                "close": bar["close"],
-                "open": bar["open"],
-                "high": bar["high"],
-                "low": bar["low"],
-                "volume": bar["volume"],
-                "ctx": {},  # 上下文在入场确认时按需构建
-            })
+            result.append(
+                {
+                    "date": date_str,
+                    "stock_code": stock_code,
+                    "signal_name": SIGNAL_NAMES.get(sid, ""),
+                    "confidence": confidence,
+                    "close": bar["close"],
+                    "open": bar["open"],
+                    "high": bar["high"],
+                    "low": bar["low"],
+                    "volume": bar["volume"],
+                    "ctx": {},  # 上下文在入场确认时按需构建
+                }
+            )
         return result
 
     def compute_equity(self, date_str: str) -> float:
@@ -1138,7 +1212,9 @@ class LeveragedBacktestEngine:
     def run(self) -> None:
         """执行回测。"""
         print(f"\n[{self.strategy}] 开始回测: {self.start_date} ~ {self.end_date}")
-        print(f"  初始资金: {self.initial_capital:,.0f}, 杠杆: {self.leverage}x, 最大持仓: {self.max_positions}")
+        print(
+            f"  初始资金: {self.initial_capital:,.0f}, 杠杆: {self.leverage}x, 最大持仓: {self.max_positions}"
+        )
 
         # 预扫描信号
         self.pre_scan_signals()
@@ -1157,16 +1233,19 @@ class LeveragedBacktestEngine:
 
             positions_value = equity - self.cash
             borrowed = max(0, positions_value - self.cash) if self.leverage > 1 else 0
-            self.daily_records.append(DailyRecord(
-                date=date_str,
-                total_value=equity,
-                cash=self.cash,
-                borrowed=borrowed,
-                positions_value=positions_value,
-                daily_pnl=equity - (self.daily_records[-1].total_value if self.daily_records else self.initial_capital),
-                financing_cost=financing_cost,
-                num_positions=len(self.positions),
-            ))
+            self.daily_records.append(
+                DailyRecord(
+                    date=date_str,
+                    total_value=equity,
+                    cash=self.cash,
+                    borrowed=borrowed,
+                    positions_value=positions_value,
+                    daily_pnl=equity
+                    - (self.daily_records[-1].total_value if self.daily_records else self.initial_capital),
+                    financing_cost=financing_cost,
+                    num_positions=len(self.positions),
+                )
+            )
 
             if (i + 1) % 50 == 0 or i == len(self.all_dates) - 1:
                 print(f"  {date_str}: 净值={equity:,.0f}, 持仓={len(self.positions)}, 现金={self.cash:,.0f}")
@@ -1248,9 +1327,7 @@ class LeveragedBacktestEngine:
                 continue
 
             # ── 指数/ETF 月线 MN1 State 宏观环境过滤 ──
-            market_coeff, industry_coeff, filter_reason = self._compute_macro_filters(
-                date_str, stock_code
-            )
+            market_coeff, industry_coeff, filter_reason = self._compute_macro_filters(date_str, stock_code)
             if market_coeff <= 0.0 or industry_coeff <= 0.0:
                 self.macro_filtered_count += 1
                 to_remove.append(idx)
@@ -1287,7 +1364,9 @@ class LeveragedBacktestEngine:
             if phase_file.exists():
                 with open(phase_file, "r", encoding="utf-8") as f:
                     pdata = json.load(f)
-                    strategy_boost = pdata.get("strategy_implications", {}).get(self.strategy, {}).get("factor", 1.0)
+                    strategy_boost = (
+                        pdata.get("strategy_implications", {}).get(self.strategy, {}).get("factor", 1.0)
+                    )
 
             sizing = calculate_dynamic_position(phase, strategy_boost, quadrant, fit_level)
             allocation_pct = sizing["total_allocation_pct"] * chain_factor_val
@@ -1296,7 +1375,9 @@ class LeveragedBacktestEngine:
                 to_remove.append(idx)
                 continue
 
-            target_position_value = equity * allocation_pct * self.leverage * market_coeff * industry_coeff / self.max_positions
+            target_position_value = (
+                equity * allocation_pct * self.leverage * market_coeff * industry_coeff / self.max_positions
+            )
             shares = int(target_position_value / entry_price / MIN_LOT) * MIN_LOT
 
             if shares <= 0:
@@ -1406,8 +1487,12 @@ class LeveragedBacktestEngine:
                     ma60 = close
 
                 result = _check_exit_ma2560_nb(
-                    pos.entry_price, close, ma25, ma60,
-                    pos.hold_days, 1 if pos.half_exited else 0,
+                    pos.entry_price,
+                    close,
+                    ma25,
+                    ma60,
+                    pos.hold_days,
+                    1 if pos.half_exited else 0,
                 )
                 if result == 10:
                     exited, reason, exit_type, exit_pct = True, "跌破60日线，强制清仓", "stop", 1.0
@@ -1425,7 +1510,7 @@ class LeveragedBacktestEngine:
             elif self.strategy == "bollinger_bandit":
                 pc = self.data_store.get_precomputed(stock_code)
                 if pc is not None:
-                    closes_arr = pc["closes"][:bar_idx + 1]
+                    closes_arr = pc["closes"][: bar_idx + 1]
                 else:
                     closes_arr = np.array([close], dtype=np.float64)
 
@@ -1453,7 +1538,12 @@ class LeveragedBacktestEngine:
 
                 result = bb_full_exit_check(pos.bb_state, {"close": close}, ctx)
                 if result:
-                    exited, reason, exit_type, exit_pct = True, result["exit_reason"], result["exit_type"], result["exit_pct"]
+                    exited, reason, exit_type, exit_pct = (
+                        True,
+                        result["exit_reason"],
+                        result["exit_type"],
+                        result["exit_pct"],
+                    )
 
             elif self.strategy == "atr_chandelier":
                 result = chandelier_exit_check(
@@ -1464,7 +1554,12 @@ class LeveragedBacktestEngine:
                     hold_days=pos.hold_days,
                 )
                 if result:
-                    exited, reason, exit_type, exit_pct = True, result.exit_reason, result.exit_type, result.exit_pct
+                    exited, reason, exit_type, exit_pct = (
+                        True,
+                        result.exit_reason,
+                        result.exit_type,
+                        result.exit_pct,
+                    )
 
             if exited:
                 to_exit.append((stock_code, reason, exit_type, exit_pct))
@@ -1472,7 +1567,9 @@ class LeveragedBacktestEngine:
         for stock_code, reason, exit_type, exit_pct in to_exit:
             self._execute_exit(stock_code, date_str, reason, exit_type, exit_pct)
 
-    def _execute_exit(self, stock_code: str, date_str: str, reason: str, exit_type: str, exit_pct: float) -> None:
+    def _execute_exit(
+        self, stock_code: str, date_str: str, reason: str, exit_type: str, exit_pct: float
+    ) -> None:
         """执行出场。"""
         pos = self.positions.get(stock_code)
         if pos is None:
@@ -1506,21 +1603,23 @@ class LeveragedBacktestEngine:
 
         self.cash += exit_shares * exit_price
 
-        self.trades.append(Trade(
-            stock_code=stock_code,
-            entry_date=pos.entry_date,
-            entry_price=pos.entry_price,
-            exit_date=date_str,
-            exit_price=exit_price,
-            shares=exit_shares,
-            hold_days=pos.hold_days,
-            pnl_pct=pnl_pct,
-            pnl_amount=pnl_amount,
-            exit_reason=reason,
-            exit_type=exit_type,
-            strategy=self.strategy,
-            half_exited=(exit_pct == 0.5),
-        ))
+        self.trades.append(
+            Trade(
+                stock_code=stock_code,
+                entry_date=pos.entry_date,
+                entry_price=pos.entry_price,
+                exit_date=date_str,
+                exit_price=exit_price,
+                shares=exit_shares,
+                hold_days=pos.hold_days,
+                pnl_pct=pnl_pct,
+                pnl_amount=pnl_amount,
+                exit_reason=reason,
+                exit_type=exit_type,
+                strategy=self.strategy,
+                half_exited=(exit_pct == 0.5),
+            )
+        )
 
         if exit_pct >= 1.0 or exit_shares >= pos.shares:
             del self.positions[stock_code]
@@ -1570,6 +1669,7 @@ class LeveragedBacktestEngine:
 # 兼容函数（保留原有接口）
 # ===========================================================================
 
+
 def _date_range(start: date, end: date):
     """生成日期范围迭代器。"""
     current = start
@@ -1588,36 +1688,40 @@ def build_indicator_ctx(
     """为信号生成构建完整的指标上下文（保留兼容接口）。"""
     ctx: dict[str, Any] = {}
     ind = indicators.get(stock_code, {}).get(date_str, {})
-    ctx.update({
-        "atr14": ind.get("atr14") or 0,
-        "volume": ind.get("volume") or 0,
-        "prev_close": ind.get("prev_close") or 0,
-        "bb_middle": ind.get("bb_middle_20") or 0,
-        "bb_std": ind.get("bb_std_20") or 0,
-    })
+    ctx.update(
+        {
+            "atr14": ind.get("atr14") or 0,
+            "volume": ind.get("volume") or 0,
+            "prev_close": ind.get("prev_close") or 0,
+            "bb_middle": ind.get("bb_middle_20") or 0,
+            "bb_std": ind.get("bb_std_20") or 0,
+        }
+    )
     st = states.get(stock_code, {}).get(date_str, {})
-    ctx.update({
-        "d1_trend": st.get("d1_trend", ""),
-        "d1_volatility": st.get("d1_volatility", ""),
-        "d1_compression": st.get("d1_compression", ""),
-    })
+    ctx.update(
+        {
+            "d1_trend": st.get("d1_trend", ""),
+            "d1_volatility": st.get("d1_volatility", ""),
+            "d1_compression": st.get("d1_compression", ""),
+        }
+    )
     bar_idx = next((i for i, b in enumerate(bars) if b["date"] == date_str), None)
     if bar_idx is None:
         return ctx
-    closes = [b["close"] for b in bars[:bar_idx + 1]]
-    volumes = [b["volume"] for b in bars[:bar_idx + 1]]
+    closes = [b["close"] for b in bars[: bar_idx + 1]]
+    volumes = [b["volume"] for b in bars[: bar_idx + 1]]
     if len(closes) >= 15:
         ctx["atr14_5d_ago"] = _compute_atr_from_closes(closes[-10:-5])
         ctx["atr14_10d_ago"] = _compute_atr_from_closes(closes[-15:-10])
     if len(closes) >= 5:
-        ctx["high_5d"] = max(b["high"] for b in bars[max(0, bar_idx - 4):bar_idx + 1])
-        ctx["low_5d"] = min(b["low"] for b in bars[max(0, bar_idx - 4):bar_idx + 1])
+        ctx["high_5d"] = max(b["high"] for b in bars[max(0, bar_idx - 4) : bar_idx + 1])
+        ctx["low_5d"] = min(b["low"] for b in bars[max(0, bar_idx - 4) : bar_idx + 1])
     if len(closes) >= 10:
-        ctx["high_10d"] = max(b["high"] for b in bars[max(0, bar_idx - 9):bar_idx + 1])
-        ctx["low_10d"] = min(b["low"] for b in bars[max(0, bar_idx - 9):bar_idx + 1])
+        ctx["high_10d"] = max(b["high"] for b in bars[max(0, bar_idx - 9) : bar_idx + 1])
+        ctx["low_10d"] = min(b["low"] for b in bars[max(0, bar_idx - 9) : bar_idx + 1])
     if len(closes) >= 20:
-        ctx["high_20d"] = max(b["high"] for b in bars[max(0, bar_idx - 19):bar_idx + 1])
-        ctx["low_20d"] = min(b["low"] for b in bars[max(0, bar_idx - 19):bar_idx + 1])
+        ctx["high_20d"] = max(b["high"] for b in bars[max(0, bar_idx - 19) : bar_idx + 1])
+        ctx["low_20d"] = min(b["low"] for b in bars[max(0, bar_idx - 19) : bar_idx + 1])
     if len(volumes) >= 50:
         ctx["volume_ma_50"] = sum(volumes[-50:]) / 50
     if len(volumes) >= 20:
@@ -1672,21 +1776,27 @@ def confirm_entry(
 
     if strategy == "vcp":
         from scripts.vcp_exit_manager import vcp_entry_confirmation
+
         confirmation = vcp_entry_confirmation(next_day_bar, ctx)
         if not confirmation["confirmed"]:
             return False, confirmation["rejection_reason"], {}
         stops = compute_vcp_stop_prices(entry_price, ctx)
-        return True, "", {
-            "entry_price": entry_price,
-            "pivot_point": stops["pivot_point"],
-            "contraction_low": stops["contraction_low"],
-            "entry_atr": stops["entry_atr"],
-            "stop_price": stops["conservative_stop"],
-            "signal_confidence": signal["confidence"],
-        }
+        return (
+            True,
+            "",
+            {
+                "entry_price": entry_price,
+                "pivot_point": stops["pivot_point"],
+                "contraction_low": stops["contraction_low"],
+                "entry_atr": stops["entry_atr"],
+                "stop_price": stops["conservative_stop"],
+                "signal_confidence": signal["confidence"],
+            },
+        )
 
     elif strategy == "ma2560":
         from scripts.ma2560_execution_manager import ma2560_full_entry_check
+
         enriched_ctx = dict(ctx)
         if "volume_ma5" not in enriched_ctx or not enriched_ctx["volume_ma5"]:
             enriched_ctx["volume_ma5"] = ctx.get("volume_ma20", signal.get("volume", 0))
@@ -1699,31 +1809,44 @@ def confirm_entry(
         check = ma2560_full_entry_check(next_day_bar, enriched_ctx)
         if not check["confirmed"]:
             return False, check["rejection_reason"], {}
-        return True, "", {
-            "entry_price": entry_price,
-            "signal_confidence": signal["confidence"],
-        }
+        return (
+            True,
+            "",
+            {
+                "entry_price": entry_price,
+                "signal_confidence": signal["confidence"],
+            },
+        )
 
     elif strategy == "bollinger_bandit":
         from scripts.bollinger_execution_manager import bb_entry_confirmation
+
         confirmation = bb_entry_confirmation(next_day_bar, ctx)
         if not confirmation["confirmed"]:
             return False, confirmation["rejection_reason"], {}
-        return True, "", {
-            "entry_price": entry_price,
-            "entry_atr": ctx.get("atr14", entry_price * 0.03),
-            "signal_confidence": signal["confidence"],
-        }
+        return (
+            True,
+            "",
+            {
+                "entry_price": entry_price,
+                "entry_atr": ctx.get("atr14", entry_price * 0.03),
+                "signal_confidence": signal["confidence"],
+            },
+        )
 
     elif strategy == "atr_chandelier":
         # ATR Chandelier 是纯 State 过滤策略，无需额外技术指标确认
         # 但需要计算 entry ATR(20) 用于后续出场
         atr = ctx.get("atr14", entry_price * 0.03)
-        return True, "", {
-            "entry_price": entry_price,
-            "entry_atr": atr,
-            "signal_confidence": signal["confidence"],
-        }
+        return (
+            True,
+            "",
+            {
+                "entry_price": entry_price,
+                "entry_atr": atr,
+                "signal_confidence": signal["confidence"],
+            },
+        )
 
     return False, "未知策略", {}
 
@@ -1732,7 +1855,10 @@ def confirm_entry(
 # 绩效计算与报告生成（保留原有实现）
 # ===========================================================================
 
-def calculate_performance(records: list[DailyRecord], trades: list[Trade], initial_capital: float) -> dict[str, Any]:
+
+def calculate_performance(
+    records: list[DailyRecord], trades: list[Trade], initial_capital: float
+) -> dict[str, Any]:
     """计算回测绩效指标。"""
     if not records:
         return {}
@@ -1758,7 +1884,9 @@ def calculate_performance(records: list[DailyRecord], trades: list[Trade], initi
         avg_return = float(np.mean(returns))
         std_return = float(np.std(returns, ddof=1))
         daily_rf = RISK_FREE_RATE / TRADING_DAYS_PER_YEAR
-        sharpe = ((avg_return - daily_rf) / std_return * math.sqrt(TRADING_DAYS_PER_YEAR)) if std_return > 0 else 0
+        sharpe = (
+            ((avg_return - daily_rf) / std_return * math.sqrt(TRADING_DAYS_PER_YEAR)) if std_return > 0 else 0
+        )
     else:
         sharpe = 0.0
 
@@ -1845,29 +1973,33 @@ def generate_report(
         f"- **最大回撤**: {performance['max_drawdown']:.2%}",
     ]
 
-    if performance['max_drawdown'] > 0.30:
+    if performance["max_drawdown"] > 0.30:
         lines.append("- **⚠️ 警告**: 最大回撤超过 30%，曾触发或接近强制清仓线")
     else:
         lines.append("- **✅ 风险可控**: 最大回撤未触发强制清仓线（30%）")
 
-    lines.extend([
-        "",
-        "## 月度收益分布",
-        "",
-        "| 月份 | 收益率 | 交易日 |",
-        "|------|--------|--------|",
-    ])
+    lines.extend(
+        [
+            "",
+            "## 月度收益分布",
+            "",
+            "| 月份 | 收益率 | 交易日 |",
+            "|------|--------|--------|",
+        ]
+    )
 
     for month, data in sorted(performance.get("monthly_summary", {}).items()):
         lines.append(f"| {month} | {data['return']:+.2%} | {data['num_days']} |")
 
-    lines.extend([
-        "",
-        "## 完整交易记录",
-        "",
-        "| 股票 | 入场日 | 入场价 | 出场日 | 出场价 | 持仓天数 | 盈亏% | 盈亏额 | 出场原因 |",
-        "|------|--------|--------|--------|--------|----------|-------|--------|----------|",
-    ])
+    lines.extend(
+        [
+            "",
+            "## 完整交易记录",
+            "",
+            "| 股票 | 入场日 | 入场价 | 出场日 | 出场价 | 持仓天数 | 盈亏% | 盈亏额 | 出场原因 |",
+            "|------|--------|--------|--------|--------|----------|-------|--------|----------|",
+        ]
+    )
 
     for t in trades:
         lines.append(
@@ -1920,34 +2052,34 @@ def generate_comparison_report(
             f"{perf['total_financing_cost']:,.0f} |"
         )
 
-    lines.extend([
-        "",
-        "## 最优策略",
-        f"- **收益最高**: {sorted_strategies[0][0].upper()}（年化 {sorted_strategies[0][1]['annual_return']:.2%}）",
-        "",
-        "## 风险排名（按最大回撤）",
-    ])
+    lines.extend(
+        [
+            "",
+            "## 最优策略",
+            f"- **收益最高**: {sorted_strategies[0][0].upper()}（年化 {sorted_strategies[0][1]['annual_return']:.2%}）",
+            "",
+            "## 风险排名（按最大回撤）",
+        ]
+    )
 
     risk_ranked = sorted(results.items(), key=lambda x: x[1].get("max_drawdown", 0))
     for i, (strategy, perf) in enumerate(risk_ranked, 1):
         lines.append(f"{i}. {strategy.upper()}: 最大回撤 {perf['max_drawdown']:.2%}")
 
-    lines.extend([
-        "",
-        "## 综合评分",
-        "",
-        "综合评分 = 年化收益 × 0.4 + 夏普比率 × 0.3 + (1 - 最大回撤) × 0.3",
-        "",
-        "| 策略 | 综合评分 |",
-        "|------|----------|",
-    ])
+    lines.extend(
+        [
+            "",
+            "## 综合评分",
+            "",
+            "综合评分 = 年化收益 × 0.4 + 夏普比率 × 0.3 + (1 - 最大回撤) × 0.3",
+            "",
+            "| 策略 | 综合评分 |",
+            "|------|----------|",
+        ]
+    )
 
     for strategy, perf in sorted_strategies:
-        score = (
-            perf["annual_return"] * 0.4 +
-            perf["sharpe_ratio"] * 0.3 +
-            (1 - perf["max_drawdown"]) * 0.3
-        )
+        score = perf["annual_return"] * 0.4 + perf["sharpe_ratio"] * 0.3 + (1 - perf["max_drawdown"]) * 0.3
         lines.append(f"| {strategy.upper()} | {score:.3f} |")
 
     lines.append("")
@@ -1989,35 +2121,39 @@ def generate_chain_filter_report(
         executed = len(trades)
         total_signals = filtered + executed
         filter_rate = filtered / total_signals if total_signals > 0 else 0.0
-        avg_factor = sum(getattr(t, 'chain_factor', 1.0) for t in trades) / len(trades) if trades else 1.0
+        avg_factor = sum(getattr(t, "chain_factor", 1.0) for t in trades) / len(trades) if trades else 1.0
         lines.append(
             f"| {strategy.upper()} | {filtered} | {executed} | {filter_rate:.1%} | {avg_factor:.3f} |"
         )
 
-    lines.extend([
-        "",
-        "## 产业链加成系数分布（实际成交）",
-        "",
-        "| 区间 | VCP | 2560 | 布林强盗 | ATR吊灯 |",
-        "|------|-----|------|----------|---------|",
-    ])
+    lines.extend(
+        [
+            "",
+            "## 产业链加成系数分布（实际成交）",
+            "",
+            "| 区间 | VCP | 2560 | 布林强盗 | ATR吊灯 |",
+            "|------|-----|------|----------|---------|",
+        ]
+    )
 
     bins = [(0.80, 0.90), (0.90, 0.98), (0.98, 1.02), (1.02, 1.10), (1.10, 1.20)]
     for lo, hi in bins:
         counts = []
         for strategy in ["vcp", "ma2560", "bollinger_bandit", "atr_chandelier"]:
             trades = trades_by_strategy.get(strategy, [])
-            c = sum(1 for t in trades if lo <= getattr(t, 'chain_factor', 1.0) < hi)
+            c = sum(1 for t in trades if lo <= getattr(t, "chain_factor", 1.0) < hi)
             counts.append(c)
         lines.append(f"| [{lo:.2f}, {hi:.2f}) | {counts[0]} | {counts[1]} | {counts[2]} | {counts[3]} |")
 
-    lines.extend([
-        "",
-        "## 绩效影响",
-        "",
-        "| 策略 | 总收益率 | 年化收益 | 最大回撤 | 夏普比率 | 交易次数 |",
-        "|------|----------|----------|----------|----------|----------|",
-    ])
+    lines.extend(
+        [
+            "",
+            "## 绩效影响",
+            "",
+            "| 策略 | 总收益率 | 年化收益 | 最大回撤 | 夏普比率 | 交易次数 |",
+            "|------|----------|----------|----------|----------|----------|",
+        ]
+    )
 
     for strategy, perf in sorted(results.items()):
         lines.append(
@@ -2025,17 +2161,19 @@ def generate_chain_filter_report(
             f"{perf['max_drawdown']:.2%} | {perf['sharpe_ratio']:.2f} | {perf['total_trades']} |"
         )
 
-    lines.extend([
-        "",
-        "## 结论",
-        "",
-        "- 产业链 `low` 评级过滤拦截了部分信号，避免了在景气低迷行业中开仓。",
-        "- 产业链加成系数使高景气行业（high/medium）获得更高仓位，低景气行业获得更低仓位。",
-        "- 三重共振模型将宏观、产业链、State 三个维度统一，信号在三层同向时获得加成。",
-        "",
-        "---",
-        "*本报告仅供研究参考，不构成投资建议。*",
-    ])
+    lines.extend(
+        [
+            "",
+            "## 结论",
+            "",
+            "- 产业链 `low` 评级过滤拦截了部分信号，避免了在景气低迷行业中开仓。",
+            "- 产业链加成系数使高景气行业（high/medium）获得更高仓位，低景气行业获得更低仓位。",
+            "- 三重共振模型将宏观、产业链、State 三个维度统一，信号在三层同向时获得加成。",
+            "",
+            "---",
+            "*本报告仅供研究参考，不构成投资建议。*",
+        ]
+    )
 
     with open(output_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
@@ -2047,9 +2185,19 @@ def generate_chain_filter_report(
 # 并行回测 worker
 # ===========================================================================
 
+
 def _run_single_strategy(args: tuple) -> dict[str, Any]:
     """多进程 worker：运行单个策略回测。"""
-    strategy, start_date, end_date, initial_capital, leverage, max_positions, financing_rate, data_store_dict = args
+    (
+        strategy,
+        start_date,
+        end_date,
+        initial_capital,
+        leverage,
+        max_positions,
+        financing_rate,
+        data_store_dict,
+    ) = args
 
     # 重新构建 data_store（不能跨进程传递复杂对象）
     # 实际上我们让主进程加载数据，每个策略复用同一个 data_store 实例
@@ -2090,12 +2238,20 @@ def _run_strategy_worker(args: tuple) -> tuple[str, dict[str, Any], list[Trade],
     engine.run()
 
     perf = calculate_performance(engine.daily_records, engine.trades, initial_capital)
-    return strategy, perf, engine.trades, engine.daily_records, engine.chain_filtered_count, engine.macro_filtered_count
+    return (
+        strategy,
+        perf,
+        engine.trades,
+        engine.daily_records,
+        engine.chain_filtered_count,
+        engine.macro_filtered_count,
+    )
 
 
 # ===========================================================================
 # 主入口
 # ===========================================================================
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="A股四策略独立回测（支持杠杆）— 高性能优化版")
@@ -2120,6 +2276,7 @@ def main() -> None:
     os.makedirs(args.output_dir, exist_ok=True)
 
     import time
+
     total_start = time.perf_counter()
 
     if args.run_all:
@@ -2130,9 +2287,7 @@ def main() -> None:
         print("=" * 60)
         print("预加载数据（单次 DuckDB 连接）...")
         data_load_start = time.perf_counter()
-        shared_data = VectorizedDataStore(
-            str(FOUNDATION_DB), args.start_date, args.end_date
-        )
+        shared_data = VectorizedDataStore(str(FOUNDATION_DB), args.start_date, args.end_date)
         shared_data.load_all()
         data_load_elapsed = time.perf_counter() - data_load_start
         print(f"数据加载完成: {data_load_elapsed:.2f}s")
@@ -2141,12 +2296,21 @@ def main() -> None:
         # 使用多进程并行跑四策略
         pool_start = time.perf_counter()
         worker_args = [
-            (s, args.start_date, args.end_date, args.initial_capital,
-             args.leverage, args.max_positions, args.financing_rate)
+            (
+                s,
+                args.start_date,
+                args.end_date,
+                args.initial_capital,
+                args.leverage,
+                args.max_positions,
+                args.financing_rate,
+            )
             for s in strategies
         ]
 
-        with Pool(processes=args.workers, initializer=_init_worker, initargs=(shared_data, not args.no_macro_filter)) as pool:
+        with Pool(
+            processes=args.workers, initializer=_init_worker, initargs=(shared_data, not args.no_macro_filter)
+        ) as pool:
             results = pool.map(_run_strategy_worker, worker_args)
 
         pool_elapsed = time.perf_counter() - pool_start

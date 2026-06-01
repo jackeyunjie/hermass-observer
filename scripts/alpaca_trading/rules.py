@@ -83,24 +83,26 @@ def plan_orders(
         notional = round(qty * price, 2)
         risk = round(notional * stop_loss_pct, 2)
 
-        plans.append({
-            "symbol": ticker,
-            "grade": sig.get("grade", "D"),
-            "qty": qty,
-            "entry_price": price,
-            "notional": notional,
-            "stop_price": stop_price,
-            "stop_loss_pct": stop_loss_pct,
-            "risk_amount": risk,
-            "mn1": sig.get("mn1", "-"),
-            "w1": sig.get("w1", "-"),
-            "d1": sig.get("d1", "-"),
-            "ef_count": sig.get("ef_count", 0),
-            "d1_adx14": sig.get("d1_adx14"),
-            "d1_trend": sig.get("d1_trend", "-"),
-            "sr_direction": sig.get("sr_direction", "-"),
-            "sr_distance_pct": sig.get("sr_distance_pct"),
-        })
+        plans.append(
+            {
+                "symbol": ticker,
+                "grade": sig.get("grade", "D"),
+                "qty": qty,
+                "entry_price": price,
+                "notional": notional,
+                "stop_price": stop_price,
+                "stop_loss_pct": stop_loss_pct,
+                "risk_amount": risk,
+                "mn1": sig.get("mn1", "-"),
+                "w1": sig.get("w1", "-"),
+                "d1": sig.get("d1", "-"),
+                "ef_count": sig.get("ef_count", 0),
+                "d1_adx14": sig.get("d1_adx14"),
+                "d1_trend": sig.get("d1_trend", "-"),
+                "sr_direction": sig.get("sr_direction", "-"),
+                "sr_distance_pct": sig.get("sr_distance_pct"),
+            }
+        )
 
     return plans
 
@@ -111,9 +113,11 @@ def print_plan_table(plans: list[dict[str, Any]]) -> None:
         print("No actionable signals.")
         return
 
-    print(f"\n{'='*100}")
-    print(f"{'Symbol':<8} {'Grade':<6} {'Qty':>6} {'Entry':>10} {'Notional':>12} {'Stop':>10} {'Risk':>10} {'State':<15}")
-    print(f"{'-'*100}")
+    print(f"\n{'=' * 100}")
+    print(
+        f"{'Symbol':<8} {'Grade':<6} {'Qty':>6} {'Entry':>10} {'Notional':>12} {'Stop':>10} {'Risk':>10} {'State':<15}"
+    )
+    print(f"{'-' * 100}")
     total_notional = 0
     total_risk = 0
     for p in plans:
@@ -125,9 +129,9 @@ def print_plan_table(plans: list[dict[str, Any]]) -> None:
         )
         total_notional += p["notional"]
         total_risk += p["risk_amount"]
-    print(f"{'-'*100}")
+    print(f"{'-' * 100}")
     print(f"{'TOTAL':<8} {'':<6} {'':>6} {'':>10} ${total_notional:>10.2f} {'':>10} ${total_risk:>8.2f}")
-    print(f"{'='*100}")
+    print(f"{'=' * 100}")
 
 
 def execute_plans(
@@ -167,19 +171,28 @@ def save_trade_log(results: list[dict[str, Any]], out_path: Path) -> None:
 
 def main() -> None:
     import argparse
+
     parser = argparse.ArgumentParser(description="Generate trading plans from State Scan brief")
     parser.add_argument("--brief", type=Path, required=True, help="Path to us_state_scan_YYYYMMDD.json")
     parser.add_argument("--min-grade", default="B", choices=["A", "B", "C"], help="Minimum signal grade")
-    parser.add_argument("--max-position-pct", type=float, default=0.05, help="Max position size as % of equity")
+    parser.add_argument(
+        "--max-position-pct", type=float, default=0.05, help="Max position size as % of equity"
+    )
     parser.add_argument("--stop-loss-pct", type=float, default=0.08, help="Stop loss % below entry")
-    parser.add_argument("--dry-run", action="store_true", default=True, help="Simulate orders without submitting")
-    parser.add_argument("--live", action="store_true", help="Actually submit orders (requires --dry-run to be False)")
+    parser.add_argument(
+        "--dry-run", action="store_true", default=True, help="Simulate orders without submitting"
+    )
+    parser.add_argument(
+        "--live", action="store_true", help="Actually submit orders (requires --dry-run to be False)"
+    )
     args = parser.parse_args()
 
     # Load brief
     brief = json.loads(args.brief.read_text(encoding="utf-8"))
     signals = filter_signals(brief, min_grade=args.min_grade)
-    print(f"Signals from brief ({brief['date']}): {len(brief.get('entries', []))} total, {len(signals)} actionable (grade ≥ {args.min_grade})")
+    print(
+        f"Signals from brief ({brief['date']}): {len(brief.get('entries', []))} total, {len(signals)} actionable (grade ≥ {args.min_grade})"
+    )
 
     # Connect to Alpaca
     client = AlpacaClient()

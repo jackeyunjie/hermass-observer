@@ -96,7 +96,9 @@ def merge_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 current[key] = row[key]
         if row.get("source_pool") and row["source_pool"] not in str(current.get("source_pool", "")):
             current["source_pool"] = ",".join(filter(None, [current.get("source_pool"), row["source_pool"]]))
-        if priority.get(row.get("priority_tier", "watch"), 0) > priority.get(current.get("priority_tier", "watch"), 0):
+        if priority.get(row.get("priority_tier", "watch"), 0) > priority.get(
+            current.get("priority_tier", "watch"), 0
+        ):
             current["priority_tier"] = row["priority_tier"]
     return sorted(merged.values(), key=lambda item: item["stock_code"])
 

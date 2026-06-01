@@ -87,8 +87,8 @@ QUALITY_COLUMN_MAP = {
 
 # ── codex 建议补充的字段 ──
 CODEX_EXTRA_INCOME = [
-    "营业总成本",       # 与营业总收入成对，计算成本率
-    "研发费用",         # 研发绝对值，不只是比率
+    "营业总成本",  # 与营业总收入成对，计算成本率
+    "研发费用",  # 研发绝对值，不只是比率
     "销售费用",
     "管理费用",
     "财务费用",
@@ -97,11 +97,11 @@ CODEX_EXTRA_INCOME = [
 ]
 
 CODEX_EXTRA_BALANCE = [
-    "固定资产",         # 产能基础
-    "在建工程",         # 未来产能释放
-    "无形资产",         # 技术/品牌资产
-    "应付账款",         # 对上游占款能力
-    "预收款项",         # 与合同负债互补
+    "固定资产",  # 产能基础
+    "在建工程",  # 未来产能释放
+    "无形资产",  # 技术/品牌资产
+    "应付账款",  # 对上游占款能力
+    "预收款项",  # 与合同负债互补
 ]
 
 CODEX_EXTRA_CASHFLOW = [
@@ -115,7 +115,13 @@ CODEX_EXTRA_CASHFLOW = [
 def _extend_map(base: dict, extra: list[str]) -> dict:
     for item in extra:
         if item not in base:
-            base[item] = item.replace("、", "_").replace("（", "_").replace("）", "").replace("/", "_").replace(" ", "_")
+            base[item] = (
+                item.replace("、", "_")
+                .replace("（", "_")
+                .replace("）", "")
+                .replace("/", "_")
+                .replace(" ", "_")
+            )
     return base
 
 
@@ -125,6 +131,7 @@ CASHFLOW_COLUMN_MAP = _extend_map(CASHFLOW_COLUMN_MAP, CODEX_EXTRA_CASHFLOW)
 
 
 # ── 核心导入逻辑 ──
+
 
 def _to_float(v: Any) -> float | None:
     if v is None:
@@ -209,9 +216,11 @@ def read_excel_rows(filepath: Path, column_map: dict[str, str], category: str) -
 
     if not header:
         # If no explicit header found, try row 0
-        sorted_cols_first = sorted(
-            {c.get("r", ""): c for c in rows_elem[0].findall(f".//{{{ns}}}c")}.keys()
-        ) if rows_elem else []
+        sorted_cols_first = (
+            sorted({c.get("r", ""): c for c in rows_elem[0].findall(f".//{{{ns}}}c")}.keys())
+            if rows_elem
+            else []
+        )
         if rows_elem:
             cells = {}
             for c in rows_elem[0].findall(f".//{{{ns}}}c"):
@@ -305,8 +314,10 @@ def import_to_duckdb(records: list[dict], date_str: str, collected_at: str) -> i
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     import importlib.util
-    spec = importlib.util.spec_from_file_location("fundamental_evidence_schema",
-        str(ROOT / "scripts" / "fundamental_evidence_schema.py"))
+
+    spec = importlib.util.spec_from_file_location(
+        "fundamental_evidence_schema", str(ROOT / "scripts" / "fundamental_evidence_schema.py")
+    )
     schema_mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(schema_mod)
     schema_mod.init_schema(db_path)
@@ -319,35 +330,55 @@ def import_to_duckdb(records: list[dict], date_str: str, collected_at: str) -> i
         all_keys.update(r.keys())
 
     con.execute("DROP TABLE IF EXISTS _temp_fin_import")
-    cols_sql = ", ".join(f'"{k}" VARCHAR' for k in all_keys if k not in ("stock_code", "category", "source_file"))
-    con.execute(f"CREATE TEMP TABLE _temp_fin_import (stock_code VARCHAR, category VARCHAR, source_file VARCHAR, {cols_sql})")
+    cols_sql = ", ".join(
+        f'"{k}" VARCHAR' for k in all_keys if k not in ("stock_code", "category", "source_file")
+    )
+    con.execute(
+        f"CREATE TEMP TABLE _temp_fin_import (stock_code VARCHAR, category VARCHAR, source_file VARCHAR, {cols_sql})"
+    )
 
     for r in records:
-        col_names = ["stock_code", "category", "source_file"] + [k for k in all_keys if k not in ("stock_code", "category", "source_file")]
+        col_names = ["stock_code", "category", "source_file"] + [
+            k for k in all_keys if k not in ("stock_code", "category", "source_file")
+        ]
         vals = [r.get(k) for k in col_names]
         placeholders = ",".join("?" * len(col_names))
         con.execute(f"INSERT INTO _temp_fin_import VALUES ({placeholders})", vals)
 
     # Upsert into financial_metrics
     for r in records:
-        con.execute("""
+        con.execute(
+            """
             INSERT OR REPLACE INTO ifind_financial_metrics
             (stock_code, report_period, report_type, source_vendor, source_api, source_query, collected_at)
             VALUES (?, 'MRQ', 'consolidated', 'iFind', 'THS_BD', ?, ?)
-        """, (r["stock_code"], f"Excel: {r.get('source_file', '')}", collected_at))
+        """,
+            (r["stock_code"], f"Excel: {r.get('source_file', '')}", collected_at),
+        )
 
     # Write evidence packets
     ev_count = 0
     for r in records:
         ev_id = f"fs_mrq_{r['stock_code']}_{ymd(date_str)}"
-        con.execute("""
+        con.execute(
+            """
             INSERT OR REPLACE INTO fundamental_evidence_packet
             (evidence_id, stock_code, as_of_date, evidence_type, evidence_text,
              source_vendor, source_api, source_query, confidence, collected_at)
             VALUES (?, ?, ?, 'financial_statement_mrq', ?, 'iFind', 'manual_export', ?, 0.95, ?)
-        """, (ev_id, r["stock_code"], date_str,
-              json.dumps({k: v for k, v in r.items() if k not in ("stock_code", "category", "source_file")}, ensure_ascii=False)[:4000],
-              r.get("source_file", ""), collected_at))
+        """,
+            (
+                ev_id,
+                r["stock_code"],
+                date_str,
+                json.dumps(
+                    {k: v for k, v in r.items() if k not in ("stock_code", "category", "source_file")},
+                    ensure_ascii=False,
+                )[:4000],
+                r.get("source_file", ""),
+                collected_at,
+            ),
+        )
         ev_count += 1
 
     # Compute quality metrics from financial statements
@@ -390,25 +421,40 @@ def _compute_derived_from_fs(con, records: list[dict], date_str: str, collected_
         if rd and rev and rev > 0:
             rd_r = round(rd / rev * 100, 2)
 
-        con.execute("""
+        con.execute(
+            """
             INSERT OR REPLACE INTO ifind_derived_metrics
             (stock_code, as_of_date, gross_margin_rank_pct, roe_rank_pct,
              debt_ratio, computed_at)
             VALUES (?, ?, NULL, NULL, ?, ?)
-        """, (code, date_str, debt_r, collected_at))
+        """,
+            (code, date_str, debt_r, collected_at),
+        )
         count += 1
 
         # Also store computed metrics as evidence
-        derived = {"gross_margin_calculated": gm, "net_margin_calculated": nm,
-                   "roe_calculated": roe_val, "debt_ratio_calculated": debt_r,
-                   "rd_ratio_calculated": rd_r}
-        con.execute("""
+        derived = {
+            "gross_margin_calculated": gm,
+            "net_margin_calculated": nm,
+            "roe_calculated": roe_val,
+            "debt_ratio_calculated": debt_r,
+            "rd_ratio_calculated": rd_r,
+        }
+        con.execute(
+            """
             INSERT OR REPLACE INTO fundamental_evidence_packet
             (evidence_id, stock_code, as_of_date, evidence_type, evidence_text,
              source_vendor, source_api, confidence, collected_at)
             VALUES (?, ?, ?, 'derived_metrics', ?, 'iFind', 'python_computed', 0.85, ?)
-        """, (f"derived_{code}_{ymd(date_str)}", code, date_str,
-              json.dumps(derived, ensure_ascii=False), collected_at))
+        """,
+            (
+                f"derived_{code}_{ymd(date_str)}",
+                code,
+                date_str,
+                json.dumps(derived, ensure_ascii=False),
+                collected_at,
+            ),
+        )
         count += 1
 
     return count
@@ -416,19 +462,30 @@ def _compute_derived_from_fs(con, records: list[dict], date_str: str, collected_
 
 # ── 主入口 ──
 
-def run(date_str: str,
-        income_file: str | None = None,
-        balance_file: str | None = None,
-        cashflow_file: str | None = None,
-        quality_file: str | None = None) -> dict:
+
+def run(
+    date_str: str,
+    income_file: str | None = None,
+    balance_file: str | None = None,
+    cashflow_file: str | None = None,
+    quality_file: str | None = None,
+) -> dict:
     collected_at = datetime.now(timezone.utc).isoformat()
     y = ymd(date_str)
 
     # Default file paths
-    income_path = Path(income_file) if income_file else ROOT / "data" / f"ifind_stock_income_core_mrq_{y}.xlsx"
-    balance_path = Path(balance_file) if balance_file else ROOT / "data" / f"ifind_stock_balance_core_mrq_{y}.xlsx"
-    cashflow_path = Path(cashflow_file) if cashflow_file else ROOT / "data" / f"ifind_stock_cashflow_core_mrq_{y}.xlsx"
-    quality_path = Path(quality_file) if quality_file else ROOT / "data" / f"ifind_stock_quality_metrics_mrq_{y}.xlsx"
+    income_path = (
+        Path(income_file) if income_file else ROOT / "data" / f"ifind_stock_income_core_mrq_{y}.xlsx"
+    )
+    balance_path = (
+        Path(balance_file) if balance_file else ROOT / "data" / f"ifind_stock_balance_core_mrq_{y}.xlsx"
+    )
+    cashflow_path = (
+        Path(cashflow_file) if cashflow_file else ROOT / "data" / f"ifind_stock_cashflow_core_mrq_{y}.xlsx"
+    )
+    quality_path = (
+        Path(quality_file) if quality_file else ROOT / "data" / f"ifind_stock_quality_metrics_mrq_{y}.xlsx"
+    )
 
     all_records: list[dict] = []
     for path, col_map, cat in [
@@ -466,7 +523,9 @@ def run(date_str: str,
 def main() -> int:
     parser = argparse.ArgumentParser(description="iFind 财务报表导入器 → DuckDB")
     parser.add_argument("--date", required=True)
-    parser.add_argument("--income", help="利润表 Excel 路径（默认 data/ifind_stock_income_core_mrq_YYYYMMDD.xlsx）")
+    parser.add_argument(
+        "--income", help="利润表 Excel 路径（默认 data/ifind_stock_income_core_mrq_YYYYMMDD.xlsx）"
+    )
     parser.add_argument("--balance", help="资产负债表 Excel")
     parser.add_argument("--cashflow", help="现金流量表 Excel")
     parser.add_argument("--quality", help="质量指标 Excel")

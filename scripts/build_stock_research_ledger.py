@@ -86,7 +86,13 @@ def extract_fact_summary(evidence: list[dict[str, Any]]) -> str:
     return "；".join(out[:6])
 
 
-def build_insight(code: str, tech: dict[str, Any], pattern: dict[str, Any], profile: dict[str, Any], evidence: list[dict[str, Any]]) -> dict[str, Any]:
+def build_insight(
+    code: str,
+    tech: dict[str, Any],
+    pattern: dict[str, Any],
+    profile: dict[str, Any],
+    evidence: list[dict[str, Any]],
+) -> dict[str, Any]:
     states = "/".join(str(tech.get(k, "")) for k in ("mn1_state", "w1_state", "d1_state")).strip("/")
     structure = pattern.get("structure_type") or "none"
     company_position = profile.get("company_position") or "unknown"
@@ -321,7 +327,7 @@ def render_html(payload: dict[str, Any]) -> str:
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <title>单股研究账本 - {html.escape(payload['date'])}</title>
+  <title>单股研究账本 - {html.escape(payload["date"])}</title>
   <style>
     body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 24px; color: #172033; }}
     table {{ border-collapse: collapse; width: 100%; font-size: 13px; }}
@@ -331,7 +337,7 @@ def render_html(payload: dict[str, Any]) -> str:
   </style>
 </head>
 <body>
-  <h1>单股研究账本 - {html.escape(payload['date'])}</h1>
+  <h1>单股研究账本 - {html.escape(payload["date"])}</h1>
   <div class="note">Research-only. 本页为本地 iFinD 基本面库 + Hermass 技术证据的持续跟踪账本，不构成投资建议。</div>
   <table>
     <thead><tr><th>代码</th><th>名称</th><th>行业</th><th>置信度</th><th>证据数</th><th>首席式洞察</th></tr></thead>

@@ -25,7 +25,12 @@ def get_tier_definition(tier: str) -> dict:
 def get_tier_list() -> list[dict]:
     cfg = _load_config()
     return [
-        {"tier": tid, "name": td["name"], "price": td["price"], "price_text": td.get("price_text", f"¥{td['price']}/月")}
+        {
+            "tier": tid,
+            "name": td["name"],
+            "price": td["price"],
+            "price_text": td.get("price_text", f"¥{td['price']}/月"),
+        }
         for tid, td in cfg["tiers"].items()
     ]
 

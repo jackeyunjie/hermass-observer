@@ -98,14 +98,16 @@ def get_finnhub_data(ticker: str, start: date, end: date, api_key: str) -> pd.Da
     if data.get("s") != "ok":
         raise RuntimeError(f"Finnhub error: {data.get('s', 'unknown')}")
 
-    df = pd.DataFrame({
-        "date": pd.to_datetime(data["t"], unit="s"),
-        "open": data["o"],
-        "high": data["h"],
-        "low": data["l"],
-        "close": data["c"],
-        "volume": data["v"],
-    })
+    df = pd.DataFrame(
+        {
+            "date": pd.to_datetime(data["t"], unit="s"),
+            "open": data["o"],
+            "high": data["h"],
+            "low": data["l"],
+            "close": data["c"],
+            "volume": data["v"],
+        }
+    )
     df = df.set_index("date")
     return df
 
@@ -126,7 +128,9 @@ def compare_series(yf_df: pd.DataFrame, fh_df: pd.DataFrame, ticker: str) -> dic
 
     merged["close_diff"] = merged["close_yf"] - merged["close_fh"]
     merged["close_diff_pct"] = (merged["close_diff"].abs() / merged["close_fh"]) * 100
-    merged["volume_diff_pct"] = ((merged["volume_yf"] - merged["volume_fh"]).abs() / merged["volume_fh"]) * 100
+    merged["volume_diff_pct"] = (
+        (merged["volume_yf"] - merged["volume_fh"]).abs() / merged["volume_fh"]
+    ) * 100
 
     return {
         "ticker": ticker,
@@ -174,17 +178,23 @@ def generate_html(report: dict) -> str:
 
     rows = ""
     for d in sorted(valid, key=lambda x: x["close_max_diff_pct"], reverse=True):
-        color = "#ff6b6b" if d["close_max_diff_pct"] > 1 else "#f9ca24" if d["close_max_diff_pct"] > 0.1 else "#74b9ff"
+        color = (
+            "#ff6b6b"
+            if d["close_max_diff_pct"] > 1
+            else "#f9ca24"
+            if d["close_max_diff_pct"] > 0.1
+            else "#74b9ff"
+        )
         rows += f"""
         <tr>
-            <td><strong>{d['ticker']}</strong></td>
-            <td>{d['overlap_days']}</td>
-            <td>{d['yf_rows']}</td>
-            <td>{d['fh_rows']}</td>
-            <td style="color:{color}">{d['close_max_diff_pct']:.4f}%</td>
-            <td>{d['close_avg_diff_pct']:.4f}%</td>
-            <td>{d['days_with_diff_gt_0_1pct']}</td>
-            <td>{d['days_with_diff_gt_1pct']}</td>
+            <td><strong>{d["ticker"]}</strong></td>
+            <td>{d["overlap_days"]}</td>
+            <td>{d["yf_rows"]}</td>
+            <td>{d["fh_rows"]}</td>
+            <td style="color:{color}">{d["close_max_diff_pct"]:.4f}%</td>
+            <td>{d["close_avg_diff_pct"]:.4f}%</td>
+            <td>{d["days_with_diff_gt_0_1pct"]}</td>
+            <td>{d["days_with_diff_gt_1pct"]}</td>
         </tr>
         """
 
@@ -209,12 +219,12 @@ tr:hover {{ background:#1a1a2e; }}
 .guardrail {{ background:#1a1a2e; border-left:3px solid #e74c3c; padding:15px; margin:20px 0; border-radius:4px; font-size:13px; color:#ccc; }}
 </style></head><body>
 <h1>🔍 Finnhub vs yfinance 数据交叉验证报告</h1>
-<div class="subtitle">{report['start_date']} ~ {report['end_date']} | 测试 {report['tickers_tested']} 只股票</div>
+<div class="subtitle">{report["start_date"]} ~ {report["end_date"]} | 测试 {report["tickers_tested"]} 只股票</div>
 <div class="stats">
-    <div class="stat-card"><div class="num" style="color:#74b9ff">{report['valid_comparisons']}</div><div class="label">有效对比</div></div>
-    <div class="stat-card"><div class="num" style="color:#f9ca24">{report['close_avg_diff_pct_mean']:.4f}%</div><div class="label">平均差异</div></div>
-    <div class="stat-card"><div class="num" style="color:#ff6b6b">{report['worst_diff_pct']:.4f}%</div><div class="label">最大差异</div></div>
-    <div class="stat-card"><div class="num">{report['tickers_with_diff_gt_1pct']}</div><div class="label">差异&gt;1%的股票数</div></div>
+    <div class="stat-card"><div class="num" style="color:#74b9ff">{report["valid_comparisons"]}</div><div class="label">有效对比</div></div>
+    <div class="stat-card"><div class="num" style="color:#f9ca24">{report["close_avg_diff_pct_mean"]:.4f}%</div><div class="label">平均差异</div></div>
+    <div class="stat-card"><div class="num" style="color:#ff6b6b">{report["worst_diff_pct"]:.4f}%</div><div class="label">最大差异</div></div>
+    <div class="stat-card"><div class="num">{report["tickers_with_diff_gt_1pct"]}</div><div class="label">差异&gt;1%的股票数</div></div>
 </div>
 <div class="guardrail"><strong>⚠️ 说明</strong><br>
 yfinance 使用 split-adjusted 数据，Finnhub 返回 adjusted 数据。差异主要来源于复权方式不同、拆股日期差异、或数据源本身的不一致。差异 &gt; 1% 需要重点排查。
@@ -262,7 +272,7 @@ def main():
 
     results = []
     for i, ticker in enumerate(tickers):
-        print(f"\n[{i+1}/{len(tickers)}] {ticker}...")
+        print(f"\n[{i + 1}/{len(tickers)}] {ticker}...")
         try:
             yf_df = get_yfinance_data(FOUNDATION_DB, ticker, start, end)
             fh_df = get_finnhub_data(ticker, start, end, api_key)
@@ -271,7 +281,9 @@ def main():
             if "error" in result:
                 print(f"   ⚠️ {result['error']}: yf={result['yf_rows']}, fh={result['fh_rows']}")
             else:
-                print(f"   ✓ overlap={result['overlap_days']} days, max_diff={result['close_max_diff_pct']:.4f}%, avg_diff={result['close_avg_diff_pct']:.4f}%")
+                print(
+                    f"   ✓ overlap={result['overlap_days']} days, max_diff={result['close_max_diff_pct']:.4f}%, avg_diff={result['close_avg_diff_pct']:.4f}%"
+                )
         except Exception as e:
             print(f"   ❌ Error: {e}")
             results.append({"ticker": ticker, "error": str(e)})
@@ -312,8 +324,14 @@ def main():
         f"| 代码 | 重叠天数 | yf行数 | fh行数 | 最大差异% | 平均差异% | >0.1%天数 | >1%天数 |",
         f"|---|---|---|---|---|---|---|---|",
     ]
-    for d in sorted([r for r in report.get("details", []) if "error" not in r], key=lambda x: x["close_max_diff_pct"], reverse=True):
-        md_lines.append(f"| {d['ticker']} | {d['overlap_days']} | {d['yf_rows']} | {d['fh_rows']} | {d['close_max_diff_pct']:.4f}% | {d['close_avg_diff_pct']:.4f}% | {d['days_with_diff_gt_0_1pct']} | {d['days_with_diff_gt_1pct']} |")
+    for d in sorted(
+        [r for r in report.get("details", []) if "error" not in r],
+        key=lambda x: x["close_max_diff_pct"],
+        reverse=True,
+    ):
+        md_lines.append(
+            f"| {d['ticker']} | {d['overlap_days']} | {d['yf_rows']} | {d['fh_rows']} | {d['close_max_diff_pct']:.4f}% | {d['close_avg_diff_pct']:.4f}% | {d['days_with_diff_gt_0_1pct']} | {d['days_with_diff_gt_1pct']} |"
+        )
     md_path = OUT_DIR / f"finnhub_yfinance_audit_{date_str}.md"
     md_path.write_text("\n".join(md_lines), encoding="utf-8")
     print(f"📄 MD:   {md_path}")
@@ -323,7 +341,7 @@ def main():
     html_path.write_text(html, encoding="utf-8")
     print(f"📄 HTML: {html_path}")
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"✅ Audit complete!")
     print(f"   Valid comparisons: {report['valid_comparisons']}/{report['tickers_tested']}")
     print(f"   Avg diff: {report['close_avg_diff_pct_mean']:.4f}%")

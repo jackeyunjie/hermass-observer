@@ -69,7 +69,18 @@ def ensure_trade_storage() -> None:
         with open(TRADE_RECORDS_CSV, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerow(
-                ["id", "date", "stock_code", "stock_name", "strategy", "action", "price", "shares", "notes", "created_at"]
+                [
+                    "id",
+                    "date",
+                    "stock_code",
+                    "stock_name",
+                    "strategy",
+                    "action",
+                    "price",
+                    "shares",
+                    "notes",
+                    "created_at",
+                ]
             )
 
 
@@ -207,9 +218,7 @@ def check_exit_compliance(
     if exit_trade.stock_code not in exit_candidates:
         result["exit_sop_present"] = False
         # 检查前一日是否还在 SOP 中
-        prev_date = (
-            datetime.strptime(exit_trade.date, "%Y-%m-%d") - timedelta(days=1)
-        ).strftime("%Y-%m-%d")
+        prev_date = (datetime.strptime(exit_trade.date, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
         prev_sop = load_sop(prev_date)
         prev_candidates = sop_candidate_lookup(prev_sop)
         if prev_candidates and exit_trade.stock_code in prev_candidates:
@@ -222,9 +231,7 @@ def check_exit_compliance(
         return result
 
     # 出场当日股票仍在 SOP 中：检查下一日是否被移出（±1天容忍度）
-    next_date = (
-        datetime.strptime(exit_trade.date, "%Y-%m-%d") + timedelta(days=1)
-    ).strftime("%Y-%m-%d")
+    next_date = (datetime.strptime(exit_trade.date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
     next_sop = load_sop(next_date)
     next_candidates = sop_candidate_lookup(next_sop)
     if next_candidates and exit_trade.stock_code not in next_candidates:
@@ -266,9 +273,7 @@ def compute_pnl(
         "system_return_pct": round(system_return_pct, 2) if system_return_pct is not None else None,
         "system_pnl": round(system_pnl, 2) if system_pnl is not None else None,
         "deviation_pct": (
-            round(actual_return_pct - system_return_pct, 2)
-            if system_return_pct is not None
-            else None
+            round(actual_return_pct - system_return_pct, 2) if system_return_pct is not None else None
         ),
     }
 
@@ -279,9 +284,7 @@ def run_weekly_review(anchor_date: str) -> dict[str, Any]:
     all_trades = load_trades()
 
     # 筛选本周交易
-    week_trades = [
-        t for t in all_trades if week_start <= t.date <= week_end
-    ]
+    week_trades = [t for t in all_trades if week_start <= t.date <= week_end]
 
     # 按股票分组配对 entry / exit
     stock_actions: dict[str, list[TradeRecord]] = defaultdict(list)
@@ -369,21 +372,15 @@ def run_weekly_review(anchor_date: str) -> dict[str, Any]:
     total_best_fit_signals = len(system_signals_best_fit)
     executed_best_fit_count = len(executed_best_fit)
     signal_execution_rate = (
-        executed_best_fit_count / total_best_fit_signals * 100.0
-        if total_best_fit_signals > 0
-        else 0.0
+        executed_best_fit_count / total_best_fit_signals * 100.0 if total_best_fit_signals > 0 else 0.0
     )
 
     total_exits = len(exits)
     compliant_exits = sum(1 for e in exits if e["compliant"])
-    exit_compliance_rate = (
-        compliant_exits / total_exits * 100.0 if total_exits > 0 else 0.0
-    )
+    exit_compliance_rate = compliant_exits / total_exits * 100.0 if total_exits > 0 else 0.0
 
     total_actual_pnl = sum(e["actual_pnl"] for e in exits)
-    total_system_pnl = sum(
-        e["system_pnl"] for e in exits if e["system_pnl"] is not None
-    )
+    total_system_pnl = sum(e["system_pnl"] for e in exits if e["system_pnl"] is not None)
 
     return {
         "week_start": week_start,
@@ -427,20 +424,14 @@ def build_review_markdown(review: dict[str, Any]) -> str:
     ]
     if review.get("total_system_pnl") is not None:
         deviation = review["total_actual_pnl"] - review["total_system_pnl"]
-        lines.append(
-            f"- **系统参考盈亏**：¥{review['total_system_pnl']:,.2f}（偏差：¥{deviation:,.2f}）"
-        )
+        lines.append(f"- **系统参考盈亏**：¥{review['total_system_pnl']:,.2f}（偏差：¥{deviation:,.2f}）")
     lines.append("")
 
     # Entry table
     lines.extend(["## 二、入场记录", ""])
     if entries:
-        lines.append(
-            "| 日期 | 股票 | 策略 | 实际价 | 股数 | 系统匹配 | 系统适配度 | 系统止损价 | 备注 |"
-        )
-        lines.append(
-            "|------|------|------|--------|------|----------|------------|------------|------|"
-        )
+        lines.append("| 日期 | 股票 | 策略 | 实际价 | 股数 | 系统匹配 | 系统适配度 | 系统止损价 | 备注 |")
+        lines.append("|------|------|------|--------|------|----------|------------|------------|------|")
         for e in entries:
             match_text = "是" if e["system_match"] else "否"
             fit_text = e.get("system_fit") or "-"
@@ -486,9 +477,7 @@ def build_review_markdown(review: dict[str, Any]) -> str:
         lines.append(f"**非合规出场共 {len(non_compliant)} 笔：**")
         lines.append("")
         for e in non_compliant:
-            lines.append(
-                f"- {e['stock_code']} {e['stock_name']}：{e['compliance_reason']}"
-            )
+            lines.append(f"- {e['stock_code']} {e['stock_name']}：{e['compliance_reason']}")
     else:
         lines.append("本周所有出场均符合系统规则。")
     lines.append("")
@@ -631,8 +620,20 @@ def main() -> int:
     if args.import_csv:
         handle_import_csv(args.import_csv)
     elif args.add_trade:
-        if not all([args.date, args.stock, args.strategy, args.action, args.price is not None, args.shares is not None]):
-            print("错误：--add-trade 需要配合 --date --stock --strategy --action --price --shares 使用", file=sys.stderr)
+        if not all(
+            [
+                args.date,
+                args.stock,
+                args.strategy,
+                args.action,
+                args.price is not None,
+                args.shares is not None,
+            ]
+        ):
+            print(
+                "错误：--add-trade 需要配合 --date --stock --strategy --action --price --shares 使用",
+                file=sys.stderr,
+            )
             return 1
         handle_add_trade(
             args.date,

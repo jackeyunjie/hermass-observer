@@ -46,6 +46,7 @@ def norm_date(value: Any) -> str | None:
         return f"{text[:4]}-{text[4:6]}-01"
     # Handle Chinese date format like "2026年04月份"
     import re
+
     m = re.match(r"(\d{4})年(\d{2})月份", text)
     if m:
         return f"{m.group(1)}-{m.group(2)}-01"
@@ -148,6 +149,7 @@ def data_status(history_count: int) -> str:
 
 def akshare_cpi() -> list[dict[str, Any]]:
     import akshare as ak
+
     df = ak.macro_china_cpi_yearly()
     rows: list[dict[str, Any]] = []
     for _, r in df.iterrows():
@@ -160,6 +162,7 @@ def akshare_cpi() -> list[dict[str, Any]]:
 
 def akshare_ppi() -> list[dict[str, Any]]:
     import akshare as ak
+
     df = ak.macro_china_ppi_yearly()
     rows: list[dict[str, Any]] = []
     for _, r in df.iterrows():
@@ -172,6 +175,7 @@ def akshare_ppi() -> list[dict[str, Any]]:
 
 def akshare_pmi() -> list[dict[str, Any]]:
     import akshare as ak
+
     df = ak.macro_china_pmi_yearly()
     rows: list[dict[str, Any]] = []
     for _, r in df.iterrows():
@@ -184,6 +188,7 @@ def akshare_pmi() -> list[dict[str, Any]]:
 
 def akshare_gdp() -> list[dict[str, Any]]:
     import akshare as ak
+
     df = ak.macro_china_gdp()
     rows: list[dict[str, Any]] = []
     for _, r in df.iterrows():
@@ -192,6 +197,7 @@ def akshare_gdp() -> list[dict[str, Any]]:
         if q and v is not None:
             # Parse "2026年第1季度" -> 2026-03-31
             import re
+
             m = re.match(r"(\d{4})年第(\d+)季度", q)
             if m:
                 year, qnum = int(m.group(1)), int(m.group(2))
@@ -204,6 +210,7 @@ def akshare_gdp() -> list[dict[str, Any]]:
 
 def akshare_lpr() -> list[dict[str, Any]]:
     import akshare as ak
+
     df = ak.macro_china_lpr()
     rows: list[dict[str, Any]] = []
     for _, r in df.iterrows():
@@ -216,6 +223,7 @@ def akshare_lpr() -> list[dict[str, Any]]:
 
 def akshare_industrial() -> list[dict[str, Any]]:
     import akshare as ak
+
     # Try multiple possible function names
     candidates = [
         "macro_china_industrial_production_yearly",
@@ -243,6 +251,7 @@ def akshare_industrial() -> list[dict[str, Any]]:
 
 def akshare_bond_yield_10y() -> list[dict[str, Any]]:
     import akshare as ak
+
     # Primary: bond_zh_us_rate has longer history (2002-present)
     try:
         df = ak.bond_zh_us_rate()
@@ -279,6 +288,7 @@ def akshare_bond_yield_10y() -> list[dict[str, Any]]:
 
 def tushare_money_supply() -> list[dict[str, Any]]:
     import importlib.util
+
     ts_spec = importlib.util.find_spec("tushare")
     if ts_spec is None:
         return []
@@ -286,6 +296,7 @@ def tushare_money_supply() -> list[dict[str, Any]]:
     if not token:
         return []
     import tushare as ts
+
     ts.set_token(token)
     pro = ts.pro_api()
     rows: list[dict[str, Any]] = []
@@ -364,7 +375,12 @@ def build_summary(db_path: Path, metadata: dict[str, dict[str, Any]]) -> list[di
     con = duckdb.connect(str(db_path))
     out: list[dict[str, Any]] = []
     try:
-        codes = [row[0] for row in con.execute("SELECT DISTINCT indicator_code FROM macro_indicator_history ORDER BY indicator_code").fetchall()]
+        codes = [
+            row[0]
+            for row in con.execute(
+                "SELECT DISTINCT indicator_code FROM macro_indicator_history ORDER BY indicator_code"
+            ).fetchall()
+        ]
         now = datetime.now(timezone.utc).isoformat()
         con.execute("DELETE FROM macro_indicator_summary")
         for code in codes:
@@ -388,8 +404,16 @@ def build_summary(db_path: Path, metadata: dict[str, dict[str, Any]]) -> list[di
             values = [float(row[4]) for row in ordered if to_float(row[4]) is not None]
             latest_value = to_float(latest[4])
             previous_value = to_float(previous[4]) if previous else None
-            delta = round(latest_value - previous_value, 6) if latest_value is not None and previous_value is not None else None
-            delta_pct = round(delta * 100.0 / previous_value, 4) if delta is not None and previous_value not in (None, 0.0) else None
+            delta = (
+                round(latest_value - previous_value, 6)
+                if latest_value is not None and previous_value is not None
+                else None
+            )
+            delta_pct = (
+                round(delta * 100.0 / previous_value, 4)
+                if delta is not None and previous_value not in (None, 0.0)
+                else None
+            )
             meta = metadata.get(code, {})
             category = latest[3] or meta.get("category") or "unknown"
             row_out = {
@@ -479,18 +503,57 @@ def main() -> int:
     for code, name, category, unit, freq, fn in ak_indicators:
         try:
             rows = fn()
-            inserted = insert_history_rows(db_path, code, name, category, unit, freq, f"AKShare:{fn.__name__}", rows)
-            results.append({"code": code, "source": "akshare", "rows": len(rows), "inserted": inserted, "status": "ok"})
+            inserted = insert_history_rows(
+                db_path, code, name, category, unit, freq, f"AKShare:{fn.__name__}", rows
+            )
+            results.append(
+                {"code": code, "source": "akshare", "rows": len(rows), "inserted": inserted, "status": "ok"}
+            )
         except Exception as exc:
-            results.append({"code": code, "source": "akshare", "rows": 0, "inserted": 0, "status": "error", "error": str(exc)})
+            results.append(
+                {
+                    "code": code,
+                    "source": "akshare",
+                    "rows": 0,
+                    "inserted": 0,
+                    "status": "error",
+                    "error": str(exc),
+                }
+            )
 
     # 10-year bond yield
     try:
         rows = akshare_bond_yield_10y()
-        inserted = insert_history_rows(db_path, "AK:bond_10y", "中债国债到期收益率:10年", "liquidity", "%", "daily", "AKShare:bond_china_yield", rows)
-        results.append({"code": "AK:bond_10y", "source": "akshare", "rows": len(rows), "inserted": inserted, "status": "ok" if rows else "no_data"})
+        inserted = insert_history_rows(
+            db_path,
+            "AK:bond_10y",
+            "中债国债到期收益率:10年",
+            "liquidity",
+            "%",
+            "daily",
+            "AKShare:bond_china_yield",
+            rows,
+        )
+        results.append(
+            {
+                "code": "AK:bond_10y",
+                "source": "akshare",
+                "rows": len(rows),
+                "inserted": inserted,
+                "status": "ok" if rows else "no_data",
+            }
+        )
     except Exception as exc:
-        results.append({"code": "AK:bond_10y", "source": "akshare", "rows": 0, "inserted": 0, "status": "error", "error": str(exc)})
+        results.append(
+            {
+                "code": "AK:bond_10y",
+                "source": "akshare",
+                "rows": 0,
+                "inserted": 0,
+                "status": "error",
+                "error": str(exc),
+            }
+        )
 
     # Tushare indicators
     try:
@@ -507,17 +570,32 @@ def main() -> int:
                 code, name, category = "TS:sf_month", "社会融资规模增量", "credit"
             else:
                 continue
-            inserted = insert_history_rows(db_path, code, name, category, "%" if "同比" in sub else "亿元", "monthly", "Tushare", rows)
-            results.append({"code": code, "source": "tushare", "rows": len(rows), "inserted": inserted, "status": "ok"})
+            inserted = insert_history_rows(
+                db_path, code, name, category, "%" if "同比" in sub else "亿元", "monthly", "Tushare", rows
+            )
+            results.append(
+                {"code": code, "source": "tushare", "rows": len(rows), "inserted": inserted, "status": "ok"}
+            )
     except Exception as exc:
-        results.append({"code": "TS:cn_m/sf_month", "source": "tushare", "rows": 0, "inserted": 0, "status": "error", "error": str(exc)})
+        results.append(
+            {
+                "code": "TS:cn_m/sf_month",
+                "source": "tushare",
+                "rows": 0,
+                "inserted": 0,
+                "status": "error",
+                "error": str(exc),
+            }
+        )
 
     # Build summary
     summary_rows = build_summary(db_path, metadata)
 
     # Print coverage report
     print("\n=== 宏观指标历史数据覆盖报告 ===\n")
-    print(f"{'指标代码':<30s} | {'指标名称':<20s} | {'历史长度':>8s} | {'最新值':>10s} | {'趋势':>8s} | {'12月分位':>10s} | {'状态':<15s}")
+    print(
+        f"{'指标代码':<30s} | {'指标名称':<20s} | {'历史长度':>8s} | {'最新值':>10s} | {'趋势':>8s} | {'12月分位':>10s} | {'状态':<15s}"
+    )
     print("-" * 120)
     for row in summary_rows:
         code = row["indicator_code"]
@@ -527,12 +605,16 @@ def main() -> int:
         trend = row["trend"]
         pct = f"{row['percentile']:.1f}%" if row["percentile"] is not None else "N/A"
         status = row["data_status"]
-        print(f"{code:<30s} | {name:<20s} | {cnt:>8d} | {val:>10s} | {trend:>8s} | {pct:>10s} | {status:<15s}")
+        print(
+            f"{code:<30s} | {name:<20s} | {cnt:>8d} | {val:>10s} | {trend:>8s} | {pct:>10s} | {status:<15s}"
+        )
 
     print(f"\n总计: {len(summary_rows)} 个指标")
     trend_ready = sum(1 for r in summary_rows if r["data_status"] == "trend_ready")
     partial = sum(1 for r in summary_rows if r["data_status"] == "partial_history")
-    print(f"趋势可判(>=12期): {trend_ready} | 部分历史: {partial} | 其他: {len(summary_rows) - trend_ready - partial}")
+    print(
+        f"趋势可判(>=12期): {trend_ready} | 部分历史: {partial} | 其他: {len(summary_rows) - trend_ready - partial}"
+    )
 
     # Save JSON report
     report = {

@@ -22,6 +22,7 @@ def query_strategy_slice(
             sig_exists = True
         else:
             from pathlib import Path
+
             ROOT = Path(__file__).resolve().parents[2]
             candidates = sorted(
                 ROOT.glob("outputs/strategy_signals/strategy_signals.duckdb"),
@@ -33,11 +34,14 @@ def query_strategy_slice(
                 sig_exists = False
 
         if sig_exists and signal_path:
-            con.execute(f"ATTACH '{signal_path.replace(chr(39), chr(39)+chr(39))}' AS sig (READ_ONLY)")
-            has_signal = con.execute(
-                "SELECT COUNT(*) FROM information_schema.tables "
-                "WHERE table_schema='sig' AND table_name='strategy_signal_daily'"
-            ).fetchone()[0] > 0
+            con.execute(f"ATTACH '{signal_path.replace(chr(39), chr(39) + chr(39))}' AS sig (READ_ONLY)")
+            has_signal = (
+                con.execute(
+                    "SELECT COUNT(*) FROM information_schema.tables "
+                    "WHERE table_schema='sig' AND table_name='strategy_signal_daily'"
+                ).fetchone()[0]
+                > 0
+            )
 
         if has_signal:
             total = con.execute(f"""

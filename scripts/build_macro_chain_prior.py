@@ -61,7 +61,10 @@ def default_paths(date_str: str) -> dict[str, Path]:
     return {
         "macro_snapshot": ROOT / "outputs" / "macro" / f"macro_snapshot_{date_ymd}.json",
         "macro_trend_summary": ROOT / "outputs" / "macro" / f"macro_trend_summary_{date_ymd}.json",
-        "market_assets_state": ROOT / "outputs" / "market_assets_state" / f"market_assets_state_{date_ymd}.json",
+        "market_assets_state": ROOT
+        / "outputs"
+        / "market_assets_state"
+        / f"market_assets_state_{date_ymd}.json",
         "market_assets_db": ROOT / "outputs" / "market_assets" / "market_assets.duckdb",
         "industry_etf_config": ROOT / "outputs" / "etf_config" / f"industry_etf_config_{date_ymd}.json",
         "ifind_industry": ROOT / "outputs" / "ifind" / f"industry_{date_ymd}.json",
@@ -71,7 +74,13 @@ def default_paths(date_str: str) -> dict[str, Path]:
 
 def indicator_signal(indicator: dict[str, Any]) -> tuple[float | None, str | None]:
     row_status = indicator.get("status") or indicator.get("data_status")
-    if row_status not in {"ok", "gui_imported_needs_ifind_code", "trend_ready", "partial_history", "single_point"}:
+    if row_status not in {
+        "ok",
+        "gui_imported_needs_ifind_code",
+        "trend_ready",
+        "partial_history",
+        "single_point",
+    }:
         return None, None
     name = str(indicator.get("indicator_name") or indicator.get("indicator_code") or "")
     category = str(indicator.get("category") or "")
@@ -167,7 +176,15 @@ def score_dimension(name: str, indicators: list[dict[str, Any]]) -> dict[str, An
     score = clamp(5.0 + avg_signal * 2.0)
     trend_ready = sum(1 for row in indicators if safe_int(row.get("history_count")) >= 12)
     partial = sum(1 for row in indicators if safe_int(row.get("history_count")) >= 2)
-    confidence = round(min(1.0, len(contributions) / 3.0) * (0.4 + 0.4 * min(1.0, partial / max(1, len(contributions))) + 0.2 * min(1.0, trend_ready / max(1, len(contributions)))), 4)
+    confidence = round(
+        min(1.0, len(contributions) / 3.0)
+        * (
+            0.4
+            + 0.4 * min(1.0, partial / max(1, len(contributions)))
+            + 0.2 * min(1.0, trend_ready / max(1, len(contributions)))
+        ),
+        4,
+    )
     status = "ok" if confidence >= 0.7 else "partial"
     return {
         "score_0_10": round(score, 2),
@@ -179,19 +196,24 @@ def score_dimension(name: str, indicators: list[dict[str, Any]]) -> dict[str, An
     }
 
 
-def macro_indicators_for_prior(macro_snapshot: dict[str, Any], trend_summary: dict[str, Any]) -> list[dict[str, Any]]:
+def macro_indicators_for_prior(
+    macro_snapshot: dict[str, Any], trend_summary: dict[str, Any]
+) -> list[dict[str, Any]]:
     rows = trend_summary.get("rows") or []
     if rows:
         return rows
     return macro_snapshot.get("indicators", []) or []
 
 
-def build_macro_prior(macro_snapshot: dict[str, Any], trend_summary: dict[str, Any] | None = None) -> dict[str, Any]:
+def build_macro_prior(
+    macro_snapshot: dict[str, Any], trend_summary: dict[str, Any] | None = None
+) -> dict[str, Any]:
     indicators = macro_indicators_for_prior(macro_snapshot, trend_summary or {})
     macro_rows = [
         row
         for row in indicators
-        if str(row.get("category") or "") not in {"market", "style", "market_vendor_crosscheck", "valuation", "commodity", "external"}
+        if str(row.get("category") or "")
+        not in {"market", "style", "market_vendor_crosscheck", "valuation", "commodity", "external"}
     ]
     by_category: dict[str, list[dict[str, Any]]] = {}
     for row in macro_rows:
@@ -231,7 +253,8 @@ def build_macro_prior(macro_snapshot: dict[str, Any], trend_summary: dict[str, A
         "available_indicator_count": sum(
             1
             for item in indicators
-            if item.get("status") in {"ok", "gui_imported_needs_ifind_code"} or item.get("data_status") in {"trend_ready", "partial_history", "single_point"}
+            if item.get("status") in {"ok", "gui_imported_needs_ifind_code"}
+            or item.get("data_status") in {"trend_ready", "partial_history", "single_point"}
         ),
         "trend_ready_count": sum(1 for item in indicators if safe_int(item.get("history_count")) >= 12),
         "needs_code_count": macro_snapshot.get("regime", {}).get("needs_code_count"),
@@ -242,7 +265,9 @@ def build_macro_prior(macro_snapshot: dict[str, Any], trend_summary: dict[str, A
 
 
 def state_combo(row: dict[str, Any]) -> str:
-    return f"{row.get('mn1_state_hex') or '-'}/{row.get('w1_state_hex') or '-'}/{row.get('d1_state_hex') or '-'}"
+    return (
+        f"{row.get('mn1_state_hex') or '-'}/{row.get('w1_state_hex') or '-'}/{row.get('d1_state_hex') or '-'}"
+    )
 
 
 def asset_state_score(row: dict[str, Any] | None) -> float:
@@ -250,7 +275,11 @@ def asset_state_score(row: dict[str, Any] | None) -> float:
         return 5.0
     ef_count = safe_int(row.get("ef_count"))
     score = {0: 4.0, 1: 6.0, 2: 8.0, 3: 9.2}.get(ef_count, 5.0)
-    raw_sum = safe_float(row.get("mn1_state_score")) + safe_float(row.get("w1_state_score")) + safe_float(row.get("d1_state_score"))
+    raw_sum = (
+        safe_float(row.get("mn1_state_score"))
+        + safe_float(row.get("w1_state_score"))
+        + safe_float(row.get("d1_state_score"))
+    )
     if raw_sum >= 40:
         score += 0.4
     elif raw_sum < 10:
@@ -258,7 +287,9 @@ def asset_state_score(row: dict[str, Any] | None) -> float:
     return round(clamp(score), 2)
 
 
-def load_asset_returns(market_db: Path, date_str: str, symbols: list[str], lookback_rows: int = 21) -> dict[str, dict[str, Any]]:
+def load_asset_returns(
+    market_db: Path, date_str: str, symbols: list[str], lookback_rows: int = 21
+) -> dict[str, dict[str, Any]]:
     if not market_db.exists():
         return {}
     con = duckdb.connect(str(market_db), read_only=True)
@@ -290,12 +321,18 @@ def load_asset_returns(market_db: Path, date_str: str, symbols: list[str], lookb
     return out
 
 
-def build_market_style_prior(market_rows: list[dict[str, Any]], market_db: Path, date_str: str) -> dict[str, Any]:
+def build_market_style_prior(
+    market_rows: list[dict[str, Any]], market_db: Path, date_str: str
+) -> dict[str, Any]:
     by_symbol = {row.get("symbol"): row for row in market_rows}
     broad_symbols = ["000001.SH", "000300.SH", "000852.SH", "000905.SH", "399001.SZ", "399006.SZ"]
-    broad_scores = [asset_state_score(by_symbol.get(symbol)) for symbol in broad_symbols if by_symbol.get(symbol)]
+    broad_scores = [
+        asset_state_score(by_symbol.get(symbol)) for symbol in broad_symbols if by_symbol.get(symbol)
+    ]
     risk_score = sum(broad_scores) / len(broad_scores) if broad_scores else 5.0
-    returns = load_asset_returns(market_db, date_str, ["000300.SH", "399006.SZ", "000852.SH", "512880.SH", "512480.SH"])
+    returns = load_asset_returns(
+        market_db, date_str, ["000300.SH", "399006.SZ", "000852.SH", "512880.SH", "512480.SH"]
+    )
     hs300 = safe_float((returns.get("000300.SH") or {}).get("return"))
     cyb = safe_float((returns.get("399006.SZ") or {}).get("return"))
     zz1000 = safe_float((returns.get("000852.SH") or {}).get("return"))
@@ -402,12 +439,16 @@ def build_industry_priors(
             base = asset_state_score(best_etf)
             confidence = 0.75
             status = "ok"
-            evidence = [f"行业ETF {best_etf.get('symbol')} {best_etf.get('name')} State={state_combo(best_etf)} EF={best_etf.get('ef_count')}"]
+            evidence = [
+                f"行业ETF {best_etf.get('symbol')} {best_etf.get('name')} State={state_combo(best_etf)} EF={best_etf.get('ef_count')}"
+            ]
         elif mapping_status == "proxy_pending_review":
             base = 5.0
             confidence = 0.3
             status = "proxy_pending_review"
-            evidence = [f"代理ETF待人工确认：{mapping.get('selected_symbol') or ''} {mapping.get('selected_name') or ''}".strip()]
+            evidence = [
+                f"代理ETF待人工确认：{mapping.get('selected_symbol') or ''} {mapping.get('selected_name') or ''}".strip()
+            ]
         elif mapping_status == "no_etf_coverage":
             base = 5.0
             confidence = 0.1
@@ -441,14 +482,20 @@ def build_industry_priors(
                 "posterior_adjustment_label": label,
                 "etf_symbol": best_etf.get("symbol") if best_etf else mapping.get("selected_symbol"),
                 "etf_name": best_etf.get("name") if best_etf else mapping.get("selected_name"),
-                "etf_state_combo": state_combo(best_etf) if best_etf else mapping.get("selected_market_state_combo") or "",
-                "etf_ef_count": best_etf.get("ef_count") if best_etf else mapping.get("selected_market_ef_count") or "",
+                "etf_state_combo": state_combo(best_etf)
+                if best_etf
+                else mapping.get("selected_market_state_combo") or "",
+                "etf_ef_count": best_etf.get("ef_count")
+                if best_etf
+                else mapping.get("selected_market_ef_count") or "",
                 "mapping_status": mapping_status,
                 "dynamic_event_count": event_count,
                 "evidence": evidence,
             }
         )
-    out.sort(key=lambda row: (-safe_float(row["chain_prior_score"]), -safe_float(row["confidence"]), row["sw_l1"]))
+    out.sort(
+        key=lambda row: (-safe_float(row["chain_prior_score"]), -safe_float(row["confidence"]), row["sw_l1"])
+    )
     return out
 
 
@@ -485,7 +532,9 @@ def build_payload(date_str: str, paths: dict[str, Path]) -> dict[str, Any]:
     ifind_industry = load_json(paths["ifind_industry"])
     chain_events = load_chain_event_counts(paths["industry_chain_db"], date_str)
     macro_prior = build_macro_prior(macro_snapshot, macro_trend_summary)
-    market_style = build_market_style_prior(market_rows if isinstance(market_rows, list) else [], paths["market_assets_db"], date_str)
+    market_style = build_market_style_prior(
+        market_rows if isinstance(market_rows, list) else [], paths["market_assets_db"], date_str
+    )
     industry_priors = build_industry_priors(
         market_rows=market_rows if isinstance(market_rows, list) else [],
         industry_config=industry_config,
@@ -562,7 +611,7 @@ def render_html(payload: dict[str, Any]) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>宏观-产业链先验 {esc(payload['date'])}</title>
+  <title>宏观-产业链先验 {esc(payload["date"])}</title>
   <style>
     body {{ margin:0; padding:24px; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:#172033; background:#f6f8fb; }}
     h1 {{ margin:0 0 8px; font-size:24px; }}
@@ -579,19 +628,19 @@ def render_html(payload: dict[str, Any]) -> str:
 </head>
 <body>
   <h1>宏观-产业链先验</h1>
-  <p>日期：{esc(payload['date'])} ｜ Research-only，不直接修改 State 或策略排序。</p>
+  <p>日期：{esc(payload["date"])} ｜ Research-only，不直接修改 State 或策略排序。</p>
   <div class="grid">
-    <div class="card"><small>宏观先验</small><strong>{esc(macro['score_0_10'])}</strong><small>{esc(macro['status'])}</small></div>
-    <div class="card"><small>风险偏好</small><strong>{esc(market['risk_appetite_score'])}</strong><small>{esc(' / '.join(market.get('tags') or []))}</small></div>
-    <div class="card"><small>成长风格</small><strong>{esc(market['growth_style_score'])}</strong><small>相对沪深300 {esc(market['relative_strength_20d']['growth_vs_hs300_pct'])}%</small></div>
+    <div class="card"><small>宏观先验</small><strong>{esc(macro["score_0_10"])}</strong><small>{esc(macro["status"])}</small></div>
+    <div class="card"><small>风险偏好</small><strong>{esc(market["risk_appetite_score"])}</strong><small>{esc(" / ".join(market.get("tags") or []))}</small></div>
+    <div class="card"><small>成长风格</small><strong>{esc(market["growth_style_score"])}</strong><small>相对沪深300 {esc(market["relative_strength_20d"]["growth_vs_hs300_pct"])}%</small></div>
     <div class="card"><small>策略先验</small><strong>{esc(strategy_text)}</strong></div>
   </div>
-  <p>{esc(macro['summary'])}</p>
+  <p>{esc(macro["summary"])}</p>
   <table>
     <thead>
       <tr><th>行业</th><th>产业先验</th><th>置信</th><th>后验提示</th><th>状态</th><th>ETF</th><th>ETF State</th><th>股票数</th><th>证据</th></tr>
     </thead>
-    <tbody>{''.join(body)}</tbody>
+    <tbody>{"".join(body)}</tbody>
   </table>
 </body>
 </html>

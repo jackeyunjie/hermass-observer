@@ -47,7 +47,9 @@ def run_sim(start="2019-01-01", end="2025-12-30", capital=1_000_000.0):
     print(f"Loaded {len(dates)} trading days, {sum(len(v) for v in state_by_date.values()):,} state rows")
 
     # Generate signals per day — mimic strategy_signal_ledger logic
-    signals_by_date: dict[str, dict[str, list[tuple[str, float, str]]]] = defaultdict(lambda: defaultdict(list))
+    signals_by_date: dict[str, dict[str, list[tuple[str, float, str]]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
     for d in dates:
         for row in state_by_date[d]:
             close = row.get("close", 0)
@@ -59,7 +61,11 @@ def run_sim(start="2019-01-01", end="2025-12-30", capital=1_000_000.0):
             # Alias engine keys → signal function expected keys
             row.setdefault("volume_ma_50", row.get("avg_volume_50d", 0))
             row.setdefault("high_10d", row.get("high_10d_prev", close))
-            for fn, sid in [(vcp_signal, "vcp"), (ma2560_signal, "ma2560"), (bollinger_bandit_signal, "bollinger_bandit")]:
+            for fn, sid in [
+                (vcp_signal, "vcp"),
+                (ma2560_signal, "ma2560"),
+                (bollinger_bandit_signal, "bollinger_bandit"),
+            ]:
                 r = fn(row, row)
                 if r:
                     raw_label, strength = r
@@ -96,31 +102,45 @@ def run_sim(start="2019-01-01", end="2025-12-30", capital=1_000_000.0):
                 "atr": pos.get("entry_atr", 0),
                 "pivot_point": pos.get("pivot", pos["entry_price"]),
                 "contraction_low": pos.get("con_low", pos["entry_price"] * 0.94),
-                "ma25": pos.get("ma25", 0), "ma60": pos.get("ma60", 0),
-                "bb_upper": pos.get("bb_up", 0), "bb_middle": pos.get("bb_mid", 0),
+                "ma25": pos.get("ma25", 0),
+                "ma60": pos.get("ma60", 0),
+                "bb_upper": pos.get("bb_up", 0),
+                "bb_middle": pos.get("bb_mid", 0),
                 "entry_atr": pos.get("entry_atr", 0),
             }
-            fn_exit = {"vcp": vcp_exit_check, "ma2560": ma2560_exit_check,
-                       "bollinger_bandit": bb_full_exit_check}.get(pos["strategy"])
+            fn_exit = {
+                "vcp": vcp_exit_check,
+                "ma2560": ma2560_exit_check,
+                "bollinger_bandit": bb_full_exit_check,
+            }.get(pos["strategy"])
             result = None
             if fn_exit:
                 try:
-                    result = fn_exit(pos, {"close": px, "open": px, "high": px, "low": px, "volume": 0, **s}, ctx)
+                    result = fn_exit(
+                        pos, {"close": px, "open": px, "high": px, "low": px, "volume": 0, **s}, ctx
+                    )
                 except Exception:
                     pass
             if result:
                 gross = (px - pos["entry_price"]) * pos["shares"]
                 net = gross - COMM * pos["shares"] * 2
                 cash += px * pos["shares"] - COMM * pos["shares"]
-                trades.append({
-                    "stock_code": code, "strategy": pos["strategy"],
-                    "entry_date": pos["entry_date"], "entry_price": pos["entry_price"],
-                    "exit_date": d, "exit_price": round(px, 2),
-                    "shares": pos["shares"], "hold_days": hold_days,
-                    "exit_reason": result.get("exit_reason", "?"),
-                    "gross_pnl": round(gross, 2), "net_pnl": round(net, 2),
-                    "return_pct": round((px / pos["entry_price"] - 1) * 100, 2),
-                })
+                trades.append(
+                    {
+                        "stock_code": code,
+                        "strategy": pos["strategy"],
+                        "entry_date": pos["entry_date"],
+                        "entry_price": pos["entry_price"],
+                        "exit_date": d,
+                        "exit_price": round(px, 2),
+                        "shares": pos["shares"],
+                        "hold_days": hold_days,
+                        "exit_reason": result.get("exit_reason", "?"),
+                        "gross_pnl": round(gross, 2),
+                        "net_pnl": round(net, 2),
+                        "return_pct": round((px / pos["entry_price"] - 1) * 100, 2),
+                    }
+                )
                 del positions[code]
 
         # Entries
@@ -141,7 +161,10 @@ def run_sim(start="2019-01-01", end="2025-12-30", capital=1_000_000.0):
             for st, code, sid, raw, px in scored[:cap]:
                 if len(positions) >= MAX_POS:
                     break
-                risk = calculate_dynamic_position("undetermined", 1.0, "复苏", "适配")["per_trade_risk_pct"] / 100
+                risk = (
+                    calculate_dynamic_position("undetermined", 1.0, "复苏", "适配")["per_trade_risk_pct"]
+                    / 100
+                )
                 risk_amt = capital * risk
                 stop = px * 0.95
                 rps = abs(px - stop)
@@ -157,25 +180,49 @@ def run_sim(start="2019-01-01", end="2025-12-30", capital=1_000_000.0):
                 cash -= cost
                 s = day_states.get(code, {})
                 positions[code] = {
-                    "stock_code": code, "strategy": sid,
-                    "entry_date": d, "entry_price": px, "shares": sh,
-                    "stop_price": stop, "entry_atr": s.get("d1_atr", 0),
+                    "stock_code": code,
+                    "strategy": sid,
+                    "entry_date": d,
+                    "entry_price": px,
+                    "shares": sh,
+                    "stop_price": stop,
+                    "entry_atr": s.get("d1_atr", 0),
                     "pivot": s.get("d1_sr_resistance", px),
                     "con_low": s.get("d1_sr_support", px * 0.94),
-                    "ma25": s.get("ma25", 0), "ma60": s.get("ma60", 0),
-                    "bb_up": s.get("bb_upper_50_1", 0), "bb_mid": s.get("ma50", 0),
-                    "cur_px": px, "pnl": 0.0,
+                    "ma25": s.get("ma25", 0),
+                    "ma60": s.get("ma60", 0),
+                    "bb_up": s.get("bb_upper_50_1", 0),
+                    "bb_mid": s.get("ma50", 0),
+                    "cur_px": px,
+                    "pnl": 0.0,
                 }
-                trades.append({"stock_code": code, "strategy": sid,
-                               "entry_date": d, "entry_price": round(px, 2),
-                               "exit_date": "", "exit_price": 0, "shares": sh, "hold_days": 0,
-                               "exit_reason": "open", "gross_pnl": 0,
-                               "net_pnl": round(-COMM * sh, 2), "return_pct": 0})
+                trades.append(
+                    {
+                        "stock_code": code,
+                        "strategy": sid,
+                        "entry_date": d,
+                        "entry_price": round(px, 2),
+                        "exit_date": "",
+                        "exit_price": 0,
+                        "shares": sh,
+                        "hold_days": 0,
+                        "exit_reason": "open",
+                        "gross_pnl": 0,
+                        "net_pnl": round(-COMM * sh, 2),
+                        "return_pct": 0,
+                    }
+                )
 
         pos_val = sum(p["cur_px"] * p["shares"] for p in positions.values())
-        curve.append({"date": d, "nav": round((cash + pos_val) / capital, 6),
-                      "position_count": len(positions), "cash": round(cash, 2),
-                      "total_assets": round(cash + pos_val, 2)})
+        curve.append(
+            {
+                "date": d,
+                "nav": round((cash + pos_val) / capital, 6),
+                "position_count": len(positions),
+                "cash": round(cash, 2),
+                "total_assets": round(cash + pos_val, 2),
+            }
+        )
 
     # Close remaining
     for code, pos in list(positions.items()):
@@ -183,12 +230,22 @@ def run_sim(start="2019-01-01", end="2025-12-30", capital=1_000_000.0):
         gross = (px - pos["entry_price"]) * pos["shares"]
         net = gross - COMM * pos["shares"]
         cash += px * pos["shares"] - COMM * pos["shares"]
-        trades.append({"stock_code": code, "strategy": pos["strategy"],
-                       "entry_date": pos["entry_date"], "entry_price": pos["entry_price"],
-                       "exit_date": dates[-1], "exit_price": round(px, 2),
-                       "shares": pos["shares"], "hold_days": 0, "exit_reason": "sim_end",
-                       "gross_pnl": round(gross, 2), "net_pnl": round(net, 2),
-                       "return_pct": round((px / pos["entry_price"] - 1) * 100, 2)})
+        trades.append(
+            {
+                "stock_code": code,
+                "strategy": pos["strategy"],
+                "entry_date": pos["entry_date"],
+                "entry_price": pos["entry_price"],
+                "exit_date": dates[-1],
+                "exit_price": round(px, 2),
+                "shares": pos["shares"],
+                "hold_days": 0,
+                "exit_reason": "sim_end",
+                "gross_pnl": round(gross, 2),
+                "net_pnl": round(net, 2),
+                "return_pct": round((px / pos["entry_price"] - 1) * 100, 2),
+            }
+        )
 
     # Stats
     done = [t for t in trades if t["exit_reason"] not in ("open",)]
@@ -219,12 +276,14 @@ def run_sim(start="2019-01-01", end="2025-12-30", capital=1_000_000.0):
     eq_p = OUT_DIR / "equity_curve.csv"
     with eq_p.open("w", newline="") as f:
         wc = csv.DictWriter(f, ["date", "nav", "position_count", "cash", "total_assets"])
-        wc.writeheader(); wc.writerows(curve)
+        wc.writeheader()
+        wc.writerows(curve)
 
     tr_p = OUT_DIR / "trade_log.csv"
     with tr_p.open("w", newline="") as f:
         wc = csv.DictWriter(f, list(trades[0].keys()) if trades else [])
-        wc.writeheader(); wc.writerows(trades)
+        wc.writeheader()
+        wc.writerows(trades)
 
     # Perf markdown
     md = f"""# 美股三策略模拟交易绩效报告
@@ -252,14 +311,21 @@ def run_sim(start="2019-01-01", end="2025-12-30", capital=1_000_000.0):
         ss[t["strategy"]].append(t["net_pnl"])
     for sid, pnls in sorted(ss.items()):
         swr = sum(1 for p in pnls if p > 0) / len(pnls) * 100
-        md += f"| {sid} | {len(pnls)} | {swr:.1f}% | ${sum(pnls)/len(pnls):,.0f} |\n"
+        md += f"| {sid} | {len(pnls)} | {swr:.1f}% | ${sum(pnls) / len(pnls):,.0f} |\n"
     md += "\n---\n*Research-Only — 历史模拟，不构成交易建议。*\n"
     pm = OUT_DIR / "performance_summary.md"
     pm.write_text(md)
 
-    return {"total_return": round(tot_ret, 2), "trades": len(done), "win_rate": round(wr, 1),
-            "sharpe": round(sharpe, 2), "max_drawdown": round(max_dd, 2),
-            "equity_curve": str(eq_p), "trade_log": str(tr_p), "performance": str(pm)}
+    return {
+        "total_return": round(tot_ret, 2),
+        "trades": len(done),
+        "win_rate": round(wr, 1),
+        "sharpe": round(sharpe, 2),
+        "max_drawdown": round(max_dd, 2),
+        "equity_curve": str(eq_p),
+        "trade_log": str(tr_p),
+        "performance": str(pm),
+    }
 
 
 def main():

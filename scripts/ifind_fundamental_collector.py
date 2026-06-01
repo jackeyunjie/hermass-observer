@@ -39,6 +39,7 @@ def ymd(d: str) -> str:
 #  iFind HTTP Auth
 # ═══════════════════════════════════════════════════════════
 
+
 def get_access_token() -> str:
     refresh_token = os.environ.get("IFIND_REFRESH_TOKEN")
     if not refresh_token:
@@ -68,6 +69,7 @@ def _to_ths_code(stock_code: str) -> str:
 #  iFind API — 六大核心接口
 # ═══════════════════════════════════════════════════════════
 
+
 def _post(endpoint: str, payload: dict, access_token: str, timeout: int = 30) -> dict:
     url = f"{IFIND_API_BASE}/{endpoint}"
     body = json.dumps(payload).encode()
@@ -90,17 +92,24 @@ def api_basic_data(ths_code: str, indicators: str, access_token: str) -> dict | 
         return None
 
 
-def api_data_series(ths_code: str, indicators: str, start_date: str, end_date: str, access_token: str) -> dict | None:
+def api_data_series(
+    ths_code: str, indicators: str, start_date: str, end_date: str, access_token: str
+) -> dict | None:
     """THS_DS: 历史序列数据（按时间维度取历史基本面/技术指标）"""
     try:
         indipara = [{"indicator": item.strip()} for item in indicators.split(",") if item.strip()]
-        return _post("date_sequence", {
-            "codes": ths_code,
-            "startdate": start_date.replace("-", ""),
-            "enddate": end_date.replace("-", ""),
-            "functionpara": {"Interval": "Q", "Fill": "Blank"},
-            "indipara": indipara,
-        }, access_token, timeout=60)
+        return _post(
+            "date_sequence",
+            {
+                "codes": ths_code,
+                "startdate": start_date.replace("-", ""),
+                "enddate": end_date.replace("-", ""),
+                "functionpara": {"Interval": "Q", "Fill": "Blank"},
+                "indipara": indipara,
+            },
+            access_token,
+            timeout=60,
+        )
     except Exception as e:
         print(f"  [warn] THS_DS {ths_code}: {e}", file=sys.stderr)
         return None
@@ -109,11 +118,16 @@ def api_data_series(ths_code: str, indicators: str, start_date: str, end_date: s
 def api_edb(indicator_codes: list[str], access_token: str) -> dict | None:
     """THS_EDB: 宏观/行业经济数据"""
     try:
-        return _post("edb_service", {
-            "indicators": ",".join(indicator_codes),
-            "startdate": "20250101",
-            "enddate": datetime.now().strftime("%Y%m%d"),
-        }, access_token, timeout=60)
+        return _post(
+            "edb_service",
+            {
+                "indicators": ",".join(indicator_codes),
+                "startdate": "20250101",
+                "enddate": datetime.now().strftime("%Y%m%d"),
+            },
+            access_token,
+            timeout=60,
+        )
     except Exception as e:
         print(f"  [warn] THS_EDB: {e}", file=sys.stderr)
         return None
@@ -122,13 +136,18 @@ def api_edb(indicator_codes: list[str], access_token: str) -> dict | None:
 def api_report_query(ths_code: str, keyword: str, access_token: str) -> dict | None:
     """THS_ReportQuery: 公告查询"""
     try:
-        return _post("report_query", {
-            "codes": ths_code,
-            "functionpara": {"keyword": keyword},
-            "beginrDate": "2023-01-01",
-            "endrDate": datetime.now().strftime("%Y-%m-%d"),
-            "outputpara": "reportDate:Y,thscode:Y,secName:Y,ctime:Y,reportTitle:Y,pdfURL:Y,seq:Y",
-        }, access_token, timeout=30)
+        return _post(
+            "report_query",
+            {
+                "codes": ths_code,
+                "functionpara": {"keyword": keyword},
+                "beginrDate": "2023-01-01",
+                "endrDate": datetime.now().strftime("%Y-%m-%d"),
+                "outputpara": "reportDate:Y,thscode:Y,secName:Y,ctime:Y,reportTitle:Y,pdfURL:Y,seq:Y",
+            },
+            access_token,
+            timeout=30,
+        )
     except Exception as e:
         print(f"  [warn] ReportQuery {ths_code}: {e}", file=sys.stderr)
         return None
@@ -137,7 +156,9 @@ def api_report_query(ths_code: str, keyword: str, access_token: str) -> dict | N
 def api_smart_picking(query: str, access_token: str) -> dict | None:
     """THS_WCQuery: 问财语义选股"""
     try:
-        return _post("smart_stock_picking", {"searchstring": query, "searchtype": "stock"}, access_token, timeout=30)
+        return _post(
+            "smart_stock_picking", {"searchstring": query, "searchtype": "stock"}, access_token, timeout=30
+        )
     except Exception as e:
         print(f"  [warn] WCQuery: {e}", file=sys.stderr)
         return None
@@ -172,7 +193,9 @@ MACRO_INDICATORS = [
 
 
 def result_ok(result: dict | None) -> bool:
-    return bool(result) and int(result.get("errorcode", -1) or 0) == 0 and int(result.get("dataVol", 0) or 0) > 0
+    return (
+        bool(result) and int(result.get("errorcode", -1) or 0) == 0 and int(result.get("dataVol", 0) or 0) > 0
+    )
 
 
 def extract_latest_table_values(result: dict | None) -> dict[str, Any]:
@@ -251,12 +274,15 @@ def summarize_reports(result: dict | None, keyword: str) -> str:
 #  Universe
 # ═══════════════════════════════════════════════════════════
 
+
 def load_universe(date_str: str, universe: str) -> list[str]:
     assert universe in ("p116_pattern_cross", "ef_pool", "tracking_pool")
     y = ymd(date_str)
     if universe == "tracking_pool":
         if not EVIDENCE_DB.exists():
-            raise FileNotFoundError(f"fundamental DB not found: {EVIDENCE_DB}. Run ifind_tracking_pool.py first.")
+            raise FileNotFoundError(
+                f"fundamental DB not found: {EVIDENCE_DB}. Run ifind_tracking_pool.py first."
+            )
         con = duckdb.connect(str(EVIDENCE_DB), read_only=True)
         try:
             rows = con.execute(
@@ -277,13 +303,18 @@ def load_universe(date_str: str, universe: str) -> list[str]:
         if not path.exists():
             raise FileNotFoundError(f"all_three_ef not found: {path}")
         data = json.loads(path.read_text(encoding="utf-8"))
-        codes = [r.get("symbol") or r.get("stock_code") for r in data.get("rows", []) if r.get("ef_count", 0) >= 2 or r.get("ef_strength", 0) >= 2]
+        codes = [
+            r.get("symbol") or r.get("stock_code")
+            for r in data.get("rows", [])
+            if r.get("ef_count", 0) >= 2 or r.get("ef_strength", 0) >= 2
+        ]
         return sorted(set(codes))
 
 
 # ═══════════════════════════════════════════════════════════
 #  L1: 确定性证据 — iFind 原始数据写入 DuckDB
 # ═══════════════════════════════════════════════════════════
+
 
 def collect_l1_basic_profile(con, stock_codes, access_token, collected_at, date_str):
     count = 0
@@ -293,14 +324,22 @@ def collect_l1_basic_profile(con, stock_codes, access_token, collected_at, date_
         values = extract_latest_table_values(result)
         if not values:
             continue
-        con.execute("""
+        con.execute(
+            """
             INSERT OR REPLACE INTO fundamental_evidence_packet
             (evidence_id, stock_code, as_of_date, evidence_type, evidence_text,
              source_vendor, source_api, source_query, confidence, collected_at)
             VALUES (?, ?, ?, 'basic_profile', ?, 'iFind', 'THS_BD', ?, 0.95, ?)
-        """, (f"profile_{code}_{ymd(date_str)}", code, date_str,
-              summarize_values("iFind basic profile", values)[:4000],
-              BASIC_PROFILE_INDICATORS, collected_at))
+        """,
+            (
+                f"profile_{code}_{ymd(date_str)}",
+                code,
+                date_str,
+                summarize_values("iFind basic profile", values)[:4000],
+                BASIC_PROFILE_INDICATORS,
+                collected_at,
+            ),
+        )
         count += 1
     return count
 
@@ -314,36 +353,58 @@ def collect_l1_financials(con, stock_codes, access_token, collected_at, date_str
         values = extract_latest_table_values(result)
         if not values:
             ev_id = f"no_fin_{code}_{ymd(date_str)}"
-            con.execute("""
+            con.execute(
+                """
                 INSERT OR REPLACE INTO fundamental_evidence_packet
                 (evidence_id, stock_code, as_of_date, evidence_type, evidence_text,
                  source_vendor, source_api, source_query, confidence, collected_at, unavailable)
                 VALUES (?, ?, ?, 'financials', 'iFind returned no data', 'iFind', 'THS_BD', ?, 0, ?, TRUE)
-            """, (ev_id, code, date_str, BASIC_FINANCIAL_INDICATORS, collected_at))
+            """,
+                (ev_id, code, date_str, BASIC_FINANCIAL_INDICATORS, collected_at),
+            )
             ev_count += 1
             continue
         ev_id = f"fin_{code}_{ymd(date_str)}"
-        con.execute("""
+        con.execute(
+            """
             INSERT OR REPLACE INTO fundamental_evidence_packet
             (evidence_id, stock_code, as_of_date, evidence_type, evidence_text,
              source_vendor, source_api, source_query, confidence, collected_at)
             VALUES (?, ?, ?, 'financials', ?, 'iFind', 'THS_BD', ?, 0.90, ?)
-        """, (ev_id, code, date_str, summarize_values("iFind latest financial metrics", values)[:4000],
-              BASIC_FINANCIAL_INDICATORS, collected_at))
+        """,
+            (
+                ev_id,
+                code,
+                date_str,
+                summarize_values("iFind latest financial metrics", values)[:4000],
+                BASIC_FINANCIAL_INDICATORS,
+                collected_at,
+            ),
+        )
         ev_count += 1
         try:
-            con.execute("""
+            con.execute(
+                """
                 INSERT OR REPLACE INTO ifind_financial_metrics
                 (stock_code, report_period, report_type, pe_ttm, pb, roe, gross_margin,
                  revenue_yoy, net_profit_yoy, operating_cashflow, debt_ratio,
                  source_vendor, source_api, source_query, collected_at)
                 VALUES (?, 'latest', 'TTM', ?, ?, ?, ?, ?, ?, ?, ?, 'iFind', 'THS_BD', ?, ?)
-            """, (code,
-                  values.get("ths_pe_ttm"), values.get("ths_pb"),
-                  values.get("ths_roe_ttm"), values.get("ths_gross_profit_margin_ttm"),
-                  values.get("ths_revenue_yoy"), values.get("ths_net_profit_yoy"),
-                  values.get("ths_operating_cash_flow_ttm"), values.get("ths_debt_to_asset_ratio"),
-                  BASIC_FINANCIAL_INDICATORS, collected_at))
+            """,
+                (
+                    code,
+                    values.get("ths_pe_ttm"),
+                    values.get("ths_pb"),
+                    values.get("ths_roe_ttm"),
+                    values.get("ths_gross_profit_margin_ttm"),
+                    values.get("ths_revenue_yoy"),
+                    values.get("ths_net_profit_yoy"),
+                    values.get("ths_operating_cash_flow_ttm"),
+                    values.get("ths_debt_to_asset_ratio"),
+                    BASIC_FINANCIAL_INDICATORS,
+                    collected_at,
+                ),
+            )
             fin_count += 1
         except Exception:
             pass
@@ -357,14 +418,22 @@ def collect_l1_financial_series(con, stock_codes, access_token, collected_at, da
         result = api_data_series(ths_code, SERIES_INDICATORS, "2023-01-01", date_str, access_token)
         if not result_ok(result):
             continue
-        con.execute("""
+        con.execute(
+            """
             INSERT OR REPLACE INTO fundamental_evidence_packet
             (evidence_id, stock_code, as_of_date, evidence_type, evidence_text,
              source_vendor, source_api, source_query, confidence, collected_at)
             VALUES (?, ?, ?, 'financial_series', ?, 'iFind', 'THS_DS', ?, 0.90, ?)
-        """, (f"series_{code}_{ymd(date_str)}", code, date_str,
-              summarize_series(result, "iFind financial series")[:4000],
-              SERIES_INDICATORS, collected_at))
+        """,
+            (
+                f"series_{code}_{ymd(date_str)}",
+                code,
+                date_str,
+                summarize_series(result, "iFind financial series")[:4000],
+                SERIES_INDICATORS,
+                collected_at,
+            ),
+        )
         count += 1
     return count
 
@@ -376,14 +445,23 @@ def collect_l1_capital_events(con, stock_codes, access_token, collected_at, date
         for rtype, keyword in REPORT_KEYWORDS.items():
             result = api_report_query(ths_code, keyword, access_token)
             data = result.get("data", result)
-            con.execute("""
+            con.execute(
+                """
                 INSERT OR REPLACE INTO fundamental_evidence_packet
                 (evidence_id, stock_code, as_of_date, evidence_type, evidence_text,
                  source_vendor, source_api, source_query, confidence, collected_at)
                 VALUES (?, ?, ?, ?, ?, 'iFind', 'THS_ReportQuery', ?, 0.85, ?)
-            """, (f"report_{code}_{rtype}_{ymd(date_str)}", code, date_str, f"capital_{rtype}",
-                  summarize_reports(result, keyword)[:4000],
-                  keyword, collected_at))
+            """,
+                (
+                    f"report_{code}_{rtype}_{ymd(date_str)}",
+                    code,
+                    date_str,
+                    f"capital_{rtype}",
+                    summarize_reports(result, keyword)[:4000],
+                    keyword,
+                    collected_at,
+                ),
+            )
             if result_ok(result):
                 count += 1
     return count
@@ -399,14 +477,24 @@ def collect_l1_macro(con, access_token, collected_at, date_str):
         for item in data:
             code = item.get("indicator_code") or item.get("code") or "unknown"
             val = item.get("value")
-            con.execute("""
+            con.execute(
+                """
                 INSERT OR REPLACE INTO ifind_macro_indicators
                 (indicator_code, as_of_date, indicator_name, value, unit, frequency,
                  source_query, collected_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (str(code), date_str, item.get("indicator_name", ""), val,
-                  item.get("unit", ""), item.get("frequency", ""),
-                  json.dumps(MACRO_INDICATORS), collected_at))
+            """,
+                (
+                    str(code),
+                    date_str,
+                    item.get("indicator_name", ""),
+                    val,
+                    item.get("unit", ""),
+                    item.get("frequency", ""),
+                    json.dumps(MACRO_INDICATORS),
+                    collected_at,
+                ),
+            )
             count += 1
     return count
 
@@ -414,6 +502,7 @@ def collect_l1_macro(con, access_token, collected_at, date_str):
 # ═══════════════════════════════════════════════════════════
 #  L2: 派生比较层 — Python 纯计算（不调 LLM）
 # ═══════════════════════════════════════════════════════════
+
 
 def compute_l2_derived(con, stock_codes: list[str], date_str: str, collected_at: str) -> int:
     all_metrics = con.execute("""
@@ -426,7 +515,9 @@ def compute_l2_derived(con, stock_codes: list[str], date_str: str, collected_at:
         return 0
 
     values_by_field: dict[str, list[float]] = {
-        "gross_margin": [], "roe": [], "debt_ratio": [],
+        "gross_margin": [],
+        "roe": [],
+        "debt_ratio": [],
     }
     stock_metrics: dict[str, dict] = {}
     for code, gm, roe, rev, cf, debt in all_metrics:
@@ -454,13 +545,15 @@ def compute_l2_derived(con, stock_codes: list[str], date_str: str, collected_at:
         gm_pct = percentile(sm.get("gm"), "gross_margin")
         roe_pct = percentile(sm.get("roe"), "roe")
 
-        con.execute("""
+        con.execute(
+            """
             INSERT OR REPLACE INTO ifind_derived_metrics
             (stock_code, as_of_date, gross_margin_rank_pct, roe_rank_pct,
              debt_ratio, peer_count, computed_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (code, date_str, gm_pct, roe_pct, sm.get("debt"),
-              len(stock_metrics), collected_at))
+        """,
+            (code, date_str, gm_pct, roe_pct, sm.get("debt"), len(stock_metrics), collected_at),
+        )
         count += 1
 
     return count
@@ -469,6 +562,7 @@ def compute_l2_derived(con, stock_codes: list[str], date_str: str, collected_at:
 # ═══════════════════════════════════════════════════════════
 #  Main
 # ═══════════════════════════════════════════════════════════
+
 
 def _count_evidence_for_codes(con, stock_codes: list[str], date_str: str) -> int:
     placeholders = ",".join(["?"] * len(stock_codes))
@@ -501,8 +595,10 @@ def collect(
     db_path = EVIDENCE_DB
     db_path.parent.mkdir(parents=True, exist_ok=True)
     import importlib.util
-    spec = importlib.util.spec_from_file_location("fundamental_evidence_schema",
-        str(ROOT / "scripts" / "fundamental_evidence_schema.py"))
+
+    spec = importlib.util.spec_from_file_location(
+        "fundamental_evidence_schema", str(ROOT / "scripts" / "fundamental_evidence_schema.py")
+    )
     schema_mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(schema_mod)
     schema_mod.init_schema(db_path)
@@ -572,18 +668,21 @@ def collect(
             raise
         print(f"[dry-smoke] {exc}. Writing unavailable evidence placeholders.", file=sys.stderr)
         for code in collection_codes:
-            con.execute("""
+            con.execute(
+                """
                 INSERT OR REPLACE INTO fundamental_evidence_packet
                 (evidence_id, stock_code, as_of_date, evidence_type, evidence_text,
                  source_vendor, source_api, source_query, confidence, collected_at, unavailable)
                 VALUES (?, ?, ?, 'ifind_auth', ?, 'iFind', 'auth', 'IFIND_REFRESH_TOKEN', 0, ?, TRUE)
-            """, (
-                f"ifind_auth_unavailable_{code}_{ymd(date_str)}",
-                code,
-                date_str,
-                "IFIND_REFRESH_TOKEN is not set; collector smoke verified only schema and universe loading.",
-                collected_at,
-            ))
+            """,
+                (
+                    f"ifind_auth_unavailable_{code}_{ymd(date_str)}",
+                    code,
+                    date_str,
+                    "IFIND_REFRESH_TOKEN is not set; collector smoke verified only schema and universe loading.",
+                    collected_at,
+                ),
+            )
         total_ev = _count_evidence_for_codes(con, stock_codes, date_str)
         con.close()
         return {
@@ -647,11 +746,20 @@ def collect(
 def main() -> int:
     parser = argparse.ArgumentParser(description="iFind Fundamental Collector (L1+L2)")
     parser.add_argument("--date", required=True)
-    parser.add_argument("--universe", default="p116_pattern_cross",
-                        choices=["p116_pattern_cross", "ef_pool", "tracking_pool"])
+    parser.add_argument(
+        "--universe", default="p116_pattern_cross", choices=["p116_pattern_cross", "ef_pool", "tracking_pool"]
+    )
     parser.add_argument("--limit", type=int, default=0)
-    parser.add_argument("--allow-missing-token", action="store_true", help="Write unavailable evidence placeholders when IFIND_REFRESH_TOKEN is absent.")
-    parser.add_argument("--refresh", action="store_true", help="Force same-day iFind re-collection instead of using cached evidence.")
+    parser.add_argument(
+        "--allow-missing-token",
+        action="store_true",
+        help="Write unavailable evidence placeholders when IFIND_REFRESH_TOKEN is absent.",
+    )
+    parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="Force same-day iFind re-collection instead of using cached evidence.",
+    )
     args = parser.parse_args()
 
     result = collect(args.date, args.universe, args.limit, args.allow_missing_token, args.refresh)

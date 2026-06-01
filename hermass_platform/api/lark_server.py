@@ -33,7 +33,6 @@ APP_SECRET = os.environ.get("LARK_APP_SECRET", "")
 
 
 class LarkCallbackHandler(BaseHTTPRequestHandler):
-
     def do_POST(self):
         path = urlparse(self.path).path
 
@@ -117,7 +116,8 @@ class LarkCallbackHandler(BaseHTTPRequestHandler):
             user_message_raw = ""
 
         import re
-        user_message = re.sub(r'@\S+\s*', '', user_message_raw).strip()
+
+        user_message = re.sub(r"@\S+\s*", "", user_message_raw).strip()
         logger.info(f"DEBUG parsed user_message: '{user_message}'")
 
         if not user_message:
@@ -134,6 +134,7 @@ class LarkCallbackHandler(BaseHTTPRequestHandler):
 
         try:
             from hermass_platform.chat.lark_handler import handle_lark_message
+
             reply = handle_lark_message(
                 user_id=open_id,
                 user_message=user_message,
@@ -163,6 +164,7 @@ class LarkCallbackHandler(BaseHTTPRequestHandler):
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser(description="Hermass Lark Bot Server")
     parser.add_argument("--port", type=int, default=8080, help="HTTP port (default 8080)")
     parser.add_argument("--host", default="0.0.0.0", help="Bind address (default 0.0.0.0)")

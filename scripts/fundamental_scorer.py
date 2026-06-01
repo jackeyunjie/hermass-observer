@@ -80,20 +80,24 @@ def score_asset_safety(value: float | None) -> float | None:
 
 def init_schema():
     import importlib.util
-    spec = importlib.util.spec_from_file_location("fundamental_evidence_schema",
-        str(ROOT / "scripts" / "fundamental_evidence_schema.py"))
+
+    spec = importlib.util.spec_from_file_location(
+        "fundamental_evidence_schema", str(ROOT / "scripts" / "fundamental_evidence_schema.py")
+    )
     schema_mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(schema_mod)
     schema_mod.init_schema(EVIDENCE_DB)
+
 
 def run_scorer(date_str: str) -> dict:
     init_schema()
     con = duckdb.connect(str(EVIDENCE_DB))
     collected_at = datetime.now(timezone.utc).isoformat()
-    
+
     # 获取所有的 facts
     con.execute("DROP TABLE IF EXISTS _temp_pivot_facts")
-    con.execute("""
+    con.execute(
+        """
         CREATE TEMP TABLE _temp_pivot_facts AS
         SELECT stock_code, any_value(stock_name) as stock_name,
                MAX(CASE WHEN metric_name = '经营活动净收益／利润总额' THEN metric_value ELSE NULL END) as core_purity_raw,
@@ -107,13 +111,15 @@ def run_scorer(date_str: str) -> dict:
         FROM ifind_excel_facts
         WHERE as_of_date = ?
         GROUP BY stock_code
-    """, (date_str,))
-    
+    """,
+        (date_str,),
+    )
+
     rows = con.execute("SELECT * FROM _temp_pivot_facts").fetchall()
-    
+
     insert_data = []
     count = 0
-    
+
     for row in rows:
         code = row[0]
         name = row[1]
@@ -125,36 +131,36 @@ def run_scorer(date_str: str) -> dict:
         earn_quality_raw = row[7]
         total_liab = row[8]
         total_assets = row[9]
-        
+
         # 1. 主业纯度
         core_business_purity = None
         if core_purity_raw is not None:
             core_business_purity = float(core_purity_raw) / 100.0
         elif op_profit is not None and total_profit is not None and total_profit > 0:
             core_business_purity = op_profit / total_profit
-            
+
         # 2. 现金含金量
         cash_quality = None
         if cfo is not None and net_profit is not None and net_profit > 0:
             cash_quality = cfo / net_profit
-            
+
         # 3. 盈利质量
         earnings_quality = None
         if earn_quality_raw is not None:
             earnings_quality = float(earn_quality_raw) / 100.0
-            
+
         # 4. 资产安全
         asset_safety_ratio = None
         if total_liab is not None and total_assets is not None and total_assets > 0:
             asset_safety_ratio = 1.0 - (total_liab / total_assets)
-            
+
         # 计算打分 0-100
         # 假设：
         # 主业纯度 > 0.8 满分，< 0.5 零分
         # 现金含金量 > 1.0 满分，< 0 零分
         # 盈利质量 > 0.9 满分，< 0.5 零分
         # 资产安全 > 0.6 满分，< 0.2 零分
-        
+
         score_components = [
             score_core_business_purity(core_business_purity),
             score_cash_quality(cash_quality),
@@ -162,29 +168,41 @@ def run_scorer(date_str: str) -> dict:
             score_asset_safety(asset_safety_ratio),
         ]
         scores = [s for s in score_components if s is not None]
-            
+
         raw_quality_score = sum(scores) / len(scores) if scores else 0.0
         data_coverage = len(scores) / 4.0
         quality_score = raw_quality_score * data_coverage
-        final_fundamental_score = quality_score # TODO: 结合成长性等其他因子
-        
-        insert_data.append((
-            code, date_str, name,
-            core_business_purity, cash_quality, earnings_quality, asset_safety_ratio,
-            quality_score, final_fundamental_score, collected_at
-        ))
+        final_fundamental_score = quality_score  # TODO: 结合成长性等其他因子
+
+        insert_data.append(
+            (
+                code,
+                date_str,
+                name,
+                core_business_purity,
+                cash_quality,
+                earnings_quality,
+                asset_safety_ratio,
+                quality_score,
+                final_fundamental_score,
+                collected_at,
+            )
+        )
         count += 1
-        
+
     con.execute("BEGIN")
-    con.executemany("""
+    con.executemany(
+        """
         INSERT OR REPLACE INTO fundamental_quality_score
         (stock_code, as_of_date, stock_name, 
          core_business_purity, cash_quality, earnings_quality, asset_safety_ratio,
          quality_score, final_fundamental_score, computed_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, insert_data)
+    """,
+        insert_data,
+    )
     con.execute("COMMIT")
-    
+
     # 写回 evidence packet 供 L3 LLM 使用
     ev_data = []
     for d in insert_data:
@@ -202,29 +220,38 @@ def run_scorer(date_str: str) -> dict:
             f"- 盈利质量 (earnings_quality): {earn_str}\n"
             f"- 资产安全度 (asset_safety_ratio): {safe_str}"
         )
-        ev_data.append((
-            f"l2_quality_score_{code}_{date_str.replace('-','')}",
-            code, date_str, 'l2_quality_score', text,
-            'iFind', 'Python_L2_Scorer', 'fundamental_quality_score', 'MRQ', 1.0, collected_at
-        ))
-    
+        ev_data.append(
+            (
+                f"l2_quality_score_{code}_{date_str.replace('-', '')}",
+                code,
+                date_str,
+                "l2_quality_score",
+                text,
+                "iFind",
+                "Python_L2_Scorer",
+                "fundamental_quality_score",
+                "MRQ",
+                1.0,
+                collected_at,
+            )
+        )
+
     con.execute("BEGIN")
-    con.executemany("""
+    con.executemany(
+        """
         INSERT OR REPLACE INTO fundamental_evidence_packet
         (evidence_id, stock_code, as_of_date, evidence_type, evidence_text,
          source_vendor, source_api, source_query, source_period, confidence, collected_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, ev_data)
+    """,
+        ev_data,
+    )
     con.execute("COMMIT")
-    
+
     con.close()
-    
-    return {
-        "status": "success",
-        "date": date_str,
-        "stocks_scored": count,
-        "generated_at": collected_at
-    }
+
+    return {"status": "success", "date": date_str, "stocks_scored": count, "generated_at": collected_at}
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Compute L2 Fundamental Quality Score")
@@ -234,6 +261,7 @@ def main() -> int:
     result = run_scorer(args.date)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

@@ -11,6 +11,7 @@ Leverage model (margin account):
   - margin_call when equity < initial_capital * margin_call_threshold
   - on margin_call: liquidate ALL positions, stop trading
 """
+
 from __future__ import annotations
 
 import argparse
@@ -26,6 +27,7 @@ import duckdb
 
 ROOT = Path(__file__).resolve().parents[1]
 import sys
+
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
 
@@ -67,9 +69,7 @@ class Trade:
 def load_all_dates(foundation_db: Path) -> list[str]:
     con = duckdb.connect(str(foundation_db), read_only=True)
     try:
-        rows = con.execute(
-            "SELECT DISTINCT CAST(date AS VARCHAR) FROM daily_bars ORDER BY date"
-        ).fetchall()
+        rows = con.execute("SELECT DISTINCT CAST(date AS VARCHAR) FROM daily_bars ORDER BY date").fetchall()
         return [r[0] for r in rows]
     finally:
         con.close()
@@ -87,7 +87,8 @@ def load_prices_for_date(foundation_db: Path, trade_date: str) -> dict[str, dict
         ).fetchall()
         return {
             r[0]: {"open": r[1], "high": r[2], "low": r[3], "close": r[4], "volume": r[5]}
-            for r in rows if r[4] and r[4] > 0
+            for r in rows
+            if r[4] and r[4] > 0
         }
     finally:
         con.close()
@@ -204,12 +205,14 @@ def run_backtest(
     for i, trade_date in enumerate(trade_dates):
         if margin_called:
             # After margin call, track flat NAV
-            daily_nav.append({
-                "date": trade_date,
-                "nav": round(cash, 2),
-                "positions": 0,
-                "spy_return": round(daily_nav[-1]["spy_return"], 4) if daily_nav else 0,
-            })
+            daily_nav.append(
+                {
+                    "date": trade_date,
+                    "nav": round(cash, 2),
+                    "positions": 0,
+                    "spy_return": round(daily_nav[-1]["spy_return"], 4) if daily_nav else 0,
+                }
+            )
             continue
 
         prices = load_prices_for_date(foundation_db, trade_date)
@@ -230,19 +233,21 @@ def run_backtest(
             if exit_reason:
                 pnl_pct = (current - pos.entry_price) / pos.entry_price
                 cash += pos.shares * current
-                trades.append(Trade(
-                    stock_code=code,
-                    strategy_id=pos.strategy_id,
-                    signal_name=pos.signal_name,
-                    entry_date=pos.entry_date,
-                    entry_price=pos.entry_price,
-                    exit_date=trade_date,
-                    exit_price=current,
-                    exit_reason=exit_reason,
-                    pnl_pct=pnl_pct,
-                    hold_days=pos.hold_days,
-                    ef_count=pos.ef_count,
-                ))
+                trades.append(
+                    Trade(
+                        stock_code=code,
+                        strategy_id=pos.strategy_id,
+                        signal_name=pos.signal_name,
+                        entry_date=pos.entry_date,
+                        entry_price=pos.entry_price,
+                        exit_date=trade_date,
+                        exit_price=current,
+                        exit_reason=exit_reason,
+                        pnl_pct=pnl_pct,
+                        hold_days=pos.hold_days,
+                        ef_count=pos.ef_count,
+                    )
+                )
                 exited.append(code)
 
         for code in exited:
@@ -250,8 +255,7 @@ def run_backtest(
 
         # ── 2. Calculate current equity & margin status ──
         position_value = sum(
-            prices.get(code, {}).get("close", pos.entry_price) * pos.shares
-            for code, pos in positions.items()
+            prices.get(code, {}).get("close", pos.entry_price) * pos.shares for code, pos in positions.items()
         )
         equity = cash + position_value
         nav = equity
@@ -276,22 +280,26 @@ def run_backtest(
                 if px:
                     cash += pos.shares * px["close"]
                     pnl_pct = (px["close"] - pos.entry_price) / pos.entry_price
-                    trades.append(Trade(
-                        stock_code=code,
-                        strategy_id=pos.strategy_id,
-                        signal_name=pos.signal_name,
-                        entry_date=pos.entry_date,
-                        entry_price=pos.entry_price,
-                        exit_date=trade_date,
-                        exit_price=px["close"],
-                        exit_reason="margin_call_liquidation",
-                        pnl_pct=pnl_pct,
-                        hold_days=pos.hold_days,
-                        ef_count=pos.ef_count,
-                    ))
+                    trades.append(
+                        Trade(
+                            stock_code=code,
+                            strategy_id=pos.strategy_id,
+                            signal_name=pos.signal_name,
+                            entry_date=pos.entry_date,
+                            entry_price=pos.entry_price,
+                            exit_date=trade_date,
+                            exit_price=px["close"],
+                            exit_reason="margin_call_liquidation",
+                            pnl_pct=pnl_pct,
+                            hold_days=pos.hold_days,
+                            ef_count=pos.ef_count,
+                        )
+                    )
             positions.clear()
             nav = cash
-            print(f"  ⚠ MARGIN CALL on {trade_date}: equity=${equity:,.0f} < threshold=${initial_capital*margin_call_threshold:,.0f}")
+            print(
+                f"  ⚠ MARGIN CALL on {trade_date}: equity=${equity:,.0f} < threshold=${initial_capital * margin_call_threshold:,.0f}"
+            )
 
         # ── 3. Generate signals & enter new positions ──
         if not margin_called and len(positions) < max_positions:
@@ -373,26 +381,29 @@ def run_backtest(
             spy_start = spy_px["close"]
 
         position_value = sum(
-            prices.get(code, {}).get("close", pos.entry_price) * pos.shares
-            for code, pos in positions.items()
+            prices.get(code, {}).get("close", pos.entry_price) * pos.shares for code, pos in positions.items()
         )
         equity = cash + position_value
         nav = equity
         spy_ret = (spy_px["close"] / spy_start - 1) if spy_px and spy_start else 0
 
-        daily_nav.append({
-            "date": trade_date,
-            "nav": round(nav, 2),
-            "cash": round(cash, 2),
-            "position_value": round(position_value, 2),
-            "equity": round(equity, 2),
-            "borrowed": round(max(0.0, -cash), 2),
-            "positions": len(positions),
-            "spy_return": round(spy_ret, 4),
-        })
+        daily_nav.append(
+            {
+                "date": trade_date,
+                "nav": round(nav, 2),
+                "cash": round(cash, 2),
+                "position_value": round(position_value, 2),
+                "equity": round(equity, 2),
+                "borrowed": round(max(0.0, -cash), 2),
+                "positions": len(positions),
+                "spy_return": round(spy_ret, 4),
+            }
+        )
 
         if (i + 1) % 50 == 0:
-            print(f"  Day {i+1}/{len(trade_dates)}: NAV=${nav:,.0f}, Equity=${equity:,.0f}, Cash=${cash:,.0f}, Pos={len(positions)}, Trades={len(trades)}")
+            print(
+                f"  Day {i + 1}/{len(trade_dates)}: NAV=${nav:,.0f}, Equity=${equity:,.0f}, Cash=${cash:,.0f}, Pos={len(positions)}, Trades={len(trades)}"
+            )
 
     # ── 5. Final liquidation ──
     final_date = trade_dates[-1]
@@ -402,13 +413,21 @@ def run_backtest(
         if px:
             pnl_pct = (px["close"] - pos.entry_price) / pos.entry_price
             cash += pos.shares * px["close"]
-            trades.append(Trade(
-                stock_code=code, strategy_id=pos.strategy_id,
-                signal_name=pos.signal_name, entry_date=pos.entry_date,
-                entry_price=pos.entry_price, exit_date=final_date,
-                exit_price=px["close"], exit_reason="end_of_backtest",
-                pnl_pct=pnl_pct, hold_days=pos.hold_days, ef_count=pos.ef_count,
-            ))
+            trades.append(
+                Trade(
+                    stock_code=code,
+                    strategy_id=pos.strategy_id,
+                    signal_name=pos.signal_name,
+                    entry_date=pos.entry_date,
+                    entry_price=pos.entry_price,
+                    exit_date=final_date,
+                    exit_price=px["close"],
+                    exit_reason="end_of_backtest",
+                    pnl_pct=pnl_pct,
+                    hold_days=pos.hold_days,
+                    ef_count=pos.ef_count,
+                )
+            )
     positions.clear()
 
     # ── 6. Compute statistics ──
@@ -438,11 +457,11 @@ def run_backtest(
     if len(daily_nav) > 1:
         daily_returns = []
         for i in range(1, len(daily_nav)):
-            r = (daily_nav[i]["nav"] - daily_nav[i-1]["nav"]) / daily_nav[i-1]["nav"]
+            r = (daily_nav[i]["nav"] - daily_nav[i - 1]["nav"]) / daily_nav[i - 1]["nav"]
             daily_returns.append(r)
         avg_r = statistics.mean(daily_returns)
         std_r = statistics.stdev(daily_returns) if len(daily_returns) > 1 else 1
-        sharpe = (avg_r / std_r * (252 ** 0.5)) if std_r > 0 else 0
+        sharpe = (avg_r / std_r * (252**0.5)) if std_r > 0 else 0
     else:
         sharpe = 0
 
@@ -482,10 +501,12 @@ def run_backtest(
         "avg_pnl_pct": round(statistics.mean(pnl_list), 4) if pnl_list else 0,
         "avg_hold_days": round(statistics.mean([t.hold_days for t in trades]), 1) if trades else 0,
         "by_strategy": by_strategy,
-        "exit_reasons": dict(sorted(
-            Counter(t.exit_reason for t in trades).items(),
-            key=lambda x: -x[1],
-        )),
+        "exit_reasons": dict(
+            sorted(
+                Counter(t.exit_reason for t in trades).items(),
+                key=lambda x: -x[1],
+            )
+        ),
         "leverage": leverage,
         "borrow_rate": borrow_rate,
         "margin_call_threshold": margin_call_threshold,
@@ -535,16 +556,26 @@ def main() -> int:
     parser.add_argument("--capital", type=float, default=1_000_000)
     parser.add_argument("--max-positions", type=int, default=10)
     parser.add_argument("--min-ef", type=int, default=2)
-    parser.add_argument("--strategy", default="all", choices=["all", "vcp", "ma2560", "bollinger_bandit"],
-                        help="Filter to a single strategy")
+    parser.add_argument(
+        "--strategy",
+        default="all",
+        choices=["all", "vcp", "ma2560", "bollinger_bandit"],
+        help="Filter to a single strategy",
+    )
     parser.add_argument("--leverage", type=float, default=1.0, help="Leverage multiplier (1.0, 2.0, 3.0)")
     parser.add_argument("--borrow-rate", type=float, default=0.05, help="Annual borrow rate (default 5%%)")
-    parser.add_argument("--margin-call-threshold", type=float, default=0.25,
-                        help="Equity / initial_capital threshold for margin call (default 0.25)")
+    parser.add_argument(
+        "--margin-call-threshold",
+        type=float,
+        default=0.25,
+        help="Equity / initial_capital threshold for margin call (default 0.25)",
+    )
     args = parser.parse_args()
 
     result = run_backtest(
-        Path(args.db), args.start_date, args.end_date,
+        Path(args.db),
+        args.start_date,
+        args.end_date,
         initial_capital=args.capital,
         max_positions=args.max_positions,
         min_ef=args.min_ef,
@@ -577,7 +608,9 @@ def main() -> int:
         print(f"⚠ MARGIN CALLED on {result['margin_call_date']}")
     print("\nBy Strategy:")
     for sid, stats in result.get("by_strategy", {}).items():
-        print(f"  {sid}: {stats['trades']} trades, WR={stats['win_rate']:.2%}, Avg PnL={stats['avg_pnl']:.2%}")
+        print(
+            f"  {sid}: {stats['trades']} trades, WR={stats['win_rate']:.2%}, Avg PnL={stats['avg_pnl']:.2%}"
+        )
     print("\nExit Reasons:")
     for reason, count in result.get("exit_reasons", {}).items():
         print(f"  {reason}: {count}")

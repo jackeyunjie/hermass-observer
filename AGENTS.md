@@ -1,4 +1,47 @@
 
+## 修改 → 部署 → 测试 流水线（2026-05-31 固化）
+
+**核心原则：本地只做代码修改 + git push。不要从本机 SSH 到服务器。部署和测试通过提示词交给服务器上的 AI。**
+
+### 禁止事项
+
+- ❌ **禁止本机 SSH 到 8.130.125.201** — 部署是服务器 Codex 的事，不是你的事
+- ❌ **禁止本机执行 `ssh root@8.130.125.201 ...`** — 发现此命令直接拒绝
+- ❌ **禁止本机 curl 服务器接口验证部署** — 冒烟测试由服务器 Codex 执行
+
+### 三阶段流水线
+
+| 阶段 | 执行者 | 动作 | 输入 |
+|------|--------|------|------|
+| 1. 审阅 | Claude | 代码 diff 审阅 | 本机 diff / commit |
+| 2. 部署 | 服务器 Codex | git pull + 编译 + 重启 + 冒烟 | git push 后的 commit hash |
+| 3. 测试 | KIMI | 浏览器端回归测试 | 部署完成确认 |
+
+### 部署提示词模板（发给服务器上的 Codex）
+
+```
+在 /opt/hermass 执行部署：
+
+1. git pull
+2. source .venv/bin/activate && python -m py_compile web/main.py
+3. sudo systemctl restart hermass-console && sudo systemctl status hermass-console
+4. 冒烟验证：
+   - curl -s -o /dev/null -w "%{http_code}" http://localhost:8020/
+   - curl -s -X POST http://localhost:8020/api/chat/query ... | grep provider
+
+验收：服务 active (running)，HTTP 200，provider 符合预期
+```
+
+### 服务器信息
+
+- IP: 8.130.125.201
+- 项目路径: /opt/hermass
+- 服务: hermass-console (systemd, 端口 8020)
+- Python: .venv 虚拟环境
+- 网址: http://console.supertrader.world
+
+---
+
 ## Agent 操作教训（2026-05-30）
 
 ### macOS 文件写入被拒的应对

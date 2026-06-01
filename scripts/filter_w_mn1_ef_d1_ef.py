@@ -43,6 +43,7 @@ def main() -> int:
     print(f"JSON 输出 → {OUTPUT_JSON}")
 
     import csv
+
     with OUTPUT_CSV.open("w", encoding="utf-8-sig", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=["品种", "时间", "MN1state", "W1state", "D1state"])
         writer.writeheader()
@@ -57,7 +58,9 @@ def main() -> int:
     for sym in unique_symbols:
         sym_rows = [r for r in filtered_rows if r["品种"] == sym]
         latest = sym_rows[0]
-        print(f"  {sym} | MN1={latest['MN1state']} W1={latest['W1state']} D1={latest['D1state']} | 最新日={latest['时间'][:10]}")
+        print(
+            f"  {sym} | MN1={latest['MN1state']} W1={latest['W1state']} D1={latest['D1state']} | 最新日={latest['时间'][:10]}"
+        )
 
     return 0
 

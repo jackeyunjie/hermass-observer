@@ -52,8 +52,12 @@ def load_rows() -> list[dict]:
 
 def enrich_row(row: dict) -> dict:
     buy_total = num(row, "buytddcje") + num(row, "buyddcje") + num(row, "buyzdcje") + num(row, "buysdcje")
-    sell_total = num(row, "selltddcje") + num(row, "sellddcje") + num(row, "sellzdcje") + num(row, "sellxdcje")
-    big_net = (num(row, "buytddcje") + num(row, "buyddcje")) - (num(row, "selltddcje") + num(row, "sellddcje"))
+    sell_total = (
+        num(row, "selltddcje") + num(row, "sellddcje") + num(row, "sellzdcje") + num(row, "sellxdcje")
+    )
+    big_net = (num(row, "buytddcje") + num(row, "buyddcje")) - (
+        num(row, "selltddcje") + num(row, "sellddcje")
+    )
     active_net = buy_total - sell_total
     row = dict(row)
     row["buy_total"] = buy_total
@@ -111,7 +115,9 @@ def main() -> int:
             }
         )
 
-    output.sort(key=lambda r: (-r["moneyflow_score"], -r["active_net_5d"], -r["big_order_net_5d"], r["stock_code"]))
+    output.sort(
+        key=lambda r: (-r["moneyflow_score"], -r["active_net_5d"], -r["big_order_net_5d"], r["stock_code"])
+    )
     for idx, row in enumerate(output, 1):
         row["rank"] = idx
 
@@ -168,15 +174,21 @@ def main() -> int:
   <h1>P116 资金流增强候选池 - 2026-05-20</h1>
   <div class="note">基础池：上一版 10 只三周期 E/F 候选。资金流口径：最近可用 5 日窗口内主动净额、特大+大单净额、正净流天数和最近日方向。5/14 对本批候选返回 0 行，实际覆盖为 5/15、5/18、5/19、5/20 四个交易日。</div>
   <table>
-    <thead><tr>{''.join(f'<th>{field}</th>' for field in ['排名','股票','行业','覆盖天数','主动净流天数','大额净流天数','5日主动净额','5日大额净额','最新日','最新主动净额','最新主动净额/主买','资金流分'])}</tr></thead>
-    <tbody>{''.join(rows_html)}</tbody>
+    <thead><tr>{"".join(f"<th>{field}</th>" for field in ["排名", "股票", "行业", "覆盖天数", "主动净流天数", "大额净流天数", "5日主动净额", "5日大额净额", "最新日", "最新主动净额", "最新主动净额/主买", "资金流分"])}</tr></thead>
+    <tbody>{"".join(rows_html)}</tbody>
   </table>
 </body>
 </html>
 """
     html_path = public_dir / "p116_moneyflow_enhanced_top10_20260520.html"
     html_path.write_text(html, encoding="utf-8")
-    print(json.dumps({"csv": str(csv_path), "html": str(html_path), "json": str(json_path), "rows": len(output)}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {"csv": str(csv_path), "html": str(html_path), "json": str(json_path), "rows": len(output)},
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 

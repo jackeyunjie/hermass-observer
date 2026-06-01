@@ -128,12 +128,16 @@ def init_schema(db_path: Path | None = None) -> Path:
         con.execute(stmt)
     con.execute("CREATE TABLE IF NOT EXISTS schema_info (schema_version VARCHAR, created_at VARCHAR)")
     con.execute("DELETE FROM schema_info")
-    con.execute("INSERT INTO schema_info VALUES (?, ?)", (SCHEMA_VERSION, datetime.now(timezone.utc).isoformat()))
+    con.execute(
+        "INSERT INTO schema_info VALUES (?, ?)", (SCHEMA_VERSION, datetime.now(timezone.utc).isoformat())
+    )
     con.close()
     return db_path
 
 
-def import_agent_export(con: duckdb.DuckDBPyConnection, json_path: Path, date_str: str, collected_at: str) -> dict[str, int]:
+def import_agent_export(
+    con: duckdb.DuckDBPyConnection, json_path: Path, date_str: str, collected_at: str
+) -> dict[str, int]:
     if not json_path.exists():
         return {"events": 0, "warnings": 0, "briefs": 0}
 
@@ -144,52 +148,83 @@ def import_agent_export(con: duckdb.DuckDBPyConnection, json_path: Path, date_st
 
     # 公告整理助手 → company_events
     for item in data.get("announcements", []):
-        eid = f"ann_{item.get('stock_code','')}_{item.get('date','')}_{events_count}"
+        eid = f"ann_{item.get('stock_code', '')}_{item.get('date', '')}_{events_count}"
         try:
-            con.execute("""
+            con.execute(
+                """
                 INSERT OR IGNORE INTO company_events
                 (event_id, stock_code, event_date, event_type, event_subtype, title, summary,
                  source_agent, source_export, raw_json, collected_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (eid, item.get("stock_code", ""), item.get("date", date_str),
-                  item.get("type", "announcement"), item.get("subtype"),
-                  item.get("title", ""), item.get("summary", ""),
-                  "A股上市公司公告整理助手", str(json_path),
-                  json.dumps(item, ensure_ascii=False)[:3000], collected_at))
+            """,
+                (
+                    eid,
+                    item.get("stock_code", ""),
+                    item.get("date", date_str),
+                    item.get("type", "announcement"),
+                    item.get("subtype"),
+                    item.get("title", ""),
+                    item.get("summary", ""),
+                    "A股上市公司公告整理助手",
+                    str(json_path),
+                    json.dumps(item, ensure_ascii=False)[:3000],
+                    collected_at,
+                ),
+            )
             events_count += 1
         except Exception:
             pass
 
     # 业绩预警助手 → performance_warnings
     for item in data.get("performance_warnings", []):
-        wid = f"warn_{item.get('stock_code','')}_{item.get('date','')}_{warnings_count}"
+        wid = f"warn_{item.get('stock_code', '')}_{item.get('date', '')}_{warnings_count}"
         try:
-            con.execute("""
+            con.execute(
+                """
                 INSERT OR IGNORE INTO performance_warnings
                 (warning_id, stock_code, announce_date, warning_type, period,
                  expected_change, reason, previous_forecast, collected_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (wid, item.get("stock_code", ""), item.get("date", date_str),
-                  item.get("type", "unknown"), item.get("period"),
-                  item.get("expected", ""), item.get("reason", ""),
-                  item.get("previous", ""), collected_at))
+            """,
+                (
+                    wid,
+                    item.get("stock_code", ""),
+                    item.get("date", date_str),
+                    item.get("type", "unknown"),
+                    item.get("period"),
+                    item.get("expected", ""),
+                    item.get("reason", ""),
+                    item.get("previous", ""),
+                    collected_at,
+                ),
+            )
             warnings_count += 1
         except Exception:
             pass
 
     # 资讯简报 → news_briefs
     for item in data.get("news_briefs", []):
-        bid = f"brief_{item.get('stock_code','')}_{date_str}_{briefs_count}"
+        bid = f"brief_{item.get('stock_code', '')}_{date_str}_{briefs_count}"
         try:
             tags = ",".join(item.get("tags", []) or [])
-            con.execute("""
+            con.execute(
+                """
                 INSERT OR IGNORE INTO news_briefs
                 (brief_id, stock_code, brief_date, brief_type, headline, body, tags, source_agent, collected_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (bid, item.get("stock_code"), date_str,
-                  item.get("type", "market_brief"), item.get("headline", ""),
-                  item.get("body", "")[:2000], tags,
-                  item.get("source_agent", "自选股AI资讯简报"), collected_at))
+            """,
+                (
+                    bid,
+                    item.get("stock_code"),
+                    date_str,
+                    item.get("type", "market_brief"),
+                    item.get("headline", ""),
+                    item.get("body", "")[:2000],
+                    tags,
+                    item.get("source_agent", "自选股AI资讯简报"),
+                    collected_at,
+                ),
+            )
             briefs_count += 1
         except Exception:
             pass
@@ -217,37 +252,44 @@ def cross_with_pool(con: duckdb.DuckDBPyConnection, date_str: str) -> int:
     for code in pool_codes:
         ef = code_ef.get(code, 0)
         events = con.execute(
-            "SELECT COUNT(*) FROM company_events WHERE stock_code = ? AND event_date = ?",
-            (code, date_str)
+            "SELECT COUNT(*) FROM company_events WHERE stock_code = ? AND event_date = ?", (code, date_str)
         ).fetchone()[0]
         warnings = con.execute(
-            "SELECT COUNT(*) FROM performance_warnings WHERE stock_code = ?",
-            (code,)
+            "SELECT COUNT(*) FROM performance_warnings WHERE stock_code = ?", (code,)
         ).fetchone()[0]
 
         pos = con.execute(
             "SELECT expected_change FROM performance_warnings WHERE stock_code = ? AND warning_type = '预增'",
-            (code,)
+            (code,),
         ).fetchall()
         neg = con.execute(
             "SELECT expected_change FROM performance_warnings WHERE stock_code = ? AND warning_type IN ('预减', '亏损', '修正')",
-            (code,)
+            (code,),
         ).fetchall()
 
         latest = con.execute(
             "SELECT title, event_type FROM company_events WHERE stock_code = ? AND event_date = ? ORDER BY event_id LIMIT 1",
-            (code, date_str)
+            (code, date_str),
         ).fetchone()
 
-        con.execute("""
+        con.execute(
+            """
             INSERT OR REPLACE INTO event_pool_cross
             (stock_code, as_of_date, ef_count, total_events, warning_count,
              placement_count, merger_count, positive_warnings, negative_warnings, latest_event_summary)
             VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?, ?)
-        """, (code, date_str, ef, events, warnings,
-              json.dumps([p[0] for p in pos], ensure_ascii=False),
-              json.dumps([n[0] for n in neg], ensure_ascii=False),
-              f"{latest[1]}: {latest[0]}" if latest else "无"))
+        """,
+            (
+                code,
+                date_str,
+                ef,
+                events,
+                warnings,
+                json.dumps([p[0] for p in pos], ensure_ascii=False),
+                json.dumps([n[0] for n in neg], ensure_ascii=False),
+                f"{latest[1]}: {latest[0]}" if latest else "无",
+            ),
+        )
         count += 1
 
     return count
@@ -269,13 +311,24 @@ def run(date_str: str, import_json: str | None = None) -> dict:
 
     pool_cross = cross_with_pool(con, date_str)
 
-    con.execute("""
+    con.execute(
+        """
         INSERT OR REPLACE INTO digest_run_log
         (run_id, run_date, events_imported, warnings_imported, briefs_imported,
          pool_cross_count, source, finished_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (run_id, date_str, ev, warnings, briefs, pool_cross,
-          import_json or "no_import", datetime.now(timezone.utc).isoformat()))
+    """,
+        (
+            run_id,
+            date_str,
+            ev,
+            warnings,
+            briefs,
+            pool_cross,
+            import_json or "no_import",
+            datetime.now(timezone.utc).isoformat(),
+        ),
+    )
     con.close()
 
     return {

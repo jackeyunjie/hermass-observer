@@ -46,11 +46,13 @@ def split_by_half_year(start: str, end: str) -> list[dict[str, str]]:
     while True:
         period_start = f"{year}-01-01" if half == 1 else f"{year}-07-01"
         period_end = f"{year}-06-30" if half == 1 else f"{year}-12-31"
-        segments.append({
-            "period_id": f"{year}H{half}",
-            "start": period_start,
-            "end": period_end,
-        })
+        segments.append(
+            {
+                "period_id": f"{year}H{half}",
+                "start": period_start,
+                "end": period_end,
+            }
+        )
         if year == ey and (half == 2 or em <= 6):
             break
         half = 2 if half == 1 else 1
@@ -98,6 +100,7 @@ def split_by_market_phase(start: str, end: str, db_path: Path) -> list[dict[str,
     # Deduplicate: if multiple rows for same date (different stocks have different trends),
     # pick the most common trend per date
     from collections import Counter
+
     date_trends: dict[str, list[str]] = defaultdict(list)
     for d, trend in rows:
         date_trends[d].append(str(trend or ""))
@@ -122,20 +125,24 @@ def split_by_market_phase(start: str, end: str, db_path: Path) -> list[dict[str,
     for d, trend in rows[1:]:
         ph = classify(trend)
         if ph != current_phase:
-            segments.append({
-                "period_id": f"{current_phase}_{current_start}_{d}",
-                "phase": current_phase,
-                "start": current_start,
-                "end": d,
-            })
+            segments.append(
+                {
+                    "period_id": f"{current_phase}_{current_start}_{d}",
+                    "phase": current_phase,
+                    "start": current_start,
+                    "end": d,
+                }
+            )
             current_phase = ph
             current_start = d
-    segments.append({
-        "period_id": f"{current_phase}_{current_start}_{rows[-1][0]}",
-        "phase": current_phase,
-        "start": current_start,
-        "end": rows[-1][0],
-    })
+    segments.append(
+        {
+            "period_id": f"{current_phase}_{current_start}_{rows[-1][0]}",
+            "phase": current_phase,
+            "start": current_start,
+            "end": rows[-1][0],
+        }
+    )
 
     # Merge short segments (< 20 trading days) into same-phase neighbors
     MIN_SEGMENT_DAYS = 20
@@ -174,6 +181,7 @@ def _add_months(d: date, months: int) -> date:
     year = total_months // 12
     month = total_months % 12 + 1
     import calendar
+
     last_day = calendar.monthrange(year, month)[1]
     return date(year, month, min(d.day, last_day))
 
@@ -199,11 +207,13 @@ def split_by_rolling_window(
             break
 
         seg_end = min(window_end, end_dt)
-        segments.append({
-            "period_id": f"window_{period_id:03d}",
-            "start": current.isoformat(),
-            "end": seg_end.isoformat(),
-        })
+        segments.append(
+            {
+                "period_id": f"window_{period_id:03d}",
+                "start": current.isoformat(),
+                "end": seg_end.isoformat(),
+            }
+        )
         period_id += 1
 
         current = _add_months(current, step_months)
@@ -231,7 +241,9 @@ def vcp_compression_release(sample: dict[str, Any]) -> bool:
 
 def ma2560_state_match(sample: dict[str, Any]) -> bool:
     """State 组合在适配区间。"""
-    combo = f"{sample.get('mn1_state_hex', '')}/{sample.get('w1_state_hex', '')}/{sample.get('d1_state_hex', '')}"
+    combo = (
+        f"{sample.get('mn1_state_hex', '')}/{sample.get('w1_state_hex', '')}/{sample.get('d1_state_hex', '')}"
+    )
     return combo in {"E/E/F", "E/F/F", "E/F/E"}
 
 
@@ -293,17 +305,26 @@ def load_samples(
 
     if strategy == "vcp":
         from search_vcp_optimal_state import load_vcp_samples
+
         if raw_signals is None:
             raw_signals = {"vcp_breakout", "vcp_breakout_weak_vol", "vcp_breakout_no_vol"}
-        samples, diagnostics = load_vcp_samples(db_path, start_date, end_date, raw_signals, min_ef_count, max_ef_count)
+        samples, diagnostics = load_vcp_samples(
+            db_path, start_date, end_date, raw_signals, min_ef_count, max_ef_count
+        )
     elif strategy == "ma2560":
         from search_2560_optimal_state import load_ma2560_samples
+
         if raw_signals is None:
             raw_signals = {"ma2560_golden_cross", "ma2560_strong_hold"}
-        samples, diagnostics = load_ma2560_samples(db_path, start_date, end_date, raw_signals, min_ef_count, max_ef_count)
+        samples, diagnostics = load_ma2560_samples(
+            db_path, start_date, end_date, raw_signals, min_ef_count, max_ef_count
+        )
     elif strategy == "bollinger_bandit":
         from search_bollinger_optimal_state import load_bollinger_samples
-        samples, diagnostics = load_bollinger_samples(db_path, start_date, end_date, min_ef_count, max_ef_count)
+
+        samples, diagnostics = load_bollinger_samples(
+            db_path, start_date, end_date, min_ef_count, max_ef_count
+        )
     else:
         raise ValueError(f"Unknown strategy: {strategy}")
 
@@ -322,7 +343,8 @@ def validate_in_period(
 ) -> dict[str, Any]:
     """在单个时间段内验证固定假设。"""
     period_samples = [
-        s for s in all_samples
+        s
+        for s in all_samples
         if period["start"] <= s["date"] <= period["end"]
         and any(s.get(f"excess_ret_{w}d") is not None for w in windows)
     ]
@@ -372,8 +394,7 @@ def direction_consistency(period_results: list[dict[str, Any]]) -> float:
 
 
 def cross_period_cv(period_results: list[dict[str, Any]]) -> float:
-    means = [r["matched_mean_excess"] for r in period_results
-             if r.get("matched_mean_excess") is not None]
+    means = [r["matched_mean_excess"] for r in period_results if r.get("matched_mean_excess") is not None]
     if len(means) < 2:
         return float("inf")
     m = statistics.fmean(means)
@@ -384,10 +405,16 @@ def detect_time_decay(period_results: list[dict[str, Any]]) -> dict[str, Any]:
     if len(period_results) < 3:
         return {"has_decay": False, "reason": "insufficient_periods"}
 
-    early_means = [r["matched_mean_excess"] for r in period_results[:len(period_results)//2]
-                   if r.get("matched_mean_excess") is not None]
-    late_means = [r["matched_mean_excess"] for r in period_results[len(period_results)//2:]
-                  if r.get("matched_mean_excess") is not None]
+    early_means = [
+        r["matched_mean_excess"]
+        for r in period_results[: len(period_results) // 2]
+        if r.get("matched_mean_excess") is not None
+    ]
+    late_means = [
+        r["matched_mean_excess"]
+        for r in period_results[len(period_results) // 2 :]
+        if r.get("matched_mean_excess") is not None
+    ]
 
     if not early_means or not late_means:
         return {"has_decay": False, "reason": "insufficient_data"}
@@ -468,13 +495,15 @@ def render_markdown(
             f"{pct(pr.get('matched_win_rate'))} | {ci_wr} | {fmt_num(pr.get('matched_payoff_ratio'))} | {dir_mark} | {sig_mark} |"
         )
 
-    lines.extend([
-        "",
-        "## 跨段一致性",
-        "",
-        "| 指标 | 值 | 标准 | 判定 |",
-        "|------|-----|------|------|",
-    ])
+    lines.extend(
+        [
+            "",
+            "## 跨段一致性",
+            "",
+            "| 指标 | 值 | 标准 | 判定 |",
+            "|------|-----|------|------|",
+        ]
+    )
 
     dc = result["direction_consistency"]
     lines.append(f"| 方向一致性率 | {dc:.0%} | >= 60% | {'✓' if dc >= 0.6 else '✗'} |")
@@ -490,16 +519,18 @@ def render_markdown(
         lines.append(f"| 时间衰减 | 比率 {decay.get('decay_ratio', 'N/A')} | 后半 >= 前半×50% | ✗ |")
 
     verdict = result["stability_verdict"]
-    lines.extend([
-        "",
-        f"| **综合评分** | **{verdict['score']}** | **>= 0.7** | **{verdict['label']}** |",
-        "",
-        "## 边界",
-        "",
-        "- 本验证为统计稳定性检验，不做参数优化",
-        "- State 组合已固定，不做网格搜索",
-        "- 任何规则变更仍需人工确认",
-    ])
+    lines.extend(
+        [
+            "",
+            f"| **综合评分** | **{verdict['score']}** | **>= 0.7** | **{verdict['label']}** |",
+            "",
+            "## 边界",
+            "",
+            "- 本验证为统计稳定性检验，不做参数优化",
+            "- State 组合已固定，不做网格搜索",
+            "- 任何规则变更仍需人工确认",
+        ]
+    )
 
     return "\n".join(lines)
 
@@ -510,20 +541,34 @@ def render_markdown(
 def main() -> int:
     parser = argparse.ArgumentParser(description="State combo cross-period stability validation.")
     parser.add_argument("--strategy", required=True, choices=["vcp", "ma2560", "bollinger_bandit"])
-    parser.add_argument("--state-hypothesis", required=True, help="Hypothesis ID (e.g., contraction_release, eef_eff_efe, vol_bit_zero)")
+    parser.add_argument(
+        "--state-hypothesis",
+        required=True,
+        help="Hypothesis ID (e.g., contraction_release, eef_eff_efe, vol_bit_zero)",
+    )
     parser.add_argument("--start-date", required=True)
     parser.add_argument("--end-date", required=True)
-    parser.add_argument("--split", default="half_year", choices=["half_year", "market_phase", "rolling_window"])
-    parser.add_argument("--foundation-db", type=Path, help="Foundation DuckDB path (defaults to latest p116_foundation)")
+    parser.add_argument(
+        "--split", default="half_year", choices=["half_year", "market_phase", "rolling_window"]
+    )
+    parser.add_argument(
+        "--foundation-db", type=Path, help="Foundation DuckDB path (defaults to latest p116_foundation)"
+    )
     parser.add_argument("--windows", type=int, nargs="*", default=DEFAULT_WINDOWS)
     parser.add_argument("--primary-window", type=int, default=20)
     parser.add_argument("--n-bootstrap", type=int, default=2000)
     parser.add_argument("--output-dir", type=Path, default=OUT_DIR)
-    parser.add_argument("--raw-signal", action="append", default=[], help="Optional raw signal override (repeatable).")
+    parser.add_argument(
+        "--raw-signal", action="append", default=[], help="Optional raw signal override (repeatable)."
+    )
     parser.add_argument("--min-ef-count", type=int)
     parser.add_argument("--max-ef-count", type=int)
-    parser.add_argument("--window-months", type=int, default=6, help="Rolling window size in months (default 6)")
-    parser.add_argument("--step-months", type=int, default=3, help="Rolling window step in months (default 3)")
+    parser.add_argument(
+        "--window-months", type=int, default=6, help="Rolling window size in months (default 6)"
+    )
+    parser.add_argument(
+        "--step-months", type=int, default=3, help="Rolling window step in months (default 3)"
+    )
     args = parser.parse_args()
 
     hypothesis_fn = HYPOTHESIS_MAP.get(args.state_hypothesis)
@@ -547,7 +592,10 @@ def main() -> int:
 
     # Load samples and attach labels
     samples, load_diag = load_samples(
-        args.strategy, args.start_date, args.end_date, db_path,
+        args.strategy,
+        args.start_date,
+        args.end_date,
+        db_path,
         raw_signals=raw_signals,
         min_ef_count=args.min_ef_count,
         max_ef_count=args.max_ef_count,
@@ -561,7 +609,9 @@ def main() -> int:
     if args.split == "market_phase":
         periods = split_by_market_phase(args.start_date, args.end_date, db_path)
     elif args.split == "rolling_window":
-        periods = split_by_rolling_window(args.start_date, args.end_date, args.window_months, args.step_months)
+        periods = split_by_rolling_window(
+            args.start_date, args.end_date, args.window_months, args.step_months
+        )
     else:
         periods = split_by_half_year(args.start_date, args.end_date)
 

@@ -253,11 +253,15 @@ def save_data(df: pd.DataFrame, name: str, date_str: str):
 
 def main():
     parser = argparse.ArgumentParser(description="AKShare 批量数据采集")
-    parser.add_argument("--type", choices=["value", "holder", "forecast", "all"], default="all", help="采集类型")
+    parser.add_argument(
+        "--type", choices=["value", "holder", "forecast", "all"], default="all", help="采集类型"
+    )
     parser.add_argument("--max-stocks", type=int, default=None, help="最大采集股票数（测试用）")
     parser.add_argument("--date", type=str, default=None, help="兼容旧参数，等同于 --forecast-date")
     parser.add_argument("--forecast-date", type=str, default=None, help="券商评级日期 (YYYYMMDD)")
-    parser.add_argument("--holder-report-date", type=str, default=DEFAULT_HOLDER_REPORT_DATE, help="股东报告期 (YYYYMMDD)")
+    parser.add_argument(
+        "--holder-report-date", type=str, default=DEFAULT_HOLDER_REPORT_DATE, help="股东报告期 (YYYYMMDD)"
+    )
     parser.add_argument("--foundation-db", type=str, default=None, help="显式指定 foundation DB")
     parser.add_argument("--refresh-stock-list", action="store_true", help="强制重建股票列表缓存")
     parser.add_argument("--skip-network-check", action="store_true", help="跳过 DNS/网络预检")

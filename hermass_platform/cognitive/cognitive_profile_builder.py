@@ -100,8 +100,4 @@ def _generate_summary(summary: dict, scores: dict, label: str) -> str:
     days = summary.get("active_days", 0)
     ws = scores.get("weighted_score", 0)
 
-    return (
-        f"认知画像：{label}。"
-        f"基于 {total} 次交互（{days} 个活跃日），"
-        f"综合认知评分 {ws}/100。"
-    )
+    return f"认知画像：{label}。基于 {total} 次交互（{days} 个活跃日），综合认知评分 {ws}/100。"

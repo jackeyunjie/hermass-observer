@@ -42,11 +42,7 @@ def query_subscription_status(user_id: str) -> dict:
             "features": features,
             "daily_usage": usage,
         },
-        "summary": (
-            f"当前层级：{tier_def['name']}。"
-            f"{quota_text}。"
-            f"可享受 {len(features)} 项权益。"
-        ),
+        "summary": (f"当前层级：{tier_def['name']}。{quota_text}。可享受 {len(features)} 项权益。"),
         "errors": [],
         "generated_at": "",
     }
@@ -59,17 +55,19 @@ def query_tier_comparison(user_id: str = "") -> dict:
     comparison = []
     for t in tiers:
         td = get_tier_definition(t["tier"])
-        comparison.append({
-            "tier": t["tier"],
-            "name": t["name"],
-            "price": t["price_text"],
-            "features": td.get("features", []),
-        })
+        comparison.append(
+            {
+                "tier": t["tier"],
+                "name": t["name"],
+                "price": t["price_text"],
+                "features": td.get("features", []),
+            }
+        )
 
     summary = (
-        "会员层级对比：\n" +
-        "\n".join(f"{c['name']}: {c['price']}" for c in comparison) +
-        f"\n\n附加产品：{'、'.join(p['name'] for p in products)}"
+        "会员层级对比：\n"
+        + "\n".join(f"{c['name']}: {c['price']}" for c in comparison)
+        + f"\n\n附加产品：{'、'.join(p['name'] for p in products)}"
     )
 
     return {

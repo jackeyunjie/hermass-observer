@@ -72,12 +72,12 @@ PHASE_STRATEGY_HINTS = {
     "undetermined": "保持观察，等待市场特征明朗。",
 }
 MARKET_PHASE_FACTORS = {
-    "contraction":     {"vcp": 0.90, "ma2560": 0.80, "bollinger_bandit": 0.80},
-    "emergence":       {"vcp": 1.15, "ma2560": 1.00, "bollinger_bandit": 0.90},
-    "progression":     {"vcp": 1.00, "ma2560": 1.10, "bollinger_bandit": 1.00},
-    "extension":       {"vcp": 0.90, "ma2560": 1.00, "bollinger_bandit": 1.15},
-    "risk_release":    {"vcp": 0.80, "ma2560": 0.90, "bollinger_bandit": 0.80},
-    "undetermined":    {"vcp": 1.00, "ma2560": 1.00, "bollinger_bandit": 1.00},
+    "contraction": {"vcp": 0.90, "ma2560": 0.80, "bollinger_bandit": 0.80},
+    "emergence": {"vcp": 1.15, "ma2560": 1.00, "bollinger_bandit": 0.90},
+    "progression": {"vcp": 1.00, "ma2560": 1.10, "bollinger_bandit": 1.00},
+    "extension": {"vcp": 0.90, "ma2560": 1.00, "bollinger_bandit": 1.15},
+    "risk_release": {"vcp": 0.80, "ma2560": 0.90, "bollinger_bandit": 0.80},
+    "undetermined": {"vcp": 1.00, "ma2560": 1.00, "bollinger_bandit": 1.00},
 }
 STRATEGY_DISPLAY_NAMES = {
     "vcp": "VCP",
@@ -85,7 +85,9 @@ STRATEGY_DISPLAY_NAMES = {
     "bollinger_bandit": "布林强盗",
 }
 
-VCP_PATH_MATCH_STATS_TEXT = "本地验证：近20日D1收缩后释放路径，20日平均超额+1.67%，验证区间2025-06-01至2026-05-01，样本43259。"
+VCP_PATH_MATCH_STATS_TEXT = (
+    "本地验证：近20日D1收缩后释放路径，20日平均超额+1.67%，验证区间2025-06-01至2026-05-01，样本43259。"
+)
 VCP_NON_PATH_STATS_TEXT = "本地统计提示：非收缩后释放路径，历史表现较弱（20日平均超额+0.45%）。"
 
 # Mark Minervini 外部验证数据（来自 MARK_MINERVINI_STATE_MATCH_ANALYSIS.md）
@@ -151,7 +153,10 @@ def paths_for(date_str: str) -> dict[str, Path]:
         "reminder": ROOT / "outputs" / "strategy_reminders" / f"reminder_{date_ymd}.json",
         "evaluation": ROOT / "outputs" / "strategy_evaluation" / f"strategy_evaluation_{date_ymd}.json",
         "state_ef": ROOT / "outputs" / "state_cache" / f"state_ef_{date_ymd}.json",
-        "calibration": ROOT / "outputs" / "strategy_evaluation" / f"strategy_evidence_calibration_{date_ymd}.json",
+        "calibration": ROOT
+        / "outputs"
+        / "strategy_evaluation"
+        / f"strategy_evidence_calibration_{date_ymd}.json",
         "signals": ROOT / "outputs" / "strategy_signals" / f"strategy_signal_daily_{date_ymd}.json",
         "ifind_financial": ROOT / "outputs" / "ifind" / f"financial_{date_ymd}.json",
         "ifind_industry": ROOT / "outputs" / "ifind" / f"industry_{date_ymd}.json",
@@ -239,7 +244,9 @@ def card_strategy(card: dict[str, Any]) -> str:
     return (card.get("strategy") or {}).get("strategy_id") or "unknown"
 
 
-def build_market_summary(date_str: str, evaluation_payload: dict[str, Any], state_payload: dict[str, Any]) -> dict[str, Any]:
+def build_market_summary(
+    date_str: str, evaluation_payload: dict[str, Any], state_payload: dict[str, Any]
+) -> dict[str, Any]:
     rows = evaluation_payload.get("rows", []) or []
     total_ef = len(state_payload.get("rows", []) or rows)
     previous_path = previous_state_ef_path(date_str)
@@ -298,9 +305,7 @@ def display_rows(reminder_payload: dict[str, Any]) -> list[dict[str, Any]]:
     rows.sort(
         key=lambda card: (
             FIT_ORDER.get(card.get("strategy_environment_fit") or "待观察", 99),
-            ENV_PRIORITY.get(
-                (card.get("w1_mn1_env") or {}).get("env_category", "transition"), 99
-            ),
+            ENV_PRIORITY.get((card.get("w1_mn1_env") or {}).get("env_category", "transition"), 99),
             card_industry(card),
             STRATEGY_ORDER.get(card_strategy(card), 99),
             -(float(((card.get("strategy_evaluation") or {}).get("evidence_score") or 0.0))),
@@ -347,7 +352,9 @@ def brief_stats(reminder_payload: dict[str, Any]) -> dict[str, Any]:
     cards = reminder_payload.get("reminders", []) or []
     strategy_counts = Counter(card_strategy(card) for card in cards)
     fit_counts = Counter((card.get("strategy_environment_fit") or "待观察") for card in cards)
-    lifecycle_counts = Counter((card.get("lifecycle_stage") or card.get("maturity") or "未知") for card in cards)
+    lifecycle_counts = Counter(
+        (card.get("lifecycle_stage") or card.get("maturity") or "未知") for card in cards
+    )
     by_strategy_fit: dict[str, dict[str, int]] = defaultdict(dict)
     for card in cards:
         strategy = card_strategy(card)
@@ -358,7 +365,10 @@ def brief_stats(reminder_payload: dict[str, Any]) -> dict[str, Any]:
         "strategy_counts": dict(sorted(strategy_counts.items())),
         "fit_counts": dict(sorted(fit_counts.items(), key=lambda item: FIT_ORDER.get(item[0], 99))),
         "lifecycle_counts": dict(sorted(lifecycle_counts.items())),
-        "by_strategy_fit": {key: dict(sorted(val.items(), key=lambda item: FIT_ORDER.get(item[0], 99))) for key, val in sorted(by_strategy_fit.items())},
+        "by_strategy_fit": {
+            key: dict(sorted(val.items(), key=lambda item: FIT_ORDER.get(item[0], 99)))
+            for key, val in sorted(by_strategy_fit.items())
+        },
     }
 
 
@@ -380,8 +390,14 @@ def quality_summary(reminder_payload: dict[str, Any]) -> dict[str, Any]:
         elif strategy_id == "bollinger_bandit":
             bollinger_total += 1
             note = str(card.get("local_stat_note") or "")
-            d1_state = ((card.get("state_environment") or {}).get("d1_state") or "")
-            vol_label = "volatility=0" if "波动稳定" in note or d1_state == "E" else "volatility=1" if "波动活跃" in note or d1_state == "F" else "volatility=unknown"
+            d1_state = (card.get("state_environment") or {}).get("d1_state") or ""
+            vol_label = (
+                "volatility=0"
+                if "波动稳定" in note or d1_state == "E"
+                else "volatility=1"
+                if "波动活跃" in note or d1_state == "F"
+                else "volatility=unknown"
+            )
             lifecycle = str(card.get("lifecycle_stage") or card.get("maturity") or "未知")
             if "新生" in lifecycle:
                 lifecycle_label = "新生"
@@ -405,7 +421,9 @@ def quality_summary(reminder_payload: dict[str, Any]) -> dict[str, Any]:
         "bollinger_volatility_stable_count": bollinger_vol_stable,
         "ma2560_total": ma2560_total,
         "ma2560_full_match_count": ma2560_full_match,
-        "bollinger_volatility_lifecycle": {key: dict(sorted(value.items())) for key, value in sorted(bollinger_cross.items())},
+        "bollinger_volatility_lifecycle": {
+            key: dict(sorted(value.items())) for key, value in sorted(bollinger_cross.items())
+        },
     }
 
 
@@ -659,7 +677,9 @@ def focus_score(card: dict[str, Any]) -> tuple[Any, ...]:
     validation_bonus = 0
     if strategy_id == "vcp" and (card.get("vcp_environment") or {}).get("path_match"):
         validation_bonus = 4
-    elif strategy_id == "ma2560" and ((card.get("ma2560_environment") or {}).get("market_match_level") == "full_match"):
+    elif strategy_id == "ma2560" and (
+        (card.get("ma2560_environment") or {}).get("market_match_level") == "full_match"
+    ):
         validation_bonus = 3
     elif strategy_id == "bollinger_bandit":
         validation_bonus = 1
@@ -680,11 +700,14 @@ def focus_score(card: dict[str, Any]) -> tuple[Any, ...]:
 def is_focus_candidate(row: dict[str, Any]) -> bool:
     strategy_id = card_strategy(row)
     if strategy_id == "ma2560":
-        return (row.get("ma2560_environment") or {}).get("market_match_level") in {"full_match", "stock_only", "market_unsupported"}
-    return (
-        (row.get("strategy_environment_fit") or "") == "最佳适配"
-        or (row.get("vcp_environment") or {}).get("path_match")
-    )
+        return (row.get("ma2560_environment") or {}).get("market_match_level") in {
+            "full_match",
+            "stock_only",
+            "market_unsupported",
+        }
+    return (row.get("strategy_environment_fit") or "") == "最佳适配" or (
+        row.get("vcp_environment") or {}
+    ).get("path_match")
 
 
 def focus_rows(rows: list[dict[str, Any]], limit: int = FOCUS_DISPLAY_LIMIT) -> list[dict[str, Any]]:
@@ -696,7 +719,11 @@ def focus_rows(rows: list[dict[str, Any]], limit: int = FOCUS_DISPLAY_LIMIT) -> 
     seen: set[tuple[str, str, str]] = set()
 
     def add(item: dict[str, Any]) -> None:
-        key = (str(item.get("stock_code") or ""), card_strategy(item), str((item.get("strategy") or {}).get("raw_signal") or ""))
+        key = (
+            str(item.get("stock_code") or ""),
+            card_strategy(item),
+            str((item.get("strategy") or {}).get("raw_signal") or ""),
+        )
         if key in seen or len(selected) >= limit:
             return
         selected.append(item)
@@ -839,10 +866,7 @@ def ifind_markdown_table(rows: list[dict[str, Any]]) -> str:
 
 def _market_phase_markdown(phase: dict[str, Any]) -> str:
     if phase.get("status") != "ok":
-        return (
-            "> **今日市场阶段**：数据待补充\n>\n"
-            "> 市场阶段识别框架尚未接入或数据缺失。\n"
-        )
+        return "> **今日市场阶段**：数据待补充\n>\n> 市场阶段识别框架尚未接入或数据缺失。\n"
     label = phase.get("label", "未分类")
     confidence = phase.get("confidence")
     confidence_text = f"置信度 {confidence:.0%}" if confidence is not None else "置信度未知"
@@ -893,11 +917,17 @@ def build_markdown(payload: dict[str, Any]) -> str:
     focus = "、".join(row["industry"] for row in summary["focus_industries"]) or "无"
     delta = summary.get("all_three_ef_delta")
     delta_text = "无前日对比" if delta is None else f"{delta:+d}"
-    cal_reason_text = {"calibration_not_available": "历史验证数据积累中", "ok": "历史验证数据已确认"}.get(cal.get("reason"), cal.get("reason") or "质量闸门已通过")
-    macro_status_text = {"partial": "数据部分可用", "missing": "数据暂缺", "ok": "数据已就绪"}.get(macro_prior.get("status"), macro_prior.get("status") or "missing")
+    cal_reason_text = {"calibration_not_available": "历史验证数据积累中", "ok": "历史验证数据已确认"}.get(
+        cal.get("reason"), cal.get("reason") or "质量闸门已通过"
+    )
+    macro_status_text = {"partial": "数据部分可用", "missing": "数据暂缺", "ok": "数据已就绪"}.get(
+        macro_prior.get("status"), macro_prior.get("status") or "missing"
+    )
     dominant_env_label = w1_mn1.get("dominant_env_label") or "-"
     dominant_env_pct = w1_mn1.get("dominant_env_pct")
-    dominant_env_text = f"{dominant_env_label}（{dominant_env_pct}%）" if dominant_env_pct is not None else dominant_env_label
+    dominant_env_text = (
+        f"{dominant_env_label}（{dominant_env_pct}%）" if dominant_env_pct is not None else dominant_env_label
+    )
     cred = compute_credibility_summary(payload)
 
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -931,11 +961,11 @@ def build_markdown(payload: dict[str, Any]) -> str:
 
 ## 系统可信度
 
-- 综合可信度：**{cred['label']}**（评分 {cred['score']}/100）
-- 本地 VCP 验证：{cred['vcp_local_text']}
-- 创始人验证（三策略综合）：{cred['founder_text']}
-- 宏观置信度：{cred['macro_text']}
-- 校准状态：{cred['cal_status']}{f"（{cred['cal_reason']}）" if cred['cal_reason'] else ''}
+- 综合可信度：**{cred["label"]}**（评分 {cred["score"]}/100）
+- 本地 VCP 验证：{cred["vcp_local_text"]}
+- 创始人验证（三策略综合）：{cred["founder_text"]}
+- 宏观置信度：{cred["macro_text"]}
+- 校准状态：{cred["cal_status"]}{f"（{cred['cal_reason']}）" if cred["cal_reason"] else ""}
 
 ## 策略信号分布
 
@@ -1002,7 +1032,11 @@ def build_html(payload: dict[str, Any], markdown: str) -> str:
     def render_signal_row(card: dict[str, Any]) -> str:
         strategy = card.get("strategy") or {}
         env = card.get("w1_mn1_env") or {}
-        env_html = f'<span style="color:{esc(env.get("color", "#666"))}">{esc(env.get("label", "-"))}</span>' if env else "-"
+        env_html = (
+            f'<span style="color:{esc(env.get("color", "#666"))}">{esc(env.get("label", "-"))}</span>'
+            if env
+            else "-"
+        )
         founder_html = ""
         ftxt = founder_reference_text(card)
         if ftxt:
@@ -1025,7 +1059,11 @@ def build_html(payload: dict[str, Any], markdown: str) -> str:
 
     def render_focus_row(card: dict[str, Any]) -> str:
         env = card.get("w1_mn1_env") or {}
-        env_html = f'<span style="color:{esc(env.get("color", "#666"))}">{esc(env.get("label", "-"))}</span>' if env else "-"
+        env_html = (
+            f'<span style="color:{esc(env.get("color", "#666"))}">{esc(env.get("label", "-"))}</span>'
+            if env
+            else "-"
+        )
         founder_html = ""
         ftxt = founder_reference_text(card)
         if ftxt:
@@ -1068,17 +1106,28 @@ def build_html(payload: dict[str, Any], markdown: str) -> str:
     focus = "、".join(row["industry"] for row in summary["focus_industries"]) or "无"
     delta = summary.get("all_three_ef_delta")
     delta_text = "无前日对比" if delta is None else f"{delta:+d}"
-    cal_reason_text = {"calibration_not_available": "历史验证数据积累中", "ok": "历史验证数据已确认"}.get(cal.get("reason"), cal.get("reason") or "质量闸门已通过")
-    macro_status_text = {"partial": "数据部分可用", "missing": "数据暂缺", "ok": "数据已就绪"}.get(macro_prior.get("status"), macro_prior.get("status") or "missing")
+    cal_reason_text = {"calibration_not_available": "历史验证数据积累中", "ok": "历史验证数据已确认"}.get(
+        cal.get("reason"), cal.get("reason") or "质量闸门已通过"
+    )
+    macro_status_text = {"partial": "数据部分可用", "missing": "数据暂缺", "ok": "数据已就绪"}.get(
+        macro_prior.get("status"), macro_prior.get("status") or "missing"
+    )
     best_fit_count = stats["fit_counts"].get("最佳适配", 0)
-    strategy_dist_text = " / ".join(f"{strategy_name(k)} {v}" for k, v in stats["strategy_counts"].items()) or "-"
-    bollinger_cross_text = " / ".join(
-        f"{vol}:{','.join(f'{stage}{count}' for stage, count in stages.items())}"
-        for vol, stages in (quality.get("bollinger_volatility_lifecycle") or {}).items()
-    ) or "-"
+    strategy_dist_text = (
+        " / ".join(f"{strategy_name(k)} {v}" for k, v in stats["strategy_counts"].items()) or "-"
+    )
+    bollinger_cross_text = (
+        " / ".join(
+            f"{vol}:{','.join(f'{stage}{count}' for stage, count in stages.items())}"
+            for vol, stages in (quality.get("bollinger_volatility_lifecycle") or {}).items()
+        )
+        or "-"
+    )
     dominant_env_label = w1_mn1.get("dominant_env_label") or "-"
     dominant_env_pct = w1_mn1.get("dominant_env_pct")
-    dominant_env_text = f"{dominant_env_label}（{dominant_env_pct}%）" if dominant_env_pct is not None else dominant_env_label
+    dominant_env_text = (
+        f"{dominant_env_label}（{dominant_env_pct}%）" if dominant_env_pct is not None else dominant_env_label
+    )
     cred = compute_credibility_summary(payload)
     ma2560_group_html = []
     for group in ma2560.get("groups", []) or []:
@@ -1099,7 +1148,9 @@ def build_html(payload: dict[str, Any], markdown: str) -> str:
             )
         limit_note = ""
         if group.get("count", 0) > len(group.get("rows", []) or []):
-            limit_note = f"<p class=\"note\">仅展示前 {esc(group.get('display_limit'))} 条，完整分组见 JSON。</p>"
+            limit_note = (
+                f'<p class="note">仅展示前 {esc(group.get("display_limit"))} 条，完整分组见 JSON。</p>'
+            )
         ma2560_group_html.append(
             f"""
             <section>
@@ -1107,7 +1158,7 @@ def build_html(payload: dict[str, Any], markdown: str) -> str:
               <p class="meta">{esc(MA2560_STATS_TEXT.get(group.get("level"), group.get("label")))}</p>
               <table>
                 <thead><tr><th>股票</th><th>State组合</th><th>个股组合</th><th>P116匹配</th><th>环境适配</th></tr></thead>
-                <tbody>{''.join(group_rows)}</tbody>
+                <tbody>{"".join(group_rows)}</tbody>
               </table>
               {limit_note}
             </section>
@@ -1134,7 +1185,9 @@ def build_html(payload: dict[str, Any], markdown: str) -> str:
         if indicators.get("pool_change_rate_5d") is not None:
             indicator_items.append(f"5日扩张 {indicators['pool_change_rate_5d']:+.1%}")
         if indicators.get("contraction_release_density") is not None:
-            indicator_items.append(f"突破密度 {indicators['contraction_release_density']:.2%}（从收缩中突破的股票占比）")
+            indicator_items.append(
+                f"突破密度 {indicators['contraction_release_density']:.2%}（从收缩中突破的股票占比）"
+            )
         indicator_text = " | ".join(indicator_items) if indicator_items else ""
         phase_html = f"""
     <div class="phase-card">
@@ -1146,7 +1199,7 @@ def build_html(payload: dict[str, Any], markdown: str) -> str:
       <p class="phase-hint">策略提示：{hint}</p>
       <p class="phase-best">当前最适策略：<strong>{best_strategy}</strong> <span>{esc(factor_text)}</span></p>
       <p class="phase-factors">各策略环境系数：{factors_line}</p>
-      {f'<p class="phase-indicators">核心指标：{esc(indicator_text)}</p>' if indicator_text else ''}
+      {f'<p class="phase-indicators">核心指标：{esc(indicator_text)}</p>' if indicator_text else ""}
     </div>
 """
     else:
@@ -1232,14 +1285,14 @@ def build_html(payload: dict[str, Any], markdown: str) -> str:
     </div>
     <div class="credibility-card">
       <div class="credibility-header">
-        <span class="credibility-badge" style="background:{esc(cred['label_color'])};">{esc(cred['label'])}</span>
-        <span class="credibility-score">可信度评分 {esc(cred['score'])}/100</span>
+        <span class="credibility-badge" style="background:{esc(cred["label_color"])};">{esc(cred["label"])}</span>
+        <span class="credibility-score">可信度评分 {esc(cred["score"])}/100</span>
       </div>
       <div class="credibility-grid">
-        <div class="credibility-item"><strong>本地 VCP 验证</strong><span>{esc(cred['vcp_local_text'])}</span></div>
-        <div class="credibility-item"><strong>创始人验证</strong><span>{esc(cred['founder_text'])}</span></div>
-        <div class="credibility-item"><strong>宏观置信度</strong><span>{esc(cred['macro_text'])}</span></div>
-        <div class="credibility-item"><strong>校准状态</strong><span>{esc(cred['cal_status'])}</span></div>
+        <div class="credibility-item"><strong>本地 VCP 验证</strong><span>{esc(cred["vcp_local_text"])}</span></div>
+        <div class="credibility-item"><strong>创始人验证</strong><span>{esc(cred["founder_text"])}</span></div>
+        <div class="credibility-item"><strong>宏观置信度</strong><span>{esc(cred["macro_text"])}</span></div>
+        <div class="credibility-item"><strong>校准状态</strong><span>{esc(cred["cal_status"])}</span></div>
       </div>
     </div>
     <p class="meta">行业聚焦：{esc(focus)}</p>
@@ -1263,7 +1316,7 @@ def build_html(payload: dict[str, Any], markdown: str) -> str:
       <label>行业
         <select id="industryFilter">
           <option value="all">全部</option>
-          {''.join(f'<option value="{esc(industry)}">{esc(industry)}</option>' for industry in industries)}
+          {"".join(f'<option value="{esc(industry)}">{esc(industry)}</option>' for industry in industries)}
         </select>
       </label>
     </div>
@@ -1283,7 +1336,7 @@ def build_html(payload: dict[str, Any], markdown: str) -> str:
             <th>验证结论</th>
           </tr>
         </thead>
-        <tbody>{''.join(focus_html)}</tbody>
+        <tbody>{"".join(focus_html)}</tbody>
       </table>
     </details>
     <details open>
@@ -1304,13 +1357,13 @@ def build_html(payload: dict[str, Any], markdown: str) -> str:
           <th>验证结论</th>
           </tr>
         </thead>
-        <tbody>{''.join(best_html)}</tbody>
+        <tbody>{"".join(best_html)}</tbody>
       </table>
     </details>
     <section>
       <h2>2560 策略：市场匹配分组 <span>{esc(ma2560.get("total") or 0)}</span></h2>
       <p class="meta">scope: {esc(ma2560.get("scope") or "ma2560_strong_hold")} | {esc(json.dumps(ma2560.get("counts") or {}, ensure_ascii=False))}</p>
-      {''.join(ma2560_group_html) if ma2560_group_html else '<p class="note">暂无 2560 strong_hold 信号。</p>'}
+      {"".join(ma2560_group_html) if ma2560_group_html else '<p class="note">暂无 2560 strong_hold 信号。</p>'}
     </section>
     <details>
       <summary>适配信号 <span>{esc(len(compatible_rows))}</span></summary>
@@ -1330,7 +1383,7 @@ def build_html(payload: dict[str, Any], markdown: str) -> str:
             <th>验证结论</th>
           </tr>
         </thead>
-        <tbody>{''.join(compatible_html)}</tbody>
+        <tbody>{"".join(compatible_html)}</tbody>
       </table>
     </details>
     <p class="note">本报告只展示策略信号与环境匹配事实；不输出买入、卖出等具体操作建议；历史统计数据需积累足够样本并验证后才展示。</p>
@@ -1372,7 +1425,16 @@ def load_market_phase(date_str: str) -> dict[str, Any] | None:
 def build_market_phase_card(phase_data: dict[str, Any] | None) -> dict[str, Any]:
     """Build market phase card data for display."""
     if not phase_data:
-        return {"status": "missing", "phase": "undetermined", "label": "未分类", "description": "", "hint": "", "confidence": None, "best_strategy": "", "factor": None}
+        return {
+            "status": "missing",
+            "phase": "undetermined",
+            "label": "未分类",
+            "description": "",
+            "hint": "",
+            "confidence": None,
+            "best_strategy": "",
+            "factor": None,
+        }
     phase = phase_data.get("market_phase") or "undetermined"
     confidence = phase_data.get("confidence")
     label = PHASE_LABELS.get(phase, phase)
@@ -1516,7 +1578,9 @@ def build_degradation_matrix(payload: dict[str, Any]) -> list[dict[str, str]]:
     ]
 
 
-def chief_section(title: str, status: str, bullets: list[str], data: dict[str, Any] | None = None) -> dict[str, Any]:
+def chief_section(
+    title: str, status: str, bullets: list[str], data: dict[str, Any] | None = None
+) -> dict[str, Any]:
     return {"title": title, "status": status, "bullets": bullets, "data": data or {}}
 
 
@@ -1578,8 +1642,12 @@ def build_section_industry_chain(payload: dict[str, Any]) -> dict[str, Any]:
                 "本节暂只保留行业聚焦框架，不生成产业链结论。",
             ],
         )
-    positive = [row.get("industry") or row.get("name") or "-" for row in prior.get("top_positive_industries", [])]
-    cautious = [row.get("industry") or row.get("name") or "-" for row in prior.get("top_cautious_industries", [])]
+    positive = [
+        row.get("industry") or row.get("name") or "-" for row in prior.get("top_positive_industries", [])
+    ]
+    cautious = [
+        row.get("industry") or row.get("name") or "-" for row in prior.get("top_cautious_industries", [])
+    ]
     counts = prior.get("industry_hint_counts") or {}
     return chief_section(
         "三、产业链与行业景气",
@@ -1589,7 +1657,11 @@ def build_section_industry_chain(payload: dict[str, Any]) -> dict[str, Any]:
             f"正向行业提示：{'、'.join(positive[:8]) or '待补充'}",
             f"谨慎行业提示：{'、'.join(cautious[:8]) or '待补充'}",
         ],
-        {"industry_hint_counts": counts, "top_positive_industries": positive, "top_cautious_industries": cautious},
+        {
+            "industry_hint_counts": counts,
+            "top_positive_industries": positive,
+            "top_cautious_industries": cautious,
+        },
     )
 
 
@@ -1642,7 +1714,7 @@ def build_section_opportunity_patterns(payload: dict[str, Any]) -> dict[str, Any
     date_str = payload.get("date", "")
     if not date_str:
         return chief_section("四、今日机会模式", "待补充", ["日期参数缺失。"])
-    hit_path = ROOT / "outputs" / "project" / f"opportunity_patterns_daily_{date_str.replace('-','')}.json"
+    hit_path = ROOT / "outputs" / "project" / f"opportunity_patterns_daily_{date_str.replace('-', '')}.json"
     if not hit_path.exists():
         return chief_section(
             "四、今日机会模式",
@@ -1669,7 +1741,7 @@ def build_section_opportunity_patterns(payload: dict[str, Any]) -> dict[str, Any
     for pkey, stock_list in by_pattern.items():
         first = stock_list[0]
         lines.append(
-            f"### {pkey}（n={first.get('pattern_n','?')}, 超额{first.get('pattern_mean_excess',0):+.2%}）"
+            f"### {pkey}（n={first.get('pattern_n', '?')}, 超额{first.get('pattern_mean_excess', 0):+.2%}）"
         )
         stock_str = "、".join(s.get("stock_code", "") for s in stock_list[:10])
         lines.append(f"命中标的：{stock_str}")
@@ -1817,10 +1889,10 @@ def build_chief_html(payload: dict[str, Any], markdown: str) -> str:
       <h2>降级矩阵</h2>
       <table>
         <thead><tr><th>层级</th><th>状态</th><th>数据源</th><th>说明</th></tr></thead>
-        <tbody>{''.join(matrix_rows)}</tbody>
+        <tbody>{"".join(matrix_rows)}</tbody>
       </table>
     </section>
-    {''.join(section_html)}
+    {"".join(section_html)}
     <section>
       <h2>边界</h2>
       <ul>
@@ -1929,7 +2001,12 @@ def build_daily_research_brief(date_str: str) -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build daily strategy-environment research brief.")
     parser.add_argument("--date", required=True)
-    parser.add_argument("--mode", choices=["brief", "chief"], default="brief", help="报告模式：brief=标准日报，chief=首席级策略环境报告")
+    parser.add_argument(
+        "--mode",
+        choices=["brief", "chief"],
+        default="brief",
+        help="报告模式：brief=标准日报，chief=首席级策略环境报告",
+    )
     args = parser.parse_args()
     if args.mode == "chief":
         result = build_chief_research_report(args.date)

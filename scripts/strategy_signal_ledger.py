@@ -255,7 +255,9 @@ def existing_daily_path(directory: Path, stem: str, date_str: str, suffix: str) 
     return sorted(candidates)[-1][1] if candidates else None
 
 
-def build_recommendation_context(date_str: str, recommendation_csv: Path | None = None) -> dict[str, dict[str, Any]]:
+def build_recommendation_context(
+    date_str: str, recommendation_csv: Path | None = None
+) -> dict[str, dict[str, Any]]:
     path = recommendation_csv_for(date_str, recommendation_csv)
     if path is None:
         return {}
@@ -531,7 +533,12 @@ def signal_rows_for_state(
     key = code6(row.get("stock_code"))
     duration = duration_context.get(key, {})
     sr = sr_context.get(key, {})
-    stock_name = row.get("stock_name") or (recommendation_context.get(key) or {}).get("stock_name") or stock_name_context.get(key) or ""
+    stock_name = (
+        row.get("stock_name")
+        or (recommendation_context.get(key) or {}).get("stock_name")
+        or stock_name_context.get(key)
+        or ""
+    )
     lifecycle_stage, lifecycle_reasons = compute_lifecycle_stage(row, duration, sr)
     for source_module, fn in [
         ("backtest.strategy_signals.vcp", vcp_signal),
@@ -604,7 +611,9 @@ def signal_rows_for_state(
             # 但要求 D1 State 在允许集合内（已在信号生成时过滤）
             atr_chandelier_entry_conf = {"confirmed": True, "rejection_reason": ""}
 
-        environment_fit, fit_reasons = compute_environment_fit(strategy_id, lifecycle_stage, lifecycle_reasons)
+        environment_fit, fit_reasons = compute_environment_fit(
+            strategy_id, lifecycle_stage, lifecycle_reasons
+        )
         ma2560_fields = compute_ma2560_state_market_fields(
             row,
             strategy_id,
@@ -627,7 +636,9 @@ def signal_rows_for_state(
                 "signal_type": signal_type,
                 "signal_name": signal_name,
                 "signal_strength": float(strength or 0.0),
-                "params_json": json.dumps(indicator_params(strategy_id, raw_signal), ensure_ascii=False, sort_keys=True),
+                "params_json": json.dumps(
+                    indicator_params(strategy_id, raw_signal), ensure_ascii=False, sort_keys=True
+                ),
                 "raw_signal": raw_signal,
                 "source_module": source_module,
                 "research_only": True,
@@ -743,7 +754,9 @@ def build_ledger(
                     conviction = identify_highest_conviction(
                         macro_dir="neutral",
                         chain_dir="neutral",
-                        state_dir="positive" if r.get("strategy_environment_fit") == "最佳适配" else "neutral",
+                        state_dir="positive"
+                        if r.get("strategy_environment_fit") == "最佳适配"
+                        else "neutral",
                         pattern_match=match,
                     )
                     r["conviction_level"] = conviction["conviction_level"]

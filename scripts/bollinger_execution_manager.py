@@ -58,7 +58,7 @@ def _rolling_std(values: list[float], window: int) -> float:
     w = min(window, len(values))
     mean = sum(values[-w:]) / w
     variance = sum((v - mean) ** 2 for v in values[-w:]) / w
-    return variance ** 0.5
+    return variance**0.5
 
 
 def _atr_from_ohlc(ohlc: list[tuple[float, float, float, float]], period: int = 14) -> float:
@@ -84,7 +84,7 @@ def _compute_bollinger(closes: list[float], period: int = 50, num_std: float = 1
     window = closes[-w:]
     mean = sum(window) / w
     variance = sum((c - mean) ** 2 for c in window) / w
-    std = variance ** 0.5
+    std = variance**0.5
     return mean + num_std * std, mean
 
 
@@ -383,10 +383,7 @@ def simulate_bollinger_trade(
 
     # Compute entry ATR from series if not provided
     if entry_atr <= 0 and entry_idx >= 0:
-        ohlc_so_far = [
-            (d["open"], d["high"], d["low"], d["close"])
-            for d in price_series[: entry_idx + 1]
-        ]
+        ohlc_so_far = [(d["open"], d["high"], d["low"], d["close"]) for d in price_series[: entry_idx + 1]]
         entry_atr = _atr_from_ohlc(ohlc_so_far)
 
     # Position sizing: use entry - 2×ATR as reference stop for sizing only.
@@ -403,10 +400,7 @@ def simulate_bollinger_trade(
 
         # Build indicator context from price history up to current day
         closes_so_far = [d["close"] for d in price_series[: i + 1]]
-        ohlc_so_far = [
-            (d["open"], d["high"], d["low"], d["close"])
-            for d in price_series[: i + 1]
-        ]
+        ohlc_so_far = [(d["open"], d["high"], d["low"], d["close"]) for d in price_series[: i + 1]]
 
         bb_upper, bb_middle = _compute_bollinger(closes_so_far, period=50, num_std=1.0)
         exit_ma_period, exit_ma = compute_degrading_ma(hold_days, closes_so_far)

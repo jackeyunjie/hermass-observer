@@ -28,7 +28,13 @@ ROW_LIMIT = 6
 VIEW_START = "2018-05-15"
 END = "2026-05-19"
 COLUMNS = ["品种", "时间", "MN1state", "W1state", "D1state"]
-COLUMN_CN = {"品种": "品种", "时间": "时间", "MN1state": "月线状态", "W1state": "周线状态", "D1state": "日线状态"}
+COLUMN_CN = {
+    "品种": "品种",
+    "时间": "时间",
+    "MN1state": "月线状态",
+    "W1state": "周线状态",
+    "D1state": "日线状态",
+}
 
 
 def load_names() -> dict[str, str]:
@@ -110,11 +116,13 @@ def label(stock_code: str, names: dict[str, str]) -> str:
 def moneyflow_summary(row: dict[str, Any] | None) -> dict[str, Any]:
     if not row:
         return {"资金流覆盖": "未下载"}
+
     def num(key: str) -> float:
         try:
             return float(row.get(key) or 0)
         except Exception:
             return 0.0
+
     active_buy = num("buytddcje") + num("buyddcje") + num("buyzdcje") + num("buysdcje")
     active_sell = num("selltddcje") + num("sellddcje") + num("sellzdcje") + num("sellxdcje")
     large_buy = num("buytddcje") + num("buyddcje")
@@ -132,7 +140,12 @@ def moneyflow_summary(row: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
-def build_symbol(stock_code: str, rows: list[dict[str, Any]], names: dict[str, str], moneyflow: dict[tuple[str, str], dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def build_symbol(
+    stock_code: str,
+    rows: list[dict[str, Any]],
+    names: dict[str, str],
+    moneyflow: dict[tuple[str, str], dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     mn1 = core.compute_state_levels(core.aggregate_daily(rows, "MN1"), "MN1")
     w1 = core.compute_state_levels(core.aggregate_daily(rows, "W1"), "W1")
     d1 = core.compute_state_levels(core.aggregate_daily(rows, "D1"), "D1")
@@ -142,13 +155,20 @@ def build_symbol(stock_code: str, rows: list[dict[str, Any]], names: dict[str, s
     audits = []
     for bar in reversed(selected[-ROW_LIMIT:]):
         item = {"品种": label(stock_code, names), "时间": bar["close_at"].isoformat(sep=" ")}
-        audit = {"品种": item["品种"], "时间": item["时间"], "states": {}, "moneyflow": moneyflow_summary(moneyflow.get((stock_code, bar["date"].isoformat())))}
+        audit = {
+            "品种": item["品种"],
+            "时间": item["时间"],
+            "states": {},
+            "moneyflow": moneyflow_summary(moneyflow.get((stock_code, bar["date"].isoformat()))),
+        }
         for tf in ["MN1", "W1", "D1"]:
             idx = latest_level_index(levels[tf], bar["close_at"])
             if idx is None:
                 item[f"{tf}state"] = "NA"
                 continue
-            state_audit = 计算视角状态审计(bar, tf, levels[tf], idx, core.ea, core.pd, core.decode_state, core.clean_value)
+            state_audit = 计算视角状态审计(
+                bar, tf, levels[tf], idx, core.ea, core.pd, core.decode_state, core.clean_value
+            )
             item[f"{tf}state"] = state_audit["components"]["state_hex"]
             audit["states"][tf] = state_audit
         views.append(item)
@@ -160,14 +180,16 @@ def render_html(payload: dict[str, Any]) -> str:
     rows = payload["rows"]
     body = []
     for row in rows[:2000]:
-        body.append("<tr>" + "".join(f"<td>{html.escape(str(row.get(col, '')))}</td>" for col in COLUMNS) + "</tr>")
+        body.append(
+            "<tr>" + "".join(f"<td>{html.escape(str(row.get(col, '')))}</td>" for col in COLUMNS) + "</tr>"
+        )
     return f"""<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>所有产品 D1 视角 6 行</title>
 <style>body{{margin:0;padding:24px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f6f8fa;color:#17202a}}main{{max-width:1280px;margin:0 auto}}header,section{{background:white;border:1px solid #dbe3ea;border-radius:8px;padding:18px;margin-bottom:16px}}h1{{margin:0 0 8px}}p{{color:#607080}}.wrap{{overflow:auto;max-height:760px;border:1px solid #dbe3ea;border-radius:8px}}table{{border-collapse:collapse;width:100%;min-width:720px}}th,td{{padding:9px 11px;border-bottom:1px solid #e5ebf0;text-align:left;white-space:nowrap}}th{{background:#f8fafb;position:sticky;top:0}}td:nth-child(n+3){{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:700}}</style>
 </head><body><main><header><h1>所有产品 D1 视角 6 行</h1><p>状态使用通用函数计算；资金流为增量证据，不参与 state_hex 主计算。页面先展示前 2000 行，完整数据见 JSON。</p>
-<p>产品数 {payload['symbol_count']}；总行数 {len(rows)}；资金流覆盖日 {payload['moneyflow_dates']}；生成时间 {html.escape(payload['generated_at'])}</p></header>
-<section><div class="wrap"><table><thead><tr>{''.join(f'<th>{html.escape(COLUMN_CN[col])}</th>' for col in COLUMNS)}</tr></thead><tbody>{''.join(body)}</tbody></table></div></section>
+<p>产品数 {payload["symbol_count"]}；总行数 {len(rows)}；资金流覆盖日 {payload["moneyflow_dates"]}；生成时间 {html.escape(payload["generated_at"])}</p></header>
+<section><div class="wrap"><table><thead><tr>{"".join(f"<th>{html.escape(COLUMN_CN[col])}</th>" for col in COLUMNS)}</tr></thead><tbody>{"".join(body)}</tbody></table></div></section>
 </main></body></html>"""
 
 
@@ -188,7 +210,12 @@ def main() -> int:
         except Exception as exc:
             errors.append({"stock_code": stock_code, "error": f"{type(exc).__name__}: {str(exc)[:180]}"})
         if idx % 50 == 0:
-            print(json.dumps({"progress": idx, "rows": len(rows_out), "errors": len(errors)}, ensure_ascii=False), file=sys.stderr)
+            print(
+                json.dumps(
+                    {"progress": idx, "rows": len(rows_out), "errors": len(errors)}, ensure_ascii=False
+                ),
+                file=sys.stderr,
+            )
     payload = {
         "schema_version": "all_products_d1_view_6_rows_v1",
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -207,7 +234,21 @@ def main() -> int:
     }
     OUT_JSON.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     OUT_HTML.write_text(render_html(payload), encoding="utf-8")
-    print(json.dumps({"status": "PASS", "json": str(OUT_JSON), "html": str(OUT_HTML), "symbol_count": payload["symbol_count"], "row_count": len(rows_out), "errors": len(errors), "moneyflow_row_count": len(moneyflow)}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "status": "PASS",
+                "json": str(OUT_JSON),
+                "html": str(OUT_HTML),
+                "symbol_count": payload["symbol_count"],
+                "row_count": len(rows_out),
+                "errors": len(errors),
+                "moneyflow_row_count": len(moneyflow),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 

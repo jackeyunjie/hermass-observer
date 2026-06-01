@@ -55,8 +55,9 @@ def calc_label(base, trend_bit, position_bit, volatility_bit, trend_value) -> st
 def export_view(db_path: Path, date_str: str, output_json: Path, row_limit: int) -> dict:
     names = load_names(RESEARCH_ROOT / "data" / "symbol_name_mapping.csv")
     con = duckdb.connect(str(db_path), read_only=True)
-    rows = con.execute(
-        """
+    rows = (
+        con.execute(
+            """
         WITH ranked AS (
           SELECT
             *,
@@ -69,8 +70,11 @@ def export_view(db_path: Path, date_str: str, output_json: Path, row_limit: int)
         WHERE rn <= ?
         ORDER BY stock_code, state_date DESC
         """,
-        [date_str, row_limit],
-    ).fetchdf().to_dict("records")
+            [date_str, row_limit],
+        )
+        .fetchdf()
+        .to_dict("records")
+    )
     con.close()
 
     out_rows = []
@@ -125,8 +129,14 @@ def export_view(db_path: Path, date_str: str, output_json: Path, row_limit: int)
         "rows": out_rows,
     }
     output_json.parent.mkdir(parents=True, exist_ok=True)
-    output_json.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8")
-    return {"rows": len(out_rows), "symbols": len({r["品种"] for r in out_rows}), "output_json": str(output_json)}
+    output_json.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8"
+    )
+    return {
+        "rows": len(out_rows),
+        "symbols": len({r["品种"] for r in out_rows}),
+        "output_json": str(output_json),
+    }
 
 
 def main() -> int:
@@ -138,7 +148,10 @@ def main() -> int:
     args = parser.parse_args()
 
     db_path = args.foundation_db or default_foundation_db(args.date)
-    output_json = args.output_json or ROOT / "fixtures" / f"all_products_d1_view_6_rows_foundation_{args.date.replace('-', '')}.json"
+    output_json = (
+        args.output_json
+        or ROOT / "fixtures" / f"all_products_d1_view_6_rows_foundation_{args.date.replace('-', '')}.json"
+    )
     summary = export_view(db_path, args.date, output_json, args.row_limit)
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     return 0

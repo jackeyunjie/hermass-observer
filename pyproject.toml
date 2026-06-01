@@ -23,3 +23,26 @@ exclude_lines = [
     "if __name__ == .__main__.:",
 ]
 precision = 2
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+exclude = [
+    ".venv",
+    "__pycache__",
+    "outputs",
+    "backtest",
+    "*.sh",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort
+]
+ignore = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["hermass_platform", "scripts"]
+force-sort-within-sections = true

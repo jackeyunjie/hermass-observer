@@ -5,6 +5,7 @@ Reads backtest JSON outputs and produces:
   1. Per-strategy leverage reports (3 files)
   2. Summary leverage effect report (1 file)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -84,11 +85,13 @@ def generate_strategy_report(
         lines.append(f"| {' | '.join(cells)} |")
 
     # Leverage sensitivity analysis
-    lines.extend([
-        "",
-        "## 杠杆效应分析",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "## 杠杆效应分析",
+            "",
+        ]
+    )
 
     r1 = results.get(1.0, {})
     r2 = results.get(2.0, {})
@@ -117,31 +120,32 @@ def generate_strategy_report(
     else:
         lines.append("- 无数据")
 
-    lines.extend([
-        "",
-        "## 净值曲线数据",
-        "",
-        "```json",
-    ])
+    lines.extend(
+        [
+            "",
+            "## 净值曲线数据",
+            "",
+            "```json",
+        ]
+    )
 
     # Export daily NAV for charting
     nav_data = {}
     for lev in LEVERAGE_LEVELS:
         r = results.get(lev, {})
         if r and r.get("daily_nav"):
-            nav_data[f"{lev:.0f}x"] = [
-                {"date": d["date"], "nav": d["nav"]}
-                for d in r["daily_nav"]
-            ]
+            nav_data[f"{lev:.0f}x"] = [{"date": d["date"], "nav": d["nav"]} for d in r["daily_nav"]]
     lines.append(json.dumps(nav_data, ensure_ascii=False, indent=2))
     lines.append("```")
 
-    lines.extend([
-        "",
-        "---",
-        "*本报告为研究用途，不构成投资建议。*",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "---",
+            "*本报告为研究用途，不构成投资建议。*",
+            "",
+        ]
+    )
 
     return "\n".join(lines)
 
@@ -178,7 +182,9 @@ def generate_summary_report(
             win_rate = f"{r.get('win_rate', 0) * 100:.1f}%"
             trades = str(r.get("total_trades", 0))
             margin = "⚠️" if r.get("margin_called") else "否"
-            lines.append(f"| {strategy} | {lev:.0f}x | {total_ret} | {max_dd} | {sharpe} | {win_rate} | {trades} | {margin} |")
+            lines.append(
+                f"| {strategy} | {lev:.0f}x | {total_ret} | {max_dd} | {sharpe} | {win_rate} | {trades} | {margin} |"
+            )
 
     lines.extend(["", "## 二、杠杆敏感度分析", ""])
 
@@ -202,14 +208,18 @@ def generate_summary_report(
             dd2 = r2.get("max_drawdown", 0)
             ret_amp = ret2 / ret1 if ret1 != 0 else 0
             dd_amp = dd2 / dd1 if dd1 != 0 else 0
-            lines.append(f"- **2倍效应**: 收益 {format_pct(ret2)} (放大 {ret_amp:.2f}x) / 回撤 {format_pct(-dd2)} (放大 {dd_amp:.2f}x)")
+            lines.append(
+                f"- **2倍效应**: 收益 {format_pct(ret2)} (放大 {ret_amp:.2f}x) / 回撤 {format_pct(-dd2)} (放大 {dd_amp:.2f}x)"
+            )
 
         if r3:
             ret3 = r3.get("total_return", 0)
             dd3 = r3.get("max_drawdown", 0)
             ret_amp = ret3 / ret1 if ret1 != 0 else 0
             dd_amp = dd3 / dd1 if dd1 != 0 else 0
-            lines.append(f"- **3倍效应**: 收益 {format_pct(ret3)} (放大 {ret_amp:.2f}x) / 回撤 {format_pct(-dd3)} (放大 {dd_amp:.2f}x)")
+            lines.append(
+                f"- **3倍效应**: 收益 {format_pct(ret3)} (放大 {ret_amp:.2f}x) / 回撤 {format_pct(-dd3)} (放大 {dd_amp:.2f}x)"
+            )
 
         # Risk-adjusted assessment
         if r1 and r2 and r3:
@@ -242,7 +252,9 @@ def generate_summary_report(
                 ranked.append((strategy, calmar, r.get("total_return", 0), r.get("max_drawdown", 0)))
         ranked.sort(key=lambda x: -x[1])
         for i, (strategy, calmar, ret, dd) in enumerate(ranked, 1):
-            lines.append(f"{i}. **{strategy}**: 卡玛={calmar:.3f} | 收益={format_pct(ret)} | 回撤={format_pct(-dd)}")
+            lines.append(
+                f"{i}. **{strategy}**: 卡玛={calmar:.3f} | 收益={format_pct(ret)} | 回撤={format_pct(-dd)}"
+            )
 
     lines.extend(["", "## 四、建议杠杆区间", ""])
 
@@ -275,13 +287,15 @@ def generate_summary_report(
             lines.append("- **保守/平衡/激进**: 1倍（数据不足）")
 
     # A-share comparison placeholder
-    lines.extend([
-        "",
-        "## 五、与 A 股对比",
-        "",
-        "| 策略 | 美股1x年化 | 美股1x回撤 | A股1x年化 | A股1x回撤 |",
-        "|------|-----------|-----------|-----------|-----------|",
-    ])
+    lines.extend(
+        [
+            "",
+            "## 五、与 A 股对比",
+            "",
+            "| 策略 | 美股1x年化 | 美股1x回撤 | A股1x年化 | A股1x回撤 |",
+            "|------|-----------|-----------|-----------|-----------|",
+        ]
+    )
 
     for strategy in STRATEGIES:
         r1 = all_results.get(strategy, {}).get(1.0, {})
@@ -289,12 +303,14 @@ def generate_summary_report(
         us_dd = format_pct(-r1.get("max_drawdown", 0)) if r1 else "待跑"
         lines.append(f"| {strategy} | {us_ann} | {us_dd} | 待对比 | 待对比 |")
 
-    lines.extend([
-        "",
-        "---",
-        "*本报告为研究用途，不构成投资建议。*",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "---",
+            "*本报告为研究用途，不构成投资建议。*",
+            "",
+        ]
+    )
 
     return "\n".join(lines)
 
@@ -316,8 +332,10 @@ def main() -> int:
             result = load_backtest(strategy, lev, start, end)
             if result:
                 all_results[strategy][lev] = result
-                print(f"Loaded: {strategy} @ {lev}x → {result.get('total_trades', 0)} trades, "
-                      f"return={result.get('total_return', 0):.2%}, dd={result.get('max_drawdown', 0):.2%}")
+                print(
+                    f"Loaded: {strategy} @ {lev}x → {result.get('total_trades', 0)} trades, "
+                    f"return={result.get('total_return', 0):.2%}, dd={result.get('max_drawdown', 0):.2%}"
+                )
             else:
                 print(f"Missing: {strategy} @ {lev}x")
 

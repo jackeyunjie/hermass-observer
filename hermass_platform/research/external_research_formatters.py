@@ -5,8 +5,7 @@ from typing import Any
 from hermass_platform.chat.compliance_filter import apply_disclaimer, check_compliance
 
 DEFAULT_DISCLAIMER = (
-    "以上为基于公开数据的研究观察，不构成投资建议。"
-    "历史数据不代表未来表现。投资决策应由投资者独立做出。"
+    "以上为基于公开数据的研究观察，不构成投资建议。历史数据不代表未来表现。投资决策应由投资者独立做出。"
 )
 
 RENDER_PROFILES = {"quick", "standard", "full", "value"}
@@ -169,7 +168,9 @@ def _phase1_resonance_lines(evidence: dict[str, Any]) -> list[str]:
             f"- 行业共振：已确认（确认家数 {industry.get('sector_resonance_count') if industry.get('sector_resonance_count') is not None else '暂无'}，ETF State {industry.get('etf_state_hex') or '暂无'}）。"
         )
     elif industry.get("etf_ef_count") not in (None, "") and int(industry.get("etf_ef_count")) >= 2:
-        lines.append(f"- 行业共振：ETF 已进入 E/F 支撑区（ef={industry.get('etf_ef_count')}），但板块同步强化仍需继续观察。")
+        lines.append(
+            f"- 行业共振：ETF 已进入 E/F 支撑区（ef={industry.get('etf_ef_count')}），但板块同步强化仍需继续观察。"
+        )
     else:
         lines.append("- 行业共振：当前未见明确板块级同步强化，更多依赖个股自身兑现。")
 
@@ -367,7 +368,11 @@ def _competitiveness_lines(profile: dict[str, Any], latest_row: dict[str, Any]) 
 def _business_model_section(profile: dict[str, Any], latest_row: dict[str, Any]) -> list[str]:
     customer_profile = _infer_customer_profile(profile)
     operation_model = _infer_operation_model(profile)
-    product_mix = profile.get("main_product_types") or profile.get("main_product_names") or "当前仅有主营业务概述，产品层拆分有限"
+    product_mix = (
+        profile.get("main_product_types")
+        or profile.get("main_product_names")
+        or "当前仅有主营业务概述，产品层拆分有限"
+    )
     if profile.get("comparable_companies"):
         moat = f"当前主要对标 {profile.get('comparable_companies')}，可围绕细分赛道位置和执行力理解竞争壁垒。"
     elif profile.get("competitor_companies"):
@@ -429,11 +434,16 @@ def _industry_policy_tech_reasons(profile: dict[str, Any], evidence: dict[str, A
     sw_l1 = str(profile.get("sw_l1") or "")
     sw_l2 = str(profile.get("sw_l2") or "")
     main_business = str(profile.get("main_business") or "")
-    news_provider = ((evidence.get("enrichment") or {}).get("providers") or {}).get("public_news_digest") or {}
+    news_provider = ((evidence.get("enrichment") or {}).get("providers") or {}).get(
+        "public_news_digest"
+    ) or {}
     news_status = str(news_provider.get("status") or "")
 
     if sw_l1 == "电子":
-        if any(token in concepts for token in ["第三代半导体", "先进封装", "共封装光学(CPO)", "存储芯片", "芯片概念"]):
+        if any(
+            token in concepts
+            for token in ["第三代半导体", "先进封装", "共封装光学(CPO)", "存储芯片", "芯片概念"]
+        ):
             reasons.append("技术迭代线索集中在半导体、先进封装或算力链相关主题")
         if any(token in concepts for token in ["物联网", "智能电网", "汽车电子", "储能"]):
             reasons.append("应用扩散方向更多体现在智能终端、电力电子与车载电子场景")
@@ -463,7 +473,9 @@ def _industry_policy_tech_section(profile: dict[str, Any], evidence: dict[str, A
     ]
 
 
-def _industry_cycle_judgement(profile: dict[str, Any], industry: dict[str, Any], state_core: dict[str, Any]) -> str:
+def _industry_cycle_judgement(
+    profile: dict[str, Any], industry: dict[str, Any], state_core: dict[str, Any]
+) -> str:
     prosperity = industry.get("prosperity_score")
     sector_resonance = industry.get("sector_resonance")
     etf_state = str(industry.get("etf_state_hex") or "")
@@ -481,7 +493,9 @@ def _industry_cycle_judgement(profile: dict[str, Any], industry: dict[str, Any],
     return f"{sw_l1 or '当前行业'}当前处于中性到偏积极的观察区间，后续更看共振是否延续。"
 
 
-def _industry_cycle_section(profile: dict[str, Any], industry: dict[str, Any], state_core: dict[str, Any]) -> list[str]:
+def _industry_cycle_section(
+    profile: dict[str, Any], industry: dict[str, Any], state_core: dict[str, Any]
+) -> list[str]:
     judgement = _industry_cycle_judgement(profile, industry, state_core)
     prosperity = industry.get("prosperity_score")
     lines = [
@@ -490,7 +504,9 @@ def _industry_cycle_section(profile: dict[str, Any], industry: dict[str, Any], s
         f"- 结构依据：景气分 {_fmt_num(prosperity)}，ETF State {industry.get('etf_state_hex') or '暂无'}，市场阶段 {state_core.get('market_phase') or '暂无'}。",
     ]
     if industry.get("sector_resonance") is True:
-        lines.append(f"- 共振验证：当前已出现行业共振，确认家数 {industry.get('sector_resonance_count') if industry.get('sector_resonance_count') is not None else '暂无'}。")
+        lines.append(
+            f"- 共振验证：当前已出现行业共振，确认家数 {industry.get('sector_resonance_count') if industry.get('sector_resonance_count') is not None else '暂无'}。"
+        )
     else:
         lines.append("- 共振验证：当前未见明确行业共振，整体判断仍需更多同步信号确认。")
     return lines
@@ -516,7 +532,9 @@ def _market_expectation_lines(market_views: dict[str, Any]) -> list[str]:
     return lines
 
 
-def _growth_logic_section(profile: dict[str, Any], industry: dict[str, Any], state_core: dict[str, Any], rows: list[dict[str, Any]]) -> list[str]:
+def _growth_logic_section(
+    profile: dict[str, Any], industry: dict[str, Any], state_core: dict[str, Any], rows: list[dict[str, Any]]
+) -> list[str]:
     latest = rows[0] if rows else {}
     drivers: list[str] = []
     main_business = str(profile.get("main_business") or "")
@@ -553,9 +571,9 @@ def _governance_observation_section(profile: dict[str, Any], rows: list[dict[str
     roe = latest.get("roe")
     notes = []
     if debt_ratio not in (None, ""):
-        notes.append(f"最新资产负债率 { _fmt_percent(debt_ratio) }")
+        notes.append(f"最新资产负债率 {_fmt_percent(debt_ratio)}")
     if roe not in (None, ""):
-        notes.append(f"ROE { _fmt_percent(roe) }")
+        notes.append(f"ROE {_fmt_percent(roe)}")
     if profile.get("competitor_companies") or profile.get("comparable_companies"):
         notes.append("已具备可比公司/竞争对手线索，便于做治理与执行力的横向观察")
     lines = [
@@ -732,7 +750,9 @@ def _industry_metric_reason(company_profile: dict[str, Any], metric: str) -> str
     )
     bank_like = any(token in text for token in ["银行", "保险", "证券", "多元金融"])
     light_asset_chip = any(token in text for token in ["半导体", "芯片", "集成电路", "软件", "SaaS"])
-    heavy_asset = any(token in text for token in ["电力", "公用事业", "地产", "建筑", "钢铁", "化工", "机械", "制造"])
+    heavy_asset = any(
+        token in text for token in ["电力", "公用事业", "地产", "建筑", "钢铁", "化工", "机械", "制造"]
+    )
 
     if metric == "revenue":
         return "营收同比通常更能反映需求、订单和出货节奏。"
@@ -770,7 +790,9 @@ def _same_quarter_commentary(evidence: dict[str, Any], company_profile: dict[str
     return lines
 
 
-def _financial_quality_section(evidence: dict[str, Any], company_profile: dict[str, Any], rows: list[dict[str, Any]]) -> list[str]:
+def _financial_quality_section(
+    evidence: dict[str, Any], company_profile: dict[str, Any], rows: list[dict[str, Any]]
+) -> list[str]:
     latest = rows[0] if rows else {}
     revenue_dir = _trend_direction(rows, "revenue")
     profit_dir = _trend_direction(rows, "net_profit")
@@ -835,14 +857,22 @@ def _industry_competition_section(profile: dict[str, Any], industry: dict[str, A
     elif industry.get("sector_resonance") is False:
         lines.append("- 板块共振：当前未形成明显行业共振，竞争格局更应回到公司自身经营与产品位置。")
     if comparable:
-        lines.append(f"- 可比公司：{', '.join(comparable)}。后续理解竞争壁垒时，应优先看它与这些 Peer 在产品定位、成本结构和执行效率上的差异。")
+        lines.append(
+            f"- 可比公司：{', '.join(comparable)}。后续理解竞争壁垒时，应优先看它与这些 Peer 在产品定位、成本结构和执行效率上的差异。"
+        )
     elif competitors:
-        lines.append(f"- 竞争对手：{', '.join(competitors)}。当前更适合把竞争判断放在具体细分环节里，而不是只看泛行业标签。")
+        lines.append(
+            f"- 竞争对手：{', '.join(competitors)}。当前更适合把竞争判断放在具体细分环节里，而不是只看泛行业标签。"
+        )
     else:
-        lines.append("- 可比/竞争公司：本地证据层覆盖不足，因此当前只能先给出产业链位置判断，不能把竞争格局说得过满。")
+        lines.append(
+            "- 可比/竞争公司：本地证据层覆盖不足，因此当前只能先给出产业链位置判断，不能把竞争格局说得过满。"
+        )
     if concepts:
         lines.append(f"- 相关概念：{', '.join(concepts)}。")
-    lines.append("- 说明：这里优先继承“产业链全景 + 价值分布 + 核心玩家对标”的研究框架，但当前输出仍以本地结构化证据为底，不把缺失数据硬补成结论。")
+    lines.append(
+        "- 说明：这里优先继承“产业链全景 + 价值分布 + 核心玩家对标”的研究框架，但当前输出仍以本地结构化证据为底，不把缺失数据硬补成结论。"
+    )
     return lines
 
 
@@ -942,15 +972,17 @@ def format_quick_research_card(evidence: dict[str, Any]) -> str:
         f"结论摘要：当前处于 {shared['state_combo']} 的 State 环境，整体数据充分度为 {_status_label(shared['overall_completeness'])}。",
         f"主营：{profile.get('main_business') or '暂无'}",
         f"State：{_state_quick_display(evidence.get('state_core', {}))}",
-        f"行业：{profile.get('sw_l1') or '暂无'} 景气 { _fmt_num(industry.get('prosperity_score')) } / ETF {industry.get('etf_state_hex') or '暂无'}",
-        f"财务：营收 { _fmt_yi(latest_financial.get('revenue')) } | EPS { _fmt_num(latest_financial.get('eps'), 4) } | ROE { _fmt_percent(latest_financial.get('roe')) }",
+        f"行业：{profile.get('sw_l1') or '暂无'} 景气 {_fmt_num(industry.get('prosperity_score'))} / ETF {industry.get('etf_state_hex') or '暂无'}",
+        f"财务：营收 {_fmt_yi(latest_financial.get('revenue'))} | EPS {_fmt_num(latest_financial.get('eps'), 4)} | ROE {_fmt_percent(latest_financial.get('roe'))}",
     ]
     if overlay and overlay.get("fit_strategy"):
         lines.append(
             f"策略适配：{overlay.get('fit_strategy')}（{overlay.get('strategy_environment_fit') or '待观察'}）"
         )
     else:
-        lines.append(f"策略适配：当前无策略信号覆盖，仅展示 State 环境。{_overlay_explanation(overlay, evidence.get('state_core', {}))}")
+        lines.append(
+            f"策略适配：当前无策略信号覆盖，仅展示 State 环境。{_overlay_explanation(overlay, evidence.get('state_core', {}))}"
+        )
     if risks:
         lines.append(f"主要风险：{_join_risk_texts(risks)}")
     lines.append(f"数据充分度：{_status_label(shared['overall_completeness'])}")
@@ -1144,7 +1176,9 @@ def format_evidence_card(evidence: dict[str, Any]) -> str:
     shown = 0
     key_candidates = ["company_profile.main_business"]
     key_candidates.extend(_recent_period_source_keys(evidence, "revenue", limit=2))
-    key_candidates.extend(["state_core.d1_state_hex", "valuation_reference.pe_ttm", "market_views.rating_distribution"])
+    key_candidates.extend(
+        ["state_core.d1_state_hex", "valuation_reference.pe_ttm", "market_views.rating_distribution"]
+    )
     for key in key_candidates:
         entry = source_map.get(key)
         if entry:

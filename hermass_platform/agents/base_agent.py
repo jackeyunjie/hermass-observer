@@ -81,9 +81,7 @@ def find_foundation_db(target_date: str = "") -> Optional[Path]:
             continue
         try:
             con = duckdb.connect(str(c), read_only=True)
-            latest = con.execute(
-                "SELECT MAX(state_date) FROM d1_perspective_state"
-            ).fetchone()[0]
+            latest = con.execute("SELECT MAX(state_date) FROM d1_perspective_state").fetchone()[0]
         except Exception:
             latest = None
         finally:

@@ -36,8 +36,9 @@ def main() -> int:
     db_path = ROOT / "outputs" / "p116_foundation_20260520" / "p116_foundation.duckdb"
     names = load_names(RESEARCH_ROOT / "data" / "symbol_name_mapping.csv")
     con = duckdb.connect(str(db_path), read_only=True)
-    rows = con.execute(
-        """
+    rows = (
+        con.execute(
+            """
         SELECT
           row_number() OVER (ORDER BY ef_count DESC, stock_code ASC) AS rank,
           stock_code,
@@ -58,7 +59,10 @@ def main() -> int:
           AND ef_count >= 2
         ORDER BY ef_count DESC, stock_code ASC
         """
-    ).fetchdf().to_dict("records")
+        )
+        .fetchdf()
+        .to_dict("records")
+    )
     con.close()
 
     output_rows = []
@@ -93,8 +97,7 @@ def main() -> int:
         writer.writerows(output_rows)
 
     body = "\n".join(
-        "<tr>" + "".join(f"<td>{row[field]}</td>" for field in FIELDS) + "</tr>"
-        for row in output_rows
+        "<tr>" + "".join(f"<td>{row[field]}</td>" for field in FIELDS) + "</tr>" for row in output_rows
     )
     html = f"""<!doctype html>
 <html lang="zh-CN">
@@ -115,7 +118,7 @@ def main() -> int:
   <h1>P116 Foundation 全部匹配 - 2026-05-20</h1>
   <div class="note">筛选：至少 2 周期 E/F。共 {len(output_rows)} 只。Top100 页面只展示前 100；本页展示全部匹配，688107 当前排名第 881。</div>
   <table>
-    <thead><tr>{''.join(f'<th>{field}</th>' for field in FIELDS)}</tr></thead>
+    <thead><tr>{"".join(f"<th>{field}</th>" for field in FIELDS)}</tr></thead>
     <tbody>{body}</tbody>
   </table>
 </body>

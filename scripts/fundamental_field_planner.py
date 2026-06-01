@@ -59,33 +59,62 @@ FIELD_PLAN_SCHEMA = {
             "items": {
                 "type": "object",
                 "properties": {
-                    "dimension": {"type": "string", "enum": ["company_position", "industry_chain", "development_cycle", "capital_events", "driving_factors"]},
+                    "dimension": {
+                        "type": "string",
+                        "enum": [
+                            "company_position",
+                            "industry_chain",
+                            "development_cycle",
+                            "capital_events",
+                            "driving_factors",
+                        ],
+                    },
                     "fields": {
                         "type": "array",
                         "items": {
                             "type": "object",
                             "properties": {
                                 "field_name": {"type": "string"},
-                                "source_api": {"type": "string", "enum": ["THS_BD", "THS_ReportQuery", "THS_WCQuery"]},
+                                "source_api": {
+                                    "type": "string",
+                                    "enum": ["THS_BD", "THS_ReportQuery", "THS_WCQuery"],
+                                },
                                 "source_query_hint": {"type": "string"},
                                 "reason": {"type": "string"},
-                                "update_frequency": {"type": "string", "enum": ["daily", "weekly", "monthly", "quarterly", "annual"]},
+                                "update_frequency": {
+                                    "type": "string",
+                                    "enum": ["daily", "weekly", "monthly", "quarterly", "annual"],
+                                },
                                 "stale_after_days": {"type": "integer", "minimum": 30, "maximum": 730},
-                                "validation_rule": {"type": "string"}
+                                "validation_rule": {"type": "string"},
                             },
-                            "required": ["field_name", "source_api", "source_query_hint", "reason", "update_frequency", "stale_after_days", "validation_rule"]
-                        }
-                    }
+                            "required": [
+                                "field_name",
+                                "source_api",
+                                "source_query_hint",
+                                "reason",
+                                "update_frequency",
+                                "stale_after_days",
+                                "validation_rule",
+                            ],
+                        },
+                    },
                 },
-                "required": ["dimension", "fields"]
-            }
+                "required": ["dimension", "fields"],
+            },
         }
     },
-    "required": ["dimensions"]
+    "required": ["dimensions"],
 }
 
 
-DIMENSION_NAMES = {"company_position", "industry_chain", "development_cycle", "capital_events", "driving_factors"}
+DIMENSION_NAMES = {
+    "company_position",
+    "industry_chain",
+    "development_cycle",
+    "capital_events",
+    "driving_factors",
+}
 
 
 def _stale_days(value: object) -> int:
@@ -162,8 +191,12 @@ def normalize_plan(raw: dict, date_str: str, source: str) -> dict:
                     "source_query_hint": str(field.get("source_query_hint") or field.get("query_hint") or ""),
                     "reason": str(field.get("reason") or "DeepSeek field planner proposed this field."),
                     "update_frequency": _frequency(field.get("update_frequency")),
-                    "stale_after_days": _stale_days(field.get("stale_after_days") or field.get("expiry_threshold")),
-                    "validation_rule": str(field.get("validation_rule") or "value should be present and type-valid"),
+                    "stale_after_days": _stale_days(
+                        field.get("stale_after_days") or field.get("expiry_threshold")
+                    ),
+                    "validation_rule": str(
+                        field.get("validation_rule") or "value should be present and type-valid"
+                    ),
                 }
             )
         if fields:
@@ -189,20 +222,15 @@ def call_deepseek(prompt: str, api_key: str, api_base: str) -> dict:
         "model": "deepseek-chat",
         "messages": [
             {"role": "system", "content": with_deepseek_context(SYSTEM_PROMPT)},
-            {"role": "user", "content": prompt}
+            {"role": "user", "content": prompt},
         ],
         "temperature": 0.2,
         "max_tokens": 2000,
-        "response_format": {"type": "json_object"}
+        "response_format": {"type": "json_object"},
     }
     data = json.dumps(body).encode("utf-8")
     req = urllib.request.Request(
-        url,
-        data=data,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
+        url, data=data, headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     )
     with urllib.request.urlopen(req, timeout=60) as resp:
         result = json.loads(resp.read().decode("utf-8"))
@@ -243,44 +271,164 @@ def _baseline_plan(date_str: str) -> dict:
             {
                 "dimension": "company_position",
                 "fields": [
-                    {"field_name": "revenue_rank_in_sw_l2", "source_api": "THS_WCQuery", "source_query_hint": "SW二级行业营收排名 top 30", "reason": "竞争位次需要同行业可比营收排位", "update_frequency": "quarterly", "stale_after_days": 210, "validation_rule": "rank integer, peer_count >= 5"},
-                    {"field_name": "gross_margin_vs_industry_median", "source_api": "THS_BD", "source_query_hint": "ths_gross_profit_margin_ttm vs industry median", "reason": "毛利率是否高于行业中位数反映定价权", "update_frequency": "quarterly", "stale_after_days": 210, "validation_rule": "gross_margin > 0, industry_median must exist"},
-                    {"field_name": "market_cap_rank_in_industry", "source_api": "THS_WCQuery", "source_query_hint": "SW二级行业总市值排名", "reason": "市值排位反映市场对公司的定价", "update_frequency": "daily", "stale_after_days": 7, "validation_rule": "rank integer, total > 0"}
-                ]
+                    {
+                        "field_name": "revenue_rank_in_sw_l2",
+                        "source_api": "THS_WCQuery",
+                        "source_query_hint": "SW二级行业营收排名 top 30",
+                        "reason": "竞争位次需要同行业可比营收排位",
+                        "update_frequency": "quarterly",
+                        "stale_after_days": 210,
+                        "validation_rule": "rank integer, peer_count >= 5",
+                    },
+                    {
+                        "field_name": "gross_margin_vs_industry_median",
+                        "source_api": "THS_BD",
+                        "source_query_hint": "ths_gross_profit_margin_ttm vs industry median",
+                        "reason": "毛利率是否高于行业中位数反映定价权",
+                        "update_frequency": "quarterly",
+                        "stale_after_days": 210,
+                        "validation_rule": "gross_margin > 0, industry_median must exist",
+                    },
+                    {
+                        "field_name": "market_cap_rank_in_industry",
+                        "source_api": "THS_WCQuery",
+                        "source_query_hint": "SW二级行业总市值排名",
+                        "reason": "市值排位反映市场对公司的定价",
+                        "update_frequency": "daily",
+                        "stale_after_days": 7,
+                        "validation_rule": "rank integer, total > 0",
+                    },
+                ],
             },
             {
                 "dimension": "industry_chain",
                 "fields": [
-                    {"field_name": "industry_revenue_growth_3y", "source_api": "THS_WCQuery", "source_query_hint": "SW二级行业近3年营收复合增速", "reason": "行业营收增速方向判断产业链周期", "update_frequency": "quarterly", "stale_after_days": 210, "validation_rule": "growth_rate numeric, should not be null"},
-                    {"field_name": "industry_pe_median", "source_api": "THS_WCQuery", "source_query_hint": "SW二级行业PE中位数", "reason": "行业估值水平辅助周期判断", "update_frequency": "daily", "stale_after_days": 30, "validation_rule": "pe > 0"},
-                    {"field_name": "industry_rd_expense_ratio", "source_api": "THS_WCQuery", "source_query_hint": "SW二级行业研发费用率均值", "reason": "研发强度反映行业技术阶段", "update_frequency": "quarterly", "stale_after_days": 210, "validation_rule": "ratio between 0 and 1"}
-                ]
+                    {
+                        "field_name": "industry_revenue_growth_3y",
+                        "source_api": "THS_WCQuery",
+                        "source_query_hint": "SW二级行业近3年营收复合增速",
+                        "reason": "行业营收增速方向判断产业链周期",
+                        "update_frequency": "quarterly",
+                        "stale_after_days": 210,
+                        "validation_rule": "growth_rate numeric, should not be null",
+                    },
+                    {
+                        "field_name": "industry_pe_median",
+                        "source_api": "THS_WCQuery",
+                        "source_query_hint": "SW二级行业PE中位数",
+                        "reason": "行业估值水平辅助周期判断",
+                        "update_frequency": "daily",
+                        "stale_after_days": 30,
+                        "validation_rule": "pe > 0",
+                    },
+                    {
+                        "field_name": "industry_rd_expense_ratio",
+                        "source_api": "THS_WCQuery",
+                        "source_query_hint": "SW二级行业研发费用率均值",
+                        "reason": "研发强度反映行业技术阶段",
+                        "update_frequency": "quarterly",
+                        "stale_after_days": 210,
+                        "validation_rule": "ratio between 0 and 1",
+                    },
+                ],
             },
             {
                 "dimension": "development_cycle",
                 "fields": [
-                    {"field_name": "revenue_cagr_3y", "source_api": "THS_BD", "source_query_hint": "ths_revenue_ttm_3y_cagr", "reason": "营收3年复合增速判断公司发展阶段", "update_frequency": "quarterly", "stale_after_days": 210, "validation_rule": "cagr numeric, not null"},
-                    {"field_name": "roe_trend_3y", "source_api": "THS_BD", "source_query_hint": "ths_roe_ttm last 3 years", "reason": "ROE趋势反映盈利能力变化", "update_frequency": "quarterly", "stale_after_days": 210, "validation_rule": "roe values for each year must exist"},
-                    {"field_name": "capex_to_revenue", "source_api": "THS_BD", "source_query_hint": "ths_capital_expenditure / ths_revenue_ttm", "reason": "资本开支占比反映扩张意愿", "update_frequency": "quarterly", "stale_after_days": 210, "validation_rule": "ratio >= 0"}
-                ]
+                    {
+                        "field_name": "revenue_cagr_3y",
+                        "source_api": "THS_BD",
+                        "source_query_hint": "ths_revenue_ttm_3y_cagr",
+                        "reason": "营收3年复合增速判断公司发展阶段",
+                        "update_frequency": "quarterly",
+                        "stale_after_days": 210,
+                        "validation_rule": "cagr numeric, not null",
+                    },
+                    {
+                        "field_name": "roe_trend_3y",
+                        "source_api": "THS_BD",
+                        "source_query_hint": "ths_roe_ttm last 3 years",
+                        "reason": "ROE趋势反映盈利能力变化",
+                        "update_frequency": "quarterly",
+                        "stale_after_days": 210,
+                        "validation_rule": "roe values for each year must exist",
+                    },
+                    {
+                        "field_name": "capex_to_revenue",
+                        "source_api": "THS_BD",
+                        "source_query_hint": "ths_capital_expenditure / ths_revenue_ttm",
+                        "reason": "资本开支占比反映扩张意愿",
+                        "update_frequency": "quarterly",
+                        "stale_after_days": 210,
+                        "validation_rule": "ratio >= 0",
+                    },
+                ],
             },
             {
                 "dimension": "capital_events",
                 "fields": [
-                    {"field_name": "placement_history_3y", "source_api": "THS_ReportQuery", "source_query_hint": "近3年定增公告", "reason": "定增历史分析折价和用途", "update_frequency": "annual", "stale_after_days": 180, "validation_rule": "event_date and placement_price must exist if records found"},
-                    {"field_name": "major_shareholder_participation", "source_api": "THS_ReportQuery", "source_query_hint": "大股东参与定增情况", "reason": "大股东参与度反映信心", "update_frequency": "annual", "stale_after_days": 180, "validation_rule": "text not empty if placement found"},
-                    {"field_name": "lockup_expiry_date", "source_api": "THS_ReportQuery", "source_query_hint": "定增解禁日期", "reason": "解禁日期影响短期供给压力", "update_frequency": "annual", "stale_after_days": 180, "validation_rule": "date format YYYY-MM-DD"}
-                ]
+                    {
+                        "field_name": "placement_history_3y",
+                        "source_api": "THS_ReportQuery",
+                        "source_query_hint": "近3年定增公告",
+                        "reason": "定增历史分析折价和用途",
+                        "update_frequency": "annual",
+                        "stale_after_days": 180,
+                        "validation_rule": "event_date and placement_price must exist if records found",
+                    },
+                    {
+                        "field_name": "major_shareholder_participation",
+                        "source_api": "THS_ReportQuery",
+                        "source_query_hint": "大股东参与定增情况",
+                        "reason": "大股东参与度反映信心",
+                        "update_frequency": "annual",
+                        "stale_after_days": 180,
+                        "validation_rule": "text not empty if placement found",
+                    },
+                    {
+                        "field_name": "lockup_expiry_date",
+                        "source_api": "THS_ReportQuery",
+                        "source_query_hint": "定增解禁日期",
+                        "reason": "解禁日期影响短期供给压力",
+                        "update_frequency": "annual",
+                        "stale_after_days": 180,
+                        "validation_rule": "date format YYYY-MM-DD",
+                    },
+                ],
             },
             {
                 "dimension": "driving_factors",
                 "fields": [
-                    {"field_name": "main_business_composition", "source_api": "THS_BD", "source_query_hint": "ths_business_segment_revenue", "reason": "主营业务构成判断核心驱动力", "update_frequency": "quarterly", "stale_after_days": 210, "validation_rule": "at least 2 segments listed"},
-                    {"field_name": "new_product_pipeline", "source_api": "THS_ReportQuery", "source_query_hint": "新产品线/产能扩张公告", "reason": "新产品/产能是未来驱动因子", "update_frequency": "quarterly", "stale_after_days": 180, "validation_rule": "text not empty if found"},
-                    {"field_name": "institutional_ownership_change", "source_api": "THS_BD", "source_query_hint": "ths_institutional_holding_ratio quarterly change", "reason": "机构持仓变化反映专业资金态度", "update_frequency": "quarterly", "stale_after_days": 120, "validation_rule": "ratio between 0 and 100"}
-                ]
-            }
-        ]
+                    {
+                        "field_name": "main_business_composition",
+                        "source_api": "THS_BD",
+                        "source_query_hint": "ths_business_segment_revenue",
+                        "reason": "主营业务构成判断核心驱动力",
+                        "update_frequency": "quarterly",
+                        "stale_after_days": 210,
+                        "validation_rule": "at least 2 segments listed",
+                    },
+                    {
+                        "field_name": "new_product_pipeline",
+                        "source_api": "THS_ReportQuery",
+                        "source_query_hint": "新产品线/产能扩张公告",
+                        "reason": "新产品/产能是未来驱动因子",
+                        "update_frequency": "quarterly",
+                        "stale_after_days": 180,
+                        "validation_rule": "text not empty if found",
+                    },
+                    {
+                        "field_name": "institutional_ownership_change",
+                        "source_api": "THS_BD",
+                        "source_query_hint": "ths_institutional_holding_ratio quarterly change",
+                        "reason": "机构持仓变化反映专业资金态度",
+                        "update_frequency": "quarterly",
+                        "stale_after_days": 120,
+                        "validation_rule": "ratio between 0 and 100",
+                    },
+                ],
+            },
+        ],
     }
 
 

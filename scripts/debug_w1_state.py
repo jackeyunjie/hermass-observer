@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import duckdb
 
-DB_PATH = 'outputs/p116_ashare_d1_native_state_v2_20260518/p116_ashare_d1_native_state_v2.duckdb'
+DB_PATH = "outputs/p116_ashare_d1_native_state_v2_20260518/p116_ashare_d1_native_state_v2.duckdb"
 conn = duckdb.connect(DB_PATH)
 
 # Check W1 data for the weeks containing 2026-03-12 to 2026-03-10
@@ -30,8 +30,7 @@ result = conn.execute("""
 
 print("W1 data around 2026-03-12:")
 for row in result:
-    (d, hex_val, score, base, trend_b, pos_b, vol_b, 
-     pos, close, sr_r, sr_s, trend, comp, vol) = row
+    (d, hex_val, score, base, trend_b, pos_b, vol_b, pos, close, sr_r, sr_s, trend, comp, vol) = row
     print(f"\n  W1 Date: {d}")
     print(f"    close={close}, sr_resistance={sr_r}, sr_support={sr_s}")
     print(f"    position={pos}")
@@ -40,9 +39,9 @@ for row in result:
     print(f"    state_score={score}, state_hex={hex_val}")
 
 # Check D1 data
-print("\n" + "="*60)
+print("\n" + "=" * 60)
 print("D1 dates 2026-03-09 to 2026-03-12:")
-print("="*60)
+print("=" * 60)
 
 result2 = conn.execute("""
     SELECT 

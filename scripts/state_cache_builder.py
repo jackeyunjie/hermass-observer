@@ -42,7 +42,9 @@ def json_safe(value: Any) -> Any:
     return value
 
 
-def fetch_dicts(con: duckdb.DuckDBPyConnection, sql: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
+def fetch_dicts(
+    con: duckdb.DuckDBPyConnection, sql: str, params: tuple[Any, ...] = ()
+) -> list[dict[str, Any]]:
     cur = con.execute(sql, params)
     cols = [item[0] for item in cur.description]
     return [{col: json_safe(value) for col, value in zip(cols, row)} for row in cur.fetchall()]
@@ -64,7 +66,9 @@ def ensure_column(con: duckdb.DuckDBPyConnection, table: str, column: str, defin
 
 
 class StateCacheBuilder:
-    def __init__(self, date_str: str, foundation_db: Path, cache_db: Path, boundary_pct: float = 0.03) -> None:
+    def __init__(
+        self, date_str: str, foundation_db: Path, cache_db: Path, boundary_pct: float = 0.03
+    ) -> None:
         self.date_str = date_str
         self.date_ymd = ymd(date_str)
         self.foundation_db = foundation_db
@@ -338,7 +342,7 @@ class StateCacheBuilder:
             shares = [cnt / pool_size for _, cnt in ef_dist]
             mean_share = sum(shares) / len(shares)
             variance = sum((s - mean_share) ** 2 for s in shares) / len(shares)
-            industry_dispersion = variance ** 0.5
+            industry_dispersion = variance**0.5
         else:
             industry_dispersion = 0.0
 
@@ -361,20 +365,35 @@ class StateCacheBuilder:
         # 8. Build strategy implications
         # Inline constants from MARKET_PHASE_IDENTIFICATION.md
         MARKET_PHASE_FACTORS = {
-            "contraction":     {"vcp": 0.90, "ma2560": 0.80, "bollinger_bandit": 0.80},
-            "emergence":       {"vcp": 1.15, "ma2560": 1.00, "bollinger_bandit": 0.90},
-            "progression":     {"vcp": 1.00, "ma2560": 1.10, "bollinger_bandit": 1.00},
-            "extension":       {"vcp": 0.90, "ma2560": 1.00, "bollinger_bandit": 1.15},
-            "risk_release":    {"vcp": 0.80, "ma2560": 0.90, "bollinger_bandit": 0.80},
-            "undetermined":    {"vcp": 1.00, "ma2560": 1.00, "bollinger_bandit": 1.00},
+            "contraction": {"vcp": 0.90, "ma2560": 0.80, "bollinger_bandit": 0.80},
+            "emergence": {"vcp": 1.15, "ma2560": 1.00, "bollinger_bandit": 0.90},
+            "progression": {"vcp": 1.00, "ma2560": 1.10, "bollinger_bandit": 1.00},
+            "extension": {"vcp": 0.90, "ma2560": 1.00, "bollinger_bandit": 1.15},
+            "risk_release": {"vcp": 0.80, "ma2560": 0.90, "bollinger_bandit": 0.80},
+            "undetermined": {"vcp": 1.00, "ma2560": 1.00, "bollinger_bandit": 1.00},
         }
         PHASE_DESCRIPTIONS = {
-            "contraction":     {"label": "收缩期",     "summary": "市场整体收缩，全三 E/F 池规模偏小，多数股票处于收缩态。"},
-            "emergence":       {"label": "趋势新生",   "summary": "市场从收缩中恢复，全三 E/F 池快速扩大，收缩后释放路径密集。"},
-            "progression":     {"label": "趋势行进",   "summary": "趋势稳定运行，全三 E/F 池规模平稳，波动率处于舒适区间。"},
-            "extension":       {"label": "趋势延展",   "summary": "波动率上升或行业极度分化，趋势进入加速或过热阶段。"},
-            "risk_release":    {"label": "风险释放",   "summary": "全三 E/F 池急剧收缩，波动率飙升，市场进入风险释放阶段。"},
-            "undetermined":    {"label": "未分类",     "summary": "当前市场特征不明显，暂无法归入明确阶段。"},
+            "contraction": {
+                "label": "收缩期",
+                "summary": "市场整体收缩，全三 E/F 池规模偏小，多数股票处于收缩态。",
+            },
+            "emergence": {
+                "label": "趋势新生",
+                "summary": "市场从收缩中恢复，全三 E/F 池快速扩大，收缩后释放路径密集。",
+            },
+            "progression": {
+                "label": "趋势行进",
+                "summary": "趋势稳定运行，全三 E/F 池规模平稳，波动率处于舒适区间。",
+            },
+            "extension": {
+                "label": "趋势延展",
+                "summary": "波动率上升或行业极度分化，趋势进入加速或过热阶段。",
+            },
+            "risk_release": {
+                "label": "风险释放",
+                "summary": "全三 E/F 池急剧收缩，波动率飙升，市场进入风险释放阶段。",
+            },
+            "undetermined": {"label": "未分类", "summary": "当前市场特征不明显，暂无法归入明确阶段。"},
         }
         strategy_implications = {
             sid: {
@@ -1332,7 +1351,9 @@ def main() -> int:
     parser.add_argument("--foundation-db", type=Path)
     parser.add_argument("--cache-db", type=Path, default=default_cache_db())
     parser.add_argument("--boundary-pct", type=float, default=0.03)
-    parser.add_argument("--build-market-phase", action="store_true", help="Build only market phase for date range")
+    parser.add_argument(
+        "--build-market-phase", action="store_true", help="Build only market phase for date range"
+    )
     args = parser.parse_args()
 
     # Date range mode
@@ -1355,7 +1376,13 @@ def main() -> int:
                     try:
                         mp = builder.build_market_phase_snapshot(con)
                         ef = builder.build_ef_pool_stats(con)
-                        results.append({"date": date_str, "phase": mp.get("market_phase"), "ef_count": ef.get("ef_count")})
+                        results.append(
+                            {
+                                "date": date_str,
+                                "phase": mp.get("market_phase"),
+                                "ef_count": ef.get("ef_count"),
+                            }
+                        )
                         print(f"  {date_str}: phase={mp.get('market_phase')}, ef={ef.get('ef_count')}")
                     finally:
                         con.close()
@@ -1365,7 +1392,9 @@ def main() -> int:
             else:
                 print(f"  {date_str}: SKIP (no foundation DB)")
             current += timedelta(days=1)
-        print(f"\nDone: {len([r for r in results if 'error' not in r and 'phase' in r])}/{len(results)} dates processed")
+        print(
+            f"\nDone: {len([r for r in results if 'error' not in r and 'phase' in r])}/{len(results)} dates processed"
+        )
         return 0
 
     # Single date mode (default)

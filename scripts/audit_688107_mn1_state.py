@@ -21,8 +21,9 @@ def main() -> int:
         raise FileNotFoundError(foundation_db)
 
     conn = duckdb.connect(str(foundation_db), read_only=True)
-    rows = conn.execute(
-        """
+    rows = (
+        conn.execute(
+            """
         SELECT
           state_date::VARCHAR AS date,
           d1_close,
@@ -49,7 +50,10 @@ def main() -> int:
           AND state_date BETWEEN DATE '2026-05-18' AND DATE '2026-05-20'
         ORDER BY state_date DESC
         """
-    ).fetchdf().to_dict("records")
+        )
+        .fetchdf()
+        .to_dict("records")
+    )
     conn.close()
 
     output_rows = []
@@ -93,8 +97,7 @@ def main() -> int:
         writer.writerows(output_rows)
 
     body = "\n".join(
-        "<tr>" + "".join(f"<td>{row[field]}</td>" for field in fields) + "</tr>"
-        for row in output_rows
+        "<tr>" + "".join(f"<td>{row[field]}</td>" for field in fields) + "</tr>" for row in output_rows
     )
     html = f"""<!doctype html>
 <html lang="zh-CN">
@@ -118,7 +121,7 @@ def main() -> int:
     D1 close 高于 MN1 resistance，按 P116 D1 视角天条得到 MN1=E，W1=F，D1=F。
   </div>
   <table>
-    <thead><tr>{''.join(f'<th>{field}</th>' for field in fields)}</tr></thead>
+    <thead><tr>{"".join(f"<th>{field}</th>" for field in fields)}</tr></thead>
     <tbody>{body}</tbody>
   </table>
 </body>

@@ -21,26 +21,55 @@ ROOT = Path(__file__).resolve().parents[1]
 REGISTRY_PATH = ROOT / "config" / "opportunity_pattern_registry.json"
 DAILY_JSON_PATH = ROOT / "outputs" / "project" / "opportunity_patterns_daily.json"
 
-W1_COMPRESS = {0: "con_f", 1: "con_f", 2: "con_f", 3: "con_f",
-               4: "con_t", 5: "con_t", 6: "con_t", 7: "con_t",
-               8: "exp_f", 9: "exp_f", 10: "exp_f", 11: "exp_f",
-               12: "exp_t", 13: "exp_t", 14: "exp_t", 15: "exp_t"}
+W1_COMPRESS = {
+    0: "con_f",
+    1: "con_f",
+    2: "con_f",
+    3: "con_f",
+    4: "con_t",
+    5: "con_t",
+    6: "con_t",
+    7: "con_t",
+    8: "exp_f",
+    9: "exp_f",
+    10: "exp_f",
+    11: "exp_f",
+    12: "exp_t",
+    13: "exp_t",
+    14: "exp_t",
+    15: "exp_t",
+}
 
-MN1_COMPRESS = {0: "con_f", 1: "con_f", 2: "con_f", 3: "con_f",
-                4: "con_t", 5: "con_t", 6: "con_t", 7: "con_t",
-                8: "exp_f", 9: "exp_f", 10: "exp_f", 11: "exp_f",
-                12: "exp_t", 13: "exp_t", 14: "exp_t", 15: "exp_t"}
+MN1_COMPRESS = {
+    0: "con_f",
+    1: "con_f",
+    2: "con_f",
+    3: "con_f",
+    4: "con_t",
+    5: "con_t",
+    6: "con_t",
+    7: "con_t",
+    8: "exp_f",
+    9: "exp_f",
+    10: "exp_f",
+    11: "exp_f",
+    12: "exp_t",
+    13: "exp_t",
+    14: "exp_t",
+    15: "exp_t",
+}
 
 
 def _compress(mapping: dict[int, str], score: int) -> str:
     return mapping.get(score, str(score))
 
 
-def encode_pattern(d1_from_hex: str, d1_to_hex: str,
-                   w1_score: int, mn1_score: int) -> str:
-    return (f"D{d1_from_hex}_{d1_to_hex}"
-            f"_W{_compress(W1_COMPRESS, w1_score)}"
-            f"_M{_compress(MN1_COMPRESS, mn1_score)}")
+def encode_pattern(d1_from_hex: str, d1_to_hex: str, w1_score: int, mn1_score: int) -> str:
+    return (
+        f"D{d1_from_hex}_{d1_to_hex}"
+        f"_W{_compress(W1_COMPRESS, w1_score)}"
+        f"_M{_compress(MN1_COMPRESS, mn1_score)}"
+    )
 
 
 def load_registry() -> dict[str, Any]:
@@ -62,8 +91,7 @@ def load_registry() -> dict[str, Any]:
                     "status": p.get("status", "pending"),
                     "n": p.get("n", 0),
                     "mean_excess": p.get("mean_excess"),
-                    "ci_95": [ci[0] if ci[0] is not None else 0,
-                              ci[1] if ci[1] is not None else 0],
+                    "ci_95": [ci[0] if ci[0] is not None else 0, ci[1] if ci[1] is not None else 0],
                     "win_rate": p.get("win_rate"),
                     "from_state": p.get("d1_from_hex", ""),
                     "to_state": p.get("d1_to_hex", ""),
@@ -80,8 +108,7 @@ def load_registry() -> dict[str, Any]:
 
 def get_verified_patterns() -> dict[str, dict[str, Any]]:
     reg = load_registry()
-    return {k: v for k, v in reg.get("patterns", {}).items()
-            if v.get("status") == "verified"}
+    return {k: v for k, v in reg.get("patterns", {}).items() if v.get("status") == "verified"}
 
 
 def compute_pattern_boost(pattern: dict) -> float:
@@ -130,7 +157,7 @@ def match_signal_to_pattern(
     return {
         "pattern_key": pkey,
         "pattern_status": "verified",
-        "pattern_description": f"D1从{pattern.get('from_state','')}跃迁至{pattern.get('to_state','')}",
+        "pattern_description": f"D1从{pattern.get('from_state', '')}跃迁至{pattern.get('to_state', '')}",
         "pattern_mean_excess": pattern.get("mean_excess", 0),
         "pattern_ci_lo": ci[0] if len(ci) > 0 else 0,
         "pattern_ci_hi": ci[1] if len(ci) > 1 else 0,
@@ -171,4 +198,6 @@ if __name__ == "__main__":
     verified = get_verified_patterns()
     print(f"Verified patterns: {len(verified)}")
     for k, v in list(verified.items())[:3]:
-        print(f"  {k}: n={v.get('n')}, excess={v.get('mean_excess'):.4f}, boost={compute_pattern_boost(v):.3f}")
+        print(
+            f"  {k}: n={v.get('n')}, excess={v.get('mean_excess'):.4f}, boost={compute_pattern_boost(v):.3f}"
+        )

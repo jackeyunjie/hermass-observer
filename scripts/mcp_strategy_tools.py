@@ -62,13 +62,13 @@ FINAL_POSITIONS_PATH = SIM_DIR / "final_positions.json"
 TRADE_LOG_PATH = SIM_DIR / "trade_log.csv"
 PERFORMANCE_MD_PATH = SIM_DIR / "performance_summary.md"
 
-_READ_ONLY_NOTICE = (
-    "【只读声明】本工具仅提供策略查询，不可修改策略规则、信号参数或执行任何写入操作。"
-)
+_READ_ONLY_NOTICE = "【只读声明】本工具仅提供策略查询，不可修改策略规则、信号参数或执行任何写入操作。"
+
 
 # Simple in-memory LRU cache for backtest results: key -> result
 def _make_cache_key(start: str, end: str, capital: float) -> str:
     return f"{start}|{end}|{capital}"
+
 
 _BACKTEST_CACHE: OrderedDict[str, dict[str, Any]] = OrderedDict()
 _MAX_CACHE_SIZE = 4
@@ -158,6 +158,7 @@ async def _do_backtest(
 
         def _run_with_redirect():
             import os
+
             sys.stdout.flush()
             old_stdout_fd = os.dup(1)
             devnull = os.open(os.devnull, os.O_WRONLY)
@@ -196,20 +197,24 @@ async def _do_backtest(
         avg_loss = sum(t.return_pct for t in losing) / len(losing) if losing else 0.0
         payoff_ratio = abs(avg_win / avg_loss) if avg_loss != 0 else 0.0
         avg_hold = sum(t.hold_days for t in trades) / len(trades) if trades else 0.0
-        perf.update({
-            "total_trades": len(trades),
-            "winning_trades": len(winning),
-            "losing_trades": len(losing),
-            "win_rate_pct": round(win_rate, 2),
-            "payoff_ratio": round(payoff_ratio, 2),
-            "avg_return_pct": round(sum(t.return_pct for t in trades) / len(trades), 2) if trades else 0.0,
-            "avg_win_pct": round(avg_win, 2),
-            "avg_loss_pct": round(avg_loss, 2),
-            "avg_hold_days": round(avg_hold, 1),
-            "total_net_pnl": round(sum(t.net_pnl for t in trades), 2),
-            "total_commission": round(sum(t.commission for t in trades), 2),
-            "total_stamp_tax": round(sum(t.stamp_tax for t in trades), 2),
-        })
+        perf.update(
+            {
+                "total_trades": len(trades),
+                "winning_trades": len(winning),
+                "losing_trades": len(losing),
+                "win_rate_pct": round(win_rate, 2),
+                "payoff_ratio": round(payoff_ratio, 2),
+                "avg_return_pct": round(sum(t.return_pct for t in trades) / len(trades), 2)
+                if trades
+                else 0.0,
+                "avg_win_pct": round(avg_win, 2),
+                "avg_loss_pct": round(avg_loss, 2),
+                "avg_hold_days": round(avg_hold, 1),
+                "total_net_pnl": round(sum(t.net_pnl for t in trades), 2),
+                "total_commission": round(sum(t.commission for t in trades), 2),
+                "total_stamp_tax": round(sum(t.stamp_tax for t in trades), 2),
+            }
+        )
 
     # Serialize trades
     trade_rows = [
@@ -342,26 +347,30 @@ def _do_top_signals(
         macro = r.get("macro_chain_prior", {})
         industry_prior = macro.get("industry_prior", {}) if isinstance(macro, dict) else {}
 
-        rows.append({
-            "stock_code": r.get("stock_code"),
-            "stock_name": r.get("stock_name"),
-            "strategy": sig.get("strategy_id"),
-            "signal_name": sig.get("signal_name"),
-            "signal_strength": sig.get("signal_strength"),
-            "fit_level": r.get("strategy_environment_fit"),
-            "fit_reasons": r.get("fit_reasons"),
-            "lifecycle_stage": r.get("lifecycle_stage"),
-            "state_combo": state_env.get("state_combo"),
-            "ef_count": state_env.get("ef_count"),
-            "rr_ratio": rr.get("rr_ratio"),
-            "upside_pct": rr.get("upside_pct"),
-            "downside_pct": rr.get("downside_pct"),
-            "high_value": rr.get("high_value"),
-            "industry": r.get("ifind", {}).get("industry", {}).get("sw_l1"),
-            "industry_prior_score": industry_prior.get("chain_prior_score") if isinstance(industry_prior, dict) else None,
-            "calibration_status": r.get("calibration", {}).get("status"),
-            "research_only": r.get("research_only"),
-        })
+        rows.append(
+            {
+                "stock_code": r.get("stock_code"),
+                "stock_name": r.get("stock_name"),
+                "strategy": sig.get("strategy_id"),
+                "signal_name": sig.get("signal_name"),
+                "signal_strength": sig.get("signal_strength"),
+                "fit_level": r.get("strategy_environment_fit"),
+                "fit_reasons": r.get("fit_reasons"),
+                "lifecycle_stage": r.get("lifecycle_stage"),
+                "state_combo": state_env.get("state_combo"),
+                "ef_count": state_env.get("ef_count"),
+                "rr_ratio": rr.get("rr_ratio"),
+                "upside_pct": rr.get("upside_pct"),
+                "downside_pct": rr.get("downside_pct"),
+                "high_value": rr.get("high_value"),
+                "industry": r.get("ifind", {}).get("industry", {}).get("sw_l1"),
+                "industry_prior_score": industry_prior.get("chain_prior_score")
+                if isinstance(industry_prior, dict)
+                else None,
+                "calibration_status": r.get("calibration", {}).get("status"),
+                "research_only": r.get("research_only"),
+            }
+        )
 
     # Summary stats
     summary = {
@@ -452,17 +461,19 @@ def _do_position_monitor() -> dict[str, Any]:
     pos_list = []
     if isinstance(positions, dict) and "_error" not in positions:
         for code, p in positions.items():
-            pos_list.append({
-                "stock_code": p.get("stock_code", code),
-                "stock_name": p.get("stock_name", ""),
-                "strategy": p.get("strategy", "unknown"),
-                "industry": p.get("industry", "unknown"),
-                "entry_date": p.get("entry_date", ""),
-                "entry_price": p.get("entry_price", 0.0),
-                "shares": p.get("shares", 0),
-                "stop_price": p.get("stop_price", 0.0),
-                "highest_price": p.get("highest_price", 0.0),
-            })
+            pos_list.append(
+                {
+                    "stock_code": p.get("stock_code", code),
+                    "stock_name": p.get("stock_name", ""),
+                    "strategy": p.get("strategy", "unknown"),
+                    "industry": p.get("industry", "unknown"),
+                    "entry_date": p.get("entry_date", ""),
+                    "entry_price": p.get("entry_price", 0.0),
+                    "shares": p.get("shares", 0),
+                    "stop_price": p.get("stop_price", 0.0),
+                    "highest_price": p.get("highest_price", 0.0),
+                }
+            )
 
     strategy_summary: dict[str, dict[str, Any]] = {}
     for p in pos_list:

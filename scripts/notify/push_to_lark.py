@@ -5,6 +5,7 @@
 Usage:
     python3 -m scripts.notify.push_to_lark --date 2026-05-20
 """
+
 from __future__ import annotations
 
 import argparse
@@ -17,9 +18,9 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def format_message(portfolio: dict) -> str:
     """格式化推荐消息 (飞书 Markdown)."""
-    date = portfolio.get('date', '')
-    positions = portfolio.get('positions', [])
-    dd = portfolio.get('drawdown_state', {})
+    date = portfolio.get("date", "")
+    positions = portfolio.get("positions", [])
+    dd = portfolio.get("drawdown_state", {})
 
     lines = [
         f"**Hermass Observer 每日推荐** - {date}",
@@ -33,7 +34,7 @@ def format_message(portfolio: dict) -> str:
     ]
 
     for i, p in enumerate(positions, 1):
-        grade = p.get('quality_grade', '')
+        grade = p.get("quality_grade", "")
         lines.append(
             f"**{i}. {p['stock_code']}** {p.get('stock_name', '')}\n"
             f"   EF={p['ef_count']}/3  质量={grade}({p.get('quality_score', 0):.0f})\n"
@@ -52,8 +53,8 @@ def format_message(portfolio: dict) -> str:
 
 def format_simple_text(portfolio: dict) -> str:
     """纯文本格式 (用于不支持 markdown 的场景)."""
-    date = portfolio.get('date', '')
-    positions = portfolio.get('positions', [])
+    date = portfolio.get("date", "")
+    positions = portfolio.get("positions", [])
 
     lines = [f"Hermass Observer 推荐 - {date}", ""]
     for i, p in enumerate(positions, 1):
@@ -89,14 +90,18 @@ def push_via_lark_cli(
         if webhook_url:
             # Webhook 方式
             result = subprocess.run(
-                ['lark-cli', 'im', '+send', '--webhook', webhook_url, '--text', message],
-                capture_output=True, text=True, timeout=30,
+                ["lark-cli", "im", "+send", "--webhook", webhook_url, "--text", message],
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
         elif chat_id:
             # Chat ID 方式
             result = subprocess.run(
-                ['lark-cli', 'im', '+send', '--chat-id', chat_id, '--text', message],
-                capture_output=True, text=True, timeout=30,
+                ["lark-cli", "im", "+send", "--chat-id", chat_id, "--text", message],
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
         else:
             print("No webhook_url or chat_id configured, skipping Lark push")
@@ -118,26 +123,26 @@ def push_via_lark_cli(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description='Push daily recommendation to Lark')
-    parser.add_argument('--date', required=True)
-    parser.add_argument('--portfolio-json', type=Path, help='Portfolio JSON file')
-    parser.add_argument('--webhook-url', help='Lark webhook URL')
-    parser.add_argument('--chat-id', help='Lark chat_id')
-    parser.add_argument('--dry-run', action='store_true', help='Only print, do not send')
+    parser = argparse.ArgumentParser(description="Push daily recommendation to Lark")
+    parser.add_argument("--date", required=True)
+    parser.add_argument("--portfolio-json", type=Path, help="Portfolio JSON file")
+    parser.add_argument("--webhook-url", help="Lark webhook URL")
+    parser.add_argument("--chat-id", help="Lark chat_id")
+    parser.add_argument("--dry-run", action="store_true", help="Only print, do not send")
     args = parser.parse_args()
 
     # 加载 portfolio
     portfolio_path = args.portfolio_json
     if portfolio_path is None:
-        ymd = args.date.replace('-', '')
-        portfolio_path = ROOT / 'outputs' / f'recommend_{ymd}' / 'portfolio.json'
+        ymd = args.date.replace("-", "")
+        portfolio_path = ROOT / "outputs" / f"recommend_{ymd}" / "portfolio.json"
 
     if not portfolio_path.exists():
         print(f"Portfolio not found: {portfolio_path}")
         print("Run: make recommend first")
         return 1
 
-    portfolio = json.loads(portfolio_path.read_text(encoding='utf-8'))
+    portfolio = json.loads(portfolio_path.read_text(encoding="utf-8"))
     message = format_message(portfolio)
 
     if args.dry_run:
@@ -154,5 +159,5 @@ def main() -> int:
     return 0 if success else 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     raise SystemExit(main())

@@ -56,13 +56,14 @@ def analyze_strategy_fit(
         if signal_db and Path(signal_db).exists():
             signal_path = signal_db
             try:
-                con.execute(
-                    f"ATTACH '{signal_db.replace(chr(39), chr(39)+chr(39))}' AS sig (READ_ONLY)"
+                con.execute(f"ATTACH '{signal_db.replace(chr(39), chr(39) + chr(39))}' AS sig (READ_ONLY)")
+                exists = (
+                    con.execute(
+                        "SELECT COUNT(*) FROM information_schema.tables "
+                        "WHERE table_schema='sig' AND table_name='strategy_signal_daily'"
+                    ).fetchone()[0]
+                    > 0
                 )
-                exists = con.execute(
-                    "SELECT COUNT(*) FROM information_schema.tables "
-                    "WHERE table_schema='sig' AND table_name='strategy_signal_daily'"
-                ).fetchone()[0] > 0
                 if exists:
                     has_signal = True
             except Exception:
@@ -70,21 +71,14 @@ def analyze_strategy_fit(
 
         strategy_ids = []
         if has_signal:
-            strat_rows = con.execute(
-                "SELECT DISTINCT strategy_id FROM sig.strategy_signal_daily"
-            ).fetchall()
+            strat_rows = con.execute("SELECT DISTINCT strategy_id FROM sig.strategy_signal_daily").fetchall()
             strategy_ids = [r[0] for r in strat_rows]
 
-        target_strategies = (
-            [strategy_id] if strategy_id and strategy_id in strategy_ids
-            else strategy_ids
-        )
+        target_strategies = [strategy_id] if strategy_id and strategy_id in strategy_ids else strategy_ids
 
         strategy_stats = []
         if has_signal and target_strategies:
-            latest_date = con.execute(
-                "SELECT MAX(state_date) FROM d1_perspective_state"
-            ).fetchone()[0]
+            latest_date = con.execute("SELECT MAX(state_date) FROM d1_perspective_state").fetchone()[0]
 
             for sid in target_strategies:
                 stat_row = con.execute(f"""
@@ -111,15 +105,17 @@ def analyze_strategy_fit(
                     ORDER BY environment_fit
                 """).fetchall()
 
-                strategy_stats.append({
-                    "strategy_id": sid,
-                    "strategy_label": _strategy_label(sid),
-                    "signal_count": stat_row[0] if stat_row else 0,
-                    "ef2_signal_count": stat_row[1] if stat_row else 0,
-                    "avg_ef_count": stat_row[2] if stat_row else 0.0,
-                    "ef2_pct": stat_row[3] if stat_row else 0.0,
-                    "fit_distribution": {r[0] or "未知": r[1] for r in fit_counts},
-                })
+                strategy_stats.append(
+                    {
+                        "strategy_id": sid,
+                        "strategy_label": _strategy_label(sid),
+                        "signal_count": stat_row[0] if stat_row else 0,
+                        "ef2_signal_count": stat_row[1] if stat_row else 0,
+                        "avg_ef_count": stat_row[2] if stat_row else 0.0,
+                        "ef2_pct": stat_row[3] if stat_row else 0.0,
+                        "fit_distribution": {r[0] or "未知": r[1] for r in fit_counts},
+                    }
+                )
 
         ef_overview = con.execute(f"""
             SELECT
@@ -145,8 +141,7 @@ def analyze_strategy_fit(
             lines = []
             for s in strategy_stats:
                 lines.append(
-                    f"{s['strategy_label']}: 信号 {s['signal_count']} 个, "
-                    f"E/F≥2 占比 {s['ef2_pct']}%"
+                    f"{s['strategy_label']}: 信号 {s['signal_count']} 个, E/F≥2 占比 {s['ef2_pct']}%"
                 )
             summary = "策略适配概览：\n" + "\n".join(lines)
             if best:
@@ -217,13 +212,14 @@ def explore_top_signals(
 
         if signal_db and Path(signal_db).exists():
             try:
-                con.execute(
-                    f"ATTACH '{signal_db.replace(chr(39), chr(39)+chr(39))}' AS sig (READ_ONLY)"
+                con.execute(f"ATTACH '{signal_db.replace(chr(39), chr(39) + chr(39))}' AS sig (READ_ONLY)")
+                exists = (
+                    con.execute(
+                        "SELECT COUNT(*) FROM information_schema.tables "
+                        "WHERE table_schema='sig' AND table_name='strategy_signal_daily'"
+                    ).fetchone()[0]
+                    > 0
                 )
-                exists = con.execute(
-                    "SELECT COUNT(*) FROM information_schema.tables "
-                    "WHERE table_schema='sig' AND table_name='strategy_signal_daily'"
-                ).fetchone()[0] > 0
                 if exists:
                     has_signal = True
             except Exception:
@@ -231,15 +227,10 @@ def explore_top_signals(
 
         signals = []
         if has_signal:
-            latest_date = con.execute(
-                "SELECT MAX(state_date) FROM d1_perspective_state"
-            ).fetchone()[0]
+            latest_date = con.execute("SELECT MAX(state_date) FROM d1_perspective_state").fetchone()[0]
             date_str = str(latest_date)
 
-            strat_filter = (
-                f"AND sig.strategy_id = '{strategy_id}'"
-                if strategy_id else ""
-            )
+            strat_filter = f"AND sig.strategy_id = '{strategy_id}'" if strategy_id else ""
 
             rows = con.execute(f"""
                 SELECT
@@ -263,17 +254,19 @@ def explore_top_signals(
             """).fetchall()
 
             for row in rows:
-                signals.append({
-                    "stock_code": row[0],
-                    "ef_count": row[1],
-                    "mn1_state_hex": row[2],
-                    "w1_state_hex": row[3],
-                    "d1_state_hex": row[4],
-                    "signal_name": row[5] or "",
-                    "strategy_id": row[6] or "",
-                    "environment_fit": row[7] or "",
-                    "lifecycle_stage": row[8] or "",
-                })
+                signals.append(
+                    {
+                        "stock_code": row[0],
+                        "ef_count": row[1],
+                        "mn1_state_hex": row[2],
+                        "w1_state_hex": row[3],
+                        "d1_state_hex": row[4],
+                        "signal_name": row[5] or "",
+                        "strategy_id": row[6] or "",
+                        "environment_fit": row[7] or "",
+                        "lifecycle_stage": row[8] or "",
+                    }
+                )
 
         con.close()
 
@@ -284,10 +277,7 @@ def explore_top_signals(
 
         if signals:
             top_ef3 = sum(1 for s in signals if s["ef_count"] == 3)
-            result.summary = (
-                f"今日优质信号共 {len(signals)} 个，"
-                f"其中三周期共振（ef_count=3）{top_ef3} 个"
-            )
+            result.summary = f"今日优质信号共 {len(signals)} 个，其中三周期共振（ef_count=3）{top_ef3} 个"
         else:
             result.summary = "今日无策略信号"
 

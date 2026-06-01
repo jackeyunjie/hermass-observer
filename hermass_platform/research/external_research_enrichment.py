@@ -208,7 +208,9 @@ def apply_optional_enrichment(
                     str(company_profile.get("comparable_companies") or "")
                     + ","
                     + str(company_profile.get("competitor_companies") or "")
-                ).replace("，", ",").split(",")
+                )
+                .replace("，", ",")
+                .split(",")
                 if item.strip()
             ][:6]
         elif company_profile.get("ths_concepts") or industry_state.get("sector_resonance") is True:
@@ -227,7 +229,11 @@ def apply_optional_enrichment(
             news_provider["expected_output"]["policy_event_notes"] = [
                 "local market_views already present; external public-news provider should only add event/policy deltas."
             ]
-        elif risk_flags.get("data_risks") or company_profile.get("ths_concepts") or industry_state.get("sector_resonance") is True:
+        elif (
+            risk_flags.get("data_risks")
+            or company_profile.get("ths_concepts")
+            or industry_state.get("sector_resonance") is True
+        ):
             news_provider["status"] = "ready_for_external_news_supplement"
             news_provider["enabled"] = True
             news_provider["last_success_at"] = news_provider["last_attempt_at"]

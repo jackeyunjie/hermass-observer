@@ -88,7 +88,7 @@ def strip_at_prefix(text: str, robot_name: str = "") -> str:
     """
     # 去除 @机器人名称 前缀
     if robot_name:
-        text = re.sub(rf'@{re.escape(robot_name)}\s*', '', text)
+        text = re.sub(rf"@{re.escape(robot_name)}\s*", "", text)
     # 通用去除 @任意词 前缀（保留后续内容）
-    text = re.sub(r'@\S+\s*', '', text)
+    text = re.sub(r"@\S+\s*", "", text)
     return text.strip()

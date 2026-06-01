@@ -102,7 +102,9 @@ def strategy_id(row: dict[str, Any]) -> str:
 def signal_name(row: dict[str, Any]) -> str:
     strategy = row.get("strategy")
     if isinstance(strategy, dict):
-        return str(strategy.get("signal_name") or strategy.get("raw_signal") or strategy.get("strategy_id") or "")
+        return str(
+            strategy.get("signal_name") or strategy.get("raw_signal") or strategy.get("strategy_id") or ""
+        )
     return str(row.get("signal_name") or strategy or "")
 
 
@@ -177,7 +179,9 @@ def load_price_map(
     return dict(out)
 
 
-def load_strategy_state_map(foundation_db: Path, start: str, end: str, codes: set[str]) -> dict[str, list[dict[str, Any]]]:
+def load_strategy_state_map(
+    foundation_db: Path, start: str, end: str, codes: set[str]
+) -> dict[str, list[dict[str, Any]]]:
     by_date = load_state_data_from_duckdb(foundation_db, start, end)
     out: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for date in sorted(by_date):
@@ -199,7 +203,9 @@ def find_window_return(series: list[dict[str, Any]], window: int) -> tuple[str |
     return end_row.get("date"), (end_close / start_close) - 1.0
 
 
-def detect_rule_exit(strategy: str, state_series: list[dict[str, Any]], entry_price: float | None = None) -> dict[str, Any]:
+def detect_rule_exit(
+    strategy: str, state_series: list[dict[str, Any]], entry_price: float | None = None
+) -> dict[str, Any]:
     if strategy == "vcp":
         return vcp_management_observation(float(entry_price or 0), state_series)
 
@@ -242,7 +248,9 @@ def detect_rule_exit(strategy: str, state_series: list[dict[str, Any]], entry_pr
     return {"exit_rule_status": "unknown_strategy", "exit_rule_note": f"{strategy} 未识别。"}
 
 
-def build_rows(signal_date: str, as_of_date: str, foundation_db: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def build_rows(
+    signal_date: str, as_of_date: str, foundation_db: Path
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     reminder_rows = load_reminder_rows(signal_date)
     codes = {stock_code(r) for r in reminder_rows if stock_code(r)}
     price_map = load_price_map(foundation_db, codes, signal_date, as_of_date)
@@ -286,7 +294,9 @@ def build_rows(signal_date: str, as_of_date: str, foundation_db: Path) -> tuple[
                 "date": window_date,
                 "return": window_return,
                 "benchmark_return": benchmark,
-                "excess_return": window_return - benchmark if window_return is not None and benchmark is not None else None,
+                "excess_return": window_return - benchmark
+                if window_return is not None and benchmark is not None
+                else None,
             }
 
         eval_info = source.get("strategy_evaluation") or {}
@@ -362,7 +372,9 @@ def row_from_source(
             "date": window_date,
             "return": window_return,
             "benchmark_return": benchmark,
-            "excess_return": window_return - benchmark if window_return is not None and benchmark is not None else None,
+            "excess_return": window_return - benchmark
+            if window_return is not None and benchmark is not None
+            else None,
         }
 
     eval_info = source.get("strategy_evaluation") or {}
@@ -400,12 +412,7 @@ def build_range_rows(
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     signal_dates = [d for d in available_reminder_dates(start_date, end_date) if d <= as_of_date]
     reminders_by_date: dict[str, list[dict[str, Any]]] = {d: load_reminder_rows(d) for d in signal_dates}
-    codes = {
-        stock_code(row)
-        for rows in reminders_by_date.values()
-        for row in rows
-        if stock_code(row)
-    }
+    codes = {stock_code(row) for rows in reminders_by_date.values() for row in rows if stock_code(row)}
 
     price_map = load_price_map(foundation_db, codes, start_date, as_of_date)
     state_map = load_strategy_state_map(foundation_db, start_date, as_of_date, codes)
@@ -467,11 +474,31 @@ def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "median_return_to_asof": sorted(rets)[len(rets) // 2] if rets else None,
             "win_rate_to_asof": sum(1 for x in rets if x > 0) / len(rets) if rets else None,
             "avg_excess_return_to_asof": mean(excess) if excess else None,
-            "rule_exit_count": sum(1 for r in items if (r.get("exit_observation") or {}).get("exit_rule_status") == "rule_exit_observed"),
-            "still_active_count": sum(1 for r in items if (r.get("exit_observation") or {}).get("exit_rule_status") == "still_active_by_rule"),
-        "no_exit_rule_count": sum(1 for r in items if (r.get("exit_observation") or {}).get("exit_rule_status") == "not_available"),
-        "profit_protection_count": sum(1 for r in items if (r.get("exit_observation") or {}).get("exit_rule_status") == "profit_protection_zone"),
-        "time_stop_count": sum(1 for r in items if (r.get("exit_observation") or {}).get("exit_rule_status") == "time_stop_observed"),
+            "rule_exit_count": sum(
+                1
+                for r in items
+                if (r.get("exit_observation") or {}).get("exit_rule_status") == "rule_exit_observed"
+            ),
+            "still_active_count": sum(
+                1
+                for r in items
+                if (r.get("exit_observation") or {}).get("exit_rule_status") == "still_active_by_rule"
+            ),
+            "no_exit_rule_count": sum(
+                1
+                for r in items
+                if (r.get("exit_observation") or {}).get("exit_rule_status") == "not_available"
+            ),
+            "profit_protection_count": sum(
+                1
+                for r in items
+                if (r.get("exit_observation") or {}).get("exit_rule_status") == "profit_protection_zone"
+            ),
+            "time_stop_count": sum(
+                1
+                for r in items
+                if (r.get("exit_observation") or {}).get("exit_rule_status") == "time_stop_observed"
+            ),
             "avg_exit_rule_return": mean(exit_rets) if exit_rets else None,
         }
 
@@ -494,7 +521,9 @@ def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "by_strategy": by_strategy,
         "by_signal_date": by_signal_date,
         "strategy_counts": dict(Counter(r["strategy_id"] for r in rows)),
-        "exit_status_counts": dict(Counter((r.get("exit_observation") or {}).get("exit_rule_status") for r in rows)),
+        "exit_status_counts": dict(
+            Counter((r.get("exit_observation") or {}).get("exit_rule_status") for r in rows)
+        ),
     }
 
 
@@ -507,7 +536,9 @@ def render_markdown(payload: dict[str, Any]) -> str:
         sample_line = f"- 样本来源：`outputs/strategy_reminders/reminder_{ymd(meta['signal_date'])}.json`"
         input_line = f"- 输入提醒：{meta['input_reminders']} 条；有效追踪：{meta['rows']} 条"
     else:
-        title = f"策略样本综合追踪报告：{meta['start_date']} → {meta['end_date']}，观察至 {meta['as_of_date']}"
+        title = (
+            f"策略样本综合追踪报告：{meta['start_date']} → {meta['end_date']}，观察至 {meta['as_of_date']}"
+        )
         sample_line = f"- 样本来源：`outputs/strategy_reminders/reminder_*.json`，共 {meta['signal_date_count']} 个简报日期"
         input_line = f"- 输入提醒：{meta['input_reminders']} 条；有效追踪：{meta['rows']} 条"
     lines: list[str] = [
@@ -599,8 +630,8 @@ def render_markdown(payload: dict[str, Any]) -> str:
                 name=row.get("stock_name") or "",
                 strategy=row["strategy_id"],
                 signal=row["signal_name"],
-                state=f"MN1:{state.get('mn1_state','-')} W1:{state.get('w1_state','-')} D1:{state.get('d1_state','-')}",
-                duration=f"D1 {duration.get('d1_ef_duration','-')} / 三周期 {duration.get('all_three_ef_duration','-')}",
+                state=f"MN1:{state.get('mn1_state', '-')} W1:{state.get('w1_state', '-')} D1:{state.get('d1_state', '-')}",
+                duration=f"D1 {duration.get('d1_ef_duration', '-')} / 三周期 {duration.get('all_three_ef_duration', '-')}",
                 ret=pct(row.get("return_to_asof")),
                 excess=pct(row.get("excess_return_to_asof")),
                 exit_status=exit_obs.get("exit_rule_status", ""),
@@ -643,7 +674,9 @@ def render_html(payload: dict[str, Any], markdown_text: str) -> str:
         if "signal_date" in meta
         else f"策略样本综合追踪报告 {html.escape(meta['start_date'])}-{html.escape(meta['end_date'])}"
     )
-    source_label = "来自单日策略简报" if "signal_date" in meta else f"来自 {meta['signal_date_count']} 个策略简报日期"
+    source_label = (
+        "来自单日策略简报" if "signal_date" in meta else f"来自 {meta['signal_date_count']} 个策略简报日期"
+    )
     input_text = (
         f"输入提醒 {meta['input_reminders']} 条，有效追踪 {meta['rows']} 条。"
         if "signal_date" in meta
@@ -654,9 +687,9 @@ def render_html(payload: dict[str, Any], markdown_text: str) -> str:
         strategy_cards += f"""
         <section class="metric-card">
           <div class="metric-title">{html.escape(strategy)}</div>
-          <div class="metric-value">{data['count']}</div>
-          <div class="metric-sub">平均观察收益 {pct(data['avg_return_to_asof'])} · 胜率 {pct(data['win_rate_to_asof'])}</div>
-          <div class="metric-sub">平均超额 {pct(data['avg_excess_return_to_asof'])}</div>
+          <div class="metric-value">{data["count"]}</div>
+          <div class="metric-sub">平均观察收益 {pct(data["avg_return_to_asof"])} · 胜率 {pct(data["win_rate_to_asof"])}</div>
+          <div class="metric-sub">平均超额 {pct(data["avg_excess_return_to_asof"])}</div>
         </section>
         """
 
@@ -673,13 +706,13 @@ def render_html(payload: dict[str, Any], markdown_text: str) -> str:
         }.get(status, "tag-muted")
         row_html += f"""
         <tr>
-          <td><strong>{html.escape(row['stock_code'])}</strong><br><span>{html.escape(row.get('stock_name') or '')}</span></td>
-          <td>{html.escape(row['strategy_id'])}<br><span>{html.escape(row['signal_name'])}</span><br><span>{html.escape(row['signal_date'])}</span></td>
-          <td>MN1:{html.escape(str(state.get('mn1_state','-')))} W1:{html.escape(str(state.get('w1_state','-')))} D1:{html.escape(str(state.get('d1_state','-')))}<br>
-              <span>D1 {html.escape(str(duration.get('d1_ef_duration','-')))} / 三周期 {html.escape(str(duration.get('all_three_ef_duration','-')))}</span></td>
-          <td class="num">{pct(row.get('return_to_asof'))}</td>
-          <td class="num">{pct(row.get('excess_return_to_asof'))}</td>
-          <td><span class="tag {status_class}">{html.escape(status)}</span><br><span>{html.escape(exit_obs.get('exit_rule_note',''))}</span></td>
+          <td><strong>{html.escape(row["stock_code"])}</strong><br><span>{html.escape(row.get("stock_name") or "")}</span></td>
+          <td>{html.escape(row["strategy_id"])}<br><span>{html.escape(row["signal_name"])}</span><br><span>{html.escape(row["signal_date"])}</span></td>
+          <td>MN1:{html.escape(str(state.get("mn1_state", "-")))} W1:{html.escape(str(state.get("w1_state", "-")))} D1:{html.escape(str(state.get("d1_state", "-")))}<br>
+              <span>D1 {html.escape(str(duration.get("d1_ef_duration", "-")))} / 三周期 {html.escape(str(duration.get("all_three_ef_duration", "-")))}</span></td>
+          <td class="num">{pct(row.get("return_to_asof"))}</td>
+          <td class="num">{pct(row.get("excess_return_to_asof"))}</td>
+          <td><span class="tag {status_class}">{html.escape(status)}</span><br><span>{html.escape(exit_obs.get("exit_rule_note", ""))}</span></td>
         </tr>
         """
 
@@ -724,10 +757,10 @@ td span {{ color:#687386; font-size:12px; }}
 </section>
 <main class="wrap">
   <div class="grid">
-    <section class="metric-card"><div class="metric-title">有效样本</div><div class="metric-value">{agg['overall']['count']}</div><div class="metric-sub">{source_label}</div></section>
-    <section class="metric-card"><div class="metric-title">平均观察收益</div><div class="metric-value">{pct(agg['overall']['avg_return_to_asof'])}</div><div class="metric-sub">观察胜率 {pct(agg['overall']['win_rate_to_asof'])}</div></section>
-    <section class="metric-card"><div class="metric-title">平均超额</div><div class="metric-value">{pct(agg['overall']['avg_excess_return_to_asof'])}</div><div class="metric-sub">相对全市场等权</div></section>
-    <section class="metric-card"><div class="metric-title">规则状态</div><div class="metric-value">{agg['overall']['rule_exit_count']}</div><div class="metric-sub">标准退出出现；{agg['overall']['profit_protection_count']} 进入利润保护区；{agg['overall']['still_active_count']} 仍延续</div></section>
+    <section class="metric-card"><div class="metric-title">有效样本</div><div class="metric-value">{agg["overall"]["count"]}</div><div class="metric-sub">{source_label}</div></section>
+    <section class="metric-card"><div class="metric-title">平均观察收益</div><div class="metric-value">{pct(agg["overall"]["avg_return_to_asof"])}</div><div class="metric-sub">观察胜率 {pct(agg["overall"]["win_rate_to_asof"])}</div></section>
+    <section class="metric-card"><div class="metric-title">平均超额</div><div class="metric-value">{pct(agg["overall"]["avg_excess_return_to_asof"])}</div><div class="metric-sub">相对全市场等权</div></section>
+    <section class="metric-card"><div class="metric-title">规则状态</div><div class="metric-value">{agg["overall"]["rule_exit_count"]}</div><div class="metric-sub">标准退出出现；{agg["overall"]["profit_protection_count"]} 进入利润保护区；{agg["overall"]["still_active_count"]} 仍延续</div></section>
   </div>
   <div class="grid">{strategy_cards}</div>
   <section class="panel">
@@ -850,7 +883,9 @@ def main() -> int:
     parser.add_argument("--foundation-db", type=Path)
     args = parser.parse_args()
     if args.start_date:
-        result = build_range_report(args.start_date, args.end_date or args.as_of_date, args.as_of_date, args.foundation_db)
+        result = build_range_report(
+            args.start_date, args.end_date or args.as_of_date, args.as_of_date, args.foundation_db
+        )
     else:
         if not args.signal_date:
             raise ValueError("--signal-date is required unless --start-date is provided")

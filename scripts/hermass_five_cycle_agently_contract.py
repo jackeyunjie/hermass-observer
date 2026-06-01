@@ -23,7 +23,14 @@ from typing import Any
 }
 
 
-def 计算视角状态(观察行: dict[str, Any], 被观察周期: str, 被观察周期序列: list[dict[str, Any]], 被观察序号: int, ea: Any, pd: Any) -> dict[str, Any]:
+def 计算视角状态(
+    观察行: dict[str, Any],
+    被观察周期: str,
+    被观察周期序列: list[dict[str, Any]],
+    被观察序号: int,
+    ea: Any,
+    pd: Any,
+) -> dict[str, Any]:
     被观察行 = 被观察周期序列[被观察序号]
     原审计 = 被观察行["audit"]
     组件 = dict(原审计["components"])

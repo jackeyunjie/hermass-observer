@@ -94,7 +94,4 @@ def enrich_market_response(response_text: str, ef2_count: int, total: int) -> st
 
 def get_forward_observation_status() -> str:
     fo = _STATS["forward_observation"]
-    return (
-        f"前向观察系统状态：{fo['n']} 条样本积累中，{fo['labeled']} 条已标注。"
-        f"首次校准日期：2026-05-28。"
-    )
+    return f"前向观察系统状态：{fo['n']} 条样本积累中，{fo['labeled']} 条已标注。首次校准日期：2026-05-28。"

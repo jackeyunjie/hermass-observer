@@ -47,11 +47,19 @@ def ensure_cache_dates(dates: set[str]) -> None:
     print(f"Need to build cache for {len(missing)} dates: {missing[:5]}...")
     for d in missing:
         result = subprocess.run(
-            [sys.executable, str(ROOT / "scripts" / "state_cache_builder.py"),
-             "--date", d,
-             "--foundation-db", str(FOUNDATION_DB),
-             "--cache-db", str(CACHE_DB)],
-            capture_output=True, text=True, timeout=120,
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "state_cache_builder.py"),
+                "--date",
+                d,
+                "--foundation-db",
+                str(FOUNDATION_DB),
+                "--cache-db",
+                str(CACHE_DB),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
         )
         if result.returncode != 0:
             print(f"  ⚠️ Failed for {d}: {result.stderr[:200]}")
@@ -138,9 +146,15 @@ def query_trade_state(trade: FounderTrade) -> dict[str, Any]:
         ).fetchone()
         if row:
             state_ef = {
-                "mn1_state_hex": row[0], "w1_state_hex": row[1], "d1_state_hex": row[2],
-                "mn1_state_score": row[3], "w1_state_score": row[4], "d1_state_score": row[5],
-                "score_sum": row[3] + row[4] + row[5], "ef_count": row[6], "d1_close": row[7],
+                "mn1_state_hex": row[0],
+                "w1_state_hex": row[1],
+                "d1_state_hex": row[2],
+                "mn1_state_score": row[3],
+                "w1_state_score": row[4],
+                "d1_state_score": row[5],
+                "score_sum": row[3] + row[4] + row[5],
+                "ef_count": row[6],
+                "d1_close": row[7],
             }
         else:
             state_ef = None
@@ -162,9 +176,13 @@ def query_trade_state(trade: FounderTrade) -> dict[str, Any]:
             ).fetchone()
             if row:
                 duration = {
-                    "d1_ef_duration": row[0], "w1_ef_duration": row[1], "mn1_ef_duration": row[2],
+                    "d1_ef_duration": row[0],
+                    "w1_ef_duration": row[1],
+                    "mn1_ef_duration": row[2],
                     "all_three_ef_duration": row[3],
-                    "d1_contraction_duration": row[4], "w1_contraction_duration": row[5], "mn1_contraction_duration": row[6],
+                    "d1_contraction_duration": row[4],
+                    "w1_contraction_duration": row[5],
+                    "mn1_contraction_duration": row[6],
                     "d1_days_since_contraction_exit": row[7],
                 }
             else:
@@ -183,8 +201,10 @@ def query_trade_state(trade: FounderTrade) -> dict[str, Any]:
             ).fetchone()
             if row:
                 sr = {
-                    "boundary_period": row[0], "boundary_type": row[1],
-                    "boundary_direction": row[2], "distance_pct": row[3],
+                    "boundary_period": row[0],
+                    "boundary_type": row[1],
+                    "boundary_direction": row[2],
+                    "distance_pct": row[3],
                     "boundary_price": row[4],
                 }
             else:
@@ -328,10 +348,10 @@ def generate_markdown(report: dict) -> str:
         lines.append("")
         lines.append(f"- 总交易数：**{s['total']}**")
         lines.append(f"- 有 State 数据：**{s['valid']}**")
-        pct_a = s['A']/s['valid']*100 if s['valid'] else 0
-        pct_b = s['B']/s['valid']*100 if s['valid'] else 0
-        pct_c = s['C']/s['valid']*100 if s['valid'] else 0
-        pct_d = s['D']/s['valid']*100 if s['valid'] else 0
+        pct_a = s["A"] / s["valid"] * 100 if s["valid"] else 0
+        pct_b = s["B"] / s["valid"] * 100 if s["valid"] else 0
+        pct_c = s["C"] / s["valid"] * 100 if s["valid"] else 0
+        pct_d = s["D"] / s["valid"] * 100 if s["valid"] else 0
         lines.append(f"- A（三周期 E/F + 刚释放）：**{s['A']}** ({pct_a:.1f}%)")
         lines.append(f"- B（双周期 E/F）：**{s['B']}** ({pct_b:.1f}%)")
         lines.append(f"- C（单周期/边缘）：**{s['C']}** ({pct_c:.1f}%)")
@@ -353,18 +373,24 @@ def generate_markdown(report: dict) -> str:
     lines.append("")
     lines.append('## 三、与"概念类比映射"的对比')
     lines.append("")
-    minervini_rate = report['stats'].get('minervini', {}).get('A+B_rate')
-    bollinger_rate = report['stats'].get('bollinger', {}).get('A+B_rate')
+    minervini_rate = report["stats"].get("minervini", {}).get("A+B_rate")
+    bollinger_rate = report["stats"].get("bollinger", {}).get("A+B_rate")
     lines.append("| 创始人 | 类比映射 A+B 率 | 精确回查 A+B 率 | 差异 | 说明 |")
     lines.append("|---|---|---|---|---|")
-    lines.append(f"| Minervini | 72.4% | {minervini_rate}% | {'-39.1%' if minervini_rate else '—'} | 精确回查仅覆盖 2021 年交易 |")
+    lines.append(
+        f"| Minervini | 72.4% | {minervini_rate}% | {'-39.1%' if minervini_rate else '—'} | 精确回查仅覆盖 2021 年交易 |"
+    )
     lines.append("| Darvas | 79.3% | N/A | — | 1957-1960 交易超出数据范围 |")
-    lines.append(f"| Bollinger | 73.5% | {bollinger_rate}% | {'-40.2%' if bollinger_rate else '—'} | 精确回查仅覆盖 2018+ 量化回测案例 |")
+    lines.append(
+        f"| Bollinger | 73.5% | {bollinger_rate}% | {'-40.2%' if bollinger_rate else '—'} | 精确回查仅覆盖 2018+ 量化回测案例 |"
+    )
     lines.append("")
-    lines.append("> **结论**：精确回查结果（33.3%）与类比映射结论（72-79%）在方向上高度一致（均认为创始人交易倾向于在 E/F 环境中发生），"
+    lines.append(
+        "> **结论**：精确回查结果（33.3%）与类比映射结论（72-79%）在方向上高度一致（均认为创始人交易倾向于在 E/F 环境中发生），"
         '但精确回查的 A+B 率显著低于类比映射。差异来源：(1) "概念类比映射"可以"事后合理化"地选择最匹配的 State 描述；'
         "(2) 2021 年 USIC 比赛期间市场整体处于高波动环境，大量交易发生在 D1 contraction 或 A 状态；"
-        "(3) Minervini 的部分交易（如 PYPL squat reversal、NVDA 做空）本身就不是传统意义上的 E/F 做多信号。")
+        "(3) Minervini 的部分交易（如 PYPL squat reversal、NVDA 做空）本身就不是传统意义上的 E/F 做多信号。"
+    )
     lines.append("")
 
     lines.append("---")
@@ -379,9 +405,9 @@ def generate_markdown(report: dict) -> str:
         sr = r.get("sr") or {}
         lines.append(
             f"| {i} | {r['founder']} | {r['date']} | {r['ticker']} | {r['name']} | "
-            f"{ef.get('d1_state_hex','-')} | {ef.get('w1_state_hex','-')} | {ef.get('mn1_state_hex','-')} | "
-            f"{ef.get('ef_count','-')} | {r.get('category','X')} | "
-            f"{sr.get('boundary_direction','-')} |"
+            f"{ef.get('d1_state_hex', '-')} | {ef.get('w1_state_hex', '-')} | {ef.get('mn1_state_hex', '-')} | "
+            f"{ef.get('ef_count', '-')} | {r.get('category', 'X')} | "
+            f"{sr.get('boundary_direction', '-')} |"
         )
 
     lines.append("")

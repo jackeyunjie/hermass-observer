@@ -65,7 +65,7 @@ def build_all_dates() -> dict:
 
     results = []
     for i, date_str in enumerate(pending):
-        print(f"\n[{i+1}/{len(pending)}] Building cache for {date_str}...")
+        print(f"\n[{i + 1}/{len(pending)}] Building cache for {date_str}...")
         builder = StateCacheBuilder(
             date_str=date_str,
             foundation_db=US_FOUNDATION_DB,
@@ -74,11 +74,13 @@ def build_all_dates() -> dict:
         )
         try:
             result = builder.build()
-            print(f"  OK: all_three_ef={result['counts']['all_three_ef_count']}, "
-                  f"distribution={result['counts']['distribution_rows']}, "
-                  f"transitions={result['counts']['transition_rows']}, "
-                  f"sr_boundary={result['counts']['sr_boundary_rows']}, "
-                  f"durations={result['counts']['duration_rows']}")
+            print(
+                f"  OK: all_three_ef={result['counts']['all_three_ef_count']}, "
+                f"distribution={result['counts']['distribution_rows']}, "
+                f"transitions={result['counts']['transition_rows']}, "
+                f"sr_boundary={result['counts']['sr_boundary_rows']}, "
+                f"durations={result['counts']['duration_rows']}"
+            )
             results.append({"date": date_str, "ok": True, **result["counts"]})
         except Exception as e:
             print(f"  ERROR: {e}")

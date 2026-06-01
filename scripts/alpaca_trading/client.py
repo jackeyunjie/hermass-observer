@@ -184,7 +184,9 @@ def test_connection() -> None:
     positions = client.get_positions()
     print(f"\nOpen Positions: {len(positions)}")
     for p in positions[:5]:
-        print(f"  {p['symbol']}: {p['qty']} shares @ ${p['current_price']:.2f} (P&L: ${p['unrealized_pl']:+.2f})")
+        print(
+            f"  {p['symbol']}: {p['qty']} shares @ ${p['current_price']:.2f} (P&L: ${p['unrealized_pl']:+.2f})"
+        )
 
     orders = client.get_orders(status="open")
     print(f"\nOpen Orders: {len(orders)}")

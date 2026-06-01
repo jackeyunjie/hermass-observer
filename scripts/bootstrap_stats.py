@@ -96,23 +96,32 @@ def bootstrap_ci(
     )
 
 
-def bootstrap_mean_ci(values: list[float], n_bootstrap: int = 10000, confidence: float = 0.95) -> tuple[float | None, float | None]:
+def bootstrap_mean_ci(
+    values: list[float], n_bootstrap: int = 10000, confidence: float = 0.95
+) -> tuple[float | None, float | None]:
     """Mean bootstrap CI."""
     return bootstrap_ci(values, np.mean, n_bootstrap, confidence)
 
 
-def bootstrap_median_ci(values: list[float], n_bootstrap: int = 10000, confidence: float = 0.95) -> tuple[float | None, float | None]:
+def bootstrap_median_ci(
+    values: list[float], n_bootstrap: int = 10000, confidence: float = 0.95
+) -> tuple[float | None, float | None]:
     """Median bootstrap CI."""
     return bootstrap_ci(values, np.median, n_bootstrap, confidence)
 
 
-def bootstrap_win_rate_ci(values: list[float], n_bootstrap: int = 10000, confidence: float = 0.95) -> tuple[float | None, float | None]:
+def bootstrap_win_rate_ci(
+    values: list[float], n_bootstrap: int = 10000, confidence: float = 0.95
+) -> tuple[float | None, float | None]:
     """Win-rate bootstrap CI."""
     return bootstrap_ci(values, lambda a: np.mean(a > 0), n_bootstrap, confidence)
 
 
-def bootstrap_payoff_ratio_ci(values: list[float], n_bootstrap: int = 10000, confidence: float = 0.95) -> tuple[float | None, float | None]:
+def bootstrap_payoff_ratio_ci(
+    values: list[float], n_bootstrap: int = 10000, confidence: float = 0.95
+) -> tuple[float | None, float | None]:
     """Payoff-ratio bootstrap CI."""
+
     def payoff(arr):
         w = arr[arr > 0]
         l = arr[arr < 0]
@@ -120,6 +129,7 @@ def bootstrap_payoff_ratio_ci(values: list[float], n_bootstrap: int = 10000, con
             return 0.0
         r = np.mean(w) / abs(np.mean(l))
         return r if np.isfinite(r) else 0.0
+
     return bootstrap_ci(values, payoff, n_bootstrap, confidence)
 
 
@@ -134,8 +144,9 @@ def metric_row(
     skip_ci: bool = False,
 ) -> dict[str, Any]:
     """Compute point estimates + optional 95% Bootstrap CI for a group of samples."""
-    values = [float(s[f"excess_ret_{window}d"]) for s in samples
-              if s.get(f"excess_ret_{window}d") is not None]
+    values = [
+        float(s[f"excess_ret_{window}d"]) for s in samples if s.get(f"excess_ret_{window}d") is not None
+    ]
     wins = [v for v in values if v > 0]
 
     mean = statistics.fmean(values) if values else None

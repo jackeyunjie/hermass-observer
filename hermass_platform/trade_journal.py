@@ -159,7 +159,20 @@ def add_trade(
                 (username, trade_date, stock_code, stock_name, direction, entry_price, exit_price, strategy_id, stop_loss, mn1_state_name, note, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (username, trade_date, stock_code, stock_name, direction, entry_price, exit_price, strategy_id, stop_loss, mn1, note, now),
+            (
+                username,
+                trade_date,
+                stock_code,
+                stock_name,
+                direction,
+                entry_price,
+                exit_price,
+                strategy_id,
+                stop_loss,
+                mn1,
+                note,
+                now,
+            ),
         )
         trade_id = cur.lastrowid
         conn.commit()
@@ -205,9 +218,7 @@ def list_trades(
             where.append("mn1_state_name = ?")
             params.append(str(state_filter))
         where_sql = " AND ".join(where)
-        total = conn.execute(
-            f"SELECT COUNT(*) FROM trade_journal WHERE {where_sql}", params
-        ).fetchone()[0]
+        total = conn.execute(f"SELECT COUNT(*) FROM trade_journal WHERE {where_sql}", params).fetchone()[0]
         rows = conn.execute(
             f"SELECT * FROM trade_journal WHERE {where_sql} ORDER BY trade_date DESC, id DESC LIMIT ? OFFSET ?",
             params + [per_page, offset],
@@ -217,7 +228,9 @@ def list_trades(
             item = dict(row)
             item["pnl_pct"] = _calc_pnl(row)
             item["hold_days"] = None
-            item["strategy_label"] = STRATEGY_LABELS.get(item.get("strategy_id", ""), item.get("strategy_id", ""))
+            item["strategy_label"] = STRATEGY_LABELS.get(
+                item.get("strategy_id", ""), item.get("strategy_id", "")
+            )
             trades.append(item)
         pages = max((total + per_page - 1) // per_page, 1)
         return {
@@ -378,9 +391,7 @@ def _build_insight(
         if worst_state
         else "暂无环境归因"
     )
-    return (
-        f"你在{strategy_part}，{state_part}。建议只在 ef≥2 + MN1 正值时使用趋势类策略。"
-    )
+    return f"你在{strategy_part}，{state_part}。建议只在 ef≥2 + MN1 正值时使用趋势类策略。"
 
 
 def delete_trade(

@@ -31,6 +31,7 @@ if str(ROOT) not in sys.path:
 from vcp_exit_manager import simulate_vcp_trade
 from ma2560_execution_manager import simulate_ma2560_trade
 from bollinger_execution_manager import simulate_bollinger_trade
+
 OUT_DIR = ROOT / "outputs" / "forward_observation"
 PUBLIC_DIR = ROOT / "public"
 
@@ -115,7 +116,9 @@ def load_state_reference_close(date_str: str) -> dict[str, float]:
     return out
 
 
-def load_price_window(db_path: Path, date_str: str, max_window: int) -> tuple[
+def load_price_window(
+    db_path: Path, date_str: str, max_window: int
+) -> tuple[
     dict[str, list[tuple[str, float]]],
     dict[str, list[tuple[str, float]]],
     dict[str, list[tuple[str, float]]],
@@ -151,7 +154,9 @@ def load_price_window(db_path: Path, date_str: str, max_window: int) -> tuple[
     return dict(by_code), {}, {}, sorted(trading_dates)
 
 
-def load_bollinger_ohlc_window(db_path: Path, date_str: str, max_window: int) -> dict[str, list[dict[str, Any]]]:
+def load_bollinger_ohlc_window(
+    db_path: Path, date_str: str, max_window: int
+) -> dict[str, list[dict[str, Any]]]:
     """Load OHLCV data for Bollinger Bandit exit simulation."""
     start = date.fromisoformat(date_str)
     end = start + timedelta(days=max(max_window * 3 + 15, 90))
@@ -172,18 +177,22 @@ def load_bollinger_ohlc_window(db_path: Path, date_str: str, max_window: int) ->
         close_val = safe_float(c)
         if close_val is None or close_val <= 0:
             continue
-        by_code[code6(stock_code)].append({
-            "date": str(d),
-            "open": safe_float(o) or 0,
-            "high": safe_float(h) or 0,
-            "low": safe_float(l) or 0,
-            "close": close_val,
-            "volume": safe_float(v) or 0,
-        })
+        by_code[code6(stock_code)].append(
+            {
+                "date": str(d),
+                "open": safe_float(o) or 0,
+                "high": safe_float(h) or 0,
+                "low": safe_float(l) or 0,
+                "close": close_val,
+                "volume": safe_float(v) or 0,
+            }
+        )
     return dict(by_code)
 
 
-def stock_forward_return(series: list[tuple[str, float]], date_str: str, window: int) -> tuple[float | None, str | None, float | None]:
+def stock_forward_return(
+    series: list[tuple[str, float]], date_str: str, window: int
+) -> tuple[float | None, str | None, float | None]:
     if not series:
         return None, None, None
     idx = next((i for i, item in enumerate(series) if item[0] >= date_str), None)
@@ -224,11 +233,14 @@ def load_mn1_enrichment(db_path: Path, date_str: str) -> dict[str, dict[str, Any
     Returns: {stock_code_6: {mn1_score, mn1_trend, mn1_volatility}}
     """
     con = duckdb.connect(str(db_path), read_only=True)
-    rows = con.execute("""
+    rows = con.execute(
+        """
         SELECT stock_code, mn1_state_score, mn1_trend, mn1_volatility
         FROM d1_perspective_state
         WHERE state_date = CAST(? AS DATE)
-    """, [date_str]).fetchall()
+    """,
+        [date_str],
+    ).fetchall()
     con.close()
     out: dict[str, dict[str, Any]] = {}
     for code, score, trend, vol in rows:
@@ -259,6 +271,7 @@ def _classify_mn1_regime(score: int | None, trend: str) -> str:
 def _compute_mn1_regime_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     """Compute per-MN1-regime signal count distribution."""
     from collections import Counter, defaultdict
+
     regime_counts: Counter[str] = Counter()
     regime_strategy: dict[str, Counter[str]] = defaultdict(Counter)
     for row in rows:
@@ -346,7 +359,12 @@ def build_observation_rows(
         # ── VCP real exit simulation (supplements fixed-window returns) ──
         vcp_conf = card.get("vcp_entry_confirmation")
         vcp_stops = card.get("vcp_stop_prices")
-        if strategy.get("strategy_id") == "vcp" and strategy.get("signal_type") == "entry" and vcp_stops and ref_close is not None:
+        if (
+            strategy.get("strategy_id") == "vcp"
+            and strategy.get("signal_type") == "entry"
+            and vcp_stops
+            and ref_close is not None
+        ):
             entry_data = {
                 "date": date_str,
                 "entry_price": ref_close,
@@ -371,7 +389,11 @@ def build_observation_rows(
 
         # ── 2560 real exit simulation (supplements fixed-window returns) ──
         ma2560_entry_conf = card.get("ma2560_entry_confirmation")
-        if strategy.get("strategy_id") == "ma2560" and strategy.get("signal_type") == "entry" and ref_close is not None:
+        if (
+            strategy.get("strategy_id") == "ma2560"
+            and strategy.get("signal_type") == "entry"
+            and ref_close is not None
+        ):
             entry_data = {
                 "date": date_str,
                 "entry_price": ref_close,
@@ -397,7 +419,11 @@ def build_observation_rows(
             item["ma2560_exit_status"] = "not_ma2560"
 
         # ── Bollinger Bandit real exit simulation (supplements fixed-window returns) ──
-        if strategy.get("strategy_id") == "bollinger_bandit" and strategy.get("signal_type") == "entry" and ref_close is not None:
+        if (
+            strategy.get("strategy_id") == "bollinger_bandit"
+            and strategy.get("signal_type") == "entry"
+            and ref_close is not None
+        ):
             ohlc_series = (bollinger_ohlc_by_code or {}).get(code, [])
             if ohlc_series:
                 entry_data = {
@@ -408,7 +434,9 @@ def build_observation_rows(
                 trade_result = simulate_bollinger_trade(entry_data, ohlc_series)
                 item["bollinger_exit_status"] = trade_result.get("status")
                 item["bollinger_exit_date"] = trade_result.get("exit_date") or trade_result.get("last_date")
-                item["bollinger_exit_price"] = trade_result.get("exit_price") or trade_result.get("last_price")
+                item["bollinger_exit_price"] = trade_result.get("exit_price") or trade_result.get(
+                    "last_price"
+                )
                 item["bollinger_hold_days"] = trade_result.get("hold_days")
                 item["bollinger_exit_reason"] = trade_result.get("exit_reason")
                 item["bollinger_exit_type"] = trade_result.get("exit_type")
@@ -429,7 +457,9 @@ def build_observation_rows(
             item[f"target_close_{window}d"] = target_close
             item[f"forward_return_{window}d"] = ret
             item[f"market_equal_weight_return_{window}d"] = bench
-            item[f"forward_excess_return_{window}d"] = ret - bench if ret is not None and bench is not None else None
+            item[f"forward_excess_return_{window}d"] = (
+                ret - bench if ret is not None and bench is not None else None
+            )
             if ret is None or bench is None:
                 missing = True
         item["label_status"] = "pending_future_data" if missing else "labeled"
@@ -449,23 +479,57 @@ def sample_progress_summary(rows: list[dict[str, Any]], windows: list[int]) -> d
     bollinger_exited = [r for r in rows if r.get("bollinger_exit_status") == "exited"]
     bollinger_holding = [r for r in rows if r.get("bollinger_exit_status") == "holding"]
     key_scene_counts = {
-        "vcp_path_match": sum(1 for row in rows if row.get("strategy_id") == "vcp" and row.get("vcp_path_match")),
+        "vcp_path_match": sum(
+            1 for row in rows if row.get("strategy_id") == "vcp" and row.get("vcp_path_match")
+        ),
         "vcp_exited": len(vcp_exited),
         "vcp_holding": len(vcp_holding),
-        "vcp_avg_hold_days": round(statistics.fmean([r["vcp_hold_days"] for r in vcp_exited if r.get("vcp_hold_days") is not None]), 1) if vcp_exited else 0,
-        "vcp_exit_reasons": dict(Counter(r.get("vcp_exit_reason") for r in vcp_exited if r.get("vcp_exit_reason"))),
+        "vcp_avg_hold_days": round(
+            statistics.fmean([r["vcp_hold_days"] for r in vcp_exited if r.get("vcp_hold_days") is not None]),
+            1,
+        )
+        if vcp_exited
+        else 0,
+        "vcp_exit_reasons": dict(
+            Counter(r.get("vcp_exit_reason") for r in vcp_exited if r.get("vcp_exit_reason"))
+        ),
         "ma2560_exited": len(ma2560_exited),
         "ma2560_holding": len(ma2560_holding),
-        "ma2560_avg_hold_days": round(statistics.fmean([r["ma2560_hold_days"] for r in ma2560_exited if r.get("ma2560_hold_days") is not None]), 1) if ma2560_exited else 0,
-        "ma2560_exit_reasons": dict(Counter(r.get("ma2560_exit_reason") for r in ma2560_exited if r.get("ma2560_exit_reason"))),
+        "ma2560_avg_hold_days": round(
+            statistics.fmean(
+                [r["ma2560_hold_days"] for r in ma2560_exited if r.get("ma2560_hold_days") is not None]
+            ),
+            1,
+        )
+        if ma2560_exited
+        else 0,
+        "ma2560_exit_reasons": dict(
+            Counter(r.get("ma2560_exit_reason") for r in ma2560_exited if r.get("ma2560_exit_reason"))
+        ),
         "bollinger_exited": len(bollinger_exited),
         "bollinger_holding": len(bollinger_holding),
-        "bollinger_avg_hold_days": round(statistics.fmean([r["bollinger_hold_days"] for r in bollinger_exited if r.get("bollinger_hold_days") is not None]), 1) if bollinger_exited else 0,
-        "bollinger_exit_reasons": dict(Counter(r.get("bollinger_exit_reason") for r in bollinger_exited if r.get("bollinger_exit_reason"))),
+        "bollinger_avg_hold_days": round(
+            statistics.fmean(
+                [
+                    r["bollinger_hold_days"]
+                    for r in bollinger_exited
+                    if r.get("bollinger_hold_days") is not None
+                ]
+            ),
+            1,
+        )
+        if bollinger_exited
+        else 0,
+        "bollinger_exit_reasons": dict(
+            Counter(
+                r.get("bollinger_exit_reason") for r in bollinger_exited if r.get("bollinger_exit_reason")
+            )
+        ),
         "bollinger_volatility_stable": sum(
             1
             for row in rows
-            if row.get("strategy_id") == "bollinger_bandit" and "波动稳定" in str(row.get("local_stat_note") or "")
+            if row.get("strategy_id") == "bollinger_bandit"
+            and "波动稳定" in str(row.get("local_stat_note") or "")
         ),
         "ma2560_full_match": sum(
             1
@@ -613,7 +677,7 @@ def generate_html(payload: dict[str, Any], windows: list[int]) -> str:
           <td>{vcp_text}</td>
           <td>{ma2560_text_exit}</td>
           <td>{bollinger_text_exit}</td>
-          {''.join(window_cells)}
+          {"".join(window_cells)}
         </tr>
         """
 
@@ -621,15 +685,24 @@ def generate_html(payload: dict[str, Any], windows: list[int]) -> str:
     rows = "\n".join(row(item) for item in payload.get("rows", []) or [])
     progress = payload.get("sample_progress") or {}
     scenes = progress.get("key_scene_counts") or {}
-    strategy_dist = " / ".join(f"{key}:{value}" for key, value in (progress.get("strategy_distribution") or {}).items()) or "-"
-    fit_dist = " / ".join(f"{key}:{value}" for key, value in (progress.get("fit_distribution") or {}).items()) or "-"
-    window_dist = " / ".join(f"{key}:{value}" for key, value in (progress.get("window_labeled") or {}).items()) or "-"
+    strategy_dist = (
+        " / ".join(f"{key}:{value}" for key, value in (progress.get("strategy_distribution") or {}).items())
+        or "-"
+    )
+    fit_dist = (
+        " / ".join(f"{key}:{value}" for key, value in (progress.get("fit_distribution") or {}).items()) or "-"
+    )
+    window_dist = (
+        " / ".join(f"{key}:{value}" for key, value in (progress.get("window_labeled") or {}).items()) or "-"
+    )
     vcp_reasons = scenes.get("vcp_exit_reasons") or {}
     vcp_reason_text = " / ".join(f"{k}:{v}" for k, v in vcp_reasons.items()) if vcp_reasons else "-"
     ma2560_reasons = scenes.get("ma2560_exit_reasons") or {}
     ma2560_reason_text = " / ".join(f"{k}:{v}" for k, v in ma2560_reasons.items()) if ma2560_reasons else "-"
     bollinger_reasons = scenes.get("bollinger_exit_reasons") or {}
-    bollinger_reason_text = " / ".join(f"{k}:{v}" for k, v in bollinger_reasons.items()) if bollinger_reasons else "-"
+    bollinger_reason_text = (
+        " / ".join(f"{k}:{v}" for k, v in bollinger_reasons.items()) if bollinger_reasons else "-"
+    )
     return f"""<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -722,11 +795,22 @@ def build_forward_observation(
         and (card.get("strategy") or {}).get("signal_type") == "entry"
         for card in reminder.get("reminders", [])
     )
-    bollinger_ohlc_by_code = load_bollinger_ohlc_window(db_path, date_str, max(windows)) if has_bollinger else {}
+    bollinger_ohlc_by_code = (
+        load_bollinger_ohlc_window(db_path, date_str, max(windows)) if has_bollinger else {}
+    )
 
     mn1_enrichment = load_mn1_enrichment(db_path, date_str)
 
-    rows = build_observation_rows(reminder, reference_close, by_code, ma25_by_code, ma60_by_code, windows, bollinger_ohlc_by_code, mn1_enrichment)
+    rows = build_observation_rows(
+        reminder,
+        reference_close,
+        by_code,
+        ma25_by_code,
+        ma60_by_code,
+        windows,
+        bollinger_ohlc_by_code,
+        mn1_enrichment,
+    )
     status_counts = Counter(row.get("label_status") for row in rows)
     strategy_counts = Counter(row.get("strategy_id") for row in rows)
     sample_progress = sample_progress_summary(rows, windows)
@@ -805,8 +889,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Build forward observation ledger from strategy reminders.")
     parser.add_argument("--date", required=True)
     parser.add_argument("--foundation-db")
-    parser.add_argument("--windows", default="5,10,20", help="Comma-separated forward windows in trading days.")
-    parser.add_argument("--no-update-latest", action="store_true", help="Do not update latest output aliases.")
+    parser.add_argument(
+        "--windows", default="5,10,20", help="Comma-separated forward windows in trading days."
+    )
+    parser.add_argument(
+        "--no-update-latest", action="store_true", help="Do not update latest output aliases."
+    )
     args = parser.parse_args()
 
     result = build_forward_observation(

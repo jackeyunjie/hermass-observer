@@ -34,24 +34,22 @@ MA2560_MATCH_LABELS = {
     "market_unsupported": "2560 market_unsupported",
     "not_match": "2560 not_match",
 }
-VCP_VALIDATED_SUMMARY_FALLBACK = "本地验证有效：D1近20日收缩后释放；10日平均超额+2.30%，20日平均超额+4.69%，20日胜率56.16%。"
-BOLLINGER_VOL_STABLE_NOTE = "本地统计提示：波动稳定环境下，布林强盗信号历史表现优于波动活跃环境（+0.59% vs -0.49%）"
+VCP_VALIDATED_SUMMARY_FALLBACK = (
+    "本地验证有效：D1近20日收缩后释放；10日平均超额+2.30%，20日平均超额+4.69%，20日胜率56.16%。"
+)
+BOLLINGER_VOL_STABLE_NOTE = (
+    "本地统计提示：波动稳定环境下，布林强盗信号历史表现优于波动活跃环境（+0.59% vs -0.49%）"
+)
 BOLLINGER_VOL_ACTIVE_NOTE = "当前波动活跃，历史上此环境下布林强盗信号表现较弱"
 
 # Mark Minervini 外部验证数据（来自 MARK_MINERVINI_STATE_MATCH_ANALYSIS.md）
-MINERVINI_ENV_MATCH_TEXT = (
-    "外部验证：该环境与 Mark Minervini 72.4% 的交易选择一致"
-)
+MINERVINI_ENV_MATCH_TEXT = "外部验证：该环境与 Mark Minervini 72.4% 的交易选择一致"
 
 # Nicolas Darvas 外部验证数据（来自 DARVAS_2560_STATE_MATCH_ANALYSIS.md）
-DARVAS_ENV_MATCH_TEXT = (
-    "外部验证：该环境与 Nicolas Darvas 79.3% 的交易选择一致"
-)
+DARVAS_ENV_MATCH_TEXT = "外部验证：该环境与 Nicolas Darvas 79.3% 的交易选择一致"
 
 # John Bollinger 外部验证数据（来自 BOLLINGER_BANDIT_STATE_MATCH_ANALYSIS.md）
-BOLLINGER_ENV_MATCH_TEXT = (
-    "外部验证：该环境与 John Bollinger 73.5% 的交易选择一致"
-)
+BOLLINGER_ENV_MATCH_TEXT = "外部验证：该环境与 John Bollinger 73.5% 的交易选择一致"
 
 
 def ymd(date_str: str) -> str:
@@ -382,8 +380,14 @@ def vcp_environment(signal: dict[str, Any], state: dict[str, Any], rule: dict[st
     )
     path_match = d1_since_exit is not None and 1 <= d1_since_exit <= window and d1_prev_contraction > 0
     evidence = rule.get("evidence") if isinstance(rule.get("evidence"), dict) else {}
-    evidence_20260501 = rule.get("evidence_20260501") if isinstance(rule.get("evidence_20260501"), dict) else {}
-    summary = evidence.get("display_summary") or evidence_20260501.get("display_summary") or VCP_VALIDATED_SUMMARY_FALLBACK
+    evidence_20260501 = (
+        rule.get("evidence_20260501") if isinstance(rule.get("evidence_20260501"), dict) else {}
+    )
+    summary = (
+        evidence.get("display_summary")
+        or evidence_20260501.get("display_summary")
+        or VCP_VALIDATED_SUMMARY_FALLBACK
+    )
     return {
         "path_match": path_match,
         "status": "local_validated" if path_match else "not_path_match",
@@ -418,14 +422,18 @@ def build_card(
     if label not in ALLOWED_MATURITY_LABELS:
         raise ValueError(f"unsupported reminder label: {label}")
 
-    industry = (evaluation or {}).get("sw_l1") or ((ifind or {}).get("industry") or {}).get("sw_l1") or "未分类"
+    industry = (
+        (evaluation or {}).get("sw_l1") or ((ifind or {}).get("industry") or {}).get("sw_l1") or "未分类"
+    )
     strategy_id = signal.get("strategy_id")
     industry_prior = (prior_map.get("by_industry") or {}).get(industry) or {}
     strategy_prior = (prior_map.get("strategy_priors") or {}).get(strategy_id) or {}
     return {
         "stock_code": signal.get("stock_code"),
         "stock_code_6": code6(signal.get("stock_code")),
-        "stock_name": (evaluation or {}).get("stock_name") or (fundamental or {}).get("stock_name") or signal.get("stock_name"),
+        "stock_name": (evaluation or {}).get("stock_name")
+        or (fundamental or {}).get("stock_name")
+        or signal.get("stock_name"),
         "maturity": label,
         "strategy": {
             "strategy_id": signal.get("strategy_id"),
@@ -494,15 +502,15 @@ def build_card(
         "vcp_entry_confirmation": signal.get("vcp_entry_confirmation"),
         "vcp_stop_prices": signal.get("vcp_stop_prices"),
         "matched_pattern": _parse_matched_pattern(signal.get("matched_pattern")),
-        "w1_mn1_env": compute_w1_mn1_env_label(
-            state.get("mn1_state_score"), state.get("w1_state_score")
-        ),
+        "w1_mn1_env": compute_w1_mn1_env_label(state.get("mn1_state_score"), state.get("w1_state_score")),
         "calibration": cal,
         "research_only": True,
     }
 
 
-def build_scene_tags(signal: dict[str, Any], ifind: dict[str, Any] | None, evaluation: dict[str, Any] | None) -> list[str]:
+def build_scene_tags(
+    signal: dict[str, Any], ifind: dict[str, Any] | None, evaluation: dict[str, Any] | None
+) -> list[str]:
     tags: list[str] = []
     financial = (ifind or {}).get("financial") or {}
     industry = (ifind or {}).get("industry") or {}
@@ -522,7 +530,7 @@ def build_scene_tags(signal: dict[str, Any], ifind: dict[str, Any] | None, evalu
 
 
 def apply_prior_scene_tag(card: dict[str, Any]) -> None:
-    industry_prior = ((card.get("macro_chain_prior") or {}).get("industry_prior") or {})
+    industry_prior = (card.get("macro_chain_prior") or {}).get("industry_prior") or {}
     label = industry_prior.get("posterior_adjustment_label")
     if not label:
         return
@@ -560,7 +568,9 @@ def card_sort_key(card: dict[str, Any]) -> tuple[Any, ...]:
 
 def generate_html(payload: dict[str, Any]) -> str:
     cards = payload["reminders"]
-    groups: dict[str, list[dict[str, Any]]] = {label: [] for label in ["趋势新生", "趋势行进", "趋势延展", "防守参考线", "状态值得复核"]}
+    groups: dict[str, list[dict[str, Any]]] = {
+        label: [] for label in ["趋势新生", "趋势行进", "趋势延展", "防守参考线", "状态值得复核"]
+    }
     for card in cards:
         groups.setdefault(card["maturity"], []).append(card)
 
@@ -584,27 +594,27 @@ def generate_html(payload: dict[str, Any]) -> str:
         scene_tags = " / ".join(card.get("scene_tags") or []) or "-"
         w1_mn1_env = card.get("w1_mn1_env") or {}
         w1_mn1_line = (
-            f'<br><span style="color:{esc(w1_mn1_env.get("color", "#6b7280"))};font-size:12px;">'
-            f'大周期背景：{esc(w1_mn1_env.get("label", "大周期过渡"))}'
-            f' <span style="color:#999;">— {esc(w1_mn1_env.get("description", ""))}</span></span>'
-        ) if w1_mn1_env else ""
+            (
+                f'<br><span style="color:{esc(w1_mn1_env.get("color", "#6b7280"))};font-size:12px;">'
+                f"大周期背景：{esc(w1_mn1_env.get('label', '大周期过渡'))}"
+                f' <span style="color:#999;">— {esc(w1_mn1_env.get("description", ""))}</span></span>'
+            )
+            if w1_mn1_env
+            else ""
+        )
         founder_line = ""
         sid = strategy.get("strategy_id") or ""
         if sid == "vcp":
             vcp_env = card.get("vcp_environment") or {}
             if vcp_env.get("path_match"):
                 founder_line = (
-                    f'<br><span style="color:#059669;font-size:12px;">'
-                    f'{esc(MINERVINI_ENV_MATCH_TEXT)}'
-                    f'</span>'
+                    f'<br><span style="color:#059669;font-size:12px;">{esc(MINERVINI_ENV_MATCH_TEXT)}</span>'
                 )
         elif sid == "ma2560":
             ma2560_env = card.get("ma2560_environment") or {}
             if ma2560_env.get("market_match_level") == "full_match":
                 founder_line = (
-                    f'<br><span style="color:#059669;font-size:12px;">'
-                    f'{esc(DARVAS_ENV_MATCH_TEXT)}'
-                    f'</span>'
+                    f'<br><span style="color:#059669;font-size:12px;">{esc(DARVAS_ENV_MATCH_TEXT)}</span>'
                 )
         elif sid == "bollinger_bandit":
             local_note = card.get("local_stat_note") or ""
@@ -613,9 +623,7 @@ def generate_html(payload: dict[str, Any]) -> str:
             is_vol_stable = "波动稳定" in str(local_note) or state.get("d1_state") == "E"
             if is_vol_stable:
                 founder_line = (
-                    f'<br><span style="color:#059669;font-size:12px;">'
-                    f'{esc(BOLLINGER_ENV_MATCH_TEXT)}'
-                    f'</span>'
+                    f'<br><span style="color:#059669;font-size:12px;">{esc(BOLLINGER_ENV_MATCH_TEXT)}</span>'
                 )
         pattern_info = card.get("matched_pattern")
         pattern_line = ""
@@ -623,11 +631,11 @@ def generate_html(payload: dict[str, Any]) -> str:
             boost = pattern_info.get("pattern_boost", 0)
             pattern_line = (
                 f'<br><span style="color:#059669;font-size:12px;">'
-                f'跃迁模式：D1{esc(pattern_info.get("pattern_description",""))} | '
-                f'历史{pattern_info.get("pattern_mean_excess",0):+.1%} | '
-                f'n={pattern_info.get("pattern_n",0)} | '
-                f'加成{boost:+.1%}'
-                f'</span>'
+                f"跃迁模式：D1{esc(pattern_info.get('pattern_description', ''))} | "
+                f"历史{pattern_info.get('pattern_mean_excess', 0):+.1%} | "
+                f"n={pattern_info.get('pattern_n', 0)} | "
+                f"加成{boost:+.1%}"
+                f"</span>"
             )
         strategy = card.get("strategy") or {}
         conviction = strategy.get("conviction_level", "")
@@ -729,7 +737,7 @@ def generate_html(payload: dict[str, Any]) -> str:
   <main>
     <h1>策略提醒简报</h1>
     <p class="meta">日期 {esc(payload["date"])} | 提醒 {payload["total_reminders"]} 条 | 生成 {generated_at}</p>
-    {''.join(sections)}
+    {"".join(sections)}
   </main>
 </body>
 </html>

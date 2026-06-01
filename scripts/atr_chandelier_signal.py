@@ -39,11 +39,7 @@ def check_atr_chandelier_entry(
     """
     if mn1_state is None or w1_state is None or d1_state is None:
         return False
-    return (
-        mn1_state in _ALLOWED_MN1
-        and w1_state in _ALLOWED_W1
-        and d1_state in _ALLOWED_D1
-    )
+    return mn1_state in _ALLOWED_MN1 and w1_state in _ALLOWED_W1 and d1_state in _ALLOWED_D1
 
 
 def atr_chandelier_signal(

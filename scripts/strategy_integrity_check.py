@@ -10,6 +10,7 @@ Usage:
     python3 scripts/strategy_integrity_check.py --date 2026-05-20
     python3 scripts/strategy_integrity_check.py --ledger path/to/ledger.json
 """
+
 from __future__ import annotations
 
 import argparse
@@ -92,6 +93,7 @@ def find_position_monitor() -> Path | None:
 
 # ── Check 1: Entry confirmation bypass ──
 
+
 def check_entry_confirmation(ledger: dict[str, Any]) -> list[dict[str, Any]]:
     """Check if signals have full entry confirmation fields."""
     violations = []
@@ -106,20 +108,23 @@ def check_entry_confirmation(ledger: dict[str, Any]) -> list[dict[str, Any]]:
         missing = [f for f in required if f not in sig and f not in (sig.get("entry_confirmation") or {})]
 
         if missing:
-            violations.append({
-                "check": "entry_confirmation_bypass",
-                "severity": "critical",
-                "strategy": strategy,
-                "stock_code": sig.get("stock_code", "?"),
-                "date": sig.get("date", "?"),
-                "missing_fields": missing,
-                "reason": f"Signal bypassed entry confirmation: missing {missing}",
-            })
+            violations.append(
+                {
+                    "check": "entry_confirmation_bypass",
+                    "severity": "critical",
+                    "strategy": strategy,
+                    "stock_code": sig.get("stock_code", "?"),
+                    "date": sig.get("date", "?"),
+                    "missing_fields": missing,
+                    "reason": f"Signal bypassed entry confirmation: missing {missing}",
+                }
+            )
 
     return violations
 
 
 # ── Check 2: Fixed holding period instead of real exit rules ──
+
 
 def check_fixed_hold_exit(ledger: dict[str, Any]) -> list[dict[str, Any]]:
     """Check if exits use fixed holding period instead of real exit rules."""
@@ -145,21 +150,24 @@ def check_fixed_hold_exit(ledger: dict[str, Any]) -> list[dict[str, Any]]:
                 for keyword in ["止损", "止盈", "跌破", "突破", "假突破", "递减", "回落"]
             )
             if not has_real_exit:
-                violations.append({
-                    "check": "fixed_hold_instead_of_real_exit",
-                    "severity": "critical",
-                    "strategy": strategy,
-                    "stock_code": trade.get("stock_code", "?"),
-                    "exit_date": trade.get("exit_date", "?"),
-                    "exit_reason": exit_reason,
-                    "hold_days": hold_days,
-                    "reason": f"Trade exited with fixed hold period ({hold_days}d) instead of real exit rules",
-                })
+                violations.append(
+                    {
+                        "check": "fixed_hold_instead_of_real_exit",
+                        "severity": "critical",
+                        "strategy": strategy,
+                        "stock_code": trade.get("stock_code", "?"),
+                        "exit_date": trade.get("exit_date", "?"),
+                        "exit_reason": exit_reason,
+                        "hold_days": hold_days,
+                        "reason": f"Trade exited with fixed hold period ({hold_days}d) instead of real exit rules",
+                    }
+                )
 
     return violations
 
 
 # ── Check 3: Exit rule chain integrity ──
+
 
 def check_exit_chain_integrity(ledger: dict[str, Any]) -> list[dict[str, Any]]:
     """Check if exits follow the canonical priority chain."""
@@ -182,19 +190,22 @@ def check_exit_chain_integrity(ledger: dict[str, Any]) -> list[dict[str, Any]]:
         # Check if exit reason matches any canonical rule
         matched = any(keyword in exit_reason for keyword in chain)
         if not matched and exit_reason not in ("backtest_end", "max_hold"):
-            violations.append({
-                "check": "unknown_exit_rule",
-                "severity": "warning",
-                "strategy": strategy,
-                "stock_code": trade.get("stock_code", "?"),
-                "exit_reason": exit_reason,
-                "reason": f"Exit reason '{exit_reason}' does not match any canonical rule for {strategy}",
-            })
+            violations.append(
+                {
+                    "check": "unknown_exit_rule",
+                    "severity": "warning",
+                    "strategy": strategy,
+                    "stock_code": trade.get("stock_code", "?"),
+                    "exit_reason": exit_reason,
+                    "reason": f"Exit reason '{exit_reason}' does not match any canonical rule for {strategy}",
+                }
+            )
 
     return violations
 
 
 # ── Check 4: Forward observation ledger integrity ──
+
 
 def check_forward_observation(obs: dict[str, Any]) -> list[dict[str, Any]]:
     """Check forward observation records for simplified exits."""
@@ -208,30 +219,35 @@ def check_forward_observation(obs: dict[str, Any]) -> list[dict[str, Any]]:
 
         # If simulated=True but no exit_rules_reference, it's suspicious
         if simulated and "exit_rules_reference" not in rec:
-            violations.append({
-                "check": "forward_obs_missing_exit_reference",
-                "severity": "warning",
-                "strategy": strategy,
-                "stock_code": rec.get("stock_code", "?"),
-                "date": rec.get("date", "?"),
-                "reason": "Forward observation simulation lacks exit_rules_reference",
-            })
+            violations.append(
+                {
+                    "check": "forward_obs_missing_exit_reference",
+                    "severity": "warning",
+                    "strategy": strategy,
+                    "stock_code": rec.get("stock_code", "?"),
+                    "date": rec.get("date", "?"),
+                    "reason": "Forward observation simulation lacks exit_rules_reference",
+                }
+            )
 
         # Check for fixed-hold in forward observation
         if exit_type in ("fixed_hold", "time_based"):
-            violations.append({
-                "check": "forward_obs_fixed_exit",
-                "severity": "critical",
-                "strategy": strategy,
-                "stock_code": rec.get("stock_code", "?"),
-                "date": rec.get("date", "?"),
-                "reason": "Forward observation uses fixed exit instead of real exit rules",
-            })
+            violations.append(
+                {
+                    "check": "forward_obs_fixed_exit",
+                    "severity": "critical",
+                    "strategy": strategy,
+                    "stock_code": rec.get("stock_code", "?"),
+                    "date": rec.get("date", "?"),
+                    "reason": "Forward observation uses fixed exit instead of real exit rules",
+                }
+            )
 
     return violations
 
 
 # ── Check 5: Position monitor integrity ──
+
 
 def check_position_monitor(monitor_html: Path | None) -> list[dict[str, Any]]:
     """Check position monitor output for simplified rules."""
@@ -247,26 +263,31 @@ def check_position_monitor(monitor_html: Path | None) -> list[dict[str, Any]]:
     has_bb_exit = "bb_full_exit_check" in content or "递减均线" in content
 
     if not (has_vcp_exit or has_ma2560_exit or has_bb_exit):
-        violations.append({
-            "check": "position_monitor_simplified",
-            "severity": "critical",
-            "file": str(monitor_html),
-            "reason": "Position monitor does not reference real exit check functions",
-        })
+        violations.append(
+            {
+                "check": "position_monitor_simplified",
+                "severity": "critical",
+                "file": str(monitor_html),
+                "reason": "Position monitor does not reference real exit check functions",
+            }
+        )
 
     # Check for Research-Only disclaimer
     if "Research-Only" not in content and "研究用途" not in content:
-        violations.append({
-            "check": "missing_disclaimer",
-            "severity": "warning",
-            "file": str(monitor_html),
-            "reason": "Position monitor missing Research-Only disclaimer",
-        })
+        violations.append(
+            {
+                "check": "missing_disclaimer",
+                "severity": "warning",
+                "file": str(monitor_html),
+                "reason": "Position monitor missing Research-Only disclaimer",
+            }
+        )
 
     return violations
 
 
 # ── Report generation ──
+
 
 def generate_report(violations: list[dict[str, Any]], check_date: str | None) -> dict[str, Any]:
     """Generate integrity check report."""
@@ -326,6 +347,7 @@ def print_report(report: dict[str, Any]) -> None:
 
 
 # ── Main ──
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Strategy integrity checker")

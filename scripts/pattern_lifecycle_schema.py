@@ -128,7 +128,7 @@ CREATE_STATEMENTS = [
         resolution       VARCHAR,
         PRIMARY KEY (stock_code, pattern_type, first_seen)
     )
-    """
+    """,
 ]
 
 
@@ -143,15 +143,10 @@ def init_schema(db_path: Path | None = None) -> Path:
     con = duckdb.connect(str(db_path))
     for stmt in CREATE_STATEMENTS:
         con.execute(stmt)
-    cols = {
-        row[1]
-        for row in con.execute("PRAGMA table_info('vcp_candidate_pool')").fetchall()
-    }
+    cols = {row[1] for row in con.execute("PRAGMA table_info('vcp_candidate_pool')").fetchall()}
     if "quality_tier" not in cols:
         con.execute("ALTER TABLE vcp_candidate_pool ADD COLUMN quality_tier VARCHAR DEFAULT 'watch'")
-    con.execute(
-        "CREATE TABLE IF NOT EXISTS schema_info (schema_version VARCHAR, created_at VARCHAR)"
-    )
+    con.execute("CREATE TABLE IF NOT EXISTS schema_info (schema_version VARCHAR, created_at VARCHAR)")
     con.execute("DELETE FROM schema_info")
     con.execute(
         "INSERT INTO schema_info VALUES (?, ?)",

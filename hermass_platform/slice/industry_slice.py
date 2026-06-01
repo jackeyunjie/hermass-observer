@@ -103,23 +103,25 @@ def query_industry_slice(
 
         data = []
         for row in rows:
-            data.append({
-                "stock_code": row[0],
-                "state_date": row[1],
-                "d1_close": row[2],
-                "mn1_state_hex": row[3],
-                "w1_state_hex": row[4],
-                "d1_state_hex": row[5],
-                "mn1_state_score": row[6],
-                "w1_state_score": row[7],
-                "d1_state_score": row[8],
-                "ef_count": row[9],
-                "mn1_trend": row[10] or "",
-                "sw_l1": sw_l1_name,
-                "mn1_sr_ready": bool(row[11]) if row[11] is not None else False,
-                "w1_sr_ready": bool(row[12]) if row[12] is not None else False,
-                "d1_sr_ready": bool(row[13]) if row[13] is not None else False,
-            })
+            data.append(
+                {
+                    "stock_code": row[0],
+                    "state_date": row[1],
+                    "d1_close": row[2],
+                    "mn1_state_hex": row[3],
+                    "w1_state_hex": row[4],
+                    "d1_state_hex": row[5],
+                    "mn1_state_score": row[6],
+                    "w1_state_score": row[7],
+                    "d1_state_score": row[8],
+                    "ef_count": row[9],
+                    "mn1_trend": row[10] or "",
+                    "sw_l1": sw_l1_name,
+                    "mn1_sr_ready": bool(row[11]) if row[11] is not None else False,
+                    "w1_sr_ready": bool(row[12]) if row[12] is not None else False,
+                    "d1_sr_ready": bool(row[13]) if row[13] is not None else False,
+                }
+            )
     finally:
         con.close()
 
@@ -178,9 +180,7 @@ def detect_sector_resonance(
     try:
         latest_date = target_date
         if not latest_date:
-            r = con.execute(
-                "SELECT MAX(state_date) FROM d1_perspective_state"
-            ).fetchone()
+            r = con.execute("SELECT MAX(state_date) FROM d1_perspective_state").fetchone()
             latest_date = str(r[0]) if r and r[0] else ""
 
         prev_date = con.execute(
@@ -215,23 +215,27 @@ def detect_sector_resonance(
             if prev < 2 and ef >= 2:
                 if industry not in resonance_signals:
                     resonance_signals[industry] = []
-                resonance_signals[industry].append({
-                    "stock_code": code,
-                    "ef_count": ef,
-                    "prev_ef_count": prev,
-                })
+                resonance_signals[industry].append(
+                    {
+                        "stock_code": code,
+                        "ef_count": ef,
+                        "prev_ef_count": prev,
+                    }
+                )
 
         results = []
         for industry, stocks in resonance_signals.items():
             if len(stocks) >= min_stocks:
-                results.append({
-                    "sw_l1": industry,
-                    "resonance_count": len(stocks),
-                    "date": latest_date,
-                    "prev_date": str(prev_date),
-                    "signals": stocks,
-                    "confidence": "高" if len(stocks) >= 5 else ("中" if len(stocks) >= 4 else "低"),
-                })
+                results.append(
+                    {
+                        "sw_l1": industry,
+                        "resonance_count": len(stocks),
+                        "date": latest_date,
+                        "prev_date": str(prev_date),
+                        "signals": stocks,
+                        "confidence": "高" if len(stocks) >= 5 else ("中" if len(stocks) >= 4 else "低"),
+                    }
+                )
 
         results.sort(key=lambda x: -x["resonance_count"])
         return results

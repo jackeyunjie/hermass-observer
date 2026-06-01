@@ -69,7 +69,19 @@ def validate_all_weeks(
     # Group by ISO week
     d1_view_by_week: dict[str, dict[str, dict]] = defaultdict(dict)
     for row in rows:
-        state_date, stock_code, w1_hex, w1_score, w1_base, w1_trend, w1_pos, w1_vol, d1_close, w1_sup, w1_res = row
+        (
+            state_date,
+            stock_code,
+            w1_hex,
+            w1_score,
+            w1_base,
+            w1_trend,
+            w1_pos,
+            w1_vol,
+            d1_close,
+            w1_sup,
+            w1_res,
+        ) = row
         wk = iso_week_key(state_date)
         # For each week, keep the LAST trading day (max date)
         existing = d1_view_by_week[wk].get(stock_code)
@@ -165,17 +177,19 @@ def validate_all_weeks(
             if full_div:
                 stats["full_divergence"] += 1
                 if len(stats["divergence_examples"]) < 5:
-                    stats["divergence_examples"].append({
-                        "stock_code": stock_code,
-                        "d1_view": d1_hex,
-                        "native": nat_hex,
-                        "d1_bits": f"B{d1_base}T{d1_trend}P{d1_pos}V{d1_vol}",
-                        "native_bits": f"B{nat_base}T{nat_trend}P{nat_pos}V{nat_vol}",
-                        "d1_close": d1_rec["d1_close"],
-                        "w1_close": nat_rec.get("w1_close"),
-                        "w1_sr_support": d1_rec["w1_sr_support"],
-                        "w1_sr_resistance": d1_rec["w1_sr_resistance"],
-                    })
+                    stats["divergence_examples"].append(
+                        {
+                            "stock_code": stock_code,
+                            "d1_view": d1_hex,
+                            "native": nat_hex,
+                            "d1_bits": f"B{d1_base}T{d1_trend}P{d1_pos}V{d1_vol}",
+                            "native_bits": f"B{nat_base}T{nat_trend}P{nat_pos}V{nat_vol}",
+                            "d1_close": d1_rec["d1_close"],
+                            "w1_close": nat_rec.get("w1_close"),
+                            "w1_sr_support": d1_rec["w1_sr_support"],
+                            "w1_sr_resistance": d1_rec["w1_sr_resistance"],
+                        }
+                    )
             else:
                 stats["matched"] += 1
 
@@ -313,8 +327,15 @@ def validate_all_weeks(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Validate native W1 State against D1-perspective")
     parser.add_argument("--foundation-db", type=Path, required=True, help="Path to foundation DuckDB")
-    parser.add_argument("--cache-dir", type=Path, default=CACHE_DIR, help="Directory with weekly_state_*.json")
-    parser.add_argument("--out", type=Path, default=ROOT / "outputs" / "calibration" / "weekly_state_validation.json", help="Output report path")
+    parser.add_argument(
+        "--cache-dir", type=Path, default=CACHE_DIR, help="Directory with weekly_state_*.json"
+    )
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=ROOT / "outputs" / "calibration" / "weekly_state_validation.json",
+        help="Output report path",
+    )
     args = parser.parse_args()
 
     result = validate_all_weeks(
@@ -328,13 +349,19 @@ def main() -> None:
     print("Weekly State Validation Report")
     print("=" * 60)
     print(f"Total comparisons:    {o['total_comparisons']:,}")
-    print(f"Full divergence:      {o['full_divergence_count']:,} ({o['full_divergence_rate']*100:.2f}%)")
-    print(f"Position divergence:  {o['position_divergence_count']:,} ({o['position_divergence_rate']*100:.2f}%)")
-    print(f"Trend divergence:     {o['trend_divergence_count']:,} ({o['trend_divergence_rate']*100:.2f}%)")
-    print(f"Volatility divergence:{o['volatility_divergence_count']:,} ({o['volatility_divergence_rate']*100:.2f}%)")
-    print(f"Base divergence:      {o['base_divergence_count']:,} ({o['base_divergence_rate']*100:.2f}%)")
-    print(f"Symbol divergence:    {o['symbol_divergence_count']:,} ({o['symbol_divergence_rate']*100:.2f}%)")
-    print(f"EF flips:             {o['ef_flips']:,} ({o['ef_flip_rate']*100:.2f}%)")
+    print(f"Full divergence:      {o['full_divergence_count']:,} ({o['full_divergence_rate'] * 100:.2f}%)")
+    print(
+        f"Position divergence:  {o['position_divergence_count']:,} ({o['position_divergence_rate'] * 100:.2f}%)"
+    )
+    print(f"Trend divergence:     {o['trend_divergence_count']:,} ({o['trend_divergence_rate'] * 100:.2f}%)")
+    print(
+        f"Volatility divergence:{o['volatility_divergence_count']:,} ({o['volatility_divergence_rate'] * 100:.2f}%)"
+    )
+    print(f"Base divergence:      {o['base_divergence_count']:,} ({o['base_divergence_rate'] * 100:.2f}%)")
+    print(
+        f"Symbol divergence:    {o['symbol_divergence_count']:,} ({o['symbol_divergence_rate'] * 100:.2f}%)"
+    )
+    print(f"EF flips:             {o['ef_flips']:,} ({o['ef_flip_rate'] * 100:.2f}%)")
     print(f"Both EF:              {o['both_ef_count']:,}")
     print(f"Both non-EF:          {o['both_non_ef_count']:,}")
     print(f"Report written to:    {args.out}")

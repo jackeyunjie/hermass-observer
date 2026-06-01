@@ -368,7 +368,9 @@ def load_vcp_samples(
     return samples, diagnostics
 
 
-def summarize_grouped(samples: list[dict[str, Any]], group_field: str, window: int, min_samples: int, top_n: int) -> list[dict[str, Any]]:
+def summarize_grouped(
+    samples: list[dict[str, Any]], group_field: str, window: int, min_samples: int, top_n: int
+) -> list[dict[str, Any]]:
     by_key: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for sample in samples:
         if sample.get(f"excess_ret_{window}d") is None:
@@ -376,7 +378,10 @@ def summarize_grouped(samples: list[dict[str, Any]], group_field: str, window: i
         by_key[str(sample.get(group_field) or "")].append(sample)
     rows = [metric_row(key, items, window, skip_ci=True) for key, items in by_key.items()]
     rows = [row for row in rows if row["n"] >= min_samples]
-    rows.sort(key=lambda r: (safe_float(r.get("mean_excess"), -999.0), safe_float(r.get("win_rate"), 0.0), r["n"]), reverse=True)
+    rows.sort(
+        key=lambda r: (safe_float(r.get("mean_excess"), -999.0), safe_float(r.get("win_rate"), 0.0), r["n"]),
+        reverse=True,
+    )
     return rows[:top_n]
 
 
@@ -394,7 +399,9 @@ def summarize_research_hypotheses(samples: list[dict[str, Any]], windows: list[i
         "contraction_release_5": summarize_boolean_group(samples, "contraction_release_5", windows),
         "contraction_release_10": summarize_boolean_group(samples, "contraction_release_10", windows),
         "contraction_release_20": summarize_boolean_group(samples, "contraction_release_20", windows),
-        "current_expansion_no_contraction_20": summarize_boolean_group(samples, "current_expansion_no_contraction_20", windows),
+        "current_expansion_no_contraction_20": summarize_boolean_group(
+            samples, "current_expansion_no_contraction_20", windows
+        ),
         "kimi_candidate": summarize_boolean_group(samples, "kimi_candidate_match", windows),
         "d1_10_12_14": summarize_boolean_group(samples, "d1_10_12_14_match", windows),
     }
@@ -416,13 +423,21 @@ def run_search(args: argparse.Namespace) -> dict[str, Any]:
     windows = args.windows or [5, 10, 20]
     raw_signals = set(args.raw_signal or sorted(DEFAULT_ENTRY_SIGNALS))
     db_path = args.foundation_db or foundation_db_for(args.end_date)
-    samples, diagnostics = load_vcp_samples(db_path, args.start_date, args.end_date, raw_signals, args.min_ef_count, args.max_ef_count)
+    samples, diagnostics = load_vcp_samples(
+        db_path, args.start_date, args.end_date, raw_signals, args.min_ef_count, args.max_ef_count
+    )
     labeled, label_diag = attach_labels(samples, db_path, windows)
     primary = args.primary_window
-    exact = [annotate_exact_combo(row) for row in summarize_grouped(labeled, "state_combo", primary, args.min_samples, args.top_n)]
+    exact = [
+        annotate_exact_combo(row)
+        for row in summarize_grouped(labeled, "state_combo", primary, args.min_samples, args.top_n)
+    ]
     bit_rows = summarize_grouped(labeled, "state_bit_signature", primary, args.min_samples, args.top_n)
     all_exact_by_window = {
-        f"{window}d": [annotate_exact_combo(row) for row in summarize_grouped(labeled, "state_combo", window, args.min_samples, args.top_n)]
+        f"{window}d": [
+            annotate_exact_combo(row)
+            for row in summarize_grouped(labeled, "state_combo", window, args.min_samples, args.top_n)
+        ]
         for window in windows
     }
     return {
@@ -504,7 +519,9 @@ def render_markdown(result: dict[str, Any]) -> str:
         "d1_10_12_14": "D1 ∈ {10,12,14}",
     }
     for key, title in titles.items():
-        lines.extend(render_hypothesis_table(title, result["hypothesis_comparison"][key], result["label_windows"]))
+        lines.extend(
+            render_hypothesis_table(title, result["hypothesis_comparison"][key], result["label_windows"])
+        )
     lines.extend(
         [
             "## 精确 State 组合 Top",
@@ -515,14 +532,26 @@ def render_markdown(result: dict[str, Any]) -> str:
     )
     for idx, row in enumerate(result["top_exact_combos_primary"], 1):
         decoded = row.get("decoded", {})
-        note = "；".join(f"{label}:{decoded.get(label, {}).get('label', '')}" for label in ["mn1", "w1", "d1"])
+        note = "；".join(
+            f"{label}:{decoded.get(label, {}).get('label', '')}" for label in ["mn1", "w1", "d1"]
+        )
         lines.append(
             f"| {idx} | `{row['key']}` | `{row.get('hex_combo', '')}` | {row['n']} | {pct(row['mean_excess'])} | "
             f"{pct(row['win_rate'])} | {fmt_num(row['t_stat'])} | {'yes' if row.get('kimi_candidate_match') else 'no'} | {note} |"
         )
-    lines.extend(["", "## 模糊 bit 形态 Top", "", "| rank | bit signature | n | 平均超额 | 胜率 | t-stat |", "|---:|---|---:|---:|---:|---:|"])
+    lines.extend(
+        [
+            "",
+            "## 模糊 bit 形态 Top",
+            "",
+            "| rank | bit signature | n | 平均超额 | 胜率 | t-stat |",
+            "|---:|---|---:|---:|---:|---:|",
+        ]
+    )
     for idx, row in enumerate(result["top_bit_signatures_primary"], 1):
-        lines.append(f"| {idx} | `{row['key']}` | {row['n']} | {pct(row['mean_excess'])} | {pct(row['win_rate'])} | {fmt_num(row['t_stat'])} |")
+        lines.append(
+            f"| {idx} | `{row['key']}` | {row['n']} | {pct(row['mean_excess'])} | {pct(row['win_rate'])} | {fmt_num(row['t_stat'])} |"
+        )
     lines.extend(["", "## 边界", ""])
     for item in result["interpretation_boundaries"]:
         lines.append(f"- {item}")
@@ -559,12 +588,18 @@ def main() -> int:
     parser.add_argument("--start-date", required=True)
     parser.add_argument("--end-date", required=True)
     parser.add_argument("--foundation-db", type=Path)
-    parser.add_argument("--raw-signal", action="append", default=[], help="VCP raw signal to include. Repeatable.")
+    parser.add_argument(
+        "--raw-signal", action="append", default=[], help="VCP raw signal to include. Repeatable."
+    )
     parser.add_argument("--windows", type=int, nargs="*", default=[5, 10, 20])
     parser.add_argument("--primary-window", type=int, default=20)
     parser.add_argument("--min-samples", type=int, default=30)
-    parser.add_argument("--min-ef-count", type=int, help="Optional minimum ef_count filter for the signal date.")
-    parser.add_argument("--max-ef-count", type=int, help="Optional maximum ef_count filter for the signal date.")
+    parser.add_argument(
+        "--min-ef-count", type=int, help="Optional minimum ef_count filter for the signal date."
+    )
+    parser.add_argument(
+        "--max-ef-count", type=int, help="Optional maximum ef_count filter for the signal date."
+    )
     parser.add_argument("--top-n", type=int, default=30)
     args = parser.parse_args()
     if not args.raw_signal:

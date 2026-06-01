@@ -3,6 +3,7 @@
 分析 688107 (安路科技) 资金流数据
 按 1天、3天、累计(4天) 维度观察
 """
+
 from __future__ import annotations
 
 import csv
@@ -43,14 +44,14 @@ def analyze_day(row: dict[str, Any] | None, date: str) -> dict[str, Any]:
     if row is None:
         return {"date": date, "available": False}
 
-    buy_tdd = parse_float(row.get("buytddcje"))   # 主买特大单
-    buy_dd = parse_float(row.get("buyddcje"))     # 主买大单
-    buy_zd = parse_float(row.get("buyzdcje"))     # 主买中单
-    buy_sd = parse_float(row.get("buysdcje"))     # 主买小单
-    sell_tdd = parse_float(row.get("selltddcje")) # 主卖特大单
-    sell_dd = parse_float(row.get("sellddcje"))   # 主卖大单
-    sell_zd = parse_float(row.get("sellzdcje"))   # 主卖中单
-    sell_sd = parse_float(row.get("sellxdcje"))   # 主卖小单
+    buy_tdd = parse_float(row.get("buytddcje"))  # 主买特大单
+    buy_dd = parse_float(row.get("buyddcje"))  # 主买大单
+    buy_zd = parse_float(row.get("buyzdcje"))  # 主买中单
+    buy_sd = parse_float(row.get("buysdcje"))  # 主买小单
+    sell_tdd = parse_float(row.get("selltddcje"))  # 主卖特大单
+    sell_dd = parse_float(row.get("sellddcje"))  # 主卖大单
+    sell_zd = parse_float(row.get("sellzdcje"))  # 主卖中单
+    sell_sd = parse_float(row.get("sellxdcje"))  # 主卖小单
 
     buy_num = parse_float(row.get("buynum"))
     sell_num = parse_float(row.get("sellnum"))
@@ -142,9 +143,9 @@ def aggregate(days: list[dict[str, Any]]) -> dict[str, Any]:
 
 def fmt_money(v: float) -> str:
     if abs(v) >= 1e8:
-        return f"{v/1e8:.2f}亿"
+        return f"{v / 1e8:.2f}亿"
     elif abs(v) >= 1e4:
-        return f"{v/1e4:.2f}万"
+        return f"{v / 1e4:.2f}万"
     else:
         return f"{v:.2f}"
 
@@ -175,17 +176,17 @@ def generate_html(daily: list[dict], agg_1d: list[dict], agg_3d: dict, agg_all: 
             daily_rows += f'<tr><td>{d["date"]}</td><td colspan="10">数据不可用</td></tr>'
             continue
         daily_rows += f"""<tr>
-            <td>{d['date']}</td>
-            {td(d['主动净额'])}
-            {td(d['特大单净额'])}
-            {td(d['大单净额'])}
-            {td(d['大额净额'])}
-            {td(d['中单净额'])}
-            {td(d['小单净额'])}
-            <td>{d['主买占比%']}%</td>
-            <td>{d['主卖占比%']}%</td>
-            <td>{fmt_money(d['总成交额'])}</td>
-            <td>{d['主买单数']}/{d['主卖单数']}</td>
+            <td>{d["date"]}</td>
+            {td(d["主动净额"])}
+            {td(d["特大单净额"])}
+            {td(d["大单净额"])}
+            {td(d["大额净额"])}
+            {td(d["中单净额"])}
+            {td(d["小单净额"])}
+            <td>{d["主买占比%"]}%</td>
+            <td>{d["主卖占比%"]}%</td>
+            <td>{fmt_money(d["总成交额"])}</td>
+            <td>{d["主买单数"]}/{d["主卖单数"]}</td>
         </tr>"""
 
     # 聚合报表
@@ -193,17 +194,17 @@ def generate_html(daily: list[dict], agg_1d: list[dict], agg_3d: dict, agg_all: 
         if not data.get("available"):
             return f'<tr><td>{label}</td><td colspan="10">数据不可用</td></tr>'
         return f"""<tr>
-            <td>{label}<br><small>{data.get('period', '')}</small></td>
-            {td(data['主动净额'])}
-            {td(data['特大单净额'])}
-            {td(data['大单净额'])}
-            {td(data['大额净额'])}
-            {td(data['中单净额'])}
-            {td(data['小单净额'])}
-            <td>{data.get('主买占比%', 'N/A')}%</td>
-            <td>{data.get('主卖占比%', 'N/A')}%</td>
-            <td>{fmt_money(data['总成交额'])}</td>
-            <td>{data['主买单数']}/{data['主卖单数']}</td>
+            <td>{label}<br><small>{data.get("period", "")}</small></td>
+            {td(data["主动净额"])}
+            {td(data["特大单净额"])}
+            {td(data["大单净额"])}
+            {td(data["大额净额"])}
+            {td(data["中单净额"])}
+            {td(data["小单净额"])}
+            <td>{data.get("主买占比%", "N/A")}%</td>
+            <td>{data.get("主卖占比%", "N/A")}%</td>
+            <td>{fmt_money(data["总成交额"])}</td>
+            <td>{data["主买单数"]}/{data["主卖单数"]}</td>
         </tr>"""
 
     # 生成图表数据 JSON
@@ -215,7 +216,7 @@ def generate_html(daily: list[dict], agg_1d: list[dict], agg_3d: dict, agg_all: 
         "midNet": [d["中单净额"] for d in daily if d.get("available")],
         "smallNet": [d["小单净额"] for d in daily if d.get("available")],
         "buyRatio": [d["主买占比%"] for d in daily if d.get("available")],
-        "turnover": [round(d["总成交额"]/1e8, 2) for d in daily if d.get("available")],
+        "turnover": [round(d["总成交额"] / 1e8, 2) for d in daily if d.get("available")],
     }
 
     # 卡片颜色类
@@ -231,7 +232,8 @@ def generate_html(daily: list[dict], agg_1d: list[dict], agg_3d: dict, agg_all: 
 
     chart_data_json = json.dumps(chart_data, ensure_ascii=False)
 
-    html = """<!DOCTYPE html>
+    html = (
+        """<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
@@ -292,7 +294,9 @@ tr:hover { background:#f8fafb; }
 </tr>
 </thead>
 <tbody>
-""" + daily_rows + """
+"""
+        + daily_rows
+        + """
 </tbody>
 </table>
 </div>
@@ -318,9 +322,15 @@ tr:hover { background:#f8fafb; }
 </tr>
 </thead>
 <tbody>
-""" + agg_row("最近1天 (5/19)", agg_1d[-1] if agg_1d else {}) + """
-""" + agg_row("最近3天 (5/15-5/19)", agg_3d) + """
-""" + agg_row("累计4天 (5/14-5/19)", agg_all) + """
+"""
+        + agg_row("最近1天 (5/19)", agg_1d[-1] if agg_1d else {})
+        + """
+"""
+        + agg_row("最近3天 (5/15-5/19)", agg_3d)
+        + """
+"""
+        + agg_row("累计4天 (5/14-5/19)", agg_all)
+        + """
 </tbody>
 </table>
 </div>
@@ -331,27 +341,49 @@ tr:hover { background:#f8fafb; }
 <div class="summary">
 <div class="card">
 <div class="label">4天主动净额</div>
-<div class="value """ + card_cls(agg_all.get('主动净额',0)) + """">""" + fmt_money(agg_all.get('主动净额',0)) + """</div>
+<div class="value """
+        + card_cls(agg_all.get("主动净额", 0))
+        + """">"""
+        + fmt_money(agg_all.get("主动净额", 0))
+        + """</div>
 </div>
 <div class="card">
 <div class="label">4天大额净额</div>
-<div class="value """ + card_cls(agg_all.get('大额净额',0)) + """">""" + fmt_money(agg_all.get('大额净额',0)) + """</div>
+<div class="value """
+        + card_cls(agg_all.get("大额净额", 0))
+        + """">"""
+        + fmt_money(agg_all.get("大额净额", 0))
+        + """</div>
 </div>
 <div class="card">
 <div class="label">4天特大单净额</div>
-<div class="value """ + card_cls(agg_all.get('特大单净额',0)) + """">""" + fmt_money(agg_all.get('特大单净额',0)) + """</div>
+<div class="value """
+        + card_cls(agg_all.get("特大单净额", 0))
+        + """">"""
+        + fmt_money(agg_all.get("特大单净额", 0))
+        + """</div>
 </div>
 <div class="card">
 <div class="label">4天中单净额</div>
-<div class="value """ + card_cls(agg_all.get('中单净额',0)) + """">""" + fmt_money(agg_all.get('中单净额',0)) + """</div>
+<div class="value """
+        + card_cls(agg_all.get("中单净额", 0))
+        + """">"""
+        + fmt_money(agg_all.get("中单净额", 0))
+        + """</div>
 </div>
 <div class="card">
 <div class="label">4天小单净额</div>
-<div class="value """ + card_cls(agg_all.get('小单净额',0)) + """">""" + fmt_money(agg_all.get('小单净额',0)) + """</div>
+<div class="value """
+        + card_cls(agg_all.get("小单净额", 0))
+        + """">"""
+        + fmt_money(agg_all.get("小单净额", 0))
+        + """</div>
 </div>
 <div class="card">
 <div class="label">总成交额</div>
-<div class="value neu">""" + fmt_money(agg_all.get('总成交额',0)) + """</div>
+<div class="value neu">"""
+        + fmt_money(agg_all.get("总成交额", 0))
+        + """</div>
 </div>
 </div>
 </section>
@@ -366,13 +398,17 @@ tr:hover { background:#f8fafb; }
 <section>
 <h2>五、分析结论</h2>
 <div style="font-size:14px;line-height:1.8;color:#37474f;">
-""" + analysis + """
+"""
+        + analysis
+        + """
 </div>
 </section>
 
 </main>
 <script>
-const chartData = """ + chart_data_json + """;
+const chartData = """
+        + chart_data_json
+        + """;
 
 // 图1：各层级净额对比
 const chart1 = echarts.init(document.getElementById('chart1'));
@@ -426,6 +462,7 @@ window.addEventListener('resize', () => { chart1.resize(); chart2.resize(); char
 </script>
 </body>
 </html>"""
+    )
     return html
 
 
@@ -472,15 +509,23 @@ def generate_analysis_text(daily: list[dict], agg_3d: dict, agg_all: dict) -> st
         ratio = agg_all.get("主买占比%", 50)
         lines.append(f"<b>【累计视角 - {agg_all['period']} (4天)】</b>")
         direction = "净流入" if net > 0 else "净流出"
-        lines.append(f"4日累计资金{direction} {fmt_money(abs(net))}，主买占比 {ratio}%，总成交额 {fmt_money(agg_all['总成交额'])}。")
+        lines.append(
+            f"4日累计资金{direction} {fmt_money(abs(net))}，主买占比 {ratio}%，总成交额 {fmt_money(agg_all['总成交额'])}。"
+        )
 
         # 结构分析
         if super_net > 0 and large > 0:
-            lines.append(f"特大单净流入 {fmt_money(super_net)}，大额资金整体净流入 {fmt_money(large)}，表明大资金在持续吸筹。")
+            lines.append(
+                f"特大单净流入 {fmt_money(super_net)}，大额资金整体净流入 {fmt_money(large)}，表明大资金在持续吸筹。"
+            )
         elif super_net < 0 and large < 0:
-            lines.append(f"特大单净流出 {fmt_money(abs(super_net))}，大额资金整体净流出 {fmt_money(abs(large))}，表明大资金在持续撤离。")
+            lines.append(
+                f"特大单净流出 {fmt_money(abs(super_net))}，大额资金整体净流出 {fmt_money(abs(large))}，表明大资金在持续撤离。"
+            )
         else:
-            lines.append(f"特大单{'净流入' if super_net>0 else '净流出'} {fmt_money(abs(super_net))}，大单{'净流入' if agg_all['大单净额']>0 else '净流出'} {fmt_money(abs(agg_all['大单净额']))}，大资金态度分化。")
+            lines.append(
+                f"特大单{'净流入' if super_net > 0 else '净流出'} {fmt_money(abs(super_net))}，大单{'净流入' if agg_all['大单净额'] > 0 else '净流出'} {fmt_money(abs(agg_all['大单净额']))}，大资金态度分化。"
+            )
 
         if mid > 0:
             lines.append(f"中单净流入 {fmt_money(mid)}，中等规模资金参与积极。")
@@ -506,7 +551,9 @@ def generate_analysis_text(daily: list[dict], agg_3d: dict, agg_all: dict) -> st
         elif net > 0 > large:
             lines.append("资金面整体净流入，但大额资金流出，存在<b>散户买、机构卖</b>的分化迹象，需谨慎。")
         else:
-            lines.append("资金面整体净流出，但大额资金流入，存在<b>机构吸筹、散户抛售</b>的可能，关注后续动向。")
+            lines.append(
+                "资金面整体净流出，但大额资金流入，存在<b>机构吸筹、散户抛售</b>的可能，关注后续动向。"
+            )
 
     return "<br>".join(lines)
 
@@ -547,14 +594,20 @@ def main() -> int:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     out_html.write_text(generate_html(daily, agg_1d, agg_3d, agg_all), encoding="utf-8")
 
-    print(json.dumps({
-        "status": "PASS",
-        "json": str(out_json),
-        "html": str(out_html),
-        "dates": DATES,
-        "aggregate_3d": agg_3d,
-        "aggregate_all": agg_all,
-    }, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "status": "PASS",
+                "json": str(out_json),
+                "html": str(out_html),
+                "dates": DATES,
+                "aggregate_3d": agg_3d,
+                "aggregate_all": agg_all,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 

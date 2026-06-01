@@ -125,7 +125,9 @@ def load_symbol_meta(path: Path) -> dict[str, dict[str, str]]:
     return meta
 
 
-def fetch_all_three_ef(db_path: Path, date_str: str, names_csv: Path, apply_quality_gate: bool) -> list[dict[str, Any]]:
+def fetch_all_three_ef(
+    db_path: Path, date_str: str, names_csv: Path, apply_quality_gate: bool
+) -> list[dict[str, Any]]:
     if not db_path.exists():
         raise FileNotFoundError(f"foundation DB not found: {db_path}")
 
@@ -335,7 +337,10 @@ def html_table(rows: list[dict[str, Any]], fields: list[str], row_limit: int | N
     head = "".join(f"<th>{html.escape(field)}</th>" for field in fields)
     body_rows = []
     for row in visible:
-        cells = "".join(f"<td>{html.escape(str(row.get(field, '') if row.get(field, '') is not None else ''))}</td>" for field in fields)
+        cells = "".join(
+            f"<td>{html.escape(str(row.get(field, '') if row.get(field, '') is not None else ''))}</td>"
+            for field in fields
+        )
         body_rows.append(f"<tr>{cells}</tr>")
     return f"<table><thead><tr>{head}</tr></thead><tbody>{''.join(body_rows)}</tbody></table>"
 
@@ -449,12 +454,12 @@ def write_diff_html(path: Path, date_str: str, diff: dict[str, Any], csv_name: s
   <section>
     <h2>变动概览</h2>
     <div class="kpis">
-      <div class="kpi"><small>新进入</small><strong>{len(diff['entered'])}</strong></div>
-      <div class="kpi"><small>离开</small><strong>{len(diff['left'])}</strong></div>
-      <div class="kpi"><small>留存</small><strong>{len(diff['stayed'])}</strong></div>
+      <div class="kpi"><small>新进入</small><strong>{len(diff["entered"])}</strong></div>
+      <div class="kpi"><small>离开</small><strong>{len(diff["left"])}</strong></div>
+      <div class="kpi"><small>留存</small><strong>{len(diff["stayed"])}</strong></div>
     </div>
   </section>
-  {''.join(tables)}
+  {"".join(tables)}
 </body>
 </html>
 """
@@ -464,7 +469,9 @@ def write_diff_html(path: Path, date_str: str, diff: dict[str, Any], csv_name: s
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=to_jsonable) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, default=to_jsonable) + "\n", encoding="utf-8"
+    )
 
 
 def copy_text(src: Path, dst: Path) -> None:
@@ -489,7 +496,9 @@ def export(args: argparse.Namespace) -> dict[str, Any]:
         "date": date_str,
         "source_duckdb": str(db_path),
         "screening_rule": "mn1_state_hex,w1_state_hex,d1_state_hex all in E/F",
-        "quality_gate": "exclude W1 3-bar close decline and W1 close below AMA10" if not args.no_quality_gate else "disabled",
+        "quality_gate": "exclude W1 3-bar close decline and W1 close below AMA10"
+        if not args.no_quality_gate
+        else "disabled",
         "rank_rule": "state_score_sum desc, ef_strength desc, d1_adx14 desc, stock_code asc",
         "total": len(rows),
         "rows": rows,
@@ -561,14 +570,22 @@ def export(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Export daily P116 all-three E/F snapshot and membership diff.")
+    parser = argparse.ArgumentParser(
+        description="Export daily P116 all-three E/F snapshot and membership diff."
+    )
     parser.add_argument("--date", required=True, help="Trading date, e.g. 2026-05-20")
-    parser.add_argument("--foundation-db", type=Path, help="Foundation DuckDB. Defaults to outputs/p116_foundation_YYYYMMDD/p116_foundation.duckdb")
+    parser.add_argument(
+        "--foundation-db",
+        type=Path,
+        help="Foundation DuckDB. Defaults to outputs/p116_foundation_YYYYMMDD/p116_foundation.duckdb",
+    )
     parser.add_argument("--previous-date", help="Previous snapshot date to compare, e.g. 2026-05-19")
     parser.add_argument("--out-dir", type=Path, default=ROOT / "outputs" / "p116_daily_all_three_ef")
     parser.add_argument("--public-dir", type=Path, default=ROOT / "public")
     parser.add_argument("--names-csv", type=Path, default=DEFAULT_NAMES_CSV)
-    parser.add_argument("--no-quality-gate", action="store_true", help="Disable W1 decline / AMA quality filters.")
+    parser.add_argument(
+        "--no-quality-gate", action="store_true", help="Disable W1 decline / AMA quality filters."
+    )
     args = parser.parse_args()
 
     summary = export(args)

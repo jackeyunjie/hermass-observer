@@ -47,7 +47,9 @@ def 读取五分钟数据() -> list[dict[str, Any]]:
     return rows
 
 
-def 固定观察态规则(观察行: dict[str, Any], 被观察周期: str, 被观察序列: list[dict[str, Any]], 被观察序号: int) -> dict[str, Any]:
+def 固定观察态规则(
+    观察行: dict[str, Any], 被观察周期: str, 被观察序列: list[dict[str, Any]], 被观察序号: int
+) -> dict[str, Any]:
     return 计算视角状态审计(
         观察行,
         被观察周期,
@@ -88,7 +90,9 @@ def 生成明细数据和明细页面(data):
         "native_audit": views["native_audit"],
         "debug": views["debug"],
     }
-    build_views.OUT_JSON.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    build_views.OUT_JSON.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
     build_views.OUT_HTML.write_text(build_views.render_html(payload), encoding="utf-8")
     return payload
 

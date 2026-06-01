@@ -22,9 +22,7 @@ def find_latest_foundation_db(date_str: str | None = None) -> Optional[Path]:
         if c.exists() and c.stat().st_size > 0:
             if date_str:
                 con = duckdb.connect(str(c), read_only=True)
-                latest = con.execute(
-                    "SELECT MAX(state_date) FROM d1_perspective_state"
-                ).fetchone()[0]
+                latest = con.execute("SELECT MAX(state_date) FROM d1_perspective_state").fetchone()[0]
                 con.close()
                 if latest and str(latest) >= date_str:
                     return c
@@ -92,6 +90,7 @@ def slice_user(
     limit: int = DEFAULT_LIMIT,
 ) -> dict:
     from .user_slice import query_user_slice
+
     return query_user_slice(foundation_db, user_id, target_date, stock_codes, offset, limit)
 
 
@@ -104,6 +103,7 @@ def slice_strategy(
     limit: int = DEFAULT_LIMIT,
 ) -> dict:
     from .strategy_slice import query_strategy_slice
+
     return query_strategy_slice(foundation_db, signal_db, strategy_id, target_date, offset, limit)
 
 
@@ -116,6 +116,7 @@ def slice_time(
     limit: int = DEFAULT_LIMIT,
 ) -> dict:
     from .time_slice import query_time_slice
+
     return query_time_slice(foundation_db, target_date, lookback_days, stock_codes, offset, limit)
 
 
@@ -181,6 +182,7 @@ def slice(
         )
     elif slice_type == "industry":
         from .industry_slice import query_industry_slice
+
         result = query_industry_slice(
             db_str,
             params.get("sw_l1", ""),
@@ -190,6 +192,7 @@ def slice(
         )
     elif slice_type == "cognitive":
         from .cognitive_slice import query_cognitive_slice
+
         result = query_cognitive_slice(
             db_str,
             params.get("user_id", "unknown"),

@@ -32,7 +32,7 @@ def upload_foundation(date: str) -> None:
 
     compressed = gzip.compress(db_path.read_bytes(), compresslevel=6)
     comp_mb = len(compressed) / 1024 / 1024
-    print(f"压缩后 {comp_mb:.0f} MB ({comp_mb/size_mb*100:.0f}%)")
+    print(f"压缩后 {comp_mb:.0f} MB ({comp_mb / size_mb * 100:.0f}%)")
 
     resp = requests.post(
         BASE_URL,
@@ -42,7 +42,7 @@ def upload_foundation(date: str) -> None:
     )
     data = resp.json()
     if data.get("ok"):
-        print(f"[OK] 上传成功: {data.get('path')} ({data.get('size')/1024/1024:.0f} MB)")
+        print(f"[OK] 上传成功: {data.get('path')} ({data.get('size') / 1024 / 1024:.0f} MB)")
     else:
         print(f"[ERROR] 上传失败: {data.get('error')}")
         sys.exit(1)

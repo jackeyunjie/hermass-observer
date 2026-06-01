@@ -35,7 +35,7 @@ def build_weekly_bars(source_db: Path, output_db: Path) -> dict:
 
     con = duckdb.connect(str(output_db))
     try:
-        con.execute(f"ATTACH '{str(source_db).replace(chr(39), chr(39)+chr(39))}' AS src (READ_ONLY)")
+        con.execute(f"ATTACH '{str(source_db).replace(chr(39), chr(39) + chr(39))}' AS src (READ_ONLY)")
 
         # Create table
         con.execute("""

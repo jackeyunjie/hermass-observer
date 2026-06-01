@@ -83,7 +83,10 @@ FUTURES_CONFIG: list[dict[str, str]] = [
 # 数据拉取
 # ---------------------------------------------------------------------------
 
-def fetch_futures_daily(symbol: str, start_date: str, end_date: str, max_retries: int = 3) -> list[dict[str, Any]]:
+
+def fetch_futures_daily(
+    symbol: str, start_date: str, end_date: str, max_retries: int = 3
+) -> list[dict[str, Any]]:
     """从 AKShare 拉取期货日线数据（含重试）。
 
     参数:
@@ -98,7 +101,9 @@ def fetch_futures_daily(symbol: str, start_date: str, end_date: str, max_retries
     try:
         import akshare as ak
     except ImportError as exc:
-        raise RuntimeError("akshare is not installed.  Run: source .venv/bin/activate && pip install akshare") from exc
+        raise RuntimeError(
+            "akshare is not installed.  Run: source .venv/bin/activate && pip install akshare"
+        ) from exc
 
     last_exc: Exception | None = None
     for attempt in range(1, max_retries + 1):
@@ -110,7 +115,7 @@ def fetch_futures_daily(symbol: str, start_date: str, end_date: str, max_retries
         except Exception as exc:
             last_exc = exc
             if attempt < max_retries:
-                time.sleep(2 ** attempt)
+                time.sleep(2**attempt)
             else:
                 raise last_exc
     else:
@@ -125,16 +130,18 @@ def fetch_futures_daily(symbol: str, start_date: str, end_date: str, max_retries
 
     records: list[dict[str, Any]] = []
     for _, row in df.iterrows():
-        records.append({
-            "date": str(row["_date"]),
-            "open": _to_float(row.get("open")),
-            "high": _to_float(row.get("high")),
-            "low": _to_float(row.get("low")),
-            "close": _to_float(row.get("close")),
-            "volume": _to_float(row.get("volume")),
-            "hold": _to_float(row.get("hold")),
-            "settle": _to_float(row.get("settle")),
-        })
+        records.append(
+            {
+                "date": str(row["_date"]),
+                "open": _to_float(row.get("open")),
+                "high": _to_float(row.get("high")),
+                "low": _to_float(row.get("low")),
+                "close": _to_float(row.get("close")),
+                "volume": _to_float(row.get("volume")),
+                "hold": _to_float(row.get("hold")),
+                "settle": _to_float(row.get("settle")),
+            }
+        )
     return records
 
 
@@ -155,6 +162,7 @@ def _to_float(value: Any) -> float | None:
 # ---------------------------------------------------------------------------
 # 指标计算
 # ---------------------------------------------------------------------------
+
 
 def compute_trend(daily_closes: list[float]) -> str:
     """基于近 5 日收盘价判定趋势。"""
@@ -238,24 +246,26 @@ def compute_chain_dynamics_from_futures(
         hist_3y = closes[max(0, i - 756) : i]
         percentile_3y = compute_percentile(close, hist_3y) if len(hist_3y) >= 36 else None
 
-        records.append({
-            "chain_id": chain_id,
-            "chain_node": chain_node,
-            "indicator_name": indicator_name,
-            "indicator_unit": indicator_unit,
-            "latest_value": close,
-            "prev_value": prev_close,
-            "trend": trend,
-            "percentile_1y": percentile_1y,
-            "percentile_3y": percentile_3y,
-            "data_frequency": "daily",
-            "source_period": day["date"][:7] if day.get("date") else None,
-            "source_vendor": "AKShare",
-            "source_query": source_query,
-            "confidence": 1.0,
-            "as_of_date": day["date"],
-            "collected_at": datetime.now(timezone.utc).isoformat(),
-        })
+        records.append(
+            {
+                "chain_id": chain_id,
+                "chain_node": chain_node,
+                "indicator_name": indicator_name,
+                "indicator_unit": indicator_unit,
+                "latest_value": close,
+                "prev_value": prev_close,
+                "trend": trend,
+                "percentile_1y": percentile_1y,
+                "percentile_3y": percentile_3y,
+                "data_frequency": "daily",
+                "source_period": day["date"][:7] if day.get("date") else None,
+                "source_vendor": "AKShare",
+                "source_query": source_query,
+                "confidence": 1.0,
+                "as_of_date": day["date"],
+                "collected_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
 
     return records
 
@@ -352,6 +362,7 @@ def write_to_chain_dynamics(con: duckdb.DuckDBPyConnection, records: list[dict[s
 # 报告生成
 # ---------------------------------------------------------------------------
 
+
 def generate_report(
     results: list[dict[str, Any]],
     date_str: str,
@@ -391,7 +402,9 @@ def generate_report(
             lines.append(f"- **日期范围**: {r.get('date_range', 'N/A')}")
             if r.get("latest"):
                 latest = r["latest"]
-                lines.append(f"- **最新收盘价**: {latest.get('latest_value', 'N/A'):,.2f} {cfg['indicator_unit']}")
+                lines.append(
+                    f"- **最新收盘价**: {latest.get('latest_value', 'N/A'):,.2f} {cfg['indicator_unit']}"
+                )
                 lines.append(f"- **趋势**: `{latest.get('trend', 'N/A')}`")
                 lines.append(f"- **1年分位**: {latest.get('percentile_1y', 'N/A')}")
                 lines.append(f"- **3年分位**: {latest.get('percentile_3y', 'N/A')}")
@@ -406,9 +419,9 @@ def generate_report(
         lines.append(f"- chain_dynamics 总记录数: **{cnt}**")
 
         for chain_id in sorted({c["chain_id"] for c in FUTURES_CONFIG}):
-            c = con.execute(
-                "SELECT COUNT(*) FROM chain_dynamics WHERE chain_id = ?", (chain_id,)
-            ).fetchone()[0]
+            c = con.execute("SELECT COUNT(*) FROM chain_dynamics WHERE chain_id = ?", (chain_id,)).fetchone()[
+                0
+            ]
             lines.append(f"  - {chain_id}: {c} 条")
 
         # 最新值摘要表
@@ -455,6 +468,7 @@ def generate_report(
 # 主流程
 # ---------------------------------------------------------------------------
 
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Phase 1: Fill chain_dynamics with AKShare futures data.")
     parser.add_argument("--date", default="2026-05-23", help="基准日期 YYYY-MM-DD")
@@ -472,6 +486,7 @@ def main() -> int:
 
     # 计算起始日期（简单处理：减去 lookback_days 个自然日，AKShare 会自行过滤）
     from datetime import timedelta
+
     start_dt = datetime.strptime(date_str, "%Y-%m-%d") - timedelta(days=lookback + 30)
     start_date = start_dt.strftime("%Y-%m-%d")
 
@@ -490,11 +505,14 @@ def main() -> int:
 
                 if futures_data:
                     result["date_range"] = f"{futures_data[0]['date']} ~ {futures_data[-1]['date']}"
-                    source_query = json.dumps({
-                        "symbol": symbol,
-                        "function": "futures_zh_daily_sina",
-                        "exchange": cfg["exchange"],
-                    }, ensure_ascii=False)
+                    source_query = json.dumps(
+                        {
+                            "symbol": symbol,
+                            "function": "futures_zh_daily_sina",
+                            "exchange": cfg["exchange"],
+                        },
+                        ensure_ascii=False,
+                    )
 
                     records = compute_chain_dynamics_from_futures(
                         futures_data=futures_data,

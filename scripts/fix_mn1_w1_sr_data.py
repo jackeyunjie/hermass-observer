@@ -15,18 +15,20 @@ from pathlib import Path
 
 def fix_p116c_sr_data():
     """Forward-fill MN1/W1 SR data to cover up to 2026-05-20."""
-    
-    p116c_db = Path('/Users/lv111101/Documents/hongrun-chaos-trading-system/outputs/p116c_ashare_native_timeframe_official_sr_states_20260520/p116c_ashare_native_timeframe_official_sr_states.duckdb')
-    
+
+    p116c_db = Path(
+        "/Users/lv111101/Documents/hongrun-chaos-trading-system/outputs/p116c_ashare_native_timeframe_official_sr_states_20260520/p116c_ashare_native_timeframe_official_sr_states.duckdb"
+    )
+
     # Backup
-    backup = p116c_db.with_suffix('.duckdb.backup')
+    backup = p116c_db.with_suffix(".duckdb.backup")
     shutil.copy2(p116c_db, backup)
-    print(f'Backup created: {backup}')
-    
+    print(f"Backup created: {backup}")
+
     conn = duckdb.connect(str(p116c_db))
-    
+
     # Check current state
-    print('\n=== Before Fix ===')
+    print("\n=== Before Fix ===")
     result = conn.execute("""
         SELECT state_available_date, MN1_sr_ready, COUNT(*) 
         FROM ashare_mn1_native_official_sr_state_postclose 
@@ -35,8 +37,8 @@ def fix_p116c_sr_data():
         LIMIT 5
     """).fetchall()
     for row in result:
-        print(f'  MN1 {row[0]} ready={row[1]}: {row[2]}')
-    
+        print(f"  MN1 {row[0]} ready={row[1]}: {row[2]}")
+
     result = conn.execute("""
         SELECT state_available_date, W_sr_ready, COUNT(*) 
         FROM ashare_w1_native_official_sr_state_postclose 
@@ -45,11 +47,11 @@ def fix_p116c_sr_data():
         LIMIT 5
     """).fetchall()
     for row in result:
-        print(f'  W1 {row[0]} ready={row[1]}: {row[2]}')
-    
+        print(f"  W1 {row[0]} ready={row[1]}: {row[2]}")
+
     # Forward-fill MN1 SR data from 2026-04-30 to 2026-05-20
     # Get latest MN1 data with SR ready
-    print('\n=== Forward-filling MN1 SR data ===')
+    print("\n=== Forward-filling MN1 SR data ===")
     conn.execute("""
         INSERT INTO ashare_mn1_native_official_sr_state_postclose
         SELECT 
@@ -86,9 +88,9 @@ def fix_p116c_sr_data():
         WHERE state_available_date = '2026-04-30'
           AND MN1_sr_ready = True
     """)
-    
+
     # Forward-fill W1 SR data from 2026-05-17 to 2026-05-20
-    print('=== Forward-filling W1 SR data ===')
+    print("=== Forward-filling W1 SR data ===")
     conn.execute("""
         INSERT INTO ashare_w1_native_official_sr_state_postclose
         SELECT 
@@ -136,9 +138,9 @@ def fix_p116c_sr_data():
         WHERE state_available_date = '2026-05-17'
           AND W_sr_ready = True
     """)
-    
+
     # Verify after fix
-    print('\n=== After Fix ===')
+    print("\n=== After Fix ===")
     result = conn.execute("""
         SELECT state_available_date, MN1_sr_ready, COUNT(*) 
         FROM ashare_mn1_native_official_sr_state_postclose 
@@ -146,8 +148,8 @@ def fix_p116c_sr_data():
         GROUP BY state_available_date, MN1_sr_ready
     """).fetchall()
     for row in result:
-        print(f'  MN1 {row[0]} ready={row[1]}: {row[2]}')
-    
+        print(f"  MN1 {row[0]} ready={row[1]}: {row[2]}")
+
     result = conn.execute("""
         SELECT state_available_date, W_sr_ready, COUNT(*) 
         FROM ashare_w1_native_official_sr_state_postclose 
@@ -155,11 +157,11 @@ def fix_p116c_sr_data():
         GROUP BY state_available_date, W_sr_ready
     """).fetchall()
     for row in result:
-        print(f'  W1 {row[0]} ready={row[1]}: {row[2]}')
-    
+        print(f"  W1 {row[0]} ready={row[1]}: {row[2]}")
+
     conn.close()
-    print('\nDone! Now rebuild P116d omni alignment.')
+    print("\nDone! Now rebuild P116d omni alignment.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     fix_p116c_sr_data()

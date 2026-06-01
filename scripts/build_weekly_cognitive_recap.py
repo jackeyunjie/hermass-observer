@@ -218,7 +218,9 @@ def build_weekly_recap(target_date: str) -> str:
     finally:
         con.close()
 
-    resonance_today = {item.get("sw_l1"): item for item in detect_sector_resonance(foundation_db, target_date)}
+    resonance_today = {
+        item.get("sw_l1"): item for item in detect_sector_resonance(foundation_db, target_date)
+    }
 
     lines = [
         f"本周关注回顾：最近 7 天共重点问了 {len(watchlist)} 只股票，关注了 {len(industry_focus)} 个行业。",

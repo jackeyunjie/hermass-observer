@@ -224,12 +224,12 @@ def write_outputs(payload: dict[str, Any], date_str: str) -> dict[str, Path]:
             f"<tr>"
             f"<td>{html.escape(r['stock_code'])}</td>"
             f"<td>{r['ef_count']}</td>"
-            f"<td>{r.get('vcp_phase','')}</td>"
-            f"<td>{r.get('vcp_contraction_days',0)}天</td>"
-            f"<td>{r.get('vcp_quality_tier','')}</td>"
-            f"<td>{r.get('ma2560_phase','')}</td>"
-            f"<td>{r.get('vcp_since','')}</td>"
-            f"<td>{r.get('ma2560_since','')}</td>"
+            f"<td>{r.get('vcp_phase', '')}</td>"
+            f"<td>{r.get('vcp_contraction_days', 0)}天</td>"
+            f"<td>{r.get('vcp_quality_tier', '')}</td>"
+            f"<td>{r.get('ma2560_phase', '')}</td>"
+            f"<td>{r.get('vcp_since', '')}</td>"
+            f"<td>{r.get('ma2560_since', '')}</td>"
             f"<td>{badge}</td>"
             f"</tr>"
         )
@@ -239,7 +239,7 @@ def write_outputs(payload: dict[str, Any], date_str: str) -> dict[str, Path]:
         golden_table += (
             f"<tr><td>{html.escape(r['stock_code'])}</td>"
             f"<td>{r['ef_count']}</td>"
-            f"<td>{html.escape(r.get('detail',''))}</td></tr>"
+            f"<td>{html.escape(r.get('detail', ''))}</td></tr>"
         )
 
     email = f"""<!doctype html>
@@ -255,10 +255,10 @@ th{{background:#f8fafb;position:sticky;top:0}}
 </style></head><body>
 <header><h1>形态生命周期 × P116 交叉报告</h1><p>{date_str} · VCP/2560 长期观察池与三周期 E/F 交叉结果</p></header>
 <section><h2>大盘 / 行业周期</h2><div>{macro_items}</div></section>
-<section><h2>E/F 池中有形态结构支撑（{payload['ef_vcp_count']}只，显示前100）</h2>
+<section><h2>E/F 池中有形态结构支撑（{payload["ef_vcp_count"]}只，显示前100）</h2>
 <table><thead><tr><th>代码</th><th>EF</th><th>VCP相</th><th>收缩天数</th><th>VCP等级</th><th>2560相</th><th>VCP自</th><th>2560自</th><th>结构</th></tr></thead><tbody>{table_rows}</tbody></table></section>
-<section><h2>今日 2560 金叉 + E/F 池（{payload['golden_cross_ef_count']}只）</h2>
-{'<table><thead><tr><th>代码</th><th>EF</th><th>事件</th></tr></thead><tbody>'+golden_table+'</tbody></table>' if golden_table else '<p>今日无金叉+E/F品种</p>'}
+<section><h2>今日 2560 金叉 + E/F 池（{payload["golden_cross_ef_count"]}只）</h2>
+{"<table><thead><tr><th>代码</th><th>EF</th><th>事件</th></tr></thead><tbody>" + golden_table + "</tbody></table>" if golden_table else "<p>今日无金叉+E/F品种</p>"}
 </section>
 <p class="note">Research-Only · 本页为形态生命周期与 P116 E/F 标准池交叉观察，不构成投资建议。</p>
 </body></html>"""
@@ -273,13 +273,19 @@ def main() -> int:
     args = parser.parse_args()
     payload = build_cross(args.date)
     paths = write_outputs(payload, args.date)
-    print(json.dumps({
-        "date": args.date,
-        "ef_vcp": payload["ef_vcp_count"],
-        "vcp_entered": payload["vcp_entered_ef_count"],
-        "golden_cross": payload["golden_cross_ef_count"],
-        "outputs": {k: str(v) for k, v in paths.items()},
-    }, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "date": args.date,
+                "ef_vcp": payload["ef_vcp_count"],
+                "vcp_entered": payload["vcp_entered_ef_count"],
+                "golden_cross": payload["golden_cross_ef_count"],
+                "outputs": {k: str(v) for k, v in paths.items()},
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 

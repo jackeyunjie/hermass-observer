@@ -3272,7 +3272,13 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
 
     llm_result = _llm_chat_answer(query)
     if llm_result:
-        return llm_result
+        return _enhance_result_defaults(
+            llm_result,
+            query,
+            next_actions=llm_result.get("next_actions", []),
+            sources=llm_result.get("sources", []),
+            provider=llm_result.get("provider", "agently_deepseek"),
+        )
 
     # 复合意图检测：rule_based 路径拦截前，先检查是否是盯盘+行业等复合场景
     if not query.use_llm and _has_compound_intent(msg_lower):

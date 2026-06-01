@@ -75,14 +75,23 @@ def mapping_status(raw: dict[str, Any], observed: dict[str, Any] | None) -> tupl
     if observed_status in {"ok", "gui_imported_needs_ifind_code"}:
         return "validated_observed", "已有观测值，可进入宏观时间序列库。"
     if status == "active" and code:
-        return "direct_code_active_unobserved", "直接 iFinD 指标码已配置，但当前快照暂无观测；需 API 配额或 GUI 时间序列导入验证。"
+        return (
+            "direct_code_active_unobserved",
+            "直接 iFinD 指标码已配置，但当前快照暂无观测；需 API 配额或 GUI 时间序列导入验证。",
+        )
     if status == "legacy_code_needs_validation" and code:
         return "legacy_code_pending_validation", "历史指标码存在，但未通过当前 iFinD 拉数验证。"
     if status == "formula_catalog_only":
         if raw.get("nested_index_ids"):
-            return "formula_nested_candidate_pending_validation", "公式目录里含嵌套指标 ID，可作为候选；仍需直接 EDB 拉数验证。"
+            return (
+                "formula_nested_candidate_pending_validation",
+                "公式目录里含嵌套指标 ID，可作为候选；仍需直接 EDB 拉数验证。",
+            )
         if raw.get("formula_id"):
-            return "formula_id_candidate_pending_validation", "只有公式/计算 ID，不等同于可直接拉取的 THS_EDB 指标码。"
+            return (
+                "formula_id_candidate_pending_validation",
+                "只有公式/计算 ID，不等同于可直接拉取的 THS_EDB 指标码。",
+            )
         return "formula_catalog_needs_direct_code", "只有 GUI 公式目录证据，缺直接指标码或日期-数值导出。"
     if status == "needs_ifind_code":
         return "needs_manual_ifind_code", "缺 iFinD 指标码，需要人工在 iFinD EDB/GUI 中定位。"
@@ -129,7 +138,9 @@ def build_rows(config_path: Path, date_str: str) -> tuple[list[dict[str, Any]], 
         "by_config_status": dict(Counter(row["config_status"] for row in rows)),
         "by_mapping_status": dict(Counter(row["mapping_status"] for row in rows)),
         "validated_observed_count": sum(1 for row in rows if row["mapping_status"] == "validated_observed"),
-        "direct_code_active_count": sum(1 for row in rows if row["config_status"] == "active" and row["ifind_indicator_code"]),
+        "direct_code_active_count": sum(
+            1 for row in rows if row["config_status"] == "active" and row["ifind_indicator_code"]
+        ),
         "formula_catalog_count": sum(1 for row in rows if row["config_status"] == "formula_catalog_only"),
         "needs_manual_code_count": sum(1 for row in rows if row["config_status"] == "needs_ifind_code"),
         "snapshot_source": snapshot.get("date"),
@@ -191,7 +202,7 @@ def render_html(payload: dict[str, Any]) -> str:
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <title>iFinD 宏观指标映射 {esc(payload['date'])}</title>
+  <title>iFinD 宏观指标映射 {esc(payload["date"])}</title>
   <style>
     body {{ margin:24px; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:#172033; }}
     h1 {{ margin:0 0 8px; font-size:22px; }}
@@ -205,15 +216,15 @@ def render_html(payload: dict[str, Any]) -> str:
 <body>
   <h1>iFinD 宏观指标映射</h1>
   <div class="summary">
-    日期 {esc(payload['date'])} ｜ 总数 {esc(summary['total'])} ｜
-    active直连码 {esc(summary['direct_code_active_count'])} ｜
-    公式目录待验证 {esc(summary['formula_catalog_count'])} ｜
-    缺人工码 {esc(summary['needs_manual_code_count'])} ｜
-    已有观测 {esc(summary['validated_observed_count'])}
+    日期 {esc(payload["date"])} ｜ 总数 {esc(summary["total"])} ｜
+    active直连码 {esc(summary["direct_code_active_count"])} ｜
+    公式目录待验证 {esc(summary["formula_catalog_count"])} ｜
+    缺人工码 {esc(summary["needs_manual_code_count"])} ｜
+    已有观测 {esc(summary["validated_observed_count"])}
   </div>
   <table>
     <thead><tr><th>#</th><th>指标</th><th>类别</th><th>频率</th><th>配置状态</th><th>iFinD码/候选码</th><th>映射状态</th><th>观测</th><th>说明</th></tr></thead>
-    <tbody>{''.join(trs)}</tbody>
+    <tbody>{"".join(trs)}</tbody>
   </table>
 </body>
 </html>
@@ -257,7 +268,12 @@ def main() -> int:
                 "ok": True,
                 "date": args.date,
                 "summary": summary,
-                "outputs": {"json": str(json_path), "csv": str(csv_path), "data_csv": str(data_csv_path), "html": str(html_path)},
+                "outputs": {
+                    "json": str(json_path),
+                    "csv": str(csv_path),
+                    "data_csv": str(data_csv_path),
+                    "html": str(html_path),
+                },
             },
             ensure_ascii=False,
             indent=2,

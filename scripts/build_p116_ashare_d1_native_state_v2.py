@@ -4,7 +4,7 @@
 This version replaces the 120-day high/low position calculation with SR key level
 based position calculation:
 - break_up: close > sr_resistance → position_bit = +2
-- break_down: close < sr_support → position_bit = -2  
+- break_down: close < sr_support → position_bit = -2
 - neutral: sr_support <= close <= sr_resistance → position_bit = 0
 - Error if sr_ready = False
 
@@ -57,19 +57,24 @@ def now_iso() -> str:
 
 def build_state_v2(raw_db: Path, sr_db: Path, out_db: Path) -> dict[str, Any]:
     """Build P116 state v2 with SR-based position calculation.
-    
+
     D1视角原则：所有周期的position都用D1收盘价与各周期SR关键位比较。
     """
-    
+
     out_db.parent.mkdir(parents=True, exist_ok=True)
-    
+
     # Connect to P116 original DB and SR DB
-    p116_db_path = RESEARCH_ROOT / "outputs" / "p116_ashare_d1_native_state_20260518" / "p116_ashare_d1_native_state.duckdb"
-    
+    p116_db_path = (
+        RESEARCH_ROOT
+        / "outputs"
+        / "p116_ashare_d1_native_state_20260518"
+        / "p116_ashare_d1_native_state.duckdb"
+    )
+
     conn = duckdb.connect(str(out_db))
     conn.execute(f"ATTACH '{p116_db_path}' AS p116_db (READ_ONLY)")
     conn.execute(f"ATTACH '{sr_db}' AS sr_db (READ_ONLY)")
-    
+
     # Create state table with SR-based position (D1视角)
     conn.execute("""
         CREATE OR REPLACE TABLE ashare_d1_native_state_v2 AS
@@ -215,7 +220,7 @@ def build_state_v2(raw_db: Path, sr_db: Path, out_db: Path) -> dict[str, Any]:
             (trend LIKE 'bear%' OR position = 'break_down') AS bear_context
         FROM state_with_sr
     """)
-    
+
     # Calculate state_score and state_hex
     conn.execute("""
         CREATE OR REPLACE TABLE ashare_d1_native_state_v2_final AS
@@ -257,7 +262,7 @@ def build_state_v2(raw_db: Path, sr_db: Path, out_db: Path) -> dict[str, Any]:
             END AS state_hex
         FROM ashare_d1_native_state_v2
     """)
-    
+
     # Get summary stats
     summary = conn.execute("""
         SELECT
@@ -270,9 +275,9 @@ def build_state_v2(raw_db: Path, sr_db: Path, out_db: Path) -> dict[str, Any]:
             COUNT(CASE WHEN position = 'neutral' THEN 1 END) AS neutral_count
         FROM ashare_d1_native_state_v2_final
     """).fetchone()
-    
+
     conn.close()
-    
+
     return {
         "schema_version": SCHEMA_VERSION,
         "data_level": DATA_LEVEL,
@@ -293,14 +298,14 @@ def main() -> None:
     parser.add_argument("--sr-db", type=Path, default=DEFAULT_SR_DB)
     parser.add_argument("--out-db", type=Path, default=DEFAULT_OUT_DB)
     args = parser.parse_args()
-    
+
     print("Building P116 state v2 with SR-based position...")
     print(f"Raw DB: {args.raw_db}")
     print(f"SR DB: {args.sr_db}")
     print(f"Output: {args.out_db}")
-    
+
     summary = build_state_v2(args.raw_db, args.sr_db, args.out_db)
-    
+
     print("\nBuild complete!")
     print(f"Total rows: {summary['total_rows']}")
     print(f"Total stocks: {summary['total_stocks']}")
