@@ -3826,6 +3826,94 @@ def chat_query(request: Request, query: ChatQuery) -> JSONResponse:
         )
 
 
+FOUNDATION_DELTA_KEYS = {
+    "daily_bars": ["stock_code", "date"],
+    "weekly_bars": ["stock_code", "period_start"],
+    "monthly_bars": ["stock_code", "period_start"],
+    "timeframe_bars": ["stock_code", "timeframe", "period_start"],
+    "sr_levels": ["stock_code", "timeframe", "period_start"],
+    "timeframe_indicators": ["stock_code", "timeframe", "period_start"],
+    "d1_d_sr": ["stock_code", "state_date"],
+    "d1_w_sr": ["stock_code", "state_date"],
+    "d1_mn1_sr": ["stock_code", "state_date"],
+    "d1_sr_context": ["stock_code", "state_date"],
+    "d1_perspective_state": ["stock_code", "state_date"],
+}
+
+
+def _merge_foundation_delta(delta_db: Path, date_str: str) -> dict[str, Any]:
+    foundation_db = find_foundation_db(date_str) or find_foundation_db()
+    if not foundation_db:
+        raise FileNotFoundError("foundation DB not found on server")
+
+    safe_delta = str(delta_db).replace("'", "''")
+    merged: dict[str, Any] = {"foundation_db": str(foundation_db), "tables": {}}
+    con = duckdb.connect(str(foundation_db))
+    try:
+        con.execute(f"ATTACH '{safe_delta}' AS delta (READ_ONLY)")
+        for table, keys in FOUNDATION_DELTA_KEYS.items():
+            exists = con.execute(
+                """
+                SELECT count(*)
+                FROM information_schema.tables
+                WHERE table_catalog = 'delta' AND table_schema = 'main' AND table_name = ?
+                """,
+                [table],
+            ).fetchone()[0]
+            if not exists:
+                continue
+
+            incoming = con.execute(f"SELECT count(*) FROM delta.{table}").fetchone()[0]
+            if not incoming:
+                merged["tables"][table] = {"deleted": 0, "inserted": 0, "after": 0}
+                continue
+
+            join_sql = " AND ".join(f"target.{key} = source.{key}" for key in keys)
+            before = con.execute(
+                f"""
+                SELECT count(*)
+                FROM {table} target
+                WHERE EXISTS (
+                  SELECT 1 FROM delta.{table} source
+                  WHERE {join_sql}
+                )
+                """
+            ).fetchone()[0]
+            con.execute(
+                f"""
+                DELETE FROM {table} target
+                WHERE EXISTS (
+                  SELECT 1 FROM delta.{table} source
+                  WHERE {join_sql}
+                )
+                """
+            )
+            con.execute(f"INSERT INTO {table} SELECT * FROM delta.{table}")
+            after = con.execute(
+                f"""
+                SELECT count(*)
+                FROM {table} target
+                WHERE EXISTS (
+                  SELECT 1 FROM delta.{table} source
+                  WHERE {join_sql}
+                )
+                """
+            ).fetchone()[0]
+            merged["tables"][table] = {"deleted": before, "inserted": incoming, "after": after}
+
+        con.execute(
+            """
+            UPDATE foundation_run_log
+            SET latest_date = greatest(latest_date, CAST(? AS DATE)),
+                generated_at = ?
+            """,
+            [date_str, datetime.now().isoformat(timespec="seconds")],
+        )
+    finally:
+        con.close()
+    return merged
+
+
 @app.post("/api/admin/upload-data")
 async def admin_upload_data(
     file: UploadFile,
@@ -3852,6 +3940,12 @@ async def admin_upload_data(
         dest_path = dest_dir / "p116_foundation.duckdb"
     elif type == "snapshot":
         dest_path = dest_dir / "daily_snapshot.json"
+    elif type == "foundation_delta":
+        if not date:
+            return JSONResponse(content={"ok": False, "error": "missing date"}, status_code=400)
+        dest_dir = dest_dir / f"foundation_delta_{date}"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest_path = dest_dir / "foundation_delta.duckdb"
     else:
         return JSONResponse(content={"ok": False, "error": f"unknown type: {type}"}, status_code=400)
 
@@ -3859,10 +3953,20 @@ async def admin_upload_data(
     tmp_path.write_bytes(raw)
     tmp_path.rename(dest_path)
 
+    merged = None
+    if type == "foundation_delta":
+        try:
+            merged = _merge_foundation_delta(dest_path, date)
+        except Exception as exc:
+            return JSONResponse(
+                content={"ok": False, "error": f"merge foundation_delta failed: {exc}"},
+                status_code=500,
+            )
+
     return JSONResponse(content={
         "ok": True,
         "type": type,
         "path": str(dest_path),
         "size": len(raw),
+        "merged": merged,
     })
-

@@ -152,15 +152,36 @@ fi
 log "Step 10/10: 更新网站数据..."
 UPLOAD_SCRIPT="$PRODUCT_DIR/scripts/upload_output_to_server.py"
 if [ -f "$UPLOAD_SCRIPT" ]; then
-    if "$VENV_DIR/bin/python" "$UPLOAD_SCRIPT" --date "$YMD" --type foundation 2>&1 | while IFS= read -r line; do log "[website] $line"; done; then
-        log " 网站 Foundation DB 更新完成"
+    export HERMASS_UPLOAD_URL="${HERMASS_UPLOAD_URL:-http://8.130.125.201/api/admin/upload-data}"
+    export HERMASS_UPLOAD_HOST="${HERMASS_UPLOAD_HOST:-console.supertrader.world}"
+    DELTA_SCRIPT="$PRODUCT_DIR/scripts/build_foundation_delta.py"
+    if [ -f "$DELTA_SCRIPT" ]; then
+        if "$VENV_DIR/bin/python" "$DELTA_SCRIPT" --date "$DATE_STR" 2>&1 | while IFS= read -r line; do log "[website] $line"; done; then
+            log " 网站 Foundation 增量包生成完成"
+            if "$VENV_DIR/bin/python" "$UPLOAD_SCRIPT" --date "$YMD" --type foundation_delta 2>&1 | while IFS= read -r line; do log "[website] $line"; done; then
+                log " 网站 Foundation 增量更新完成"
+            else
+                log " 网站 Foundation 增量更新失败（非致命）"
+            fi
+        else
+            log " 网站 Foundation 增量包生成失败（非致命）"
+        fi
     else
-        log " 网站 Foundation DB 更新失败（非致命）"
+        log " 网站 Foundation 增量脚本不存在，跳过增量上传"
     fi
     if "$VENV_DIR/bin/python" "$UPLOAD_SCRIPT" --date "$YMD" --type snapshot 2>&1 | while IFS= read -r line; do log "[website] $line"; done; then
         log " 网站每日快照更新完成"
     else
         log " 网站每日快照更新失败（非致命）"
+    fi
+    if [ "${UPLOAD_FOUNDATION:-0}" = "1" ]; then
+        if "$VENV_DIR/bin/python" "$UPLOAD_SCRIPT" --date "$YMD" --type foundation 2>&1 | while IFS= read -r line; do log "[website] $line"; done; then
+            log " 网站 Foundation DB 更新完成"
+        else
+            log " 网站 Foundation DB 更新失败（非致命）"
+        fi
+    else
+        log " 网站 Foundation DB 跳过（默认不上传 3.7G 大包；需要时设置 UPLOAD_FOUNDATION=1）"
     fi
 else
     log " 网站上传脚本不存在，跳过"

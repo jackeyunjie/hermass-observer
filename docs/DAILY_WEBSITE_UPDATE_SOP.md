@@ -123,6 +123,34 @@ python3 scripts/calibration_trigger.py --date 2026-05-30
 - 逐步切到“服务器端直接重建数据”
 - 减少人肉传输大包
 
+### 3.3 当前每日上传策略
+
+每日流水线默认上传：
+
+1. `Foundation 增量包`
+   - 本地从 `outputs/p116_foundation_YYYYMMDD/p116_foundation.duckdb` 切出当天相关行
+   - 产物：`outputs/foundation_delta_YYYYMMDD/foundation_delta.duckdb`
+   - 上传类型：`foundation_delta`
+   - 服务器收到后按主键覆盖合并到现有 Foundation DB
+2. `daily_snapshot.json`
+   - 产物：`outputs/daily_snapshot.json`
+   - 上传类型：`snapshot`
+
+默认不上传完整 `p116_foundation.duckdb`。
+
+原因：
+
+- 完整 Foundation DB 当前约 `3.7G`
+- 2026-06-01 的当天增量包约 `8.8M`，gzip 后约 `4.4M`
+- `daily_snapshot.json` 约 `1.7M`
+- 每日上传量从数 GB 降到约数 MB，同时网站仍保留完整 Foundation DB 查询能力
+
+只有需要全量重铺底座时，才手动打开：
+
+```bash
+UPLOAD_FOUNDATION=1 ./scripts/run_daily_pipeline.sh YYYY-MM-DD
+```
+
 ---
 
 ## 4. 网站代码更新
