@@ -3841,13 +3841,24 @@ FOUNDATION_DELTA_KEYS = {
 }
 
 
+def _normalize_upload_date(date_str: str) -> str:
+    if re.fullmatch(r"\d{8}", date_str or ""):
+        return f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
+    return date_str
+
+
 def _merge_foundation_delta(delta_db: Path, date_str: str) -> dict[str, Any]:
-    foundation_db = find_foundation_db(date_str) or find_foundation_db()
+    normalized_date = _normalize_upload_date(date_str)
+    foundation_db = find_foundation_db(normalized_date) or find_foundation_db()
     if not foundation_db:
         raise FileNotFoundError("foundation DB not found on server")
 
     safe_delta = str(delta_db).replace("'", "''")
-    merged: dict[str, Any] = {"foundation_db": str(foundation_db), "tables": {}}
+    merged: dict[str, Any] = {
+        "date": normalized_date,
+        "foundation_db": str(foundation_db),
+        "tables": {},
+    }
     con = duckdb.connect(str(foundation_db))
     try:
         con.execute(f"ATTACH '{safe_delta}' AS delta (READ_ONLY)")
@@ -3907,7 +3918,7 @@ def _merge_foundation_delta(delta_db: Path, date_str: str) -> dict[str, Any]:
             SET latest_date = greatest(latest_date, CAST(? AS DATE)),
                 generated_at = ?
             """,
-            [date_str, datetime.now().isoformat(timespec="seconds")],
+            [normalized_date, datetime.now().isoformat(timespec="seconds")],
         )
     finally:
         con.close()
