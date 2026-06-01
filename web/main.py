@@ -2771,6 +2771,9 @@ def _deepseek_system_prompt() -> str:
         "你是 Hermass 网站内的 AI 助手。你只做解释、翻译和导航，不做投资建议。"
         "你必须坚持多周期环境、单周期位置、风险控制这条主线。"
         "输出必须是 JSON，且字段必须包含 answer, why, multi_cycle_view, single_cycle_position, avoid, next_actions, sources, freshness_note。"
+        "回答语气随问题类型变化：市场问题用简报语气（简洁、判断明确），"
+        "个股问题用体检报告语气（分层、有数据、有未知项标注），"
+        "导航问题用导航员语气（一句话指引方向）。"
     )
     return with_deepseek_context(system_prompt + "\n\n" + _deepseek_prompt_contract())
 
@@ -3626,7 +3629,7 @@ def chat_query(request: Request, query: ChatQuery) -> JSONResponse:
         return JSONResponse(
             status_code=500,
             content={
-                "answer": "服务暂时不可用，请直接浏览页面获取信息。",
+                "answer": "回答出了点问题，重试或直接看页面内容。",
                 "why": "",
                 "multi_cycle_view": "",
                 "single_cycle_position": "",

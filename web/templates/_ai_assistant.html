@@ -99,13 +99,14 @@ function aiRender(data) {
           var html = '';
           // 主回答区置顶，元信息沉底
           if (data.answer) {
-            html += '<div class="ai-section"><strong>当前结论</strong>' + escapeHtml(data.answer) + '</div>';
-          }
-          if (data.why) {
-            html += '<div class="ai-section ai-section--secondary"><strong>为什么</strong>' + escapeHtml(data.why) + '</div>';
+            var body = escapeHtml(data.answer || '');
+            if (data.why) {
+              body += '<br><br><span class="ai-why">' + escapeHtml(data.why) + '</span>';
+            }
+            html += '<div class="ai-msg-body">' + body + '</div>';
           }
           if (data.avoid) {
-            html += '<div class="ai-section ai-section--secondary"><strong>暂时不用看什么</strong>' + escapeHtml(data.avoid) + '</div>';
+            html += '<div class="ai-avoid">暂不关注：' + escapeHtml(data.avoid) + '</div>';
           }
           if (data.next_actions && data.next_actions.length) {
             html += '<div class="ai-actions">';
@@ -114,24 +115,18 @@ function aiRender(data) {
             });
             html += '</div>';
           }
-          if (data.multi_cycle_view) {
-            html += '<div class="ai-section ai-section--muted"><strong>多周期环境</strong>' + escapeHtml(data.multi_cycle_view) + '</div>';
-          }
-          if (data.single_cycle_position) {
-            html += '<div class="ai-section ai-section--muted"><strong>单周期位置</strong>' + escapeHtml(data.single_cycle_position) + '</div>';
+          if (data.provider || data.enhancement_used !== undefined || data.mode_used) {
+            var meta = [];
+            if (data.provider === 'managed_deepseek') meta.push('DeepSeek 增强');
+            else if (data.provider === 'agently_deepseek') meta.push('Agently + DeepSeek');
+            else meta.push('规则回答');
+            if (data.enhancement_used === true) meta.push('已启用增强解释');
+            else if (data.enhancement_used === false && data.provider !== 'rule_based') meta.push('未使用增强');
+            if (data.mode_used === 'agent') meta.push('任务模式');
+            html += '<div class="ai-meta">' + escapeHtml(meta.join(' · ')) + '</div>';
           }
           if (data.freshness_note) {
-            html += '<div class="ai-section ai-section--muted"><strong>数据日期提示</strong>' + escapeHtml(data.freshness_note) + '</div>';
-          }
-          if (data.provider || data.enhancement_used !== undefined) {
-            var providerLabel = '规则回答';
-            if (data.provider === 'managed_deepseek') providerLabel = 'DeepSeek 增强';
-            else if (data.provider === 'agently_deepseek') providerLabel = 'Agently + DeepSeek';
-            var enhancementLabel = data.enhancement_used ? '已启用增强解释' : '未使用大模型，当前为规则回答';
-            html += '<div class="ai-section ai-section--meta"><strong>回答引擎</strong>' + escapeHtml(providerLabel + ' · ' + enhancementLabel) + '</div>';
-          }
-          if (data.mode_used) {
-            html += '<div class="ai-section ai-section--meta"><strong>当前模式</strong>' + (data.mode_used === 'agent' ? '任务' : '对话') + '</div>';
+            html += '<div class="ai-meta">' + escapeHtml(data.freshness_note) + '</div>';
           }
           if (data.task_card) {
             html += '<div class="ai-task-card">';
@@ -207,7 +202,7 @@ function aiRender(data) {
           .catch(function() {
             messages.removeChild(placeholder);
             aiRender({
-              answer: '服务暂时不可用，请直接浏览页面获取信息。',
+              answer: '回答出了点问题，重试或直接看页面内容。',
               why: '',
               avoid: '',
               freshness_note: '',
