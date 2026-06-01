@@ -2621,6 +2621,18 @@ def _build_search_data_context(market_views: dict[str, Any]) -> dict[str, Any]:
         "policy_event_notes": notes,
     }
 
+def _has_compound_intent(msg: str) -> bool:
+    """轻量级复合意图检测：规则路径拦截前判断是否需要 LLM 编排。
+
+    当前覆盖：盯盘 + 行业扫描 = watch_command + industry_scan
+    """
+    watch_kws = ["盯着", "帮我盯", "突破提醒", "止损提醒"]
+    industry_kws = ["行业", "板块", "什么行业", "它的行业", "这个行业"]
+    return (
+        any(k in msg for k in watch_kws)
+        and any(k in msg for k in industry_kws)
+    )
+
 
 def _detect_watch_command(query: ChatQuery) -> dict[str, Any] | None:
     msg = query.message.strip()
@@ -3225,6 +3237,22 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
     llm_result = _llm_chat_answer(query)
     if llm_result:
         return llm_result
+
+    # 复合意图检测：rule_based 路径拦截前，先检查是否是盯盘+行业等复合场景
+    if not query.use_llm and _has_compound_intent(msg_lower):
+        fake = ChatQuery(
+            message=query.message,
+            page_context=query.page_context,
+            stock_code=query.stock_code,
+            session_id=query.session_id,
+            session_context=query.session_context,
+            mode=query.mode,
+            use_llm=True,
+        )
+        llm_result = _llm_chat_answer(fake)
+        if llm_result:
+            return llm_result
+
     llm_required_failure = _llm_required_failure_response(query)
     if llm_required_failure:
         return llm_required_failure
