@@ -227,6 +227,27 @@ GET /industry -> 200
 快照日期：2026-06-01
 ```
 
+自动验收 Agent：
+
+```bash
+python scripts/validate_website_data_sync.py --date 20260601
+```
+
+通过样例：
+
+```text
+[OK] daily_snapshot date=2026-06-01
+[OK] strategy_signal_daily date=2026-06-01 signal_count=1208
+[OK] strategy_signal_latest date=2026-06-01
+[OK] foundation_delta exists size=9187328
+[OK] foundation_db latest_date=2026-06-01 daily_rows=5510 state_rows=5510
+[OK] industry page contains date=2026-06-01
+[OK] industry page contains signal_count=1208
+[SUMMARY] all website data sync checks passed
+```
+
+以后网站数据同步是否成功，以该脚本结果为准，不再依赖人工看页面截图。
+
 ## 已推送提交
 
 ```text

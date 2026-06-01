@@ -138,13 +138,13 @@ python3 scripts/calibration_trigger.py --date 2026-05-30
    - 产物：`outputs/foundation_delta_YYYYMMDD/foundation_delta.duckdb`
    - 上传类型：`foundation_delta`
    - 服务器收到后按主键覆盖合并到现有 Foundation DB
-2. `daily_snapshot.json`
-   - 产物：`outputs/daily_snapshot.json`
-   - 上传类型：`snapshot`
-3. `strategy_signal_daily`
+2. `strategy_signal_daily`
    - 产物：`outputs/strategy_signals/strategy_signal_daily_YYYYMMDD.json`
    - 上传类型：`strategy_signal_daily`
    - 行业页的“快照日期 / 最新信号数”依赖这个文件
+3. `daily_snapshot.json`
+   - 产物：`outputs/daily_snapshot.json`
+   - 上传类型：`snapshot`
 
 默认不上传完整 `p116_foundation.duckdb`。
 
@@ -169,6 +169,13 @@ python scripts/build_foundation_delta.py --date YYYY-MM-DD
 python scripts/upload_output_to_server.py --date YYYYMMDD --type foundation_delta
 python scripts/upload_output_to_server.py --date YYYYMMDD --type strategy_signal_daily
 python scripts/upload_output_to_server.py --date YYYYMMDD --type snapshot
+python scripts/validate_website_data_sync.py --date YYYYMMDD
+```
+
+验收必须通过：
+
+```text
+[SUMMARY] all website data sync checks passed
 ```
 
 ---
