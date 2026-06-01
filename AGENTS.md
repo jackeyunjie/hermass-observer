@@ -54,6 +54,19 @@
 - `company-pager-nginx` 虽然名字像另一个项目，但它代理了 `console.supertrader.world -> http://172.17.0.1:8020`
 - 改完宿主机配置后，优先 `docker restart company-pager-nginx`，再用 `docker exec company-pager-nginx nginx -T` 验证是否真实生效
 
+### 每日 Foundation 增量上传快查
+
+遇到“每天是否要传 3.7G Foundation DB”“能否只传当天数据”“网站数据上传方案”这类问题，先看：
+
+- `docs/FOUNDATION_DELTA_UPLOAD_DESIGN.md`
+
+已确认策略：
+
+- 每日默认上传 `foundation_delta` 增量包 + `daily_snapshot.json`
+- 2026-06-01 实测增量包约 `8.8M`，gzip 后约 `4.4M`
+- 完整 `p116_foundation.duckdb` 约 `3.7G`，默认不每天上传
+- 只有全量重铺时才设置 `UPLOAD_FOUNDATION=1`
+
 ---
 
 ## Agent 操作教训（2026-05-30）
