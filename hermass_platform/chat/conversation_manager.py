@@ -29,29 +29,62 @@ class Session:
 
     def add_turn(self, role: str, message: str, intent: str = "", agent: str = ""):
         now = datetime.now(timezone.utc).isoformat()
-        self.turns.append(Turn(
-            role=role,
-            message=message,
-            intent=intent,
-            agent=agent,
-            timestamp=now,
-        ))
+        self.turns.append(
+            Turn(
+                role=role,
+                message=message,
+                intent=intent,
+                agent=agent,
+                timestamp=now,
+            )
+        )
         self.last_active = now
 
         if len(self.turns) > self.max_turns:
-            self.turns = self.turns[-self.max_turns:]
+            self.turns = self.turns[-self.max_turns :]
 
         for key, value in self._extract_context(message, role, intent):
             self.context[key] = value
 
+    @staticmethod
+    def _extract_stock_code(value: str) -> str:
+        if (
+            "000" in value
+            or "600" in value
+            or "688" in value
+            or "002" in value
+        ):
+            import re as _re_extract
+
+            codes = _re_extract.findall(r"(?<!\d)\d{6}(?!\d)", value)
+            if codes:
+                return codes[0]
+        return ""
+
     def _extract_context(self, message: str, role: str, intent: str):
         items: list[tuple[str, str]] = []
 
-        if "000" in message or "600" in message or "688" in message or "002" in message:
-            import re
-            codes = re.findall(r'(?<!\d)\d{6}(?!\d)', message)
-            if codes:
-                items.append(("last_stock_code", codes[0]))
+        code = self._extract_stock_code(message)
+        if code:
+            items.append(("stock_code", code))
+        elif role == "assistant":
+            try:
+                from web.main import _chat_stock_code as _chat_stock
+            except Exception:
+                _chat_stock = None
+            if _chat_stock is not None:
+                try:
+                    code = _chat_stock(
+                        type("_FakeQuery", (), {
+                            "message": message,
+                            "stock_code": None,
+                            "session_context": {},
+                        })()
+                    )
+                except Exception:
+                    code = ""
+                if code:
+                    items.append(("stock_code", code))
 
         if intent:
             items.append(("last_intent", intent))
@@ -64,11 +97,8 @@ class Session:
             "session_id": self.session_id,
             "turn_count": len(self.turns),
             "last_intent": self.context.get("last_intent", ""),
-            "last_stock_code": self.context.get("last_stock_code", ""),
-            "recent_turns": [
-                {"role": t.role, "message": t.message[:200]}
-                for t in self.turns[-5:]
-            ],
+            "last_stock_code": self.context.get("stock_code", ""),
+            "recent_turns": [{"role": t.role, "message": t.message[:200]} for t in self.turns[-5:]],
         }
 
     def is_expired(self) -> bool:

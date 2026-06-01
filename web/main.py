@@ -3684,6 +3684,10 @@ def chat_query(request: Request, query: ChatQuery) -> JSONResponse:
             query.session_id = session.session_id
         else:
             session = conv_mgr.get_or_create(user_id, query.session_id)
+        # 回填会话上下文：将 store 中已提取的 remembered_stock_code 等注入 query
+        # 保证 _chat_stock_code() 在第二轮"它"提问时能找到历史股票代码
+        if session.context and not query.session_context:
+            query.session_context = dict(session.context)
         conv_mgr.add_message(session.session_id, "user", query.message)
     except Exception:
         # 会话层失败不阻塞主链路，降级为无状态

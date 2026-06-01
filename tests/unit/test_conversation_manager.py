@@ -144,6 +144,54 @@ class TestConversationManager:
         assert ctx["turn_count"] == 1
         assert ctx["last_stock_code"] == "600519"
 
+    def test_assistant_answer_preserves_recent_stock_code(self):
+        mgr = ConversationManager(ttl_seconds=3600)
+        session = mgr.create_session("user_001")
+        mgr.add_message(session.session_id, "user", "000021 怎么样", "stock_checkup")
+        mgr.add_message(
+            session.session_id,
+            "assistant",
+            "000021 当前处于观望阶段。",
+            '{"scenario": "stock_checkup"}',
+            "market_analyst",
+        )
+        ctx = mgr.get_context(session.session_id)
+        assert ctx["last_stock_code"] == "000021"
+        memory = mgr._sessions[session.session_id].context
+        assert memory.get("stock_code") == "000021"
+
+    def test_http_chat_followup_uses_previous_stock_code(self):
+        from fastapi.testclient import TestClient
+        from web.main import app, _build_memory_context
+
+        client = TestClient(app)
+        first = client.post(
+            "/api/chat/query",
+            json={
+                "message": "000021 怎么样",
+                "stock_code": "000021.SZ",
+                "page_context": "stock",
+                "mode": "chat",
+                "use_llm": False,
+            },
+        )
+        assert first.status_code == 200
+        payload = first.json()
+        sid = payload["session_id"]
+        assert sid
+
+        second = client.post(
+            "/api/chat/query",
+            json={"message": "它是什么行业", "mode": "chat", "session_id": sid, "use_llm": False},
+        )
+        assert second.status_code == 200
+        followup = second.json()
+        assert followup["session_id"] == sid
+        assert followup["remembered_stock_code"] == "000021.SZ"
+
+        memory = _build_memory_context(sid)
+        assert "000021" in memory["recent_stock_codes"]
+
     def test_end_session(self):
         mgr = ConversationManager(ttl_seconds=3600)
         session = mgr.create_session("user_001")
