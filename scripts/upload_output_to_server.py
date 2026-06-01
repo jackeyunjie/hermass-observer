@@ -19,6 +19,7 @@ import requests
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE_URL = "http://console.supertrader.world/api/admin/upload-data"
+AUTH = ("hermass-test", "Hermass2026!Lab")
 
 
 def upload_foundation(date: str) -> None:
@@ -38,6 +39,7 @@ def upload_foundation(date: str) -> None:
         BASE_URL,
         files={"file": ("p116_foundation.duckdb.gz", compressed, "application/gzip")},
         data={"type": "foundation", "date": date},
+        auth=AUTH,
         timeout=300,
     )
     data = resp.json()
@@ -59,6 +61,7 @@ def upload_snapshot() -> None:
         BASE_URL,
         files={"file": ("daily_snapshot.json", path.read_bytes(), "application/json")},
         data={"type": "snapshot"},
+        auth=AUTH,
         timeout=60,
     )
     data = resp.json()
