@@ -164,6 +164,12 @@ python scripts/upload_output_to_server.py --date YYYYMMDD --type foundation
   - 再插入同数量增量行
   - 行数前后匹配
 
+服务器端已验证：
+
+- 当前 `foundation_delta` 上传方法可用
+- 上传后的服务器合并数据可用
+- 验收重点不是只看 HTTP 上传成功，还要确认合并后的 Foundation DB 数据能被网站继续读取
+
 ## 已推送提交
 
 ```text
