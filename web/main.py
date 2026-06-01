@@ -3770,7 +3770,7 @@ def chat_query(request: Request, query: ChatQuery) -> JSONResponse:
         from hermass_platform.chat.conversation_manager import get_conversation_manager
         conv_mgr = get_conversation_manager()
         if not query.session_id:
-            session = conv_mgr.create_session(user_id)
+            session = conv_mgr.get_or_create(user_id, query.session_id)
             query.session_id = session.session_id
         else:
             session = conv_mgr.get_or_create(user_id, query.session_id)

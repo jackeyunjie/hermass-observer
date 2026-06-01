@@ -163,7 +163,21 @@ class ConversationManager:
         self._sessions[session_id] = session
         return session
 
+    def get_recent_session_id(self, user_id: str) -> str | None:
+        for session_id, session in self._sessions.items():
+            if session.user_id == user_id and not session.is_expired():
+                return session_id
+        try:
+            data = self._store.load_recent_session(user_id)
+            if data:
+                return data.get("session_id")
+        except Exception:
+            pass
+        return None
+
     def get_or_create(self, user_id: str, session_id: str | None = None) -> Session:
+        if not session_id:
+            session_id = self.get_recent_session_id(user_id)
         if session_id:
             session = self.get_session(session_id)
             if session and session.user_id == user_id:

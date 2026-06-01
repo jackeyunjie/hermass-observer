@@ -65,6 +65,22 @@ class ConversationStore:
         )
         conn.commit()
 
+    def load_recent_session(self, user_id: str) -> Optional[dict]:
+        """Load most recent session for a user."""
+        conn = self._conn()
+        row = conn.execute(
+            "SELECT session_id, user_id, created_at, last_active FROM sessions WHERE user_id = ? ORDER BY last_active DESC LIMIT 1",
+            (user_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return {
+            "session_id": row[0],
+            "user_id": row[1],
+            "created_at": row[2],
+            "last_active": row[3],
+        }
+
     def load_session(self, session_id: str, max_turns: int = 20) -> Optional[dict]:
         """Load session from SQLite. Returns a plain dict with turns list."""
         conn = self._conn()
