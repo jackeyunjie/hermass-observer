@@ -104,8 +104,9 @@ python3 scripts/calibration_trigger.py --date 2026-05-30
 
 1. 本地跑完数据流水线
 2. 生成并上传 `foundation_delta` 增量包
-3. 上传 `daily_snapshot.json`
-4. 刷页面验收
+3. 上传 `strategy_signal_daily_YYYYMMDD.json`
+4. 上传 `daily_snapshot.json`
+5. 刷页面验收
 
 说明：
 
@@ -140,6 +141,10 @@ python3 scripts/calibration_trigger.py --date 2026-05-30
 2. `daily_snapshot.json`
    - 产物：`outputs/daily_snapshot.json`
    - 上传类型：`snapshot`
+3. `strategy_signal_daily`
+   - 产物：`outputs/strategy_signals/strategy_signal_daily_YYYYMMDD.json`
+   - 上传类型：`strategy_signal_daily`
+   - 行业页的“快照日期 / 最新信号数”依赖这个文件
 
 默认不上传完整 `p116_foundation.duckdb`。
 
@@ -147,6 +152,7 @@ python3 scripts/calibration_trigger.py --date 2026-05-30
 
 - 完整 Foundation DB 当前约 `3.7G`
 - 2026-06-01 的当天增量包约 `8.8M`，gzip 后约 `4.4M`
+- 2026-06-01 的策略信号快照约 `1.5M`
 - `daily_snapshot.json` 约 `1.7M`
 - 每日上传量从数 GB 降到约数 MB，同时网站仍保留完整 Foundation DB 查询能力
 
@@ -161,6 +167,7 @@ UPLOAD_FOUNDATION=1 ./scripts/run_daily_pipeline.sh YYYY-MM-DD
 ```bash
 python scripts/build_foundation_delta.py --date YYYY-MM-DD
 python scripts/upload_output_to_server.py --date YYYYMMDD --type foundation_delta
+python scripts/upload_output_to_server.py --date YYYYMMDD --type strategy_signal_daily
 python scripts/upload_output_to_server.py --date YYYYMMDD --type snapshot
 ```
 
