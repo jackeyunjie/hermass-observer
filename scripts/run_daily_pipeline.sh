@@ -16,6 +16,9 @@ YMD="${DATE_STR//-/}"
 
 mkdir -p "$LOG_DIR"
 
+# 确保项目本地包可被 venv Python 导入
+export PYTHONPATH="$PRODUCT_DIR:$RESEARCH_DIR${PYTHONPATH:+:$PYTHONPATH}"
+
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_DIR/daily_pipeline_${YMD}.log"
 }
@@ -145,6 +148,29 @@ else
     log " 飞书配置未找到，跳过推送"
 fi
 
+# ── Step 10: 同步数据到服务器 ──
+log "Step 10/10: 同步数据到服务器..."
+SYNC_SCRIPT="$PRODUCT_DIR/scripts/sync_outputs_to_server.sh"
+if [ -x "$SYNC_SCRIPT" ]; then
+    chmod +x "$SYNC_SCRIPT" 2>/dev/null || true
+fi
+if [ -f "$SYNC_SCRIPT" ]; then
+    bash "$SYNC_SCRIPT" --date "$DATE_STR" 2>&1 | while IFS= read -r line; do
+        log "[sync] $line"
+    done
+    SYNC_EXIT=${PIPESTATUS[0]}
+    if [ "$SYNC_EXIT" -eq 0 ]; then
+        log " 数据同步完成"
+    elif [ "$SYNC_EXIT" -eq 2 ]; then
+        log " 数据同步部分失败（非关键目录），流水线继续"
+    else
+        log " 数据同步严重失败（退出码=${SYNC_EXIT}），需人工检查"
+    fi
+else
+    log " 同步脚本不存在，跳过"
+fi
+
+# ── 流水线结束 ──
 log "========================================"
 log "流水线完成 - ${DATE_STR}"
 log "Foundation DB: $FOUNDATION_DB"
