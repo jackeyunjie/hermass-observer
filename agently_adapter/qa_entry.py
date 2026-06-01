@@ -17,6 +17,90 @@ from typing import Any
 from agently_adapter.agents import router
 from agently_adapter.scenarios import get_scenario_module
 
+# ── 复合场景配置 ──────────────────────────────────────────────────────────
+
+COMPOUND_PAIRS: list[tuple[str, str, list[str], list[str]]] = [
+    (
+        "watch_command",
+        "industry_scan",
+        ["盯着", "提醒", "突破", "止损", "帮我盯", "盯着它"],
+        ["行业", "板块", "产业链", "什么行业", "它的行业"],
+    ),
+]
+
+
+def _has_keywords(msg: str, keywords: list[str]) -> bool:
+    return any(k in msg for k in keywords)
+
+
+def _should_compound(primary: str, secondary: str, user_input: str) -> bool:
+    if not primary or not secondary or primary == secondary:
+        return False
+    msg = user_input.strip().lower()
+    for p, s, p_kws, s_kws in COMPOUND_PAIRS:
+        if primary == p and secondary == s and _has_keywords(msg, p_kws) and _has_keywords(msg, s_kws):
+            return True
+    return False
+
+
+def _execute_compound(
+    primary: str,
+    secondary: str,
+    user_input: str,
+    context: dict[str, Any],
+    route: dict[str, Any] | None,
+) -> dict[str, Any]:
+    primary_mod = get_scenario_module(primary)
+    secondary_mod = get_scenario_module(secondary)
+
+    primary_result = None
+    secondary_result = None
+    try:
+        primary_result = primary_mod.run(user_input, context) if primary_mod else None
+    except Exception:
+        primary_result = None
+
+    try:
+        secondary_result = secondary_mod.run(user_input, context) if secondary_mod else None
+    except Exception:
+        secondary_result = None
+
+    if primary_result is None and secondary_result is None:
+        return _fallback_response(user_input, context)
+
+    if primary_result is None:
+        result = dict(secondary_result)
+        result["freshness_note"] = (
+            result.get("freshness_note", "")
+            + " 盯盘任务链路暂不可用，仅返回行业分析。"
+        ).strip()
+    elif secondary_result is None:
+        result = dict(primary_result)
+        result["freshness_note"] = (
+            result.get("freshness_note", "")
+            + " 行业扫描链路暂不可用，仅返回盯盘确认。"
+        ).strip()
+        result.setdefault("task_card", primary_result.get("task_card"))
+    else:
+        result = dict(secondary_result)
+        result["task_card"] = primary_result.get("task_card")
+        result["remembered_stock_code"] = primary_result.get("remembered_stock_code", "")
+        next_actions = list(primary_result.get("next_actions", []))
+        for a in secondary_result.get("next_actions", []):
+            if a not in next_actions:
+                next_actions.append(a)
+        result["next_actions"] = next_actions
+
+    result.setdefault("mode_used", context.get("mode", "chat"))
+    result.setdefault("provider", "agently_deepseek")
+    result.setdefault("enhancement_used", True)
+    result.setdefault("intent", {
+        "scenario": [primary, secondary],
+        "confidence": route.get("confidence", 0.0) if route else 0.0,
+        "secondary_scenario": "",
+    })
+    return result
+
 
 def _fallback_response(user_input: str, context: dict[str, Any]) -> dict[str, Any]:
     """当多 Agent 链任何一环失败时，返回一个带说明的兜底结构，让 web 层决定如何展示。"""
@@ -63,20 +147,23 @@ def handle(user_input: str, context: dict[str, Any]) -> dict[str, Any] | None:
         return _handle_value_analysis(context)
 
     # 1. 场景路由 —— LLM 判断场景类型
-    # 记忆信息通过 context 传递，不拼入 user_input（保持路由输入纯净）
     route = router.run(user_input, context)
     if route is None:
-        # 路由失败：尝试用关键词匹配兜底
         scenario_name = _keyword_fallback_route(user_input, context)
+        secondary = ""
     else:
         scenario_name = route.get("scenario", "chitchat")
+        secondary = route.get("secondary_scenario", "")
 
     if scenario_name == "chitchat":
-        return None  # 闲聊由 web 层规则回答处理
+        return None
+
+    # 1.5 复合场景检测 —— 主/次场景不同且用户消息含两条链关键词
+    if _should_compound(scenario_name, secondary, user_input):
+        return _execute_compound(scenario_name, secondary, user_input, context, route)
 
     # 场景二次纠偏：当用户问题关键词与次场景更匹配时，切换场景
     scenario_mod = None
-    secondary = route.get("secondary_scenario", "") if route else ""
     if secondary:
         msg_lower = user_input.strip().lower()
         if secondary == "industry_scan" and any(k in msg_lower for k in ("行业", "板块", "产业链", "什么行业")):

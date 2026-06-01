@@ -49,4 +49,11 @@ def run(user_input: str, context: dict[str, Any]) -> dict[str, Any] | None:
         "freshness_note": "任务尚未注册，需要补充邮箱和触发条件。",
         "remembered_stock_code": symbol,
         "remembered_email": "",
+        "task_card": {
+            "title": "任务确认",
+            "task_type": "盯盘提醒",
+            "stock_code": symbol,
+            "trigger_type": context.get("trigger_type", "状态变化"),
+            "status": "pending_confirm",
+        },
     }
