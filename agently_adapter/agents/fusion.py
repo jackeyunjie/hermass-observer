@@ -32,7 +32,21 @@ def run(context: dict[str, Any]) -> dict[str, Any] | None:
     agent = create_agent()
     agent.system(PROMPT)
     agent.instruct("对以下初稿进行质检和融合，输出标准 JSON。")
+
+    recent_turns = context.get("recent_turns", [])
+    history_block = ""
+    if recent_turns:
+        history_lines = []
+        for t in recent_turns[-3:]:
+            role_label = "用户" if t.get("role") == "user" else "系统"
+            history_lines.append(f"{role_label}：{t.get('message', '')}")
+        history_block = "对话历史：\n" + "\n".join(history_lines) + "\n\n"
+        history_block += "重要：如果对话历史显示用户上一轮在讨论某只股票，本轮使用了代词（它/这个/这只），"
+        history_block += "你的回答必须关联这只股票。如果用户上一轮问了股票诊断，本轮问行业相关问题，"
+        history_block += "应优先回答行业相关内容而非重复上轮的市场判断。\n\n"
+
     agent.input(
+        f"{history_block}"
         f"来源 Agent：{context.get('source_scenario', 'unknown')}\n"
         f"初稿内容：{context.get('draft', {})}\n"
         f"用户类型：{context.get('user_type', '执行型')}"

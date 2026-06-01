@@ -74,14 +74,25 @@ def handle(user_input: str, context: dict[str, Any]) -> dict[str, Any] | None:
     if scenario_name == "chitchat":
         return None  # 闲聊由 web 层规则回答处理
 
-    # 2. 加载场景编排模块
-    scenario_mod = get_scenario_module(scenario_name)
+    # 场景二次纠偏：当用户问题关键词与次场景更匹配时，切换场景
+    scenario_mod = None
+    secondary = route.get("secondary_scenario", "") if route else ""
+    if secondary:
+        msg_lower = user_input.strip().lower()
+        if secondary == "industry_scan" and any(k in msg_lower for k in ("行业", "板块", "产业链", "什么行业")):
+            secondary_mod = get_scenario_module(secondary)
+            if secondary_mod is not None:
+                scenario_name = secondary
+                scenario_mod = secondary_mod
+
+    # 2. 加载场景编排模块（如未在上一步设置）
     if scenario_mod is None:
-        # 未知场景：尝试用次场景
-        if route and route.get("secondary_scenario"):
-            scenario_mod = get_scenario_module(route["secondary_scenario"])
+        scenario_mod = get_scenario_module(scenario_name)
         if scenario_mod is None:
-            return None
+            if secondary:
+                scenario_mod = get_scenario_module(secondary)
+            if scenario_mod is None:
+                return None
 
     # 3. 执行场景链
     try:

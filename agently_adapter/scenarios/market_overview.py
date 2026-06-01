@@ -32,5 +32,6 @@ def run(user_input: str, context: dict[str, Any]) -> dict[str, Any] | None:
             "translator": trans_result,
         },
         "user_type": context.get("user_type", "执行型"),
+        "recent_turns": context.get("recent_turns", []),
     }
     return fusion.run(fusion_ctx)

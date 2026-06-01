@@ -2728,25 +2728,28 @@ def _is_market_question(message: str) -> bool:
 
 
 
-def _should_use_managed_llm(query: ChatQuery) -> bool:
-    """判断是否应走 Agently 统一问答服务层。
+def _user_wants_llm(query: ChatQuery) -> bool:
+    """用户是否打开了 LLM 增强开关。
 
-    2026-05-30 整改后：不再让 web/main.py 直接猜测式调 agent，
-    而是通过 agently_adapter.qa_service 统一封装调用。
+    语义：只检查用户意愿（前端 use_llm 开关），不做问题类型判断。
+    高价值/低价值问题的路由由 agently_adapter 层内部决定。
+    2026-05-31 修复：不再对高价值问题强制走 LLM。
     """
     mode = "agent" if str(query.mode or "").lower() == "agent" else "chat"
     if mode != "chat":
         return False
-    msg = query.message.strip().lower()
-    if _is_value_question(msg) or _is_industry_question(msg) or _is_market_question(msg):
-        return True
     return bool(query.use_llm)
 
 
 def _requires_managed_llm(query: ChatQuery) -> bool:
-    """判断当前问题是否属于高价值解释类，需要 LLM 增强。"""
+    """判断当前问题是否属于高价值解释类，需要 LLM 增强。
+
+    2026-05-31 修复：use_llm=false 时不强制要求 LLM。
+    """
     mode = "agent" if str(query.mode or "").lower() == "agent" else "chat"
     if mode != "chat":
+        return False
+    if not query.use_llm:
         return False
     msg = query.message.strip().lower()
     return _is_value_question(msg) or _is_industry_question(msg) or _is_market_question(msg)
@@ -2889,11 +2892,17 @@ def _build_memory_context(session_id: str) -> dict[str, Any]:
                 pass
     preferred = [s for s, _ in sorted(scenario_counts.items(), key=lambda x: -x[1])[:2]]
 
+    recent_turns_data = [
+        {"role": t.role, "message": t.message[:200]}
+        for t in recent_turns
+    ]
+
     return {
         "recent_topics": top_words,
         "recent_stock_codes": stock_codes,
         "user_focus": user_focus,
         "user_preferred_scenarios": preferred,
+        "recent_turns": recent_turns_data,
     }
 
 
@@ -2983,7 +2992,7 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
     2026-05-31 升级：从单 Agent qa_ask 升级到场景化多 Agent 链（qa_entry.handle）。
     web/main.py 只负责构造上下文和转发，所有路由、编排、融合都在 agently_adapter 层完成。
     """
-    if not _should_use_managed_llm(query):
+    if not _user_wants_llm(query):
         return None
 
     try:
@@ -2993,7 +3002,7 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
 
     msg = query.message.strip().lower()
 
-    # Phase 1：注入会话记忆上下文
+    # ── 数据预取区：记忆上下文 ──────────────────────────────────────────────
     memory: dict[str, Any] = {}
     if query.session_id:
         try:
@@ -3001,19 +3010,27 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
         except Exception:
             pass  # 记忆提取失败不阻塞主链路
 
+    symbol = query.stock_code or _chat_stock_code(query) or ""
+    # 代词解析：从记忆上下文中还原"它/这个/这只"
+    if not symbol:
+        recent_codes = memory.get("recent_stock_codes", [])
+        if recent_codes and any(p in msg for p in ("它", "这个", "这只", "那个", "那只")):
+            symbol = recent_codes[0]
+
     context = {
         "user_type": "执行型",
         "current_page": query.page_context or "",
-        "symbol": query.stock_code or _chat_stock_code(query) or "",
+        "symbol": symbol,
         "mode": query.mode or "chat",
         "recent_topics": memory.get("recent_topics", []),
         "recent_stock_codes": memory.get("recent_stock_codes", []),
         "user_focus": memory.get("user_focus", ""),
         "user_preferred_scenarios": memory.get("user_preferred_scenarios", []),
+        "recent_turns": memory.get("recent_turns", []),
         "value_call": _agently_value_deepseek_call,
     }
 
-    # 按需预取数据注入上下文（场景编排会消费）
+    # ── 数据预取区：市场/行业/价值数据（场景编排消费） ──────────────────────
     if _is_market_question(msg) or _is_industry_question(msg) or _is_value_question(msg):
         try:
             context["market_data"] = _market_analysis_data()
@@ -3025,6 +3042,24 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
             context["industry_distribution"] = _industry_rotation_data()
         except Exception:
             context["industry_distribution"] = {}
+        # 如果已解析出股票代码，预取该股票所属行业名称
+        if symbol:
+            try:
+                foundation_db = find_foundation_db(str(date.today()))
+                if foundation_db:
+                    con = duckdb.connect(str(foundation_db), read_only=True)
+                    try:
+                        canonical = _canonical_stock_code(symbol)
+                        row = con.execute(
+                            "SELECT sw_l1_name FROM foundation WHERE symbol = ? LIMIT 1",
+                            [canonical],
+                        ).fetchone()
+                        if row and row[0]:
+                            context["industry_name"] = str(row[0])
+                    finally:
+                        con.close()
+            except Exception:
+                pass
 
     if _is_value_question(msg):
         try:
@@ -3051,6 +3086,14 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
             context["stock_states"] = {}
             context["value_prompt_pack"] = False
 
+    # 非价值问题但有股票代码（如代词解析）：为 stock_checkup 场景预取基础数据
+    elif symbol and not context.get("value_prompt_pack"):
+        try:
+            context["stock_states"] = _stock_context_for_agent(symbol)
+        except Exception:
+            context["stock_states"] = {}
+
+    # ── 统一入口：转发到 agently 场景化多 Agent 链 ──────────────────────────
     return handle(query.message, context)
 
 
