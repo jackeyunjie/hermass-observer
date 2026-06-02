@@ -2507,7 +2507,7 @@ def research_page(
     ctx["current_user"] = profile
     return templates.TemplateResponse(
         request,
-        "stock-research.html",
+        "research.html",
         ctx,
     )
 
