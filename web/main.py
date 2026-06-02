@@ -2187,7 +2187,7 @@ def index(request: Request, mode: str = "") -> HTMLResponse:
     mode = mode or mode_map.get(user_type, "direction")
     return templates.TemplateResponse(
         request,
-        "dashboard.html",
+        "index.html",
         {
             "request": request,
             "today": str(date.today()),
@@ -2220,7 +2220,7 @@ def preview_cards(
     cards = _render_cards(stock_code, render_profile)
     return templates.TemplateResponse(
         request,
-        "dashboard.html",
+        "index.html",
         {
             "request": request,
             "today": str(date.today()),
@@ -2236,6 +2236,37 @@ def preview_cards(
             "cards": cards,
             "stock_code": stock_code,
             "render_profile": render_profile,
+            "current_user": profile,
+        },
+    )
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard_page(request: Request, mode: str = "") -> HTMLResponse:
+    """认知仪表板（新模板测试路由）。"""
+    profile = get_current_profile(request)
+    user_type = profile.get("user_type", "执行型")
+    mode_map = {"方向型": "direction", "研究型": "research", "执行型": "execution"}
+    mode = mode or mode_map.get(user_type, "direction")
+    return templates.TemplateResponse(
+        request,
+        "dashboard.html",
+        {
+            "request": request,
+            "today": str(date.today()),
+            "mode": mode,
+            "mode_summary": _view_mode_summary(mode),
+            "industry": _industry_rotation_data(),
+            "execution": _execution_lane(),
+            "research_lane": _research_lane("000021.SZ"),
+            "outputs": _output_status(),
+            "cron_rows": _cron_rows(),
+            "alert_rows": _alert_rows(),
+            "quant": _quant_summary(),
+            "cards": None,
+            "stock_code": "000021.SZ",
+            "render_profile": "full",
+            "daily_brief": _daily_brief(),
             "current_user": profile,
         },
     )
