@@ -16,22 +16,21 @@
         <a href="/?mode=direction">首页</a>
         <a href="/industry">行业</a>
         <a href="/backtest">回测</a>
-        <span>{{ today }}</span>
+        <span>数据 {{ market.presentation.data_date }}</span>
       </div>
     </header>
 
     <main class="layout">
       <section class="panel span-2 hero-panel">
         <div class="panel-head">
-          <h2>{{ market.phase.label }}</h2>
-          <span>{{ market.phase.date }} / 置信度 {{ market.phase.confidence }}</span>
+          <h2>{{ market.presentation.title }}</h2>
+          <span>{{ market.presentation.status }} / 页面 {{ market.presentation.page_date }}</span>
         </div>
-        <p class="hero-copy">{{ market.phase.summary }}</p>
+        <p class="hero-copy">{{ market.presentation.summary }}</p>
         <p class="hero-note">
-          当前阶段已持续 {{ market.phase.current_phase_days }} 天，前一阶段为 {{ market.phase.previous_phase }}。
-          先看多周期结构、阶段节奏与概率环境，再决定是否下钻行业和个股。
+          当前数据日期：{{ market.presentation.data_date }}。先看能不能用，再决定是否下钻行业和个股。
         </p>
-        <p class="hero-note">{{ market.stance }}</p>
+        <p class="hero-note">{{ market.presentation.action }}</p>
       </section>
 
       <section class="panel span-2 warning-panel">
@@ -136,11 +135,13 @@
 
       <section class="panel span-2">
         <div class="panel-head">
-          <h2>阶段统计</h2>
-          <span>阶段不是一句话，是一组统计</span>
+          <h2>阶段诊断</h2>
+          <span>诊断层，不抢主判断</span>
         </div>
         <table>
           <tbody>
+            <tr><td>阶段标签</td><td>{{ market.phase.label }}</td></tr>
+            <tr><td>阶段摘要</td><td>{{ market.phase.summary }}</td></tr>
             <tr><td>阶段代码</td><td>{{ market.phase.market_phase }}</td></tr>
             <tr><td>全三 E/F 池规模</td><td>{{ market.phase.pool_size }}</td></tr>
             <tr><td>5 日变化</td><td>{{ "%.1f"|format(market.phase.pool_change_rate_5d * 100) }}%</td></tr>

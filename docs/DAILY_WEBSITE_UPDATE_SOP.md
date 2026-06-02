@@ -145,6 +145,18 @@ python3 scripts/calibration_trigger.py --date 2026-05-30
 3. `daily_snapshot.json`
    - 产物：`outputs/daily_snapshot.json`
    - 上传类型：`snapshot`
+4. 网站页面辅助数据
+   - `state_ef`
+   - `state_duration`
+   - `sr_boundary`
+   - `market_phase`
+   - `market_assets_state`
+   - `unified_view`
+   - `forward_observation`
+   - `macro_chain_prior`
+   - `industry_rotation`
+
+这些辅助数据不是装饰项。市场页、行业页、研究页和 AI 助手都会读取它们；如果不上传，会出现“Foundation 已更新，但页面局部仍是旧判断”的问题。
 
 默认不上传完整 `p116_foundation.duckdb`。
 
@@ -169,6 +181,15 @@ python scripts/build_foundation_delta.py --date YYYY-MM-DD
 python scripts/upload_output_to_server.py --date YYYYMMDD --type foundation_delta
 python scripts/upload_output_to_server.py --date YYYYMMDD --type strategy_signal_daily
 python scripts/upload_output_to_server.py --date YYYYMMDD --type snapshot
+python scripts/upload_output_to_server.py --date YYYYMMDD --type state_ef
+python scripts/upload_output_to_server.py --date YYYYMMDD --type state_duration
+python scripts/upload_output_to_server.py --date YYYYMMDD --type sr_boundary
+python scripts/upload_output_to_server.py --date YYYYMMDD --type market_phase
+python scripts/upload_output_to_server.py --date YYYYMMDD --type market_assets_state
+python scripts/upload_output_to_server.py --date YYYYMMDD --type unified_view
+python scripts/upload_output_to_server.py --date YYYYMMDD --type forward_observation
+python scripts/upload_output_to_server.py --date YYYYMMDD --type macro_chain_prior
+python scripts/upload_output_to_server.py --date YYYYMMDD --type industry_rotation
 python scripts/validate_website_data_sync.py --date YYYYMMDD
 ```
 

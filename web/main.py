@@ -511,22 +511,40 @@ def _industry_rotation_data() -> dict[str, Any]:
             }
         )
 
-    top_signals = []
-    for row in rows[:6]:
+    top_signals_by_code: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        stock_code = str(row.get("stock_code", "")).strip()
+        if not stock_code:
+            continue
+        if stock_code not in top_signals_by_code and len(top_signals_by_code) >= 6:
+            continue
         strategy_id = row.get("strategy_id", "")
         definition = _strategy_definition(strategy_id)
-        top_signals.append(
-            {
-                "stock_code": row.get("stock_code", ""),
+        signal_read = _signal_interpretation(strategy_id, row.get("signal_name", ""))
+        if stock_code not in top_signals_by_code:
+            top_signals_by_code[stock_code] = {
+                "stock_code": stock_code,
                 "stock_name": row.get("stock_name", ""),
                 "strategy_id": strategy_id,
-                "strategy_label": definition["label"],
+                "strategy_label": "",
                 "path_label": definition["path_label"],
                 "strategy_what": definition["what"],
                 "signal_name": row.get("signal_name", ""),
-                "signal_read": _signal_interpretation(strategy_id, row.get("signal_name", "")),
+                "signal_read": "",
+                "_strategy_labels": [],
+                "_signal_reads": [],
             }
-        )
+        current = top_signals_by_code[stock_code]
+        if definition["label"] not in current["_strategy_labels"]:
+            current["_strategy_labels"].append(definition["label"])
+        if signal_read and signal_read not in current["_signal_reads"]:
+            current["_signal_reads"].append(signal_read)
+
+    top_signals = []
+    for item in top_signals_by_code.values():
+        item["strategy_label"] = " / ".join(item.pop("_strategy_labels", []))
+        item["signal_read"] = "；".join(item.pop("_signal_reads", []))
+        top_signals.append(item)
 
     return {
         "date": date_str,
@@ -935,7 +953,43 @@ def _market_analysis_data() -> dict[str, Any]:
     if stale_rows:
         strategy_risk_banner += " 当前存在过旧或缺失的外围数据，已自动弱化相关前台判断。"
 
+    primary_stale_rows = [
+        row for row in (market_phase_freshness, market_assets_freshness)
+        if row["status"] in {"stale", "missing", "unknown"}
+    ]
+    if primary_stale_rows:
+        presentation_title = f"当前可用数据截至 {core_date}"
+        presentation_status = "主判断降级"
+        presentation_summary = (
+            "市场阶段或宽基/行业 ETF 数据没有与核心快照对齐，先按市场宽度和策略信号做保守判断。"
+        )
+        presentation_action = "先观察，不扩大关注面；等数据链路补齐后再下钻行业和个股。"
+    elif breadth["ef2_pct"] >= 18 and top_industries:
+        presentation_title = "局部顺风，优先精选"
+        presentation_status = "数据可用"
+        presentation_summary = stance
+        presentation_action = focus_now
+    elif breadth["ef2_pct"] >= 8:
+        presentation_title = "结构跟踪，不急进攻"
+        presentation_status = "数据可用"
+        presentation_summary = stance
+        presentation_action = focus_now
+    else:
+        presentation_title = "防守等待，缩小范围"
+        presentation_status = "数据可用"
+        presentation_summary = stance
+        presentation_action = avoid_now
+
     return {
+        "presentation": {
+            "title": presentation_title,
+            "status": presentation_status,
+            "data_date": core_date,
+            "page_date": str(date.today()),
+            "summary": presentation_summary,
+            "action": presentation_action,
+            "avoid": avoid_now,
+        },
         "phase": {
             "date": market_phase.get("date", "-") if isinstance(market_phase, dict) else "-",
             "label": market_phase.get("phase_label", "未知阶段") if isinstance(market_phase, dict) else "未知阶段",
@@ -3841,6 +3895,19 @@ FOUNDATION_DELTA_KEYS = {
 }
 
 
+WEBSITE_UPLOAD_TARGETS = {
+    "state_ef": ("state_cache", "state_ef_{ymd}.json", None),
+    "state_duration": ("state_cache", "state_duration_{ymd}.json", None),
+    "sr_boundary": ("state_cache", "sr_boundary_{ymd}.json", None),
+    "market_phase": ("market_phase", "market_phase_{ymd}.json", "market_phase_latest.json"),
+    "market_assets_state": ("market_assets_state", "market_assets_state_{ymd}.json", None),
+    "unified_view": ("unified_view", "unified_daily_snapshot_{date}.csv", None),
+    "forward_observation": ("forward_observation", "forward_observation_{ymd}.json", None),
+    "macro_chain_prior": ("macro_chain_prior", "macro_chain_prior_{ymd}.json", "macro_chain_prior_latest.json"),
+    "industry_rotation": ("industry_rotation", "industry_rotation_{ymd}.json", None),
+}
+
+
 def _normalize_upload_date(date_str: str) -> str:
     if re.fullmatch(r"\d{8}", date_str or ""):
         return f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
@@ -3938,6 +4005,40 @@ def _json_status(path: Path, date_key: str = "date") -> dict[str, Any]:
     }
 
 
+def _json_list_status(path: Path, date_key: str = "state_date") -> dict[str, Any]:
+    payload = _read_json(path)
+    rows = payload if isinstance(payload, list) else []
+    dates = [
+        str(row.get(date_key, ""))
+        for row in rows
+        if isinstance(row, dict) and row.get(date_key)
+    ]
+    return {
+        "path": str(path),
+        "exists": path.exists(),
+        "size": path.stat().st_size if path.exists() else 0,
+        "date": max(dates) if dates else "",
+        "row_count": len(rows),
+    }
+
+
+def _csv_status(path: Path, expected_date: str) -> dict[str, Any]:
+    row_count = 0
+    if path.exists():
+        try:
+            with path.open("r", encoding="utf-8-sig") as fh:
+                row_count = max(0, sum(1 for _ in fh) - 1)
+        except Exception:
+            row_count = 0
+    return {
+        "path": str(path),
+        "exists": path.exists(),
+        "size": path.stat().st_size if path.exists() else 0,
+        "date": expected_date if path.exists() else "",
+        "row_count": row_count,
+    }
+
+
 def _foundation_status(date_str: str) -> dict[str, Any]:
     db_path = find_foundation_db(date_str) or find_foundation_db()
     status: dict[str, Any] = {
@@ -3979,12 +4080,32 @@ def admin_data_sync_status(date: str = "") -> JSONResponse:
     outputs = ROOT / "outputs"
     strategy_dir = outputs / "strategy_signals"
     delta_path = outputs / f"foundation_delta_{compact_date}" / "foundation_delta.duckdb"
+    state_dir = outputs / "state_cache"
+    market_phase_dir = outputs / "market_phase"
+    market_assets_dir = outputs / "market_assets_state"
+    unified_dir = outputs / "unified_view"
+    forward_dir = outputs / "forward_observation"
     payload = {
         "ok": True,
         "expected_date": normalized_date,
         "daily_snapshot": _json_status(outputs / "daily_snapshot.json"),
         "strategy_signal_daily": _json_status(strategy_dir / f"strategy_signal_daily_{compact_date}.json"),
         "strategy_signal_latest": _json_status(strategy_dir / "strategy_signal_daily_latest.json"),
+        "state_cache": {
+            "state_ef": _json_status(state_dir / f"state_ef_{compact_date}.json"),
+            "state_duration": _json_status(state_dir / f"state_duration_{compact_date}.json"),
+            "sr_boundary": _json_status(state_dir / f"sr_boundary_{compact_date}.json"),
+        },
+        "market_phase": _json_status(market_phase_dir / f"market_phase_{compact_date}.json"),
+        "market_assets_state": _json_list_status(
+            market_assets_dir / f"market_assets_state_{compact_date}.json"
+        ),
+        "unified_view": _csv_status(
+            unified_dir / f"unified_daily_snapshot_{normalized_date}.csv",
+            normalized_date,
+        ),
+        "forward_observation": _json_status(forward_dir / f"forward_observation_{compact_date}.json"),
+        "macro_chain_prior": _json_status(outputs / "macro_chain_prior" / "macro_chain_prior_latest.json"),
         "foundation_delta": {
             "path": str(delta_path),
             "exists": delta_path.exists(),
@@ -4033,6 +4154,15 @@ async def admin_upload_data(
         dest_dir = dest_dir / f"foundation_delta_{date}"
         dest_dir.mkdir(parents=True, exist_ok=True)
         dest_path = dest_dir / "foundation_delta.duckdb"
+    elif type in WEBSITE_UPLOAD_TARGETS:
+        if not date:
+            return JSONResponse(content={"ok": False, "error": "missing date"}, status_code=400)
+        normalized_date = _normalize_upload_date(date)
+        compact_date = normalized_date.replace("-", "")
+        subdir, filename_template, _latest_name = WEBSITE_UPLOAD_TARGETS[type]
+        dest_dir = dest_dir / subdir
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest_path = dest_dir / filename_template.format(date=normalized_date, ymd=compact_date)
     else:
         return JSONResponse(content={"ok": False, "error": f"unknown type: {type}"}, status_code=400)
 
@@ -4044,6 +4174,13 @@ async def admin_upload_data(
         latest_tmp_path = latest_path.with_suffix(latest_path.suffix + ".tmp")
         latest_tmp_path.write_bytes(raw)
         latest_tmp_path.rename(latest_path)
+    if type in WEBSITE_UPLOAD_TARGETS:
+        latest_name = WEBSITE_UPLOAD_TARGETS[type][2]
+        if latest_name:
+            latest_path = dest_path.parent / latest_name
+            latest_tmp_path = latest_path.with_suffix(latest_path.suffix + ".tmp")
+            latest_tmp_path.write_bytes(raw)
+            latest_tmp_path.rename(latest_path)
 
     merged = None
     if type == "foundation_delta":

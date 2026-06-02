@@ -62,8 +62,50 @@ else
     log " Foundation DB 已存在，跳过"
 fi
 
-# ── Step 4: 策略信号账本 ──
-log "Step 4/8: 构建策略信号账本..."
+# ── Step 4: State 缓存 ──
+log "Step 4/12: 构建 State 缓存..."
+if "$VENV_DIR/bin/python" "$PRODUCT_DIR/scripts/state_cache_builder.py" \
+    --date "$DATE_STR" --foundation-db "$FOUNDATION_DB" 2>&1 | tail -1; then
+    log " State 缓存生成完成"
+    MARKET_PHASE_SRC="$PRODUCT_DIR/outputs/state_cache/market_phase_${YMD}.json"
+    MARKET_PHASE_DIR="$PRODUCT_DIR/outputs/market_phase"
+    if [ -f "$MARKET_PHASE_SRC" ]; then
+        mkdir -p "$MARKET_PHASE_DIR"
+        cp "$MARKET_PHASE_SRC" "$MARKET_PHASE_DIR/market_phase_${YMD}.json"
+        cp "$MARKET_PHASE_SRC" "$MARKET_PHASE_DIR/market_phase_latest.json"
+        log " 市场阶段快照同步完成"
+    else
+        log " 市场阶段快照缺失"
+        PIPELINE_OK=false
+    fi
+else
+    log " State 缓存生成失败"
+    PIPELINE_OK=false
+fi
+
+# ── Step 5: 市场与行业辅助视图 ──
+log "Step 5/12: 构建市场与行业辅助视图..."
+if "$VENV_DIR/bin/python" "$PRODUCT_DIR/scripts/build_market_assets_state.py" \
+    --date "$DATE_STR" 2>&1 | tail -1; then
+    log " 宽基与行业 ETF State 生成完成"
+else
+    log " 宽基与行业 ETF State 生成失败（非致命）"
+fi
+if "$VENV_DIR/bin/python" "$PRODUCT_DIR/scripts/build_macro_chain_prior.py" \
+    --date "$DATE_STR" 2>&1 | tail -1; then
+    log " 宏观产业链先验生成完成"
+else
+    log " 宏观产业链先验生成失败（非致命）"
+fi
+if "$VENV_DIR/bin/python" "$PRODUCT_DIR/scripts/build_industry_position.py" \
+    --date "$DATE_STR" 2>&1 | tail -1; then
+    log " 行业景气度生成完成"
+else
+    log " 行业景气度生成失败（非致命）"
+fi
+
+# ── Step 6: 策略信号账本 ──
+log "Step 6/12: 构建策略信号账本..."
 if "$VENV_DIR/bin/python" "$PRODUCT_DIR/scripts/strategy_signal_ledger.py" \
     --date "$DATE_STR" 2>&1 | tail -1; then
     log " 策略信号账本生成完成"
@@ -71,8 +113,17 @@ else
     log " 策略信号账本生成失败（非致命）"
 fi
 
-# ── Step 5: 策略提醒 ──
-log "Step 5/8: 生成策略提醒..."
+# ── Step 7: 统一视图 ──
+log "Step 7/12: 构建统一日视图..."
+if "$VENV_DIR/bin/python" "$PRODUCT_DIR/scripts/build_unified_daily_view.py" \
+    --date "$DATE_STR" --validate --output-csv 2>&1 | tail -1; then
+    log " 统一日视图生成完成"
+else
+    log " 统一日视图生成失败（非致命）"
+fi
+
+# ── Step 8: 策略提醒 ──
+log "Step 8/12: 生成策略提醒..."
 if "$VENV_DIR/bin/python" "$PRODUCT_DIR/scripts/strategy_reminder_brief.py" \
     --date "$DATE_STR" 2>&1 | tail -1; then
     log " 策略提醒生成完成"
@@ -80,8 +131,8 @@ else
     log " 策略提醒生成跳过（非致命）"
 fi
 
-# ── Step 6: 前向观察账本 ──
-log "Step 6/8: 更新前向观察账本..."
+# ── Step 9: 前向观察账本 ──
+log "Step 9/12: 更新前向观察账本..."
 if "$VENV_DIR/bin/python" "$PRODUCT_DIR/scripts/forward_observation_ledger.py" \
     --date "$DATE_STR" 2>&1 | tail -1; then
     log " 前向观察更新完成"
@@ -89,8 +140,8 @@ else
     log " 前向观察更新失败（非致命）"
 fi
 
-# ── Step 7: 每日快照 ──
-log "Step 7/8: 构建每日快照..."
+# ── Step 10: 每日快照 ──
+log "Step 10/12: 构建每日快照..."
 if "$VENV_DIR/bin/python" "$PRODUCT_DIR/scripts/build_daily_snapshot.py" \
     --date "$DATE_STR" 2>&1 | tail -1; then
     log " 每日快照完成"
@@ -98,8 +149,8 @@ else
     log " 每日快照构建失败（非致命）"
 fi
 
-# ── Step 7.5: 每日预警 ──
-log "Step 7.5/9: 生成每日预警..."
+# ── Step 10.5: 每日预警 ──
+log "Step 10.5/12: 生成每日预警..."
 if "$VENV_DIR/bin/python" "$PRODUCT_DIR/scripts/build_daily_warning.py" \
     --date "$DATE_STR" 2>&1 | tail -1; then
     log " 每日预警完成"
@@ -107,8 +158,8 @@ else
     log " 每日预警跳过（非致命）"
 fi
 
-# ── Step 8: 生成Excel并发送邮件 ──
-log "Step 9/10: 生成Excel并发送邮件..."
+# ── Step 11: 生成Excel并发送邮件 ──
+log "Step 11/12: 生成Excel并发送邮件..."
 export HERMASS_SMTP_USER="1300893414@qq.com"
 export HERMASS_SMTP_PASS="dyhqeduaqsrnihag"
 export HERMASS_REPORT_TO="3393639019@qq.com,447372703@qq.com"
@@ -119,8 +170,8 @@ else
     log " 邮件发送失败（非致命）"
 fi
 
-# ── Step 9: 飞书推送 (可选) ──
-log "Step 10: 飞书推送每日摘要..."
+# ── Step 11.5: 飞书推送 (可选) ──
+log "Step 11.5/12: 飞书推送每日摘要..."
 LARK_CONFIG="$PRODUCT_DIR/config/platform/lark_app.yaml"
 if [ -f "$LARK_CONFIG" ]; then
     # 尝试读取配置的 chat_id
@@ -149,8 +200,8 @@ else
     log " 飞书配置未找到，跳过推送"
 fi
 
-# ── Step 10: 更新网站数据 ──
-log "Step 10/10: 更新网站数据..."
+# ── Step 12: 更新网站数据 ──
+log "Step 12/12: 更新网站数据..."
 UPLOAD_SCRIPT="$PRODUCT_DIR/scripts/upload_output_to_server.py"
 if [ -f "$UPLOAD_SCRIPT" ]; then
     export HERMASS_UPLOAD_URL="${HERMASS_UPLOAD_URL:-http://8.130.125.201/api/admin/upload-data}"
@@ -180,6 +231,18 @@ if [ -f "$UPLOAD_SCRIPT" ]; then
     else
         log " 网站策略信号快照更新失败（非致命）"
     fi
+    for upload_type in state_ef state_duration sr_boundary market_phase market_assets_state unified_view forward_observation macro_chain_prior industry_rotation; do
+        if "$VENV_DIR/bin/python" "$UPLOAD_SCRIPT" --date "$YMD" --type "$upload_type" 2>&1 | while IFS= read -r line; do log "[website] $line"; done; then
+            log " 网站 ${upload_type} 更新完成"
+        else
+            log " 网站 ${upload_type} 更新跳过或失败（请看上方日志）"
+            case "$upload_type" in
+                state_ef|state_duration|sr_boundary|market_phase|market_assets_state|unified_view)
+                    PIPELINE_OK=false
+                    ;;
+            esac
+        fi
+    done
     if [ "${UPLOAD_FOUNDATION:-0}" = "1" ]; then
         if "$VENV_DIR/bin/python" "$UPLOAD_SCRIPT" --date "$YMD" --type foundation 2>&1 | while IFS= read -r line; do log "[website] $line"; done; then
             log " 网站 Foundation DB 更新完成"
@@ -228,10 +291,15 @@ _verify() {
 
 _verify "Foundation DB"       "${PRODUCT_DIR}/outputs/p116_foundation_${YMD}"         dir
 _verify "Foundation DuckDB"   "${PRODUCT_DIR}/outputs/p116_foundation_${YMD}/p116_foundation.duckdb" db
+_verify "State EF"            "${PRODUCT_DIR}/outputs/state_cache/state_ef_${YMD}.json" file
+_verify "State Duration"      "${PRODUCT_DIR}/outputs/state_cache/state_duration_${YMD}.json" file
+_verify "SR Boundary"         "${PRODUCT_DIR}/outputs/state_cache/sr_boundary_${YMD}.json" file
+_verify "Market Phase"        "${PRODUCT_DIR}/outputs/market_phase/market_phase_${YMD}.json" file
+_verify "Strategy Signals"    "${PRODUCT_DIR}/outputs/strategy_signals/strategy_signal_daily_${YMD}.json" file
 _verify "每日快照"            "${PRODUCT_DIR}/outputs/daily_snapshot.json"             file
 
 # 非关键项（不存在不标记失败）
-for d in strategy_signals unified_view market_phase industry_rotation; do
+for d in forward_observation unified_view market_assets_state industry_rotation macro_chain_prior; do
     path="${PRODUCT_DIR}/outputs/${d}"
     if [ -d "$path" ] && [ "$(ls -A "$path" 2>/dev/null | wc -l)" -gt 0 ]; then
         log "  [OK] $d: $path"

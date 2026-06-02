@@ -71,6 +71,15 @@ def get_text(path: str) -> str:
 def validate_status(status: dict[str, Any], expected_date: str) -> list[str]:
     errors: list[str] = []
 
+    def require_fresh_file(label: str, item: dict[str, Any], *, min_rows: int = 1, exact_date: bool = True) -> None:
+        item_date = str(item.get("date") or "")
+        row_count = int(item.get("row_count") or 0)
+        date_ok = item_date == expected_date if exact_date else item_date >= expected_date
+        if item.get("exists") and date_ok and row_count >= min_rows:
+            ok(f"{label} date={item_date} rows={row_count}")
+        else:
+            fail(errors, f"{label} stale/missing: {item}")
+
     daily = status.get("daily_snapshot") or {}
     if daily.get("exists") and daily.get("date") == expected_date:
         ok(f"daily_snapshot date={daily.get('date')}")
@@ -88,6 +97,21 @@ def validate_status(status: dict[str, Any], expected_date: str) -> list[str]:
         ok(f"strategy_signal_latest date={latest_signal.get('date')}")
     else:
         fail(errors, f"strategy_signal_latest stale/missing: {latest_signal}")
+
+    state_cache = status.get("state_cache") or {}
+    require_fresh_file("state_cache.state_ef", state_cache.get("state_ef") or {})
+    require_fresh_file("state_cache.state_duration", state_cache.get("state_duration") or {})
+    require_fresh_file("state_cache.sr_boundary", state_cache.get("sr_boundary") or {})
+    require_fresh_file("market_phase", status.get("market_phase") or {}, min_rows=0)
+    require_fresh_file("market_assets_state", status.get("market_assets_state") or {})
+    require_fresh_file("unified_view", status.get("unified_view") or {})
+    require_fresh_file("forward_observation", status.get("forward_observation") or {}, min_rows=0)
+
+    macro = status.get("macro_chain_prior") or {}
+    if macro.get("exists") and macro.get("date"):
+        ok(f"macro_chain_prior date={macro.get('date')} rows={macro.get('row_count')}")
+    else:
+        fail(errors, f"macro_chain_prior missing: {macro}")
 
     delta = status.get("foundation_delta") or {}
     if delta.get("exists") and int(delta.get("size") or 0) > 0:
@@ -116,6 +140,11 @@ def validate_status(status: dict[str, Any], expected_date: str) -> list[str]:
 
 def validate_industry_page(html: str, expected_date: str, signal_count: int) -> list[str]:
     errors: list[str] = []
+    if f"数据 {expected_date}" in html:
+        ok(f"industry header data date={expected_date}")
+    else:
+        fail(errors, f"industry header missing data date={expected_date}")
+
     if expected_date in html:
         ok(f"industry page contains date={expected_date}")
     else:
@@ -126,6 +155,23 @@ def validate_industry_page(html: str, expected_date: str, signal_count: int) -> 
     else:
         fail(errors, f"industry page missing signal_count={signal_count}")
 
+    return errors
+
+
+def validate_market_page(html: str, expected_date: str) -> list[str]:
+    errors: list[str] = []
+    if f"数据 {expected_date}" in html:
+        ok(f"market header data date={expected_date}")
+    else:
+        fail(errors, f"market header missing data date={expected_date}")
+    if f"当前数据日期：{expected_date}" in html:
+        ok(f"market hero data date={expected_date}")
+    else:
+        fail(errors, f"market hero missing data date={expected_date}")
+    if "未知阶段" in html.split("</section>", 1)[0]:
+        fail(errors, "market first screen still leads with unknown phase")
+    else:
+        ok("market first screen does not lead with unknown phase")
     return errors
 
 
@@ -152,6 +198,12 @@ def main() -> int:
         errors.extend(validate_industry_page(industry_html, expected_date, signal_count))
     except Exception as exc:
         fail(errors, f"industry page request failed: {exc}")
+
+    try:
+        market_html = get_text("/market")
+        errors.extend(validate_market_page(market_html, expected_date))
+    except Exception as exc:
+        fail(errors, f"market page request failed: {exc}")
 
     if errors:
         print(f"[SUMMARY] failed={len(errors)}")
