@@ -783,6 +783,9 @@ def _dashboard_data() -> dict[str, Any]:
                     "MN1": _state_hex_to_name_clean(row.get("mn1_state_hex")),
                     "W1": _state_hex_to_name_clean(row.get("w1_state_hex")),
                     "D1": _state_hex_to_name_clean(row.get("d1_state_hex")),
+                    "MN1_label": _hex_to_human_label(row.get("mn1_state_hex")),
+                    "W1_label": _hex_to_human_label(row.get("w1_state_hex")),
+                    "D1_label": _hex_to_human_label(row.get("d1_state_hex")),
                 },
                 "bars": {
                     "MN1": _state_score_to_bar(row.get("mn1_state_score")),

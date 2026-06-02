@@ -142,13 +142,13 @@
   }) %}
 
   {% set l2_industries = dashboard.l2.industries | default([
-    {'name': '半导体', 'code': '880491', 'states': {'MN1': '天时', 'W1': '蓄力', 'D1': '地利'}, 'bars': {'MN1': 85, 'W1': 60, 'D1': 40}},
-    {'name': '新能源', 'code': '880468', 'states': {'MN1': '地利', 'W1': '地利', 'D1': '蓄力'}, 'bars': {'MN1': 70, 'W1': 55, 'D1': 30}},
-    {'name': '医药生物', 'code': '880430', 'states': {'MN1': '人和', 'W1': '冬眠', 'D1': '人和'}, 'bars': {'MN1': 45, 'W1': 35, 'D1': 50}},
-    {'name': '人工智能', 'code': '880420', 'states': {'MN1': '天时', 'W1': '天时', 'D1': '天时'}, 'bars': {'MN1': 90, 'W1': 80, 'D1': 75}},
-    {'name': '消费', 'code': '880411', 'states': {'MN1': '冬眠', 'W1': '人和', 'D1': '冬眠'}, 'bars': {'MN1': 25, 'W1': 40, 'D1': 20}},
-    {'name': '银行', 'code': '880471', 'states': {'MN1': '蓄力', 'W1': '蓄力', 'D1': '地利'}, 'bars': {'MN1': 55, 'W1': 50, 'D1': 45}},
-    {'name': '军工', 'code': '880460', 'states': {'MN1': '逆位', 'W1': '地利', 'D1': '蓄力'}, 'bars': {'MN1': 30, 'W1': 60, 'D1': 35}}
+    {'name': '半导体', 'code': '880491', 'states': {'MN1': '天时', 'W1': '蓄力', 'D1': '地利', 'MN1_label': '🔥天时', 'W1_label': '🌥蓄力', 'D1_label': '☀️地利'}, 'bars': {'MN1': 85, 'W1': 60, 'D1': 40}},
+    {'name': '新能源', 'code': '880468', 'states': {'MN1': '地利', 'W1': '地利', 'D1': '蓄力', 'MN1_label': '☀️地利', 'W1_label': '☀️地利', 'D1_label': '🌥蓄力'}, 'bars': {'MN1': 70, 'W1': 55, 'D1': 30}},
+    {'name': '医药生物', 'code': '880430', 'states': {'MN1': '人和', 'W1': '冬眠', 'D1': '人和', 'MN1_label': '🌤人和', 'W1_label': '🌧冬眠', 'D1_label': '🌤人和'}, 'bars': {'MN1': 45, 'W1': 35, 'D1': 50}},
+    {'name': '人工智能', 'code': '880420', 'states': {'MN1': '天时', 'W1': '天时', 'D1': '天时', 'MN1_label': '🔥天时', 'W1_label': '🔥天时', 'D1_label': '🔥天时'}, 'bars': {'MN1': 90, 'W1': 80, 'D1': 75}},
+    {'name': '消费', 'code': '880411', 'states': {'MN1': '冬眠', 'W1': '人和', 'D1': '冬眠', 'MN1_label': '🌧冬眠', 'W1_label': '🌤人和', 'D1_label': '🌧冬眠'}, 'bars': {'MN1': 25, 'W1': 40, 'D1': 20}},
+    {'name': '银行', 'code': '880471', 'states': {'MN1': '蓄力', 'W1': '蓄力', 'D1': '地利', 'MN1_label': '🌥蓄力', 'W1_label': '🌥蓄力', 'D1_label': '☀️地利'}, 'bars': {'MN1': 55, 'W1': 50, 'D1': 45}},
+    {'name': '军工', 'code': '880460', 'states': {'MN1': '逆位', 'W1': '地利', 'D1': '蓄力', 'MN1_label': '⚡逆位', 'W1_label': '☀️地利', 'D1_label': '🌥蓄力'}, 'bars': {'MN1': 30, 'W1': 60, 'D1': 35}}
   ]) %}
 
   {% set l2_resonance = dashboard.l2.resonance | default([
@@ -348,7 +348,7 @@
                 {% for tf in ['MN1', 'W1', 'D1'] %}
                   <span class="inline-flex items-center gap-1 text-xs">
                     <span class="text-text-secondary">{{ tf }}</span>
-                    <span class="font-medium px-1.5 py-0.5 rounded" style="background: {{ state_color(ind.states[tf]) }}20; color: {{ state_color(ind.states[tf]) }}">{{ ind.states[tf] }}</span>
+                    <span class="font-medium px-1.5 py-0.5 rounded" style="background: {{ state_color(ind.states[tf]) }}20; color: {{ state_color(ind.states[tf]) }}">{{ ind.states[tf + '_label'] or ind.states[tf] }}</span>
                   </span>
                 {% endfor %}
               </div>
@@ -356,7 +356,7 @@
             <!-- Tri-bar visualization -->
             <div class="flex gap-1">
               {% for tf in ['MN1', 'W1', 'D1'] %}
-              <div class="flex-1 bg-slate-100 rounded-full h-3 overflow-hidden" title="{{ tf }}: {{ ind.states[tf] }} ({{ ind.bars[tf] }}%)">
+              <div class="flex-1 bg-slate-100 rounded-full h-3 overflow-hidden" title="{{ tf }}: {{ ind.states[tf + '_label'] or ind.states[tf] }} ({{ ind.bars[tf] }}%)">
                 <div class="h-full rounded-full transition-all duration-500" style="width: {{ ind.bars[tf] }}%; background-color: {{ state_color(ind.states[tf]) }}; opacity: 0.8;"></div>
               </div>
               {% endfor %}
