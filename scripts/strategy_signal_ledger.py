@@ -669,6 +669,16 @@ def build_ledger(
     recommendation_csv: Path | None = None,
     ma2560_rule_path: Path = MA2560_RULE_PATH,
 ) -> dict[str, Any]:
+    # 红线 2：策略结构保护检查
+    from hermass_platform.red_lines import guard_strategy_structure
+    guard_result = guard_strategy_structure(
+        strategy_name="composite",
+        proposed_changes={"action": "build_ledger", "date": date_str},
+        agent_id="strategy_signal_ledger",
+    )
+    if not guard_result.get("allowed"):
+        return {"status": "blocked", "reason": guard_result.get("reason", "红线拦截")}
+
     ledger_db.parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect(str(ledger_db))
     create_tables(con)

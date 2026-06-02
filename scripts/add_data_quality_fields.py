@@ -474,6 +474,21 @@ def update_data_quality_score(conn: duckdb.DuckDBPyConnection) -> dict:
     ).fetchone()[0]
     clean = total - degraded
 
+    # 红线 3：如有 DEGRADED 数据，提交人类审核
+    if degraded > 0:
+        from hermass_platform.red_lines import flag_data_anomaly
+        flag_data_anomaly(
+            agent_id="add_data_quality_fields",
+            anomaly_type="DEGRADED_data_detected",
+            stock_code="",
+            details={
+                "degraded_count": degraded,
+                "clean_count": clean,
+                "degraded_pct": round(degraded / total * 100, 2) if total else 0,
+                "rule_counts": rule_counts,
+            },
+        )
+
     stats = {
         "total_rows": total,
         "degraded_count": degraded,

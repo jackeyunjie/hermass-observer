@@ -105,57 +105,52 @@ HEREDOC
 
 ## 三模型协作分工（2026-06-02 固化，06-02 修订：Kimi 优先）
 
-**Kimi 有套餐，尽量把工作交给 Kimi。Codex 仅用于必须 SSH 到服务器的操作。**
+**Kimi 有套餐，尽量把工作交给 Kimi。Codex 专职代码审计和最后兜底。SSH 所有模型都可用。**
 
 | 角色 | 负责 | 产物 |
 |------|------|------|
-| **Kimi（主力）** | 策略蓝图 + 工程落地 + 代码审查 + 每日数据更新 | JSON/YAML、Python 脚本、DDL、HTML、审计报告 |
+| **Kimi（主力）** | 策略蓝图 + 工程落地 + 每日数据更新 | JSON/YAML、Python 脚本、DDL、HTML |
 | **Qoder** | 协助 Kimi：复杂工程问题、Kimi 遇到瓶颈时接手 | .py/.sql/.html 文件 |
-| **Codex（仅必要时）** | 服务器部署执行、混沌演练、需要 SSH 的操作 | 部署命令执行、演练报告 |
+| **Codex（审计+兜底）** | 代码审查、全链路审计、上线前 checklist、混沌演练 | 审计报告、风险评估、安全确认 |
 
 ### 修改后的工作流
 
 ```text
 1. Kimi 直接写代码 → 修改文件
 2. 人 git add + commit + push
-3. 人 SSH 到服务器执行部署（或用 Codex 部署提示词）
-4. Kimi 自查或 Qoder 交叉审查
-5. 发现的问题 → 回到步骤 1
-```
-
-### 每日数据更新（Kimi 执行）
-
-```text
-1. Kimi 本机下载今天 K 线（黑狼 API）+ 资金流数据
-2. Kimi 构建 foundation_delta 增量包
-3. 人上传到服务器 /opt/hermass/outputs/
-4. Kimi 给出服务器后续脚本命令 → 人 SSH 执行
-5. 冒烟验证
+3. 人 SSH 到服务器执行部署（任何模型都可以给 SSH 命令）
+4. Codex 审计 Kimi/Qoder 产出代码
+5. 发现的问题 → 1
 ```
 
 ---
 
 ## 每日数据更新 SOP（2026-06-02 固化）
 
-**核心策略：本地下载 → 构建增量包 → 上传服务器 → 服务器跑后续流程。不每天传 3.7G 完整 Foundation DB。**
+**核心策略：本地全流程 + 只上传产物。不传 3.7G Foundation DB，也不在服务器上跑重脚本。**
 
-### 步骤（发给 Codex 执行）
+### 正确流程（Kimi 执行，已验证）
 
 ```text
-1. 本机下载今天 K 线（黑狼 API）+ 资金流数据
-2. 构建 foundation_delta 增量包（约 8.8M，gzip 后约 4.4M）
-3. 上传到服务器 /opt/hermass/outputs/
-4. 服务器执行后续脚本：
-   - build_daily_snapshot.py
+1. Kimi 本机下载今天 K 线（黑狼 API）+ 资金流数据
+2. Kimi 本机构建 Foundation DB（build_p116_foundation.py --date YYYY-MM-DD）
+3. Kimi 本地跑全部脚本（因为本地有完整 Foundation DB）：
    - strategy_signal_ledger.py --date YYYY-MM-DD
    - estimate_reward_risk.py --date YYYY-MM-DD
    - forward_observation_ledger.py --date YYYY-MM-DD
-   - run_recommendation_workflow.py --date YYYY-MM-DD（行业轮动）
-   - build_stock_percentiles.py --date YYYY-MM-DD（波2新增）
-   - rebuild_bb_pivot_atr.py --date YYYY-MM-DD（波2新增）
-5. sudo systemctl restart hermass-console
-6. 冒烟：HTTP 200 + provider 正常
+   - run_recommendation_workflow.py --date YYYY-MM-DD
+   - build_stock_percentiles.py --date YYYY-MM-DD
+   - rebuild_bb_pivot_atr.py --date YYYY-MM-DD
+   - build_daily_snapshot.py --date YYYY-MM-DD
+4. Kimi 只上传产物 JSON/CSV 到服务器 outputs/ 对应目录
+5. 人 SSH 重启服务 + 冒烟
 ```
+
+### 为什么不在服务器跑
+
+- 服务器只有 05-29 的 Foundation DB，没有今天的数据
+- 在服务器上跑 `build_daily_snapshot.py` 会把已有 snapshot 覆盖成旧数据
+- 本地有完整 Foundation DB，结果正确
 
 ### 全量重铺（仅必要时）
 

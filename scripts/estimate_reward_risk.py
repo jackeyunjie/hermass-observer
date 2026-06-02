@@ -512,6 +512,17 @@ h2 {{ margin-top: 2rem; }}
 
 
 def main():
+    # 红线 4：仓位上限检查
+    from hermass_platform.red_lines import enforce_max_position
+    position_check = enforce_max_position(
+        stock_code="portfolio",
+        proposed_weight=0.0,
+        agent_id="estimate_reward_risk",
+    )
+    if not position_check.get("allowed"):
+        print(f"红线拦截: {position_check.get('reason', '仓位检查未通过')}")
+        return
+
     parser = argparse.ArgumentParser(description="Estimate reward-risk for entry signals")
     parser.add_argument("--date", default="2026-05-22", help="Signal date (YYYY-MM-DD)")
     parser.add_argument("--db", type=Path, default=STATE_CACHE_DB, help="Path to state_cache.duckdb")

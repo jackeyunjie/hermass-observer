@@ -47,6 +47,44 @@ WEB_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(WEB_DIR / "templates"))
 templates.env.cache = None
 
+
+def _jinja_state_color(state_name: str) -> str:
+    """返回 State 名称对应的 CSS 变量。"""
+    mapping = {
+        "天时": "var(--state-tianshi)",
+        "地利": "var(--state-dili)",
+        "人和": "var(--state-renhe)",
+        "蓄力": "var(--state-xuli)",
+        "冬眠": "var(--state-dongmian)",
+        "逆位": "var(--state-niwei)",
+    }
+    return mapping.get(str(state_name).strip(), "#94a3b8")
+
+
+def _jinja_tag_class(tag: str) -> str:
+    """返回共振标签的 Tailwind CSS class。"""
+    mapping = {
+        "突破": "bg-green-50 text-green-700 border border-green-200",
+        "观察": "bg-amber-50 text-amber-700 border border-amber-200",
+        "收缩": "bg-slate-100 text-slate-600 border border-slate-200",
+    }
+    return mapping.get(str(tag).strip(), "bg-slate-100 text-slate-500 border border-slate-200")
+
+
+def _jinja_severity_badge(severity: str) -> str:
+    """返回严重度 badge 的 HTML 字符串。"""
+    s = str(severity).strip().lower()
+    if s == "high":
+        return '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700 border border-red-200">高</span>'
+    elif s == "medium":
+        return '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">中</span>'
+    return '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-50 text-slate-600 border border-slate-200">低</span>'
+
+
+templates.env.globals["state_color"] = _jinja_state_color
+templates.env.globals["tag_class"] = _jinja_tag_class
+templates.env.globals["severity_badge"] = _jinja_severity_badge
+
 app = FastAPI(title="Hermass Internal Console", version="0.1.0")
 app.mount("/static", StaticFiles(directory=str(WEB_DIR / "static")), name="static")
 
@@ -289,6 +327,35 @@ def _hex_to_human_label(hex_str: str) -> str:
         return f"⚡{negative_name}{name}"
     emoji = emoji_map.get(name, "")
     return f"{emoji}{name}" if emoji else name
+
+
+def _state_hex_to_name_clean(hex_str: str) -> str:
+    """将 state hex 映射为中文状态名（无 emoji）。"""
+    raw = str(hex_str or "").strip()
+    if not raw or raw == "-":
+        return "未知"
+    mapping = _read_json(ROOT / "config/state_human_mapping.json") or {}
+    name_map = {str(k).upper(): str(v) for k, v in mapping.get("hex_to_name", {}).items()}
+    negative_name = str(mapping.get("negative_hex_to_name", "逆位"))
+    is_negative = raw.startswith("-")
+    text = raw[1:] if is_negative else raw
+    try:
+        key = str(int(text, 16))
+    except Exception:
+        key = text.upper()
+    name = name_map.get(key, "未知")
+    if is_negative:
+        return f"{negative_name}{name}"
+    return name
+
+
+def _state_score_to_bar(score: Any) -> int:
+    """将 state_score 映射为 0-100 的强度条。"""
+    try:
+        s = abs(int(score or 0))
+    except Exception:
+        return 0
+    return min(100, max(0, int(s / 15 * 100)))
 
 
 def _latest_existing_path(patterns: list[str]) -> Path | None:
@@ -656,6 +723,112 @@ def _daily_brief() -> dict[str, Any]:
         "conclusion": conclusion,
         "top_industries": top_industries[:5],
         "macro_bg": macro_bg,
+    }
+
+
+def _dashboard_data() -> dict[str, Any]:
+    """为 /dashboard 页面计算 L1 / L2 / L3 数据。"""
+    # ── L1 ────────────────────────────────────────────────────
+    daily_snapshot = _read_json(ROOT / "outputs/daily_snapshot.json") or {}
+    market = daily_snapshot.get("market", {}) if isinstance(daily_snapshot, dict) else {}
+    ef2_count = int(market.get("ef2_count", 0) or 0)
+
+    # 对比上一日
+    prev_ef2_count = ef2_count
+    prev_snapshots = sorted(
+        ROOT.glob("outputs/daily_snapshot/daily_snapshot_*.json"),
+        reverse=True,
+    )
+    if len(prev_snapshots) >= 2:
+        prev = _read_json(prev_snapshots[1])
+        if isinstance(prev, dict):
+            prev_ef2_count = int(prev.get("market", {}).get("ef2_count", 0) or 0)
+
+    ef_change = ef2_count - prev_ef2_count
+
+    # 策略信号总数（entry + structure）
+    signals = _read_json(_latest_path("outputs/strategy_signals/strategy_signal_daily_*.json"))
+    strategy_trigger_count = 0
+    if isinstance(signals, dict):
+        strategy_trigger_count = int(signals.get("signal_count", 0) or 0)
+
+    updated_at = str(daily_snapshot.get("built") or daily_snapshot.get("date") or date.today())
+
+    l1 = {
+        "ef_change_count": abs(ef_change),
+        "ef_change_direction": "up" if ef_change >= 0 else "down",
+        "strategy_trigger_count": strategy_trigger_count,
+        "updated_at": updated_at,
+    }
+
+    # ── L2 — 行业流 ───────────────────────────────────────────
+    market_assets = _read_json(_latest_path("outputs/market_assets_state/market_assets_state_*.json"))
+    industry_flow: list[dict[str, Any]] = []
+    if isinstance(market_assets, list):
+        industry_rows = [row for row in market_assets if row.get("asset_type") == "industry_etf"]
+        industry_rows.sort(
+            key=lambda row: (
+                row.get("ef_count", -1),
+                (row.get("mn1_state_score", 0) or 0)
+                + (row.get("w1_state_score", 0) or 0)
+                + (row.get("d1_state_score", 0) or 0),
+            ),
+            reverse=True,
+        )
+        for row in industry_rows[:6]:
+            industry_flow.append({
+                "name": str(row.get("sw_l1", row.get("name", ""))).strip() or "未知",
+                "code": str(row.get("symbol", "")).strip() or "-",
+                "states": {
+                    "MN1": _state_hex_to_name_clean(row.get("mn1_state_hex")),
+                    "W1": _state_hex_to_name_clean(row.get("w1_state_hex")),
+                    "D1": _state_hex_to_name_clean(row.get("d1_state_hex")),
+                },
+                "bars": {
+                    "MN1": _state_score_to_bar(row.get("mn1_state_score")),
+                    "W1": _state_score_to_bar(row.get("w1_state_score")),
+                    "D1": _state_score_to_bar(row.get("d1_state_score")),
+                },
+            })
+
+    # ── L2 — 共振热点 ─────────────────────────────────────────
+    stocks = daily_snapshot.get("stocks", []) if isinstance(daily_snapshot, dict) else []
+    ef3_stocks = [s for s in stocks if s.get("ef") == 3][:5]
+    ef2_stocks = [s for s in stocks if s.get("ef") == 2][:5]
+
+    def _fmt_resonance(stock: dict[str, Any], tag: str) -> dict[str, str]:
+        hex_vals = stock.get("hex", ["-", "-", "-"])
+        tfs = []
+        for idx, label in enumerate(["MN1", "W1", "D1"]):
+            h = str(hex_vals[idx] if idx < len(hex_vals) else "-").strip().upper()
+            if h in ("E", "F"):
+                tfs.append(label)
+        return {
+            "stock": stock.get("c", "-"),
+            "code": stock.get("c", "-"),
+            "tag": tag,
+            "timeframes": "+".join(tfs) if tfs else "-",
+            "industry": "-",
+        }
+
+    l2_resonance = []
+    for s in ef3_stocks:
+        l2_resonance.append(_fmt_resonance(s, "突破"))
+    for s in ef2_stocks:
+        l2_resonance.append(_fmt_resonance(s, "观察"))
+
+    # ── L3 — 异常列表（初始为空，待 AgentMemory 积累后填充）────
+    l3_anomalies: list[dict[str, Any]] = []
+
+    return {
+        "l1": l1,
+        "l2": {
+            "industries": industry_flow,
+            "resonance": l2_resonance,
+        },
+        "l3": {
+            "anomalies": l3_anomalies,
+        },
     }
 
 
@@ -2268,6 +2441,7 @@ def dashboard_page(request: Request, mode: str = "") -> HTMLResponse:
             "render_profile": "full",
             "daily_brief": _daily_brief(),
             "current_user": profile,
+            "dashboard": _dashboard_data(),
         },
     )
 
