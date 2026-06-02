@@ -16,8 +16,8 @@
       --mn1-xuli: #3498DB;
       --mn1-dongmian: #95A5A6;
       --mn1-niwei: #9B59B6;
-      --gain: #34d399;
-      --loss: #f87171;
+      --gain: #16a34a;
+      --loss: #dc2626;
     }
     body {
       font-family: 'Inter', 'PingFang SC', -apple-system, 'Helvetica Neue', sans-serif;
@@ -27,8 +27,6 @@
       font-family: 'Inter', sans-serif;
       font-variant-numeric: tabular-nums;
     }
-    .glow-green { text-shadow: 0 0 8px rgba(52,211,153,0.3); }
-    .glow-red { text-shadow: 0 0 8px rgba(248,113,113,0.25); }
     .modal-overlay {
       opacity: 0;
       pointer-events: none;
@@ -45,36 +43,36 @@
     .modal-overlay.open .modal-card {
       transform: translateY(0) scale(1);
     }
-    .trade-row:hover { background: rgba(255,255,255,0.015); }
+    .trade-row:hover { background: #f1f5f9; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.14); }
+    ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.08); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.15); }
     .field-input {
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.08);
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
       border-radius: 6px;
       padding: 9px 12px;
-      color: #e2e8f0;
+      color: #0f172a;
       font-size: 13px;
       width: 100%;
       outline: none;
       transition: border-color 0.15s ease;
     }
-    .field-input:focus { border-color: rgba(255,255,255,0.18); }
-    .field-input::placeholder { color: #475569; }
+    .field-input:focus { border-color: #94a3b8; }
+    .field-input::placeholder { color: #94a3b8; }
     select.field-input { appearance: none; cursor: pointer; }
   </style>
 </head>
-<body class="min-h-screen" style="background:#020617; color:#e2e8f0;">
+<body class="min-h-screen" style="background:#f8fafc; color:#0f172a;">
 
   <!-- ─── Top Bar ─────────────────────────────────────── -->
-  <header class="sticky top-0 z-30 border-b border-white/[0.06] px-6 py-3" style="background:rgba(2,6,23,0.92); backdrop-filter:blur(12px);">
+  <header class="sticky top-0 z-30 border-b border-slate-200 px-6 py-3" style="background:#ffffff;">
     <div class="max-w-[1440px] mx-auto flex items-center gap-5">
       <nav class="flex items-center gap-1.5 text-[13px] shrink-0" aria-label="面包屑导航">
-        <a href="/" data-route="home" class="text-slate-400 hover:text-slate-200 transition-colors">首页</a>
+        <a href="/" data-route="home" class="text-slate-600 hover:text-slate-800 transition-colors">首页</a>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-slate-600"><path d="M9 18l6-6-6-6"/></svg>
-        <span class="text-slate-200 font-medium">交易日志</span>
+        <span class="text-slate-800 font-medium">交易日志</span>
       </nav>
       <div class="flex-1"></div>
       <div class="flex items-center gap-3 shrink-0">
@@ -92,24 +90,24 @@
 
     <!-- ═══ KPI Strip ═══ -->
     <section data-component="KPI Strip" class="grid grid-cols-4 gap-3.5">
-      <div class="rounded-lg px-4 py-3.5" style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06);">
+      <div class="rounded-lg px-4 py-3.5" style="background:#ffffff; border:1px solid #e2e8f0;">
         <div class="text-[11px] font-medium text-slate-500 tracking-wider uppercase mb-2">总交易</div>
-        <div class="num text-[26px] font-semibold text-slate-50 tracking-tight" style="letter-spacing:-0.02em;">{{ journal.stats.total_trades }}</div>
+        <div class="num text-[26px] font-semibold text-slate-900 tracking-tight" style="letter-spacing:-0.02em;">{{ journal.stats.total_trades }}</div>
         <div class="text-[11px] text-slate-500 mt-1">自首笔记录</div>
       </div>
-      <div class="rounded-lg px-4 py-3.5" style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06);">
+      <div class="rounded-lg px-4 py-3.5" style="background:#ffffff; border:1px solid #e2e8f0;">
         <div class="text-[11px] font-medium text-slate-500 tracking-wider uppercase mb-2">总胜率</div>
-        <div class="num text-[26px] font-semibold tracking-tight glow-green" style="color:var(--gain); letter-spacing:-0.02em;">{{ "%.1f"|format(journal.stats.win_rate) }}%</div>
+        <div class="num text-[26px] font-semibold tracking-tight" style="color:var(--gain); letter-spacing:-0.02em;">{{ "%.1f"|format(journal.stats.win_rate) }}%</div>
         <div class="text-[11px] text-slate-500 mt-1">{{ journal.stats.total_trades }} 笔</div>
       </div>
-      <div class="rounded-lg px-4 py-3.5" style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06);">
+      <div class="rounded-lg px-4 py-3.5" style="background:#ffffff; border:1px solid #e2e8f0;">
         <div class="text-[11px] font-medium text-slate-500 tracking-wider uppercase mb-2">盈亏比</div>
-        <div class="num text-[26px] font-semibold text-slate-50 tracking-tight" style="letter-spacing:-0.02em;">{{ "%.2f"|format(journal.stats.profit_factor) }}</div>
+        <div class="num text-[26px] font-semibold text-slate-900 tracking-tight" style="letter-spacing:-0.02em;">{{ "%.2f"|format(journal.stats.profit_factor) }}</div>
         <div class="text-[11px] text-slate-500 mt-1">平均盈利 / 平均亏损</div>
       </div>
-      <div class="rounded-lg px-4 py-3.5" style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06);">
+      <div class="rounded-lg px-4 py-3.5" style="background:#ffffff; border:1px solid #e2e8f0;">
         <div class="text-[11px] font-medium text-slate-500 tracking-wider uppercase mb-2">累计收益</div>
-        <div class="num text-[26px] font-semibold tracking-tight glow-green" style="color:var(--gain); letter-spacing:-0.02em;">
+        <div class="num text-[26px] font-semibold tracking-tight" style="color:var(--gain); letter-spacing:-0.02em;">
           {% if journal.stats.total_return >= 0 %}+{% endif %}{{ "%.1f"|format(journal.stats.total_return) }}%
         </div>
         <div class="text-[11px] text-slate-500 mt-1">最大回撤 {{ "%.1f"|format(journal.stats.max_drawdown) }}%</div>
@@ -117,12 +115,12 @@
     </section>
 
     <!-- ═══ Trade Table ═══ -->
-    <section data-component="Trade Table" class="rounded-lg overflow-hidden" style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06);">
+    <section data-component="Trade Table" class="rounded-lg overflow-hidden" style="background:#ffffff; border:1px solid #e2e8f0;">
 
       <!-- Table Header -->
-      <div class="flex items-center justify-between px-5 py-3 border-b border-white/[0.06]">
+      <div class="flex items-center justify-between px-5 py-3 border-b border-slate-200">
         <div class="flex items-center gap-3">
-          <h2 class="text-[14px] font-semibold text-slate-100">交易记录</h2>
+          <h2 class="text-[14px] font-semibold text-slate-800">交易记录</h2>
           <span class="text-[12px] text-slate-500 num">共 {{ journal.total }} 笔</span>
         </div>
         <div class="flex items-center gap-2">
@@ -157,7 +155,7 @@
       <div class="overflow-x-auto">
         <table class="w-full text-[13px]">
           <thead>
-            <tr class="border-b border-white/[0.06]">
+            <tr class="border-b border-slate-200">
               <th class="text-left text-[11px] font-medium text-slate-500 tracking-wider uppercase px-5 py-2.5">日期</th>
               <th class="text-left text-[11px] font-medium text-slate-500 tracking-wider uppercase px-4 py-2.5">股票</th>
               <th class="text-center text-[11px] font-medium text-slate-500 tracking-wider uppercase px-3 py-2.5">方向</th>
@@ -171,32 +169,32 @@
           </thead>
           <tbody>
             {% for t in journal.trades %}
-            <tr class="trade-row border-b border-white/[0.03]">
-              <td class="px-5 py-2.5 num text-slate-400">{{ t.trade_date[5:10] }}</td>
+            <tr class="trade-row border-b border-slate-100">
+              <td class="px-5 py-2.5 num text-slate-600">{{ t.trade_date[5:10] }}</td>
               <td class="px-4 py-2.5">
-                <span class="text-slate-200 font-medium">{{ t.stock_code }}</span>
+                <span class="text-slate-800 font-medium">{{ t.stock_code }}</span>
                 <span class="text-slate-500 text-[11px] ml-1.5">{{ t.stock_name }}</span>
               </td>
               <td class="px-3 py-2.5 text-center">
-                <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded" style="color:{% if t.direction == '做多' %}var(--gain){% else %}var(--loss){% endif %}; background:rgba(52,211,153,0.08);">
+                <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded" style="color:{% if t.direction == '做多' %}var(--gain){% else %}var(--loss){% endif %}; background:{% if t.direction == '做多' %}rgba(22,163,74,0.08){% else %}rgba(220,38,38,0.08){% endif %};">
                   {{ t.direction }}
                 </span>
               </td>
-              <td class="px-4 py-2.5 num text-slate-300 text-right">{{ "%.2f"|format(t.entry_price) }}</td>
-              <td class="px-4 py-2.5 num text-slate-300 text-right">{{ "%.2f"|format(t.exit_price) if t.exit_price is not none else '-' }}</td>
+              <td class="px-4 py-2.5 num text-slate-600 text-right">{{ "%.2f"|format(t.entry_price) }}</td>
+              <td class="px-4 py-2.5 num text-slate-600 text-right">{{ "%.2f"|format(t.exit_price) if t.exit_price is not none else '-' }}</td>
               <td class="px-4 py-2.5 num text-right font-semibold" style="color:{% if t.pnl_pct is not none and t.pnl_pct >= 0 %}var(--gain){% else %}var(--loss){% endif %};">
                 {% if t.pnl_pct is not none %}{% if t.pnl_pct >= 0 %}+{% endif %}{{ "%.1f"|format(t.pnl_pct) }}%{% else %}-{% endif %}
               </td>
               <td class="px-4 py-2.5">
-                <span class="text-[12px] text-slate-300 px-2 py-0.5 rounded-full" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06);">{{ t.strategy_label or t.strategy_id }}</span>
+                <span class="text-[12px] text-slate-600 px-2 py-0.5 rounded-full" style="background:#f1f5f9; border:1px solid #e2e8f0;">{{ t.strategy_label or t.strategy_id }}</span>
               </td>
               <td class="px-4 py-2.5">
                 <span class="inline-flex items-center gap-1.5 text-[12px]">
                   <span class="w-1.5 h-1.5 rounded-full" style="background:{% if t.mn1_state_name == '天时' %}var(--mn1-tianshi){% elif t.mn1_state_name == '地利' %}var(--mn1-dili){% elif t.mn1_state_name == '人和' %}var(--mn1-renhe){% elif t.mn1_state_name == '蓄力' %}var(--mn1-xuli){% elif t.mn1_state_name == '冬眠' %}var(--mn1-dongmian){% else %}var(--mn1-niwei){% endif %};"></span>
-                  <span class="text-slate-300">{{ t.mn1_state_name or '-' }}</span>
+                  <span class="text-slate-600">{{ t.mn1_state_name or '-' }}</span>
                 </span>
               </td>
-              <td class="px-5 py-2.5 num text-slate-400 text-right">{{ t.hold_days if t.hold_days is not none else '-' }}</td>
+              <td class="px-5 py-2.5 num text-slate-600 text-right">{{ t.hold_days if t.hold_days is not none else '-' }}</td>
             </tr>
             {% endfor %}
           </tbody>
@@ -204,10 +202,10 @@
       </div>
 
       <!-- Pagination -->
-      <div class="flex items-center justify-between px-5 py-2.5 border-t border-white/[0.06]">
+      <div class="flex items-center justify-between px-5 py-2.5 border-t border-slate-200">
         <span class="text-[12px] text-slate-500">显示 1-{{ journal.total if journal.total < 10 else 10 }} / 共 {{ journal.total }} 笔</span>
         <div class="flex items-center gap-1">
-          <button type="button" class="px-2.5 py-1 text-[12px] text-slate-500 rounded border border-white/[0.06] hover:bg-white/[0.03] transition-colors" {% if journal.page <= 1 %}disabled{% endif %}>上一页</button>
+          <button type="button" class="px-2.5 py-1 text-[12px] text-slate-500 rounded border border-slate-200 hover:bg-slate-100 transition-colors" {% if journal.page <= 1 %}disabled{% endif %}>上一页</button>
           {% set start_page = [1, journal.page - 2] | max %}
           {% set end_page = [journal.pages, journal.page + 2] | min %}
           {% if end_page - start_page < 4 %}
@@ -215,16 +213,16 @@
           {% endif %}
           {% for p in range(start_page, end_page + 1) %}
             {% if p == journal.page %}
-              <button type="button" class="px-2.5 py-1 text-[12px] text-white rounded font-medium" style="background:rgba(255,255,255,0.06);">{{ p }}</button>
+              <button type="button" class="px-2.5 py-1 text-[12px] text-slate-800 rounded font-medium" style="background:#e2e8f0;">{{ p }}</button>
             {% else %}
-              <button type="button" class="px-2.5 py-1 text-[12px] text-slate-400 rounded hover:bg-white/[0.03] transition-colors" onclick="location='?page={{ p }}&strategy={{ request.query_params.get('strategy','') }}&state={{ request.query_params.get('state','') }}'">{{ p }}</button>
+              <button type="button" class="px-2.5 py-1 text-[12px] text-slate-600 rounded hover:bg-slate-100 transition-colors" onclick="location='?page={{ p }}&strategy={{ request.query_params.get('strategy','') }}&state={{ request.query_params.get('state','') }}'">{{ p }}</button>
             {% endif %}
           {% endfor %}
           {% if journal.pages > 5 %}
             <span class="text-[12px] text-slate-600 px-1">…</span>
-            <button type="button" class="px-2.5 py-1 text-[12px] text-slate-400 rounded hover:bg-white/[0.03] transition-colors" onclick="location='?page={{ journal.pages }}&strategy={{ request.query_params.get('strategy','') }}&state={{ request.query_params.get('state','') }}'">{{ journal.pages }}</button>
+            <button type="button" class="px-2.5 py-1 text-[12px] text-slate-600 rounded hover:bg-slate-100 transition-colors" onclick="location='?page={{ journal.pages }}&strategy={{ request.query_params.get('strategy','') }}&state={{ request.query_params.get('state','') }}'">{{ journal.pages }}</button>
           {% endif %}
-          <button type="button" class="px-2.5 py-1 text-[12px] text-slate-300 rounded border border-white/[0.06] hover:bg-white/[0.03] transition-colors" {% if journal.page >= journal.pages %}disabled{% endif %}>下一页</button>
+          <button type="button" class="px-2.5 py-1 text-[12px] text-slate-600 rounded border border-slate-200 hover:bg-slate-100 transition-colors" {% if journal.page >= journal.pages %}disabled{% endif %}>下一页</button>
         </div>
       </div>
     </section>
@@ -233,15 +231,15 @@
     <section data-component="Performance Attribution" class="grid grid-cols-3 gap-4">
 
       <!-- Card 1: By Strategy -->
-      <div class="rounded-lg" style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06);">
-        <div class="px-4 py-3 border-b border-white/[0.06]">
-          <h3 class="text-[13px] font-semibold text-slate-200">按策略归因</h3>
+      <div class="rounded-lg" style="background:#ffffff; border:1px solid #e2e8f0;">
+        <div class="px-4 py-3 border-b border-slate-200">
+          <h3 class="text-[13px] font-semibold text-slate-800">按策略归因</h3>
         </div>
         <div class="p-4 space-y-3">
           {% for s in journal.stats.by_strategy %}
           <div>
             <div class="flex items-center justify-between mb-1.5">
-              <span class="text-[12px] text-slate-300 font-medium">{{ s.strategy_label }}</span>
+              <span class="text-[12px] text-slate-600 font-medium">{{ s.strategy_label }}</span>
               <div class="flex items-center gap-3">
                 <span class="text-[11px] text-slate-500">胜率</span>
                 <span class="num text-[12px] font-semibold" style="color:{% if s.win_rate >= 60 %}var(--gain){% elif s.win_rate < 45 %}var(--loss){% else %}var(--mn1-xuli){% endif %};">{{ "%.1f"|format(s.win_rate) }}%</span>
@@ -253,11 +251,11 @@
               </div>
               <div class="flex items-center gap-3">
                 <span class="text-[11px] text-slate-500">盈亏比</span>
-                <span class="num text-[12px] font-semibold text-slate-200">{{ "%.2f"|format(s.profit_factor) }}</span>
+                <span class="num text-[12px] font-semibold text-slate-800">{{ "%.2f"|format(s.profit_factor) }}</span>
               </div>
             </div>
-            <div class="mt-1.5 h-[3px] rounded-full" style="background:rgba(255,255,255,0.04);">
-              <div class="h-full rounded-full" style="background:var(--gain); opacity:0.6; width:{{ s.share }}%;"></div>
+            <div class="mt-1.5 h-[3px] rounded-full" style="background:#e2e8f0;">
+              <div class="h-full rounded-full" style="background:var(--gain); width:{{ s.share }}%;"></div>
             </div>
           </div>
           {% endfor %}
@@ -265,14 +263,14 @@
       </div>
 
       <!-- Card 2: State Environment Matrix -->
-      <div class="rounded-lg" style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06);">
-        <div class="px-4 py-3 border-b border-white/[0.06]">
-          <h3 class="text-[13px] font-semibold text-slate-200">按 State 环境分层</h3>
+      <div class="rounded-lg" style="background:#ffffff; border:1px solid #e2e8f0;">
+        <div class="px-4 py-3 border-b border-slate-200">
+          <h3 class="text-[13px] font-semibold text-slate-800">按 State 环境分层</h3>
         </div>
         <div class="p-4">
           <table class="w-full text-[12px]">
             <thead>
-              <tr class="border-b border-white/[0.04]">
+              <tr class="border-b border-slate-100">
                 <th class="text-left text-[10px] font-medium text-slate-500 tracking-wider uppercase pb-2">环境</th>
                 <th class="text-right text-[10px] font-medium text-slate-500 tracking-wider uppercase pb-2 num">笔数</th>
                 <th class="text-right text-[10px] font-medium text-slate-500 tracking-wider uppercase pb-2 num">胜率</th>
@@ -281,16 +279,16 @@
             </thead>
             <tbody>
               {% for e in journal.stats.by_state %}
-              <tr class="border-b border-white/[0.03]">
+              <tr class="border-b border-slate-100">
                 <td class="py-1.5">
                   <span class="inline-flex items-center gap-1.5">
                     <span class="w-1.5 h-1.5 rounded-full" style="background:{% if e.state_name == '天时' %}var(--mn1-tianshi){% elif e.state_name == '地利' %}var(--mn1-dili){% elif e.state_name == '人和' %}var(--mn1-renhe){% elif e.state_name == '蓄力' %}var(--mn1-xuli){% elif e.state_name == '冬眠' %}var(--mn1-dongmian){% else %}var(--mn1-niwei){% endif %};"></span>
-                    <span class="text-slate-300">{{ e.state_name }}</span>
+                    <span class="text-slate-600">{{ e.state_name }}</span>
                   </span>
                 </td>
-                <td class="text-right num text-slate-400">{{ e.count }}</td>
+                <td class="text-right num text-slate-600">{{ e.count }}</td>
                 <td class="text-right num font-semibold" style="color:{% if e.win_rate >= 60 %}var(--gain){% elif e.win_rate < 45 %}var(--loss){% else %}var(--mn1-xuli){% endif %};">{{ "%.1f"|format(e.win_rate) }}%</td>
-                <td class="text-right num text-slate-200 font-medium">{{ "%.2f"|format(e.profit_factor) }}</td>
+                <td class="text-right num text-slate-800 font-medium">{{ "%.2f"|format(e.profit_factor) }}</td>
               </tr>
               {% endfor %}
             </tbody>
@@ -299,14 +297,14 @@
       </div>
 
       <!-- Card 3: One-line Attribution -->
-      <div class="rounded-lg" style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06);">
-        <div class="px-4 py-3 border-b border-white/[0.06]">
-          <h3 class="text-[13px] font-semibold text-slate-200">归因结论</h3>
+      <div class="rounded-lg" style="background:#ffffff; border:1px solid #e2e8f0;">
+        <div class="px-4 py-3 border-b border-slate-200">
+          <h3 class="text-[13px] font-semibold text-slate-800">归因结论</h3>
         </div>
         <div class="p-4 space-y-3">
           <div class="flex items-start gap-3">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-slate-500 mt-0.5 shrink-0"><path d="M3 3v18h18"/><path d="M7 16l4-8 4 4 5-9"/></svg>
-            <p class="text-[12.5px] text-slate-300 leading-relaxed">{{ journal.stats.insight }}</p>
+            <p class="text-[12.5px] text-slate-600 leading-relaxed">{{ journal.stats.insight }}</p>
           </div>
         </div>
       </div>
@@ -316,12 +314,12 @@
   </main>
 
   <!-- ─── New Trade Modal ─────────────────────────────── -->
-  <div id="tradeModal" class="modal-overlay fixed inset-0 z-50 flex items-start justify-center pt-[12vh]" style="background:rgba(0,0,0,0.7);" role="dialog" aria-modal="true" aria-label="新交易记录">
-    <div class="modal-card w-full max-w-[480px] rounded-xl overflow-hidden" style="background:#0c1120; border:1px solid rgba(255,255,255,0.08); box-shadow: 0 24px 64px rgba(0,0,0,0.6);">
+  <div id="tradeModal" class="modal-overlay fixed inset-0 z-50 flex items-start justify-center pt-[12vh]" style="background:rgba(15,23,42,0.4);" role="dialog" aria-modal="true" aria-label="新交易记录">
+    <div class="modal-card w-full max-w-[480px] rounded-xl overflow-hidden" style="background:#ffffff; border:1px solid #e2e8f0; box-shadow: 0 24px 64px rgba(0,0,0,0.12);">
       <!-- Modal Header -->
-      <div class="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
-        <h2 class="text-[15px] font-semibold text-slate-100">新交易记录</h2>
-        <button type="button" onclick="document.getElementById('tradeModal').classList.remove('open')" class="w-7 h-7 flex items-center justify-center rounded-md text-slate-500 hover:text-slate-300 hover:bg-white/[0.04] transition-colors" aria-label="关闭">
+      <div class="flex items-center justify-between px-5 py-3.5 border-b border-slate-200">
+        <h2 class="text-[15px] font-semibold text-slate-800">新交易记录</h2>
+        <button type="button" onclick="document.getElementById('tradeModal').classList.remove('open')" class="w-7 h-7 flex items-center justify-center rounded-md text-slate-500 hover:text-slate-600 hover:bg-slate-100 transition-colors" aria-label="关闭">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
         </button>
       </div>
@@ -329,24 +327,24 @@
       <form id="tradeForm" action="/api/journal/add" method="post" class="p-5 space-y-4" onsubmit="return false;">
         <div class="grid grid-cols-2 gap-3.5">
           <div>
-            <label for="stockCode" class="block text-[11px] font-medium text-slate-400 tracking-wider uppercase mb-1.5">股票代码</label>
+            <label for="stockCode" class="block text-[11px] font-medium text-slate-600 tracking-wider uppercase mb-1.5">股票代码</label>
             <input id="stockCode" type="text" placeholder="688107" class="field-input num" />
           </div>
           <div>
-            <label for="stockName" class="block text-[11px] font-medium text-slate-400 tracking-wider uppercase mb-1.5">股票名称</label>
+            <label for="stockName" class="block text-[11px] font-medium text-slate-600 tracking-wider uppercase mb-1.5">股票名称</label>
             <input id="stockName" type="text" placeholder="安路科技" class="field-input" />
           </div>
         </div>
         <div class="grid grid-cols-2 gap-3.5">
           <div>
-            <label for="direction" class="block text-[11px] font-medium text-slate-400 tracking-wider uppercase mb-1.5">方向</label>
+            <label for="direction" class="block text-[11px] font-medium text-slate-600 tracking-wider uppercase mb-1.5">方向</label>
             <select id="direction" class="field-input">
               <option>做多</option>
               <option>做空</option>
             </select>
           </div>
           <div>
-            <label for="strategy" class="block text-[11px] font-medium text-slate-400 tracking-wider uppercase mb-1.5">策略</label>
+            <label for="strategy" class="block text-[11px] font-medium text-slate-600 tracking-wider uppercase mb-1.5">策略</label>
             <select id="strategy" class="field-input">
               <option>VCP 突破</option>
               <option>MA2560</option>
@@ -356,25 +354,25 @@
         </div>
         <div class="grid grid-cols-3 gap-3.5">
           <div>
-            <label for="entryPrice" class="block text-[11px] font-medium text-slate-400 tracking-wider uppercase mb-1.5">入场价</label>
+            <label for="entryPrice" class="block text-[11px] font-medium text-slate-600 tracking-wider uppercase mb-1.5">入场价</label>
             <input id="entryPrice" type="text" placeholder="42.50" class="field-input num" />
           </div>
           <div>
-            <label for="exitPrice" class="block text-[11px] font-medium text-slate-400 tracking-wider uppercase mb-1.5">出场价</label>
+            <label for="exitPrice" class="block text-[11px] font-medium text-slate-600 tracking-wider uppercase mb-1.5">出场价</label>
             <input id="exitPrice" type="text" placeholder="选填" class="field-input num" />
           </div>
           <div>
-            <label for="stopLoss" class="block text-[11px] font-medium text-slate-400 tracking-wider uppercase mb-1.5">止损位</label>
+            <label for="stopLoss" class="block text-[11px] font-medium text-slate-600 tracking-wider uppercase mb-1.5">止损位</label>
             <input id="stopLoss" type="text" placeholder="39.50" class="field-input num" />
           </div>
         </div>
         <div>
-          <label for="tradeNote" class="block text-[11px] font-medium text-slate-400 tracking-wider uppercase mb-1.5">备注</label>
+          <label for="tradeNote" class="block text-[11px] font-medium text-slate-600 tracking-wider uppercase mb-1.5">备注</label>
           <textarea id="tradeNote" rows="2" placeholder="入场理由、市场状态、注意事项…" class="field-input resize-none"></textarea>
         </div>
         <!-- Actions -->
         <div class="flex items-center justify-end gap-2.5 pt-1">
-          <button type="button" onclick="document.getElementById('tradeModal').classList.remove('open')" class="px-3.5 py-2 text-[13px] font-medium text-slate-400 rounded-md border border-white/[0.08] hover:bg-white/[0.03] transition-colors">取消</button>
+          <button type="button" onclick="document.getElementById('tradeModal').classList.remove('open')" class="px-3.5 py-2 text-[13px] font-medium text-slate-600 rounded-md border border-slate-200 hover:bg-slate-100 transition-colors">取消</button>
           <button type="button" id="saveTrade" class="px-4 py-2 text-[13px] font-medium text-white rounded-md transition-colors" style="background:#3b82f6;">保存记录</button>
         </div>
       </form>

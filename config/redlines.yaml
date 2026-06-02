@@ -1,0 +1,74 @@
+# Hermass Observer 五条红线配置
+# 所有红线是硬约束，不可被任何配置、参数或 LLM 判断覆盖
+# 代码加载时读取此文件，修改后需重启服务生效
+
+redlines:
+  # 红线 1：止损/止盈不可自动执行
+  stop_loss_requires_human_confirmation:
+    enabled: true
+    rule_id: 1
+    description: "止损/止盈操作必须有人类确认，API 层拦截无确认的执行请求"
+    action_on_violation: "block"  # block | flag | alert
+    applies_to:
+      - stop_loss
+      - take_profit
+      - exit_position
+
+  # 红线 2：策略结构不可变
+  strategy_structure_immutable:
+    enabled: true
+    rule_id: 2
+    description: "VCP/2560/Bollinger 信号定义文件标记为 read-only，Agent 修改尝试返回 403"
+    action_on_violation: "block"
+    protected_strategies:
+      - vcp
+      - ma2560
+      - bollinger_bandit
+      - composite
+    require_admin_token: true
+    admin_token_env: "HERMASS_ADMIN_TOKEN"
+
+  # 红线 3：数据异常必报人类
+  data_anomaly_requires_human_review:
+    enabled: true
+    rule_id: 3
+    description: "Agent 标记 data_quality=DEGRADED 后自动生成 review_needed 消息"
+    action_on_violation: "flag"
+    anomaly_types:
+      - missing_data
+      - outlier_value
+      - schema_mismatch
+      - stale_data
+      - quality_degraded
+    auto_broadcast: true  # 自动通过 AgentBus 发送 review_needed
+
+  # 红线 4：仓位上限不可突破
+  max_position_enforcement:
+    enabled: true
+    rule_id: 4
+    description: "risk_guardian 硬编码 max_position_pct，不可通过 API 参数绕过"
+    action_on_violation: "block"
+    max_position_pct: 0.25  # 单只股票最大仓位 25%
+    max_industry_pct: 0.40  # 单行业最大 40%
+    override_allowed: false  # 即使有 token 也不可覆盖
+
+  # 红线 5：Admin kill-switch
+  admin_kill_switch:
+    enabled: true
+    rule_id: 5
+    description: "POST /api/admin/kill-switch 一键暂停所有 Agent 自进化"
+    action_on_violation: "alert"
+    default_duration_hours: 24
+    paused_features:
+      - factor_weight_self_correction
+      - strategy_parameter_evolution
+      - scenario_library_auto_update
+      - agent_self_organization
+    auto_expire: true
+
+# 审计日志
+audit:
+  log_file: "outputs/red_line_audit_log.jsonl"
+  review_queue_file: "outputs/human_review_queue.jsonl"
+  kill_switch_file: "config/kill_switch.json"
+  strategy_lock_file: "config/strategy_structure_lock.json"

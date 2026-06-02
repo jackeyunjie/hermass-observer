@@ -1,0 +1,878 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hermass 多周期研究收束台</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'h-bg':      '#f5f7f4',
+            'h-card':    '#ffffff',
+            'h-border':  '#dde5df',
+            'h-ink':     '#17212b',
+            'h-muted':   '#566474',
+            'h-green':   '#116b4b',
+            'h-amber':   '#b8860b',
+            'h-red':     '#b84a3a',
+            'h-blue':    '#2563eb',
+            'h-teal':    '#0e7c66',
+            'h-purple':  '#7c3aed',
+            'h-surface': '#f0f3ef',
+          },
+          fontFamily: {
+            'sans': ['Avenir Next', 'Helvetica Neue', 'Arial', 'sans-serif'],
+            'mono': ['Menlo', 'Consolas', 'ui-monospace', 'monospace'],
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    /* Smooth collapse/expand transitions */
+    .collapsible {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
+      opacity: 0;
+    }
+    .collapsible.open {
+      max-height: 4000px;
+      opacity: 1;
+      transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.35s ease 0.05s;
+    }
+
+    /* Signal strength bar */
+    .signal-track {
+      width: 100%;
+      height: 6px;
+      border-radius: 999px;
+      background: #e8ede9;
+      overflow: hidden;
+    }
+    .signal-fill {
+      height: 100%;
+      border-radius: 999px;
+      transition: width 0.4s ease;
+    }
+
+    /* Confidence dot */
+    .conf-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+
+    /* Timeline */
+    .timeline-line {
+      position: absolute;
+      left: 7px;
+      top: 24px;
+      bottom: 0;
+      width: 2px;
+      background: #dde5df;
+    }
+
+    /* Card header hover */
+    .stock-header-row {
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .stock-header-row:hover {
+      background: rgba(17, 107, 75, 0.03);
+    }
+
+    /* Layer toggle buttons */
+    .layer-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 12px;
+      border: 1px solid #dde5df;
+      border-radius: 6px;
+      background: #ffffff;
+      color: #566474;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      user-select: none;
+    }
+    .layer-btn:hover {
+      border-color: #116b4b;
+      color: #116b4b;
+      background: rgba(17, 107, 75, 0.04);
+    }
+    .layer-btn.active {
+      border-color: #116b4b;
+      color: #ffffff;
+      background: #116b4b;
+    }
+
+    /* Chevron rotation */
+    .chevron {
+      transition: transform 0.25s ease;
+      display: inline-block;
+    }
+    .chevron.rotated {
+      transform: rotate(90deg);
+    }
+
+    /* JSON-like display */
+    .json-block {
+      background: #17262d;
+      color: #eef5f3;
+      border-radius: 8px;
+      padding: 16px;
+      font-family: Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .json-key { color: #7dd3fc; }
+    .json-str { color: #86efac; }
+    .json-num { color: #fde68a; }
+    .json-bool { color: #c4b5fd; }
+
+    /* Print-friendly */
+    @media print {
+      .collapsible { max-height: none !important; opacity: 1 !important; }
+      .layer-btn { display: none; }
+    }
+  </style>
+</head>
+<body class="bg-h-bg text-h-ink font-sans min-h-screen">
+
+  {# ─── Jinja2 Mock Data Defaults ─── #}
+  {% set today = today | default('2026-06-02') %}
+
+  {% set default_stocks = [
+    {
+      "code": "002371.SZ",
+      "name": "北方华创",
+      "state_mn1": "E3",
+      "state_w1": "E2",
+      "state_d1": "F1",
+      "hex_mn1": "1A3F",
+      "hex_w1": "1A2E",
+      "hex_d1": "2B1F",
+      "bb_percentile": 18,
+      "atr_percentile": 22,
+      "signal_strength": 72,
+      "contraction_label": "收缩中期",
+      "strategy_signals": [
+        {"name": "VCP", "status": "第三阶段收缩", "active": true, "confidence": 0.82},
+        {"name": "MA2560", "status": "MA25 > MA60, 多头排列", "active": true, "confidence": 0.90},
+        {"name": "Bollinger", "status": "带宽收窄至历史低位", "active": true, "confidence": 0.75}
+      ],
+      "factor_scores": [
+        {"factor": "结构强度", "score": 85, "weight": 0.25, "source": "state_core"},
+        {"factor": "资金流向", "score": 68, "weight": 0.20, "source": "moneyflow"},
+        {"factor": "板块共振", "score": 72, "weight": 0.15, "source": "sector"},
+        {"factor": "突破质量", "score": 60, "weight": 0.15, "source": "breakout"},
+        {"factor": "收缩程度", "score": 78, "weight": 0.15, "source": "contraction"},
+        {"factor": "风险回报", "score": 70, "weight": 0.10, "source": "risk_guardian"}
+      ],
+      "moneyflow": {
+        "confirmation": "近5日主力资金净流入, 量价配合良好",
+        "divergence": "无明显背离",
+        "sector_follow": "半导体设备板块整体资金流入",
+        "confidence": 0.78
+      },
+      "risk": {
+        "level": "中等",
+        "factors": ["BB带宽仍处收缩期, 方向未明", "ATR偏低, 需等待放量确认"],
+        "rr_ratio": 2.8,
+        "confidence": 0.70
+      },
+      "raw_data": {
+        "last_close": 328.50,
+        "ma25": 322.10,
+        "ma60": 315.80,
+        "bb_upper": 345.20,
+        "bb_lower": 310.80,
+        "bb_width": 0.105,
+        "atr_14": 8.2,
+        "volume_ratio": 1.15,
+        "rsi_14": 55.3,
+        "macd_hist": 2.15
+      },
+      "state_history": [
+        {"date": "2026-05-28", "from": "D1:F0", "to": "D1:F1", "event": "日线进入F1收缩"},
+        {"date": "2026-05-22", "from": "W1:E1", "to": "W1:E2", "event": "周线升级至E2"},
+        {"date": "2026-05-15", "from": "D1:E3", "to": "D1:F0", "event": "日线转收缩初期"},
+        {"date": "2026-05-08", "from": "MN1:E2", "to": "MN1:E3", "event": "月线进入强结构"}
+      ],
+      "forward_results": [
+        {"date": "2026-05-15", "strategy": "VCP", "outcome": "pending", "note": "等待突破确认"},
+        {"date": "2026-05-08", "strategy": "MA2560", "outcome": "positive", "note": "多头排列持续有效"}
+      ],
+      "agent_judgments": [
+        {"agent": "state_observer", "date": "2026-06-01", "judgment": "多周期结构向上, MN1/W1共振较强", "confidence": 0.80},
+        {"agent": "risk_guardian", "date": "2026-06-01", "judgment": "当前风报比2.8:1, 建议等待BB带宽扩张确认", "confidence": 0.70},
+        {"agent": "moneyflow_reader", "date": "2026-06-01", "judgment": "主力资金持续流入, 但需关注板块联动性", "confidence": 0.75}
+      ]
+    },
+    {
+      "code": "600519.SH",
+      "name": "贵州茅台",
+      "state_mn1": "E2",
+      "state_w1": "F0",
+      "state_d1": "E3",
+      "hex_mn1": "1A2E",
+      "hex_w1": "2A0F",
+      "hex_d1": "1A3F",
+      "bb_percentile": 45,
+      "atr_percentile": 38,
+      "signal_strength": 55,
+      "contraction_label": "扩张初期",
+      "strategy_signals": [
+        {"name": "VCP", "status": "不适用 - 非收缩形态", "active": false, "confidence": 0.30},
+        {"name": "MA2560", "status": "MA25 上穿 MA60, 金叉确认", "active": true, "confidence": 0.85},
+        {"name": "Bollinger", "status": "带宽扩张中, 上轨运行", "active": true, "confidence": 0.68}
+      ],
+      "factor_scores": [
+        {"factor": "结构强度", "score": 62, "weight": 0.25, "source": "state_core"},
+        {"factor": "资金流向", "score": 55, "weight": 0.20, "source": "moneyflow"},
+        {"factor": "板块共振", "score": 48, "weight": 0.15, "source": "sector"},
+        {"factor": "突破质量", "score": 58, "weight": 0.15, "source": "breakout"},
+        {"factor": "收缩程度", "score": 40, "weight": 0.15, "source": "contraction"},
+        {"factor": "风险回报", "score": 52, "weight": 0.10, "source": "risk_guardian"}
+      ],
+      "moneyflow": {
+        "confirmation": "近5日北向资金小幅净流入",
+        "divergence": "量价略有背离, 量能不足",
+        "sector_follow": "白酒板块分化, 龙头偏强",
+        "confidence": 0.55
+      },
+      "risk": {
+        "level": "偏高",
+        "factors": ["周线处于F0弱收缩, 方向不明", "板块整体缺乏共振", "量能不足制约上行空间"],
+        "rr_ratio": 1.5,
+        "confidence": 0.50
+      },
+      "raw_data": {
+        "last_close": 1688.00,
+        "ma25": 1672.30,
+        "ma60": 1665.50,
+        "bb_upper": 1720.00,
+        "bb_lower": 1640.00,
+        "bb_width": 0.048,
+        "atr_14": 28.5,
+        "volume_ratio": 0.92,
+        "rsi_14": 52.1,
+        "macd_hist": 5.80
+      },
+      "state_history": [
+        {"date": "2026-05-30", "from": "W1:E3", "to": "W1:F0", "event": "周线转入弱收缩"},
+        {"date": "2026-05-20", "from": "D1:E2", "to": "D1:E3", "event": "日线升级至E3"},
+        {"date": "2026-05-12", "from": "MN1:E1", "to": "MN1:E2", "event": "月线进入E2"}
+      ],
+      "forward_results": [
+        {"date": "2026-05-12", "strategy": "MA2560", "outcome": "pending", "note": "金叉后观察持续性"}
+      ],
+      "agent_judgments": [
+        {"agent": "state_observer", "date": "2026-06-01", "judgment": "月线结构尚可, 但周线转弱, 多周期共振不足", "confidence": 0.55},
+        {"agent": "risk_guardian", "date": "2026-06-01", "judgment": "风报比偏低, 不建议新增仓位", "confidence": 0.60},
+        {"agent": "moneyflow_reader", "date": "2026-06-01", "judgment": "资金面中性偏弱, 缺乏明确方向性资金", "confidence": 0.50}
+      ]
+    },
+    {
+      "code": "300750.SZ",
+      "name": "宁德时代",
+      "state_mn1": "E3",
+      "state_w1": "E3",
+      "state_d1": "E2",
+      "hex_mn1": "1A3F",
+      "hex_w1": "1A3F",
+      "hex_d1": "1A2E",
+      "bb_percentile": 12,
+      "atr_percentile": 15,
+      "signal_strength": 88,
+      "contraction_label": "深度收缩",
+      "strategy_signals": [
+        {"name": "VCP", "status": "第四阶段收缩, 即将突破", "active": true, "confidence": 0.90},
+        {"name": "MA2560", "status": "MA25 > MA60, 强多头排列", "active": true, "confidence": 0.92},
+        {"name": "Bollinger", "status": "带宽极度收窄, 临界状态", "active": true, "confidence": 0.88}
+      ],
+      "factor_scores": [
+        {"factor": "结构强度", "score": 92, "weight": 0.25, "source": "state_core"},
+        {"factor": "资金流向", "score": 80, "weight": 0.20, "source": "moneyflow"},
+        {"factor": "板块共振", "score": 85, "weight": 0.15, "source": "sector"},
+        {"factor": "突破质量", "score": 75, "weight": 0.15, "source": "breakout"},
+        {"factor": "收缩程度", "score": 95, "weight": 0.15, "source": "contraction"},
+        {"factor": "风险回报", "score": 82, "weight": 0.10, "source": "risk_guardian"}
+      ],
+      "moneyflow": {
+        "confirmation": "主力资金持续大幅净流入, 机构增仓明显",
+        "divergence": "无背离, 量价配合优秀",
+        "sector_follow": "新能源板块整体走强, 板块龙头效应显著",
+        "confidence": 0.88
+      },
+      "risk": {
+        "level": "较低",
+        "factors": ["深度收缩后突破方向大概率为上", "MN1/W1强共振"],
+        "rr_ratio": 3.5,
+        "confidence": 0.85
+      },
+      "raw_data": {
+        "last_close": 258.60,
+        "ma25": 252.40,
+        "ma60": 245.80,
+        "bb_upper": 268.00,
+        "bb_lower": 248.50,
+        "bb_width": 0.076,
+        "atr_14": 5.8,
+        "volume_ratio": 1.35,
+        "rsi_14": 60.2,
+        "macd_hist": 3.45
+      },
+      "state_history": [
+        {"date": "2026-05-30", "from": "D1:E1", "to": "D1:E2", "event": "日线进入E2"},
+        {"date": "2026-05-25", "from": "W1:E2", "to": "W1:E3", "event": "周线升级至E3"},
+        {"date": "2026-05-18", "from": "MN1:E2", "to": "MN1:E3", "event": "月线升级至E3"},
+        {"date": "2026-05-10", "from": "D1:F0", "to": "D1:E1", "event": "日线脱离收缩"},
+        {"date": "2026-04-28", "from": "W1:E1", "to": "W1:E2", "event": "周线进入E2"}
+      ],
+      "forward_results": [
+        {"date": "2026-05-18", "strategy": "VCP", "outcome": "positive", "note": "第四阶段收缩确认, 等待放量突破"},
+        {"date": "2026-05-10", "strategy": "MA2560", "outcome": "positive", "note": "多头排列持续强化"},
+        {"date": "2026-04-28", "strategy": "Bollinger", "outcome": "positive", "note": "带宽收窄至临界"}
+      ],
+      "agent_judgments": [
+        {"agent": "state_observer", "date": "2026-06-01", "judgment": "MN1/W1/D1三周期强共振, 深度收缩后突破概率高", "confidence": 0.90},
+        {"agent": "risk_guardian", "date": "2026-06-01", "judgment": "风报比3.5:1, 建议突破放量确认后介入", "confidence": 0.85},
+        {"agent": "moneyflow_reader", "date": "2026-06-01", "judgment": "机构资金持续增仓, 板块联动性强, 资金面支撑充分", "confidence": 0.88}
+      ]
+    }
+  ] %}
+
+  {% set stocks = research.stocks | default(default_stocks) %}
+
+  <!-- Top Bar -->
+  <header class="bg-h-card border-b border-h-border">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex items-end justify-between flex-wrap gap-3">
+      <div>
+        <p class="text-h-green text-xs font-bold tracking-widest uppercase mb-1">Hermass Observer</p>
+        <h1 class="text-2xl sm:text-3xl font-bold text-h-ink tracking-tight">研究收束台</h1>
+      </div>
+      <nav class="flex items-center gap-4 text-sm">
+        <a href="/" class="text-h-green font-bold hover:underline">首页</a>
+        <a href="/market" class="text-h-green font-bold hover:underline">市场</a>
+        <a href="/industry" class="text-h-green font-bold hover:underline">行业</a>
+        <a href="/watchlist" class="text-h-green font-bold hover:underline">观察</a>
+        <span class="text-h-muted">{{ today }}</span>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Metric Strip -->
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-2">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="bg-h-card border border-h-border rounded-xl p-5">
+        <p class="text-xs font-bold text-h-muted uppercase tracking-wider mb-2">观察样本</p>
+        <p class="text-3xl font-bold text-h-ink">{{ stocks | length }}</p>
+        <p class="text-xs text-h-muted mt-1">当前研究覆盖</p>
+      </div>
+      <div class="bg-h-card border border-h-border rounded-xl p-5">
+        <p class="text-xs font-bold text-h-muted uppercase tracking-wider mb-2">强信号样本</p>
+        <p class="text-3xl font-bold text-h-green">{{ stocks | selectattr('signal_strength', '>=', 70) | list | length }}</p>
+        <p class="text-xs text-h-muted mt-1">信号强度 >= 70</p>
+      </div>
+      <div class="bg-h-card border border-h-border rounded-xl p-5">
+        <p class="text-xs font-bold text-h-muted uppercase tracking-wider mb-2">深度收缩</p>
+        <p class="text-3xl font-bold text-h-amber">{{ stocks | selectattr('bb_percentile', '<=', 20) | list | length }}</p>
+        <p class="text-xs text-h-muted mt-1">BB带宽分位 <= 20%</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stock Cards -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4">
+
+    {% for stock in stocks %}
+    <article class="bg-h-card border border-h-border rounded-xl overflow-hidden shadow-sm" data-stock="{{ stock.code }}">
+
+      {# ═══════════ Layer 1: 收束层 ═══════════ #}
+      <div class="layer-1">
+        <!-- Header Row (click to collapse/expand) -->
+        <div class="stock-header-row flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-4 flex-wrap sm:flex-nowrap"
+             onclick="toggleHeader(this)">
+
+          <!-- Chevron -->
+          <span class="chevron rotated text-h-muted text-sm flex-shrink-0" aria-hidden="true">&#9656;</span>
+
+          <!-- Stock Code + Name -->
+          <div class="flex items-baseline gap-2 flex-shrink-0 min-w-0">
+            <span class="font-mono text-sm font-bold text-h-green">{{ stock.code }}</span>
+            <span class="text-base font-bold text-h-ink truncate">{{ stock.name }}</span>
+          </div>
+
+          <!-- State Badges (MN1/W1/D1 hex codes) -->
+          <div class="flex items-center gap-1.5 flex-shrink-0">
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold
+                         {% if stock.state_mn1.startswith('E') %}bg-emerald-50 text-emerald-700 border border-emerald-200
+                         {% elif stock.state_mn1.startswith('F') %}bg-amber-50 text-amber-700 border border-amber-200
+                         {% else %}bg-gray-50 text-gray-600 border border-gray-200{% endif %}"
+                  title="MN1: {{ stock.hex_mn1 }}">
+              <span class="text-[10px] opacity-60">MN1</span>{{ stock.state_mn1 }}
+            </span>
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold
+                         {% if stock.state_w1.startswith('E') %}bg-blue-50 text-blue-700 border border-blue-200
+                         {% elif stock.state_w1.startswith('F') %}bg-amber-50 text-amber-700 border border-amber-200
+                         {% else %}bg-gray-50 text-gray-600 border border-gray-200{% endif %}"
+                  title="W1: {{ stock.hex_w1 }}">
+              <span class="text-[10px] opacity-60">W1</span>{{ stock.state_w1 }}
+            </span>
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold
+                         {% if stock.state_d1.startswith('E') %}bg-purple-50 text-purple-700 border border-purple-200
+                         {% elif stock.state_d1.startswith('F') %}bg-amber-50 text-amber-700 border border-amber-200
+                         {% else %}bg-gray-50 text-gray-600 border border-gray-200{% endif %}"
+                  title="D1: {{ stock.hex_d1 }}">
+              <span class="text-[10px] opacity-60">D1</span>{{ stock.state_d1 }}
+            </span>
+          </div>
+
+          <!-- Contraction Status -->
+          <div class="flex items-center gap-3 text-xs text-h-muted flex-shrink-0">
+            <span class="inline-flex items-center gap-1" title="BB带宽分位">
+              <span class="font-semibold">BB</span>
+              <span class="font-mono font-bold
+                           {% if stock.bb_percentile <= 20 %}text-h-amber
+                           {% elif stock.bb_percentile <= 40 %}text-h-ink
+                           {% else %}text-h-muted{% endif %}">{{ stock.bb_percentile }}%</span>
+            </span>
+            <span class="inline-flex items-center gap-1" title="ATR分位">
+              <span class="font-semibold">ATR</span>
+              <span class="font-mono font-bold
+                           {% if stock.atr_percentile <= 20 %}text-h-amber
+                           {% elif stock.atr_percentile <= 40 %}text-h-ink
+                           {% else %}text-h-muted{% endif %}">{{ stock.atr_percentile }}%</span>
+            </span>
+            <span class="px-2 py-0.5 rounded-full border text-[11px] font-semibold
+                         {% if stock.bb_percentile <= 20 %}border-amber-300 bg-amber-50 text-amber-800
+                         {% elif stock.bb_percentile <= 40 %}border-gray-200 bg-gray-50 text-gray-600
+                         {% else %}border-blue-200 bg-blue-50 text-blue-700{% endif %}">
+              {{ stock.contraction_label }}
+            </span>
+          </div>
+
+          <!-- Signal Strength Bar (flex-grow to fill remaining space) -->
+          <div class="flex items-center gap-2 flex-grow min-w-[100px] max-w-[200px] ml-auto">
+            <div class="signal-track flex-grow">
+              <div class="signal-fill
+                          {% if stock.signal_strength >= 70 %}bg-h-green
+                          {% elif stock.signal_strength >= 40 %}bg-h-amber
+                          {% else %}bg-h-red{% endif %}"
+                   style="width: {{ stock.signal_strength }}%"></div>
+            </div>
+            <span class="text-xs font-mono font-bold flex-shrink-0
+                         {% if stock.signal_strength >= 70 %}text-h-green
+                         {% elif stock.signal_strength >= 40 %}text-h-amber
+                         {% else %}text-h-red{% endif %}">{{ stock.signal_strength }}</span>
+          </div>
+        </div>
+
+        <!-- Collapsible summary body -->
+        <div class="collapsible open layer-1-body">
+          <div class="px-4 sm:px-5 pb-4 pt-1 border-t border-h-border/50">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+              <div>
+                <p class="text-h-muted text-xs font-semibold uppercase tracking-wider mb-1">结论</p>
+                <p class="text-h-ink leading-relaxed">
+                  {% if stock.signal_strength >= 70 %}
+                    多周期共振较强, 收缩状态明确, 值得关注突破信号。
+                  {% elif stock.signal_strength >= 40 %}
+                    信号中等, 部分周期共振, 建议持续观察。
+                  {% else %}
+                    当前信号偏弱, 多周期共振不足, 暂不建议介入。
+                  {% endif %}
+                </p>
+              </div>
+              <div>
+                <p class="text-h-muted text-xs font-semibold uppercase tracking-wider mb-1">风险等级</p>
+                <p class="leading-relaxed">
+                  <span class="inline-flex items-center gap-1.5">
+                    <span class="conf-dot {% if stock.risk.level == '较低' %}bg-h-green
+                                          {% elif stock.risk.level == '中等' %}bg-h-amber
+                                          {% else %}bg-h-red{% endif %}"></span>
+                    <span class="font-semibold
+                                 {% if stock.risk.level == '较低' %}text-h-green
+                                 {% elif stock.risk.level == '中等' %}text-h-amber
+                                 {% else %}text-h-red{% endif %}">{{ stock.risk.level }}</span>
+                  </span>
+                  <span class="text-h-muted text-xs ml-2">RR {{ stock.risk.rr_ratio }}:1</span>
+                </p>
+              </div>
+              <div>
+                <p class="text-h-muted text-xs font-semibold uppercase tracking-wider mb-1">资金面</p>
+                <p class="text-h-ink leading-relaxed text-xs">{{ stock.moneyflow.confirmation }}</p>
+                <p class="text-h-muted text-xs mt-1">置信度 {{ (stock.moneyflow.confidence * 100) | round(0) | int }}%</p>
+              </div>
+            </div>
+
+            <!-- Action buttons for Layer 2 & 3 -->
+            <div class="flex items-center gap-2 mt-4 pt-3 border-t border-h-border/40">
+              <button class="layer-btn" onclick="toggleLayer(this, 'layer-2', event)">
+                <span class="chevron text-[10px]">&#9656;</span> 展开证据
+              </button>
+              <button class="layer-btn" onclick="toggleLayer(this, 'layer-3', event)">
+                <span class="chevron text-[10px]">&#9656;</span> 展开详情
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# ═══════════ Layer 2: 证据层 ═══════════ #}
+      <div class="collapsible layer-2 border-t border-h-border">
+        <div class="px-4 sm:px-5 py-5 space-y-5">
+
+          <!-- Strategy Signals -->
+          <div>
+            <h3 class="text-xs font-bold text-h-muted uppercase tracking-wider mb-3">策略信号</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {% for sig in stock.strategy_signals %}
+              <div class="border rounded-lg p-3 {% if sig.active %}border-h-green/20 bg-emerald-50/40{% else %}border-h-border bg-h-surface{% endif %}">
+                <div class="flex items-center justify-between mb-1.5">
+                  <span class="text-sm font-bold {% if sig.active %}text-h-green{% else %}text-h-muted{% endif %}">{{ sig.name }}</span>
+                  <span class="flex items-center gap-1">
+                    <span class="conf-dot {% if sig.confidence >= 0.7 %}bg-h-green
+                                          {% elif sig.confidence >= 0.5 %}bg-h-amber
+                                          {% else %}bg-h-red{% endif %}"></span>
+                    <span class="text-[11px] font-mono font-semibold text-h-muted">{{ (sig.confidence * 100) | round(0) | int }}%</span>
+                  </span>
+                </div>
+                <p class="text-xs leading-relaxed {% if sig.active %}text-h-ink{% else %}text-h-muted{% endif %}">{{ sig.status }}</p>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+
+          <!-- Factor Scores Table -->
+          <div>
+            <h3 class="text-xs font-bold text-h-muted uppercase tracking-wider mb-3">多因子评分</h3>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="border-b border-h-border">
+                    <th class="text-left py-2 pr-3 text-xs font-semibold text-h-muted uppercase tracking-wider">因子</th>
+                    <th class="text-left py-2 pr-3 text-xs font-semibold text-h-muted uppercase tracking-wider">评分</th>
+                    <th class="text-left py-2 pr-3 text-xs font-semibold text-h-muted uppercase tracking-wider w-[40%]">分布</th>
+                    <th class="text-left py-2 pr-3 text-xs font-semibold text-h-muted uppercase tracking-wider">权重</th>
+                    <th class="text-right py-2 text-xs font-semibold text-h-muted uppercase tracking-wider">来源</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for f in stock.factor_scores %}
+                  <tr class="border-b border-h-border/50">
+                    <td class="py-2 pr-3 font-semibold text-h-ink">{{ f.factor }}</td>
+                    <td class="py-2 pr-3">
+                      <span class="font-mono font-bold
+                                   {% if f.score >= 70 %}text-h-green
+                                   {% elif f.score >= 50 %}text-h-amber
+                                   {% else %}text-h-red{% endif %}">{{ f.score }}</span>
+                    </td>
+                    <td class="py-2 pr-3">
+                      <div class="signal-track" style="max-width:200px">
+                        <div class="signal-fill
+                                    {% if f.score >= 70 %}bg-h-green
+                                    {% elif f.score >= 50 %}bg-h-amber
+                                    {% else %}bg-h-red{% endif %}"
+                             style="width:{{ f.score }}%"></div>
+                      </div>
+                    </td>
+                    <td class="py-2 pr-3 text-h-muted text-xs">{{ (f.weight * 100) | round(0) | int }}%</td>
+                    <td class="py-2 text-right text-h-muted text-xs font-mono">{{ f.source }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Moneyflow Evidence -->
+          <div>
+            <h3 class="text-xs font-bold text-h-muted uppercase tracking-wider mb-3">资金流证据</h3>
+            <div class="border border-h-border rounded-lg overflow-hidden">
+              <table class="w-full text-sm">
+                <tbody>
+                  <tr class="border-b border-h-border/50">
+                    <td class="py-2.5 px-3 font-semibold text-h-ink w-[140px]">资金确认</td>
+                    <td class="py-2.5 px-3 text-h-ink">{{ stock.moneyflow.confirmation }}</td>
+                  </tr>
+                  <tr class="border-b border-h-border/50">
+                    <td class="py-2.5 px-3 font-semibold text-h-ink">资金背离</td>
+                    <td class="py-2.5 px-3 text-h-ink">{{ stock.moneyflow.divergence }}</td>
+                  </tr>
+                  <tr class="border-b border-h-border/50">
+                    <td class="py-2.5 px-3 font-semibold text-h-ink">板块承接</td>
+                    <td class="py-2.5 px-3 text-h-ink">{{ stock.moneyflow.sector_follow }}</td>
+                  </tr>
+                  <tr>
+                    <td class="py-2.5 px-3 font-semibold text-h-ink">综合置信度</td>
+                    <td class="py-2.5 px-3">
+                      <span class="inline-flex items-center gap-1.5">
+                        <span class="conf-dot {% if stock.moneyflow.confidence >= 0.7 %}bg-h-green
+                                              {% elif stock.moneyflow.confidence >= 0.5 %}bg-h-amber
+                                              {% else %}bg-h-red{% endif %}"></span>
+                        <span class="font-mono font-bold text-sm
+                                     {% if stock.moneyflow.confidence >= 0.7 %}text-h-green
+                                     {% elif stock.moneyflow.confidence >= 0.5 %}text-h-amber
+                                     {% else %}text-h-red{% endif %}">{{ (stock.moneyflow.confidence * 100) | round(0) | int }}%</span>
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Risk Assessment -->
+          <div>
+            <h3 class="text-xs font-bold text-h-muted uppercase tracking-wider mb-3">风险评估 (risk_guardian)</h3>
+            <div class="border rounded-lg p-4
+                        {% if stock.risk.level == '较低' %}border-emerald-200 bg-emerald-50/50
+                        {% elif stock.risk.level == '中等' %}border-amber-200 bg-amber-50/50
+                        {% else %}border-red-200 bg-red-50/50{% endif %}">
+              <div class="flex items-center gap-4 mb-3 flex-wrap">
+                <span class="inline-flex items-center gap-1.5">
+                  <span class="conf-dot {% if stock.risk.level == '较低' %}bg-h-green
+                                        {% elif stock.risk.level == '中等' %}bg-h-amber
+                                        {% else %}bg-h-red{% endif %}"></span>
+                  <span class="text-sm font-bold
+                               {% if stock.risk.level == '较低' %}text-h-green
+                               {% elif stock.risk.level == '中等' %}text-h-amber
+                               {% else %}text-h-red{% endif %}">{{ stock.risk.level }}风险</span>
+                </span>
+                <span class="text-xs font-mono font-semibold text-h-muted">RR {{ stock.risk.rr_ratio }}:1</span>
+                <span class="text-xs text-h-muted">置信度 {{ (stock.risk.confidence * 100) | round(0) | int }}%</span>
+              </div>
+              <ul class="space-y-1.5">
+                {% for factor in stock.risk.factors %}
+                <li class="flex items-start gap-2 text-xs text-h-ink leading-relaxed">
+                  <span class="text-h-muted mt-0.5 flex-shrink-0">&#8226;</span>
+                  {{ factor }}
+                </li>
+                {% endfor %}
+              </ul>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      {# ═══════════ Layer 3: 详情层 ═══════════ #}
+      <div class="collapsible layer-3 border-t border-h-border">
+        <div class="px-4 sm:px-5 py-5 space-y-5">
+
+          <!-- Raw Data (JSON-like structured display) -->
+          <div>
+            <h3 class="text-xs font-bold text-h-muted uppercase tracking-wider mb-3">研究卡原始数据</h3>
+            <div class="json-block"><span class="json-key">"last_close"</span>:  <span class="json-num">{{ stock.raw_data.last_close }}</span>,
+<span class="json-key">"ma25"</span>:      <span class="json-num">{{ stock.raw_data.ma25 }}</span>,
+<span class="json-key">"ma60"</span>:      <span class="json-num">{{ stock.raw_data.ma60 }}</span>,
+<span class="json-key">"bb_upper"</span>:  <span class="json-num">{{ stock.raw_data.bb_upper }}</span>,
+<span class="json-key">"bb_lower"</span>:  <span class="json-num">{{ stock.raw_data.bb_lower }}</span>,
+<span class="json-key">"bb_width"</span>:  <span class="json-num">{{ stock.raw_data.bb_width }}</span>,
+<span class="json-key">"atr_14"</span>:    <span class="json-num">{{ stock.raw_data.atr_14 }}</span>,
+<span class="json-key">"volume_ratio"</span>:<span class="json-num">{{ stock.raw_data.volume_ratio }}</span>,
+<span class="json-key">"rsi_14"</span>:    <span class="json-num">{{ stock.raw_data.rsi_14 }}</span>,
+<span class="json-key">"macd_hist"</span>: <span class="json-num">{{ stock.raw_data.macd_hist }}</span>,
+<span class="json-key">"state_hex"</span>: {
+  <span class="json-key">"mn1"</span>: <span class="json-str">"{{ stock.hex_mn1 }}"</span>,
+  <span class="json-key">"w1"</span>:  <span class="json-str">"{{ stock.hex_w1 }}"</span>,
+  <span class="json-key">"d1"</span>:  <span class="json-str">"{{ stock.hex_d1 }}"</span>
+}</div>
+          </div>
+
+          <!-- Historical State Transitions (mini timeline) -->
+          <div>
+            <h3 class="text-xs font-bold text-h-muted uppercase tracking-wider mb-3">状态变迁时间线</h3>
+            <div class="relative pl-6 space-y-0">
+              {% for entry in stock.state_history %}
+              <div class="relative pb-4 last:pb-0">
+                {% if not loop.last %}
+                <div class="absolute left-[-17px] top-[20px] bottom-0 w-[2px] bg-h-border"></div>
+                {% endif %}
+                <div class="flex items-start gap-3">
+                  <div class="w-[10px] h-[10px] rounded-full border-2 mt-1 flex-shrink-0
+                              {% if loop.first %}border-h-green bg-h-green/20
+                              {% else %}border-h-muted/40 bg-h-surface{% endif %}"></div>
+                  <div>
+                    <p class="text-xs font-mono font-semibold text-h-muted">{{ entry.date }}</p>
+                    <p class="text-sm text-h-ink leading-relaxed">
+                      <span class="font-mono text-xs px-1.5 py-0.5 rounded bg-h-surface border border-h-border text-h-muted">{{ entry.from }}</span>
+                      <span class="text-h-muted mx-1">&#8594;</span>
+                      <span class="font-mono text-xs px-1.5 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-h-green">{{ entry.to }}</span>
+                    </p>
+                    <p class="text-xs text-h-muted mt-0.5">{{ entry.event }}</p>
+                  </div>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+
+          <!-- Forward Observation Results -->
+          <div>
+            <h3 class="text-xs font-bold text-h-muted uppercase tracking-wider mb-3">前瞻观察结果</h3>
+            {% if stock.forward_results %}
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="border-b border-h-border">
+                    <th class="text-left py-2 pr-3 text-xs font-semibold text-h-muted uppercase tracking-wider">日期</th>
+                    <th class="text-left py-2 pr-3 text-xs font-semibold text-h-muted uppercase tracking-wider">策略</th>
+                    <th class="text-left py-2 pr-3 text-xs font-semibold text-h-muted uppercase tracking-wider">结果</th>
+                    <th class="text-left py-2 text-xs font-semibold text-h-muted uppercase tracking-wider">备注</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for fr in stock.forward_results %}
+                  <tr class="border-b border-h-border/50">
+                    <td class="py-2 pr-3 font-mono text-xs text-h-muted">{{ fr.date }}</td>
+                    <td class="py-2 pr-3 font-semibold text-h-ink">{{ fr.strategy }}</td>
+                    <td class="py-2 pr-3">
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold
+                                   {% if fr.outcome == 'positive' %}bg-emerald-50 text-h-green border border-emerald-200
+                                   {% elif fr.outcome == 'negative' %}bg-red-50 text-h-red border border-red-200
+                                   {% else %}bg-gray-50 text-h-muted border border-gray-200{% endif %}">
+                        {% if fr.outcome == 'positive' %}+
+                        {% elif fr.outcome == 'negative' %}-
+                        {% else %}?{% endif %}
+                        {{ fr.outcome }}
+                      </span>
+                    </td>
+                    <td class="py-2 text-xs text-h-muted">{{ fr.note }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            {% else %}
+            <p class="text-sm text-h-muted">暂无前瞻观察记录。</p>
+            {% endif %}
+          </div>
+
+          <!-- AgentMemory Judgment Records -->
+          <div>
+            <h3 class="text-xs font-bold text-h-muted uppercase tracking-wider mb-3">Agent 判断记录</h3>
+            <div class="space-y-3">
+              {% for j in stock.agent_judgments %}
+              <div class="border border-h-border rounded-lg p-3.5">
+                <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+                  <span class="inline-flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-h-green/60"></span>
+                    <span class="text-sm font-bold text-h-ink">{{ j.agent }}</span>
+                  </span>
+                  <div class="flex items-center gap-3">
+                    <span class="text-xs font-mono text-h-muted">{{ j.date }}</span>
+                    <span class="inline-flex items-center gap-1">
+                      <span class="conf-dot {% if j.confidence >= 0.7 %}bg-h-green
+                                            {% elif j.confidence >= 0.5 %}bg-h-amber
+                                            {% else %}bg-h-red{% endif %}"></span>
+                      <span class="text-[11px] font-mono font-semibold text-h-muted">{{ (j.confidence * 100) | round(0) | int }}%</span>
+                    </span>
+                  </div>
+                </div>
+                <p class="text-sm text-h-ink leading-relaxed">{{ j.judgment }}</p>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </article>
+    {% endfor %}
+
+    {% if not stocks %}
+    <div class="bg-h-card border border-h-border rounded-xl p-12 text-center">
+      <p class="text-h-muted text-lg">当前无研究覆盖样本。</p>
+    </div>
+    {% endif %}
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-center">
+    <p class="text-xs text-h-muted">Hermass Observer &middot; 研究收束台 &middot; {{ today }}</p>
+  </footer>
+
+  <script>
+    /**
+     * Toggle header collapse/expand (Layer 1 body).
+     * Clicking the header row collapses or expands the summary section.
+     */
+    function toggleHeader(headerEl) {
+      const card = headerEl.closest('article');
+      const body = card.querySelector('.layer-1-body');
+      const chevron = headerEl.querySelector('.chevron');
+
+      if (body.classList.contains('open')) {
+        body.classList.remove('open');
+        chevron.classList.remove('rotated');
+      } else {
+        body.classList.add('open');
+        chevron.classList.add('rotated');
+      }
+    }
+
+    /**
+     * Toggle Layer 2 (evidence) or Layer 3 (details).
+     * Stops propagation so the header toggle is not triggered.
+     */
+    function toggleLayer(btnEl, layerClass, event) {
+      event.stopPropagation();
+
+      const card = btnEl.closest('article');
+      const layer = card.querySelector('.' + layerClass);
+      const chevron = btnEl.querySelector('.chevron');
+
+      if (layer.classList.contains('open')) {
+        layer.classList.remove('open');
+        btnEl.classList.remove('active');
+        if (chevron) chevron.classList.remove('rotated');
+
+        // Update button text
+        if (layerClass === 'layer-2') {
+          btnEl.innerHTML = '<span class="chevron text-[10px]">&#9656;</span> 展开证据';
+        } else {
+          btnEl.innerHTML = '<span class="chevron text-[10px]">&#9656;</span> 展开详情';
+        }
+      } else {
+        layer.classList.add('open');
+        btnEl.classList.add('active');
+        if (chevron) chevron.classList.add('rotated');
+
+        // Update button text
+        if (layerClass === 'layer-2') {
+          btnEl.innerHTML = '<span class="chevron rotated text-[10px]">&#9656;</span> 收起证据';
+        } else {
+          btnEl.innerHTML = '<span class="chevron rotated text-[10px]">&#9656;</span> 收起详情';
+        }
+      }
+    }
+
+    /**
+     * Keyboard accessibility: Enter/Space toggles.
+     */
+    document.addEventListener('keydown', function(e) {
+      if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('stock-header-row')) {
+        e.preventDefault();
+        toggleHeader(e.target);
+      }
+    });
+  </script>
+
+</body>
+</html>
