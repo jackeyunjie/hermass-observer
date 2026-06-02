@@ -4475,3 +4475,37 @@ async def admin_upload_data(
         "size": len(raw),
         "merged": merged,
     })
+
+
+# ─── Kill Switch Admin API ──────────────────────────────────────
+
+@app.post("/api/admin/kill-switch")
+def admin_kill_switch_activate(request: Request, payload: dict[str, Any] | None = None) -> JSONResponse:
+    """激活 Kill Switch，暂停所有自进化功能。"""
+    profile = get_current_profile(request)
+    if not profile.get("username"):
+        return JSONResponse(content={"ok": False, "error": "unauthorized"}, status_code=401)
+
+    from hermass_platform.red_lines import activate_kill_switch
+
+    payload = payload or {}
+    result = activate_kill_switch(
+        reason=payload.get("reason", "admin_triggered"),
+        activated_by=profile.get("username", "admin"),
+        duration_hours=payload.get("duration_hours", 24),
+    )
+    return JSONResponse(content={"ok": True, "kill_switch": result.get("kill_switch", {})})
+
+
+@app.get("/api/admin/kill-switch/status")
+def admin_kill_switch_status(request: Request) -> JSONResponse:
+    """查询 Kill Switch 当前状态。"""
+    from hermass_platform.red_lines import is_kill_switch_active, get_kill_switch_state
+
+    active = is_kill_switch_active()
+    state = get_kill_switch_state()
+    return JSONResponse(content={
+        "ok": True,
+        "active": active,
+        "state": state,
+    })

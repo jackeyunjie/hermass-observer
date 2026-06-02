@@ -16,10 +16,18 @@ class AgentContext:
     foundation_db: str = ""
     signal_db: str = ""
     generated_at: str = ""
+    errors: list[str] = field(default_factory=list)
 
     def __post_init__(self):
         if not self.generated_at:
             self.generated_at = datetime.now(timezone.utc).isoformat()
+        # 红线 5：Kill Switch 检查
+        try:
+            from hermass_platform.red_lines import is_kill_switch_active
+            if is_kill_switch_active():
+                self.errors.append("Kill Switch 已激活，Agent 执行被暂停")
+        except Exception:
+            pass
 
     def to_dict(self) -> dict:
         return {
