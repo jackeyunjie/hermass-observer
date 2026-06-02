@@ -294,7 +294,7 @@ def evaluate_breakout(
     result["checks"] = {k: bool(v) for k, v in result["checks"].items()}
 
     # ── 综合评分 ──
-    confirmed = sum(1 for v in result["checks"].values() if v)
+    confirmed = sum(1 for v in result["checks"].values if v)
     result["confirmed_count"] = confirmed
 
     # 计算加权置信度
@@ -333,6 +333,9 @@ def check_supersede(
 ) -> bool:
     """检查同标的是否在 20 日内已有突破记录。
 
+    使用 json_extract_string 从 judgment_content 中结构化提取 stock_code，
+    而非 LIKE 字符串匹配。
+
     Returns:
         True 表示应跳过（已被 supersede）
     """
@@ -348,12 +351,13 @@ def check_supersede(
           AND judgment_type = 'breakout_confirmed'
           AND judgment_date >= DATE '{cutoff}'
           AND judgment_date < DATE '{target_date}'
-          AND judgment_content::VARCHAR LIKE '%{stock_code}%'
+          AND json_extract_string(judgment_content, '$.stock_code') = '{stock_code}'
     """
     try:
         count = memory_conn.execute(sql).fetchone()[0]
         return count > 0
-    except Exception:
+    except Exception as e:
+        log.warning("Supersede 查询异常: %s", e)
         return False
 
 
@@ -364,12 +368,19 @@ def write_judgment(
     target_date: str,
     judgments: list[dict],
 ) -> int:
-    """将判断结果写入 agent_judgments 表。"""
+    """将判断结果写入 agent_judgments 表。
+
+    按 (stock_code, judgment_date) 去重：先删除同日同标的旧记录再插入。
+    """
     if not judgments:
         return 0
 
     rows = []
+    stock_codes = set()
     for j in judgments:
+        stock_code = j.get("content", {}).get("stock_code", "")
+        if stock_code:
+            stock_codes.add(stock_code)
         rows.append({
             "agent_id": AGENT_ID,
             "judgment_id": str(uuid.uuid4()),
@@ -384,6 +395,15 @@ def write_judgment(
     df = pd.DataFrame(rows)
 
     try:
+        # 按 (stock_code, judgment_date) 去重：删除同日同标的旧记录
+        for sc in stock_codes:
+            memory_conn.execute(f"""
+                DELETE FROM agent_judgments
+                WHERE agent_id = '{AGENT_ID}'
+                  AND judgment_date = DATE '{target_date}'
+                  AND json_extract_string(judgment_content, '$.stock_code') = '{sc}'
+            """)
+
         memory_conn.execute("INSERT INTO agent_judgments SELECT * FROM df")
         return len(rows)
     except Exception as e:

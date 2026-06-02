@@ -42,6 +42,58 @@ MESSAGE_TYPES = {
     "data_stale": "数据过期，通知所有 Agent 降级运行",
 }
 
+# ── 各 topic 的 payload JSON schema（required 字段 + 类型） ──
+PAYLOAD_SCHEMAS: dict[str, dict[str, type | tuple[type, ...]]] = {
+    "contraction_extreme": {
+        "stock_code": str,
+        "squeeze_score": (int, float),
+        "timeframe": str,
+    },
+    "market_phase_change": {
+        "old_phase": str,
+        "new_phase": str,
+    },
+    "false_breakout": {
+        "stock_code": str,
+        "breakout_date": str,
+    },
+    "weight_adjusted": {
+        "factor_name": str,
+        "old_weight": (int, float),
+        "new_weight": (int, float),
+    },
+    "review_needed": {
+        "subject": str,
+    },
+    "data_stale": {
+        "table_name": str,
+        "last_updated": str,
+    },
+}
+
+
+def _validate_payload(topic: str, payload: dict) -> list[str]:
+    """校验 payload 是否符合该 topic 的 schema。
+
+    Returns:
+        错误信息列表，空列表 = 校验通过
+    """
+    schema = PAYLOAD_SCHEMAS.get(topic)
+    if schema is None:
+        return []
+
+    errors: list[str] = []
+    for field, expected_type in schema.items():
+        if field not in payload:
+            errors.append(f"缺少必填字段: {field}")
+        elif not isinstance(payload[field], expected_type):
+            errors.append(
+                f"字段 {field} 类型错误: 期望 {expected_type}, "
+                f"实际 {type(payload[field]).__name__}"
+            )
+    return errors
+
+
 DEFAULT_OUTBOX = ROOT / "outputs" / "agent_bus" / "outbox"
 
 
@@ -115,6 +167,13 @@ class AgentBus:
         """
         if topic not in MESSAGE_TYPES:
             raise ValueError(f"未知消息类型: {topic}，可选: {list(MESSAGE_TYPES.keys())}")
+
+        # JSON schema 校验
+        schema_errors = _validate_payload(topic, payload)
+        if schema_errors:
+            raise ValueError(
+                f"payload 校验失败 [{topic}]: {'; '.join(schema_errors)}"
+            )
 
         message = {
             "message_id": str(uuid.uuid4()),
@@ -393,6 +452,55 @@ def publish_review_needed(
         payload=payload,
         priority=1,
         requires_response=True,
+    )
+
+
+def publish_weight_adjusted(
+    bus: AgentBus,
+    from_agent: str,
+    factor_name: str,
+    old_weight: float,
+    new_weight: float,
+    reason: str = "",
+) -> dict:
+    """发布因子权重修正事件。"""
+    payload = {
+        "factor_name": factor_name,
+        "old_weight": old_weight,
+        "new_weight": new_weight,
+    }
+    if reason:
+        payload["reason"] = reason
+
+    return bus.publish(
+        from_agent=from_agent,
+        to_agent="*",
+        topic="weight_adjusted",
+        payload=payload,
+        priority=3,
+    )
+
+
+def publish_data_stale(
+    bus: AgentBus,
+    from_agent: str,
+    table_name: str,
+    last_updated: str,
+    reason: str = "",
+) -> list[dict]:
+    """发布数据过期广播。"""
+    payload = {
+        "table_name": table_name,
+        "last_updated": last_updated,
+    }
+    if reason:
+        payload["reason"] = reason
+
+    return bus.publish_broadcast(
+        from_agent=from_agent,
+        topic="data_stale",
+        payload=payload,
+        priority=2,
     )
 
 
