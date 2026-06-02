@@ -4167,6 +4167,10 @@ async def admin_upload_data(
     file: UploadFile,
     type: str = Form(""),
     date: str = Form(""),
+    upload_id: str = Form(""),
+    chunk_index: str = Form(""),
+    total_chunks: str = Form(""),
+    chunk_hash: str = Form(""),
 ) -> JSONResponse:
     """接收 pipeline 产出的数据文件，写入 outputs/ 目录。支持 gzip 压缩传输。"""
     if not type:
@@ -4200,6 +4204,58 @@ async def admin_upload_data(
         dest_dir = dest_dir / f"foundation_delta_{date}"
         dest_dir.mkdir(parents=True, exist_ok=True)
         dest_path = dest_dir / "foundation_delta.duckdb"
+    elif type == "foundation_chunk":
+        upload_id = upload_id or date  # fallback
+        chunk_index_str = chunk_index or "0"
+        total_chunks_str = total_chunks or "1"
+        chunk_hash = chunk_hash or ""
+        try:
+            chunk_index = int(chunk_index_str)
+            total_chunks = int(total_chunks_str)
+        except ValueError:
+            return JSONResponse(content={"ok": False, "error": "invalid chunk params"}, status_code=400)
+        if not upload_id:
+            return JSONResponse(content={"ok": False, "error": "missing upload_id"}, status_code=400)
+        chunk_dir = ROOT / "tmp" / "upload_chunks" / upload_id
+        chunk_dir.mkdir(parents=True, exist_ok=True)
+        chunk_path = chunk_dir / f"chunk_{chunk_index}"
+        chunk_path.write_bytes(raw)
+        if chunk_hash:
+            import hashlib as _hl
+            if _hl.sha256(raw).hexdigest() != chunk_hash:
+                chunk_path.unlink()
+                return JSONResponse(content={"ok": False, "error": "chunk hash mismatch"}, status_code=400)
+        return JSONResponse(content={"ok": True, "type": type, "chunk_index": chunk_index, "total_chunks": total_chunks})
+    elif type == "foundation_merge":
+        upload_id = upload_id or date
+        total_chunks_str = total_chunks or "1"
+        try:
+            total_chunks = int(total_chunks_str)
+        except ValueError:
+            return JSONResponse(content={"ok": False, "error": "invalid total_chunks"}, status_code=400)
+        if not upload_id or not date:
+            return JSONResponse(content={"ok": False, "error": "missing upload_id or date"}, status_code=400)
+        chunk_dir = ROOT / "tmp" / "upload_chunks" / upload_id
+        missing = [i for i in range(total_chunks) if not (chunk_dir / f"chunk_{i}").exists()]
+        if missing:
+            return JSONResponse(content={"ok": False, "error": f"missing chunks: {missing}"}, status_code=400)
+        merged = b""
+        for i in range(total_chunks):
+            merged += (chunk_dir / f"chunk_{i}").read_bytes()
+        if filename.endswith(".gz") or not filename:
+            import gzip as _gz
+            raw = _gz.decompress(merged)
+        else:
+            raw = merged
+        dest_dir = ROOT / "outputs" / f"p116_foundation_{date}"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest_path = dest_dir / "p116_foundation.duckdb"
+        tmp_path = dest_path.with_suffix(dest_path.suffix + ".tmp")
+        tmp_path.write_bytes(raw)
+        tmp_path.rename(dest_path)
+        import shutil
+        shutil.rmtree(chunk_dir, ignore_errors=True)
+        return JSONResponse(content={"ok": True, "type": "foundation", "path": str(dest_path), "size": len(raw)})
     elif type in WEBSITE_UPLOAD_TARGETS:
         if not date:
             return JSONResponse(content={"ok": False, "error": "missing date"}, status_code=400)
