@@ -106,8 +106,10 @@ def _execute_compound(
         result["next_actions"] = next_actions
 
     result.setdefault("mode_used", context.get("mode", "chat"))
-    result.setdefault("provider", "agently_deepseek")
-    result.setdefault("enhancement_used", True)
+    if result.get("provider") is None:
+        result["provider"] = "agently_deepseek"
+    if result.get("enhancement_used") is None:
+        result["enhancement_used"] = True
     result.setdefault("intent", {
         "scenario": [primary, secondary],
         "confidence": route.get("confidence", 0.0) if route else 0.0,
@@ -210,7 +212,8 @@ def handle(user_input: str, context: dict[str, Any]) -> dict[str, Any] | None:
 
     # 补充元信息
     result.setdefault("mode_used", context.get("mode", "chat"))
-    result.setdefault("provider", "agently_deepseek")
+    if result.get("provider") is None:
+        result["provider"] = "agently_deepseek"
     result.setdefault("enhancement_used", True)
     result.setdefault("intent", {
         "scenario": scenario_name,
@@ -263,8 +266,10 @@ def _handle_value_analysis(context: dict[str, Any]) -> dict[str, Any] | None:
 
         result.setdefault("remembered_stock_code", stock_code)
         result.setdefault("mode_used", context.get("mode", "chat"))
-        result.setdefault("provider", "agently_deepseek")
-        result.setdefault("enhancement_used", True)
+        if result.get("provider") is None:
+            result["provider"] = "agently_deepseek"
+        if result.get("enhancement_used") is None:
+            result["enhancement_used"] = True
         result.setdefault("intent", {
             "scenario": "value_analysis",
             "confidence": 1.0,

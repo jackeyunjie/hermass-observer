@@ -3164,8 +3164,10 @@ def _enhance_result_defaults(
     result.setdefault("remembered_stock_code", _chat_stock_code(query))
     result.setdefault("remembered_email", _chat_email(query))
     result.setdefault("mode_used", "chat")
-    result.setdefault("provider", provider)
-    result.setdefault("enhancement_used", provider != "rule_based")
+    if result.get("provider") is None:
+        result["provider"] = provider
+    if result.get("enhancement_used") is None:
+        result["enhancement_used"] = provider != "rule_based"
     return result
 
 
@@ -4060,8 +4062,10 @@ def chat_query(request: Request, query: ChatQuery) -> JSONResponse:
 
     try:
         result = _chat_answer(query)
-        result.setdefault("provider", "rule_based")
-        result.setdefault("enhancement_used", False)
+        if result.get("provider") is None:
+            result["provider"] = "rule_based"
+        if result.get("enhancement_used") is None:
+            result["enhancement_used"] = False
         result["user_id"] = user_id  # 绑定会话到当前用户
         result["session_id"] = query.session_id or ""
 
