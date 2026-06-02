@@ -221,8 +221,9 @@
     </main>
     <script>
       function askWatchAi(code, label) {
-        window.aiSession = window.aiSession || { stock_code: '', email: '' };
+        window.aiSession = window.aiSession || { session_id: '', stock_code: '', email: '' };
         window.aiSession.stock_code = code;
+        if (window.aiToggle) window.aiToggle();
         window.aiAsk('查看 ' + code + '，' + label);
       }
     </script>
