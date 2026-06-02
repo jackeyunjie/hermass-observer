@@ -193,6 +193,29 @@
           </label>
           <button type="submit">生成研究卡</button>
         </form>
+        {% if cards %}
+        {% set quick_text = cards.quick or cards.error %}
+        {% if quick_text and quick_text not in ('暂无', '—') %}
+        <section class="panel span-2">
+          <div class="panel-head"><h2>快速卡</h2></div>
+          <pre>{{ quick_text }}</pre>
+        </section>
+        {% endif %}
+        {% set deep_text = cards.deep or cards.error %}
+        {% if deep_text and deep_text not in ('暂无', '—') %}
+        <section class="panel span-2">
+          <div class="panel-head"><h2>深度卡</h2></div>
+          <pre>{{ deep_text }}</pre>
+        </section>
+        {% endif %}
+        {% set evidence_text = cards.evidence or cards.error %}
+        {% if evidence_text and evidence_text not in ('暂无', '—') %}
+        <section class="panel span-2">
+          <div class="panel-head"><h2>证据卡</h2></div>
+          <pre>{{ evidence_text }}</pre>
+        </section>
+        {% endif %}
+        {% endif %}
       </section>
     </main>
 

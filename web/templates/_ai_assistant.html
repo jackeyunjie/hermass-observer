@@ -88,6 +88,7 @@
         var input = document.getElementById('ai-input');
         var pageContext = "{{ ai_page_context or request.url.path }}";
         var aiSession = { session_id: '', stock_code: '', email: '' };
+        window.aiSession = aiSession;
         var aiMode = 'chat';
 
         function aiToggle() {
