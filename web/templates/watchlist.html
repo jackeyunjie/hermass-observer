@@ -102,7 +102,7 @@
               <td>
                 {{ row.next_action }}
                 <br />
-                <button type="button" onclick='askWatchAi("{{ row.stock_code }}", {{ row.resonance_label | tojson }})'>💬 问观象</button>
+                <span class="ask-ai-chip" onclick='askWatchAi("{{ row.stock_code }}", {{ row.resonance_label | tojson }})'><span class="dot"></span>问观象</span>
               </td>
             </tr>
           {% endfor %}
@@ -142,7 +142,7 @@
               <td>
                 {{ row.next_action }}
                 <br />
-                <button type="button" onclick='askWatchAi("{{ row.stock_code }}", {{ row.resonance_label | tojson }})'>💬 问观象</button>
+                <span class="ask-ai-chip" onclick='askWatchAi("{{ row.stock_code }}", {{ row.resonance_label | tojson }})'><span class="dot"></span>问观象</span>
               </td>
             </tr>
           {% endfor %}
@@ -182,7 +182,7 @@
               <td>
                 {{ row.next_action }}
                 <br />
-                <button type="button" onclick='askWatchAi("{{ row.stock_code }}", {{ row.resonance_label | tojson }})'>💬 问观象</button>
+                <span class="ask-ai-chip" onclick='askWatchAi("{{ row.stock_code }}", {{ row.resonance_label | tojson }})'><span class="dot"></span>问观象</span>
               </td>
             </tr>
           {% endfor %}

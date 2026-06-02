@@ -30,7 +30,7 @@
         <div class="daily-brief-card">
           <h2>今日判断</h2>
           <p class="hero-copy">{{ daily_brief.conclusion }}</p>
-          <p class="hero-note">有疑问？<a href="javascript:void(0)" onclick="window.aiAsk('{{ daily_brief.conclusion }}')">问观象 →</a></p>
+          <p class="hero-note">有疑问？<a href="javascript:void(0)" class="hero-ask-ai" onclick="window.aiAsk('{{ daily_brief.conclusion }}')"><span class="dot"></span>问观象 →</a></p>
         </div>
       </section>
 
