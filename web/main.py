@@ -2412,6 +2412,7 @@ def preview_cards(
             "cards": cards,
             "stock_code": stock_code,
             "render_profile": render_profile,
+            "daily_brief": _daily_brief(),
             "current_user": profile,
         },
     )
