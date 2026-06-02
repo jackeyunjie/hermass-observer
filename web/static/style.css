@@ -899,6 +899,12 @@ pre {
   box-shadow: 0 0 0 2px rgba(244, 238, 207, 0.25);
 }
 
+.chip-ai-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
 /* ── Hero 区域问观象按钮 ── */
 .hero-ask-ai {
   display: inline-flex;
@@ -921,6 +927,12 @@ pre {
   background: linear-gradient(135deg, rgba(14, 124, 102, 0.18), rgba(14, 124, 102, 0.08));
   box-shadow: 0 4px 12px rgba(14, 124, 102, 0.15);
   transform: translateY(-1px);
+}
+
+.hero-ai-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
 }
 
 @media (max-width: 860px) {
