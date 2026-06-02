@@ -9,6 +9,7 @@ from typing import Any, Optional
 import duckdb
 
 from hermass_platform.agents.base_agent import find_foundation_db
+from hermass_platform.red_lines import require_human_confirmation
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DB_PATH = ROOT / "outputs" / "trades.db"
@@ -146,7 +147,37 @@ def add_trade(
     mn1_state_name: Optional[str] = None,
     note: str = "",
     db_path: Path | None = None,
+    human_confirmed: bool = False,
 ) -> dict[str, Any]:
+    """新增交易记录。
+
+    红线 1：如果 exit_price 或 stop_loss 被设置（即涉及止损/止盈操作），
+    必须有人类确认才能写入。未确认时返回拦截结果。
+    """
+    # ── 红线 1：止损/止盈需要人类确认 ────────────────────────────
+    if exit_price is not None or stop_loss is not None:
+        action = "stop_loss" if stop_loss is not None else "take_profit"
+        if exit_price is not None and stop_loss is not None:
+            action = "exit_position"
+        gate = require_human_confirmation(
+            action_type=action,
+            stock_code=stock_code,
+            details={
+                "entry_price": entry_price,
+                "exit_price": exit_price,
+                "stop_loss": stop_loss,
+                "strategy_id": strategy_id,
+            },
+            human_confirmed=human_confirmed,
+            agent_id="trade_journal",
+        )
+        if not gate["allowed"]:
+            return {
+                "error": gate["reason"],
+                "red_line_violation": gate.get("violation"),
+                "human_confirmed": False,
+            }
+
     username = username or "hermass-test"
     stock_code = "".join(ch for ch in str(stock_code) if ch.isdigit())[:6]
     mn1 = _resolve_mn1_state_name(stock_code, trade_date, mn1_state_name)

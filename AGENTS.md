@@ -99,4 +99,121 @@ HEREDOC
 - 禁止让用户“看看报错再决定”——必须给出一套完整下一步
 - 交付物必须是：终端命令、脚本路径、或可直接发给服务器 Codex 的提示词
 - 如果任务涉及代码修改，由 AI 直接修改文件，用户只执行 git push 或运行脚本
-- 如果任务涉及服务器部署，用户只复制粘贴“部署提示词”给服务器上的执行者
+- 如果任务涉及服务器部署，用户只复制粘贴"部署提示词"给服务器上的执行者
+
+---
+
+## 三模型协作分工（2026-06-02 固化，06-02 修订：Kimi 优先）
+
+**Kimi 有套餐，尽量把工作交给 Kimi。Codex 仅用于必须 SSH 到服务器的操作。**
+
+| 角色 | 负责 | 产物 |
+|------|------|------|
+| **Kimi（主力）** | 策略蓝图 + 工程落地 + 代码审查 + 每日数据更新 | JSON/YAML、Python 脚本、DDL、HTML、审计报告 |
+| **Qoder** | 协助 Kimi：复杂工程问题、Kimi 遇到瓶颈时接手 | .py/.sql/.html 文件 |
+| **Codex（仅必要时）** | 服务器部署执行、混沌演练、需要 SSH 的操作 | 部署命令执行、演练报告 |
+
+### 修改后的工作流
+
+```text
+1. Kimi 直接写代码 → 修改文件
+2. 人 git add + commit + push
+3. 人 SSH 到服务器执行部署（或用 Codex 部署提示词）
+4. Kimi 自查或 Qoder 交叉审查
+5. 发现的问题 → 回到步骤 1
+```
+
+### 每日数据更新（Kimi 执行）
+
+```text
+1. Kimi 本机下载今天 K 线（黑狼 API）+ 资金流数据
+2. Kimi 构建 foundation_delta 增量包
+3. 人上传到服务器 /opt/hermass/outputs/
+4. Kimi 给出服务器后续脚本命令 → 人 SSH 执行
+5. 冒烟验证
+```
+
+---
+
+## 每日数据更新 SOP（2026-06-02 固化）
+
+**核心策略：本地下载 → 构建增量包 → 上传服务器 → 服务器跑后续流程。不每天传 3.7G 完整 Foundation DB。**
+
+### 步骤（发给 Codex 执行）
+
+```text
+1. 本机下载今天 K 线（黑狼 API）+ 资金流数据
+2. 构建 foundation_delta 增量包（约 8.8M，gzip 后约 4.4M）
+3. 上传到服务器 /opt/hermass/outputs/
+4. 服务器执行后续脚本：
+   - build_daily_snapshot.py
+   - strategy_signal_ledger.py --date YYYY-MM-DD
+   - estimate_reward_risk.py --date YYYY-MM-DD
+   - forward_observation_ledger.py --date YYYY-MM-DD
+   - run_recommendation_workflow.py --date YYYY-MM-DD（行业轮动）
+   - build_stock_percentiles.py --date YYYY-MM-DD（波2新增）
+   - rebuild_bb_pivot_atr.py --date YYYY-MM-DD（波2新增）
+5. sudo systemctl restart hermass-console
+6. 冒烟：HTTP 200 + provider 正常
+```
+
+### 全量重铺（仅必要时）
+
+设置 `UPLOAD_FOUNDATION=1`，上传完整 3.7G p116_foundation.duckdb。
+详见 `docs/FOUNDATION_DELTA_UPLOAD_DESIGN.md`。
+
+---
+
+## 三波建设成果速查（2026-06-02）
+
+### 波 1：底座加固
+- `p116_foundation.duckdb` 追加 `data_quality_score`、`market_segment`、`bar_history_days`、`post_suspension_days`
+- `outputs/agent_memory/AgentMemory.duckdb`：5 表 9 索引
+- `bb_pivot_atr` 物化视图表
+- Makefile `db-migrate` target
+
+### 波 2：收缩观测 + Agent 协作
+- `hermass_platform/agents/contraction_observer.py`
+- `hermass_platform/bus/agent_bus.py`（6 topic + JSON schema）
+- `scripts/build_stock_percentiles.py`
+
+### 波 3：自进化 + 前端
+- `scripts/factor_homeostasis.py`（免疫稳态）
+- `scripts/build_scenario_library.py`（场景库自动构建）
+- **五条红线**：`config/redlines.yaml` + `hermass_platform/red_lines.py`
+- 前端：`index.html` 面板收敛（10+→6）、`watchlist.html` 列精简（14→4）
+
+---
+
+## 关键数据库表速查
+
+| 数据库 | 关键表 | 用途 |
+|--------|--------|------|
+| p116_foundation.duckdb | `d1_perspective_state` | MN1/W1/D1 State 矩阵（8.5M 行） |
+| p116_foundation.duckdb | `timeframe_indicators` | BB/ATR/ADX 指标 |
+| p116_foundation.duckdb | `bb_pivot_atr` | BB+枢轴+ATR 物化视图 |
+| AgentMemory.duckdb | `agent_judgments` | Agent 每次判断记录 |
+| AgentMemory.duckdb | `judgment_outcomes` | 判断回溯结果 |
+| AgentMemory.duckdb | `agent_scenario_library` | 场景模板库 |
+| AgentMemory.duckdb | `factor_weights_history` | 因子权重演进历史 |
+| AgentMemory.duckdb | `agent_evolution_log` | Agent 成长日志 |
+
+---
+
+## 五条红线（不可绕过）
+
+1. **止损/止盈不可自动执行** — 需人类确认
+2. **策略结构不可变** — VCP/2560/Bollinger/composite 四策略保护
+3. **数据异常必报人类** — DEGRADED 后自动 AgentBus 广播 review_needed
+4. **仓位上限不可突破** — 单只 25% / 单行业 40%，不可覆盖
+5. **Admin kill-switch** — 24h 自动过期，暂停所有自进化
+
+配置：`config/redlines.yaml`，代码加载时读取。
+审计日志：`outputs/red_line_audit_log.jsonl`
+
+---
+
+## 研发存档
+
+全部设计文档、对话记录、辩论结果：`data/research/conversations/`（共 16 份）
+全链上下文交接文档：`data/research/conversations/16-全链上下文-新对话交接.md`

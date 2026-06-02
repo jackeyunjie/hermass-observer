@@ -229,8 +229,18 @@ def backfill_bar_history_days(conn: duckdb.DuckDBPyConnection) -> int:
 
 
 # ── Step 4: 回填 post_suspension_days ────────────────────────
-def backfill_post_suspension_days(conn: duckdb.DuckDBPyConnection, dry_run: bool = False, batch_size: int = 250) -> dict:
-    """检测停牌-复牌事件，回填 post_suspension_days。"""
+def backfill_post_suspension_days(conn: duckdb.DuckDBPyConnection) -> dict:
+    """检测停牌-复牌事件，回填 post_suspension_days。
+
+    算法：
+      1. 构建市场交易日历（daily_bars 中全部 DISTINCT date）
+      2. 对每只股票，找出「交易日但该股无数据」的停牌日集合
+      3. 把连续停牌日聚合为一次停牌事件，记录 (stock_code, suspend_start, suspend_end, duration)
+      4. 对 d1_perspective_state 中每行，计算 post_suspension_days:
+         - 如果该日处于停牌中 → post_suspension_days = 停牌已持续天数
+         - 如果该日处于 long-suspension 复牌后 5 日内 → post_suspension_days = 复牌后第 N 天
+         - 否则 → 0
+    """
     t0 = time.time()
 
     # ── 4a. 构建交易日历 ──
@@ -241,6 +251,7 @@ def backfill_post_suspension_days(conn: duckdb.DuckDBPyConnection, dry_run: bool
     """).fetchdf()
     all_trade_dates = calendar_df["trade_date"].tolist()
     trade_date_set = set(all_trade_dates)
+    # 日期 → 序号（用于快速计算天数差）
     date_to_idx = {d: i for i, d in enumerate(all_trade_dates)}
 
     log.info("交易日历：%d 个交易日 (%s ~ %s)",
@@ -253,6 +264,7 @@ def backfill_post_suspension_days(conn: duckdb.DuckDBPyConnection, dry_run: bool
         ORDER BY stock_code, date
     """).fetchdf()
 
+    # 用 pandas groupby 构建每只股票的 date 集合
     stock_date_sets: dict[str, set] = {}
     for code, group in stock_dates_df.groupby("stock_code"):
         stock_date_sets[code] = set(group["date"].tolist())
@@ -260,33 +272,25 @@ def backfill_post_suspension_days(conn: duckdb.DuckDBPyConnection, dry_run: bool
     log.info("加载 %d 只股票的交易日数据", len(stock_date_sets))
 
     # ── 4c. 检测停牌事件 ──
-    suspension_events: list[tuple[str, int, int]] = []
-    result_records: list[dict] = []
-    batch: list[dict] = []
+    # 对每只股票，找出交易日历中缺失的日期（停牌日）
+    # 然后聚合连续停牌为事件
+    suspension_events: list[tuple[str, int, int]] = []  # (stock_code, suspend_days_count, resume_idx)
 
-    def _flush_batch(records: list[dict]) -> None:
-        if not records:
-            return
-        df = pd.DataFrame(records)[["stock_code", "state_date", "post_suspension_days"]]
-        conn.execute("DROP TABLE IF EXISTS _tmp_post_suspension")
-        conn.execute("CREATE TEMPORARY TABLE _tmp_post_suspension AS SELECT * FROM df")
-        conn.execute(f"""
-            UPDATE d1_perspective_state t
-            SET post_suspension_days = tmp.post_suspension_days
-            FROM _tmp_post_suspension tmp
-            WHERE t.stock_code = tmp.stock_code
-              AND t.state_date = tmp.state_date
-        """)
-        conn.execute("DROP TABLE IF EXISTS _tmp_post_suspension")
+    # 为效率，构建全局结果 DataFrame
+    # stock_code, state_date → post_suspension_days
+    result_records: list[dict] = []
 
     processed = 0
     for stock_code, stock_dates in stock_date_sets.items():
+        # 该股票在交易日历中缺失的日期 = 停牌日
         missing_dates = sorted(trade_date_set - stock_dates)
         if not missing_dates:
             processed += 1
             continue
 
-        events: list[tuple[int, int]] = []
+        # 聚合连续停牌事件
+        # "连续" = 在交易日历中序号连续
+        events: list[tuple[int, int]] = []  # (start_idx, end_idx) inclusive
         start_idx = date_to_idx[missing_dates[0]]
         prev_idx = start_idx
         for md in missing_dates[1:]:
@@ -299,50 +303,67 @@ def backfill_post_suspension_days(conn: duckdb.DuckDBPyConnection, dry_run: bool
                 prev_idx = curr_idx
         events.append((start_idx, prev_idx))
 
+        # 对每次停牌事件计算 post_suspension_days
         for (s_idx, e_idx) in events:
             suspend_days = e_idx - s_idx + 1
+            # 复牌日 = 下一个交易日 (e_idx + 1)，如果存在
             resume_idx = e_idx + 1
             if resume_idx < len(all_trade_dates):
                 suspension_events.append((stock_code, suspend_days, resume_idx))
+                # 复牌后 POST_RESUMPTION_WINDOW 天内
                 for offset in range(1, POST_RESUMPTION_WINDOW + 1):
                     day_idx = resume_idx + offset - 1
                     if day_idx < len(all_trade_dates):
-                        if dry_run:
-                            result_records.append({
-                                "stock_code": stock_code,
-                                "state_date": all_trade_dates[day_idx],
-                                "post_suspension_days": offset,
-                                "_suspend_days": suspend_days,
-                            })
-                        else:
-                            batch.append({
-                                "stock_code": stock_code,
-                                "state_date": all_trade_dates[day_idx],
-                                "post_suspension_days": offset,
-                                "_suspend_days": suspend_days,
-                            })
+                        result_records.append({
+                            "stock_code": stock_code,
+                            "state_date": all_trade_dates[day_idx],
+                            "post_suspension_days": offset,
+                            "_suspend_days": suspend_days,
+                        })
 
         processed += 1
         if processed % 1000 == 0:
             log.info("停牌检测进度：%d / %d 只股票", processed, len(stock_date_sets))
-        if batch and (processed % max(1, batch_size) == 0 or processed == len(stock_date_sets)):
-            _flush_batch(batch)
-            batch = []
 
-    if batch:
-        _flush_batch(batch)
     log.info("检测到 %d 次停牌-复牌事件（含 long/short）", len(suspension_events))
 
-    # ── 4d. 写入 post_suspension_days（已改为逐批 flush） ──
-    # 保留旧 result_records 仅用于 dry-run 预览
+    # ── 4d. 写入 post_suspension_days ──
+    if result_records:
+        psd_df = pd.DataFrame(result_records)
+        # 只保留列需要的字段
+        psd_df = psd_df[["stock_code", "state_date", "post_suspension_days"]]
+
+        # 创建临时表用于 JOIN UPDATE
+        conn.execute("DROP TABLE IF EXISTS _tmp_post_suspension")
+        conn.execute("""
+            CREATE TEMPORARY TABLE _tmp_post_suspension AS
+            SELECT * FROM psd_df
+        """)
+
+        conn.execute(f"""
+            UPDATE {TARGET_TABLE} t
+            SET post_suspension_days = tmp.post_suspension_days
+            FROM _tmp_post_suspension tmp
+            WHERE t.stock_code = tmp.stock_code
+              AND t.state_date = tmp.state_date
+        """)
+        conn.execute("DROP TABLE IF EXISTS _tmp_post_suspension")
+
+    # 所有未涉及的行保持 DEFAULT 0
+    nonzero = conn.execute(
+        f"SELECT COUNT(*) FROM {TARGET_TABLE} WHERE post_suspension_days > 0"
+    ).fetchone()[0]
 
     stats = {
         "suspension_events": len(suspension_events),
         "long_suspensions": sum(1 for _, d, _ in suspension_events if d > LONG_SUSPENSION_THRESHOLD),
-        "rows_with_post_suspension": len(result_records) if dry_run else -1,
+        "rows_with_post_suspension": nonzero,
     }
     log.info("post_suspension_days 回填完成：%s (%.1fs)", stats, time.time() - t0)
     return stats
+
+
+# ── Step 5: 更新 data_quality_score ──────────────────────────
 def update_data_quality_score(conn: duckdb.DuckDBPyConnection) -> dict:
     """按 DEGRADED 规则更新 data_quality_score。
 
@@ -510,7 +531,7 @@ def write_manifest(
 
 
 # ── 主流程 ────────────────────────────────────────────────────
-def run(foundation_db: Path, dry_run: bool = False, batch_size: int = 250) -> dict:
+def run(foundation_db: Path) -> dict:
     t_start = time.time()
     log.info("=" * 60)
     log.info("Data Quality Fields — 开始处理")
@@ -539,7 +560,7 @@ def run(foundation_db: Path, dry_run: bool = False, batch_size: int = 250) -> di
 
     # Step 4: 回填 post_suspension_days
     log.info("── Step 4: 回填 post_suspension_days ──")
-    psd_stats = backfill_post_suspension_days(conn, dry_run=dry_run, batch_size=batch_size)
+    psd_stats = backfill_post_suspension_days(conn)
 
     # Step 5: 更新 data_quality_score
     log.info("── Step 5: 更新 data_quality_score ──")
@@ -586,17 +607,6 @@ def main():
         default="",
         help="直接指定 foundation.duckdb 路径（覆盖 --date）",
     )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="只打印会执行的写入动作，不实际修改数据库",
-    )
-    parser.add_argument(
-        "--batch-size",
-        type=int,
-        default=250,
-        help="post_suspension_days 回填分批大小，默认 250",
-    )
     args = parser.parse_args()
 
     if args.foundation_db:
@@ -608,7 +618,7 @@ def main():
         log.error("foundation DB 不存在: %s", db_path)
         sys.exit(1)
 
-    result = run(db_path, dry_run=args.dry_run, batch_size=args.batch_size)
+    result = run(db_path)
 
     # 输出摘要到 stdout (方便 pipeline 消费)
     import json

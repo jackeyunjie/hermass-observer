@@ -24,6 +24,13 @@ from hermass_platform.research.external_research_formatters import (
     format_evidence_card,
     format_quick_research_card,
 )
+from hermass_platform.red_lines import (
+    activate_kill_switch,
+    deactivate_kill_switch,
+    get_kill_switch_state,
+    guard_strategy_structure,
+    require_human_confirmation,
+)
 
 
 class RunDailyRequest(BaseModel):
@@ -241,6 +248,89 @@ def research_evidence_card(req: ResearchRequest) -> dict[str, Any]:
         "completeness": evidence.get("completeness", {}),
         "card_markdown": format_evidence_card(evidence),
     }
+
+
+class KillSwitchRequest(BaseModel):
+    reason: str = Field("", description="激活原因")
+    admin_token: str = Field("", description="Admin token")
+    duration_hours: int = Field(24, description="持续时间（小时）")
+
+
+class StrategyStructureRequest(BaseModel):
+    strategy_name: str = Field(..., description="策略名称（vcp / ma2560 / bollinger_bandit）")
+    proposed_changes: dict[str, Any] = Field(..., description="拟修改内容")
+    admin_token: str = Field("", description="Admin token")
+
+
+class HumanConfirmationRequest(BaseModel):
+    action_type: str = Field(..., description="操作类型：stop_loss / take_profit / exit_position")
+    stock_code: str = Field(..., description="股票代码")
+    details: dict[str, Any] = Field({}, description="操作详情")
+    human_confirmed: bool = Field(False, description="人类是否确认")
+
+
+# ═══════════════════════════════════════════════════════════════
+# Admin API：五条红线拦截端点
+# ═══════════════════════════════════════════════════════════════
+
+
+@app.post("/api/admin/kill-switch")
+def admin_kill_switch(req: KillSwitchRequest) -> dict[str, Any]:
+    """红线 5：一键暂停自进化。"""
+    if req.admin_token:
+        import os
+        expected = os.environ.get("HERMASS_ADMIN_TOKEN", "")
+        if expected and req.admin_token != expected:
+            raise HTTPException(status_code=403, detail="admin token 验证失败")
+    result = activate_kill_switch(
+        reason=req.reason,
+        activated_by="admin_api",
+        duration_hours=req.duration_hours,
+    )
+    return {"ok": True, **result}
+
+
+@app.post("/api/admin/kill-switch/deactivate")
+def admin_kill_switch_deactivate(req: KillSwitchRequest) -> dict[str, Any]:
+    """解除 Kill Switch。"""
+    result = deactivate_kill_switch(admin_token=req.admin_token)
+    return {"ok": True, **result}
+
+
+@app.get("/api/admin/kill-switch/status")
+def admin_kill_switch_status() -> dict[str, Any]:
+    """查询 Kill Switch 状态。"""
+    state = get_kill_switch_state()
+    return {"ok": True, "kill_switch": state}
+
+
+@app.post("/api/admin/strategy-structure")
+def admin_strategy_structure(req: StrategyStructureRequest) -> dict[str, Any]:
+    """红线 2：策略结构修改拦截。"""
+    result = guard_strategy_structure(
+        strategy_name=req.strategy_name,
+        proposed_changes=req.proposed_changes,
+        admin_token=req.admin_token,
+        agent_id="admin_api",
+    )
+    if not result["allowed"]:
+        raise HTTPException(status_code=403, detail=result["reason"])
+    return {"ok": True, **result}
+
+
+@app.post("/api/admin/human-confirmation")
+def admin_human_confirmation(req: HumanConfirmationRequest) -> dict[str, Any]:
+    """红线 1：止损/止盈人类确认检查。"""
+    result = require_human_confirmation(
+        action_type=req.action_type,
+        stock_code=req.stock_code,
+        details=req.details,
+        human_confirmed=req.human_confirmed,
+        agent_id="admin_api",
+    )
+    if not result["allowed"]:
+        raise HTTPException(status_code=403, detail=result["reason"])
+    return {"ok": True, **result}
 
 
 def main() -> int:

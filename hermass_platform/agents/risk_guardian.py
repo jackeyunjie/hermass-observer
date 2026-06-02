@@ -3,9 +3,19 @@ from typing import Optional
 
 import duckdb
 
+from hermass_platform.red_lines import (
+    enforce_max_position,
+    flag_data_anomaly,
+    is_kill_switch_active,
+)
+
 from .base_agent import AgentContext, AgentResult, find_foundation_db
 
 ROOT = Path(__file__).resolve().parents[2]
+
+# ── 红线 4：不可绕过的仓位上限 ────────────────────────────────
+MAX_POSITION_PCT = 0.25  # 单只股票最大 25%
+MAX_INDUSTRY_PCT = 0.40  # 单行业最大 40%
 
 
 def assess_portfolio_risk(
@@ -131,6 +141,33 @@ def assess_portfolio_risk(
         high_risk = sum(1 for h in holdings if h["risk_level"] == "高")
         med_risk = sum(1 for h in holdings if h["risk_level"] == "中")
 
+        # ── 红线 4：仓位上限强制检查 ────────────────────────────
+        position_checks = []
+        for h in holdings:
+            # 对每只持仓股进行仓位上限检查
+            # 如果调用方传入了建议仓位，在此处强制截断
+            check = enforce_max_position(
+                stock_code=h["stock_code"],
+                proposed_weight=1.0 / max(len(holdings), 1),  # 等权默认
+                max_position_pct=MAX_POSITION_PCT,
+                agent_id="risk_guardian",
+            )
+            h["position_cap"] = check["capped_weight"]
+            h["position_allowed"] = check["allowed"]
+            position_checks.append(check)
+
+        # ── 红线 3：数据异常检测 ─────────────────────────────────
+        anomaly_flags = []
+        for h in holdings:
+            if h.get("atr_ratio_pct") is not None and h["atr_ratio_pct"] > 20.0:
+                anomaly = flag_data_anomaly(
+                    agent_id="risk_guardian",
+                    anomaly_type="outlier_atr_ratio",
+                    stock_code=h["stock_code"],
+                    details={"atr_ratio_pct": h["atr_ratio_pct"]},
+                )
+                anomaly_flags.append(anomaly)
+
         con.close()
 
         result.data = {
@@ -144,6 +181,12 @@ def assess_portfolio_risk(
                 "low_risk_count": len(holdings) - high_risk - med_risk,
             },
             "total_risk_flags": len(risk_flags),
+            "position_cap_enforced": any(not c["allowed"] for c in position_checks),
+            "position_checks": position_checks,
+            "max_position_pct": MAX_POSITION_PCT,
+            "max_industry_pct": MAX_INDUSTRY_PCT,
+            "data_anomalies": anomaly_flags,
+            "kill_switch_active": is_kill_switch_active(),
         }
 
         if len(holdings) == 0:
