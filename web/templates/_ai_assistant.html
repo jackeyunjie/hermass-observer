@@ -1,10 +1,39 @@
     <!-- AI 助手 -->
     <div class="ai-overlay" id="ai-overlay" onclick="aiToggle()"></div>
     <button class="ai-trigger" id="ai-trigger" onclick="aiToggle()" aria-label="打开 Hermass 助手">
-      <span class="ai-mini-avatar" aria-hidden="true">
-        <span class="ai-mini-core"></span>
-      </span>
-      观象
+      <svg class="ai-elephant" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <linearGradient id="elBody" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#7ec8c8"/>
+            <stop offset="100%" stop-color="#4a9e9e"/>
+          </linearGradient>
+          <linearGradient id="elEar" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#a8e6e6"/>
+            <stop offset="100%" stop-color="#6bcbcb"/>
+          </linearGradient>
+        </defs>
+        <!-- 左耳 -->
+        <ellipse cx="18" cy="24" rx="10" ry="13" fill="url(#elEar)" transform="rotate(-15 18 24)"/>
+        <!-- 右耳 -->
+        <ellipse cx="46" cy="24" rx="10" ry="13" fill="url(#elEar)" transform="rotate(15 46 24)"/>
+        <!-- 身体 -->
+        <circle cx="32" cy="34" r="16" fill="url(#elBody)"/>
+        <!-- 额头高光 -->
+        <ellipse cx="28" cy="26" rx="5" ry="3" fill="rgba(255,255,255,0.35)" transform="rotate(-20 28 26)"/>
+        <!-- 左眼 -->
+        <circle cx="26" cy="32" r="2.2" fill="#1a3c3c"/>
+        <circle cx="25.2" cy="31.2" r="0.7" fill="#fff"/>
+        <!-- 右眼 -->
+        <circle cx="38" cy="32" r="2.2" fill="#1a3c3c"/>
+        <circle cx="37.2" cy="31.2" r="0.7" fill="#fff"/>
+        <!-- 腮红 -->
+        <ellipse cx="22" cy="37" rx="3" ry="2" fill="rgba(255,160,160,0.35)"/>
+        <ellipse cx="42" cy="37" rx="3" ry="2" fill="rgba(255,160,160,0.35)"/>
+        <!-- 鼻子 -->
+        <path d="M30 38 Q32 50 29 54 Q27 57 30 58 Q34 57 35 54 Q36 48 34 38" fill="#5fbdbd"/>
+        <!-- 鼻尖 -->
+        <ellipse cx="30.5" cy="57" rx="3" ry="2" fill="#7ec8c8"/>
+      </svg>
     </button>
     <div class="ai-drawer" id="ai-drawer">
       <div class="ai-header">
