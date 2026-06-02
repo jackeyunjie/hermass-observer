@@ -108,6 +108,19 @@
     </div>
   </header>
 
+  <!-- ─── 统一导航条 ─────────────────────────────────────── -->
+  <div class="border-b border-slate-200 px-6 py-2" style="background:#f8fafc;">
+    <div class="max-w-[1440px] mx-auto flex items-center gap-4 text-[13px]">
+      <a href="/?mode=direction" class="text-slate-500 hover:text-slate-700 transition-colors">首页</a>
+      <a href="/market" class="text-slate-500 hover:text-slate-700 transition-colors">市场</a>
+      <a href="/industry" class="text-slate-500 hover:text-slate-700 transition-colors">行业</a>
+      <a href="/research" class="text-slate-500 hover:text-slate-700 transition-colors">研究</a>
+      <a href="/watchlist" class="text-slate-500 hover:text-slate-700 transition-colors">执行</a>
+      <a href="/backtest" class="text-slate-500 hover:text-slate-700 transition-colors">回测</a>
+      <a href="javascript:void(0)" onclick="aiToggle()" class="text-slate-500 hover:text-slate-700 transition-colors">观象</a>
+    </div>
+  </div>
+
   <!-- ─── Main: 70/30 Split ──────────────────────────── -->
   <main class="max-w-[1440px] mx-auto px-6 py-5">
     <div class="flex gap-5 items-start">
@@ -522,5 +535,6 @@
 
   </main>
 
+  {% include '_ai_assistant.html' %}
 </body>
 </html>

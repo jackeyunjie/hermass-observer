@@ -1243,3 +1243,13 @@ pre {
     text-align: left;
   }
 }
+
+/* ── 统一 topbar 导航高亮 ── */
+.topbar .date a:not(.active) {
+  color: var(--muted);
+  font-weight: 400;
+}
+.topbar .date a.active {
+  color: var(--good);
+  font-weight: 700;
+}
