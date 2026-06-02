@@ -2187,7 +2187,7 @@ def index(request: Request, mode: str = "") -> HTMLResponse:
     mode = mode or mode_map.get(user_type, "direction")
     return templates.TemplateResponse(
         request,
-        "index.html",
+        "dashboard.html",
         {
             "request": request,
             "today": str(date.today()),
@@ -2220,7 +2220,7 @@ def preview_cards(
     cards = _render_cards(stock_code, render_profile)
     return templates.TemplateResponse(
         request,
-        "index.html",
+        "dashboard.html",
         {
             "request": request,
             "today": str(date.today()),
@@ -2299,7 +2299,7 @@ def research_page(
     ctx["current_user"] = profile
     return templates.TemplateResponse(
         request,
-        "research.html",
+        "stock-research.html",
         ctx,
     )
 
@@ -2444,7 +2444,22 @@ def mystrategies_page(request: Request) -> HTMLResponse:
     profile = get_current_profile(request)
     return templates.TemplateResponse(
         request,
-        "mystrategies.html",
+        "strategy-editor.html",
+        {
+            "request": request,
+            "today": str(date.today()),
+            "current_user": profile,
+        },
+    )
+
+
+@app.get("/strategy-editor", response_class=HTMLResponse)
+def strategy_editor_page(request: Request) -> HTMLResponse:
+    """策略编辑器页面（新路由别名）。"""
+    profile = get_current_profile(request)
+    return templates.TemplateResponse(
+        request,
+        "strategy-editor.html",
         {
             "request": request,
             "today": str(date.today()),

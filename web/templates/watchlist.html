@@ -80,7 +80,7 @@
         </div>
         <table>
           <thead>
-            <tr><th>代码</th><th>名称</th><th>共振路径</th><th>State</th><th>环境/结构</th><th>D1 支撑</th><th>资金流确认</th><th>资金背离</th><th>板块承接</th><th>transition_note</th><th>阶段位置</th><th>投入层级</th><th>退出参考</th><th>下一步</th></tr>
+            <tr><th>代码</th><th>名称</th><th>共振路径</th><th>State</th><th>当前阶段</th><th>下一步</th></tr>
           </thead>
           <tbody>
           {% for row in execution.priority_queue %}
@@ -98,15 +98,7 @@
                   </div>
                 </details>
               </td>
-              <td>{{ row.strategy_reason }}</td>
-              <td>{{ row.support_hint }}</td>
-              <td>{{ row.moneyflow_confirmation }}</td>
-              <td>{{ row.moneyflow_divergence_text }}</td>
-              <td>{{ row.sector_followthrough }}</td>
-              <td>{{ row.transition_note }}</td>
               <td>{{ row.current_state_label }}</td>
-              <td>{{ row.allocation_tier }}</td>
-              <td>{{ row.exit_reference }}</td>
               <td>
                 {{ row.next_action }}
                 <br />
@@ -128,7 +120,7 @@
         </div>
         <table>
           <thead>
-            <tr><th>代码</th><th>名称</th><th>共振路径</th><th>State</th><th>环境/结构</th><th>D1 支撑</th><th>资金流确认</th><th>资金背离</th><th>板块承接</th><th>transition_note</th><th>阶段位置</th><th>投入层级</th><th>退出参考</th><th>下一步</th></tr>
+            <tr><th>代码</th><th>名称</th><th>共振路径</th><th>State</th><th>当前阶段</th><th>下一步</th></tr>
           </thead>
           <tbody>
           {% for row in execution.observe_queue %}
@@ -146,15 +138,7 @@
                   </div>
                 </details>
               </td>
-              <td>{{ row.strategy_reason }}</td>
-              <td>{{ row.support_hint }}</td>
-              <td>{{ row.moneyflow_confirmation }}</td>
-              <td>{{ row.moneyflow_divergence_text }}</td>
-              <td>{{ row.sector_followthrough }}</td>
-              <td>{{ row.transition_note }}</td>
               <td>{{ row.current_state_label }}</td>
-              <td>{{ row.allocation_tier }}</td>
-              <td>{{ row.exit_reference }}</td>
               <td>
                 {{ row.next_action }}
                 <br />
@@ -176,7 +160,7 @@
         </div>
         <table>
           <thead>
-            <tr><th>代码</th><th>名称</th><th>共振路径</th><th>State</th><th>环境/结构</th><th>D1 支撑</th><th>资金流确认</th><th>资金背离</th><th>板块承接</th><th>transition_note</th><th>阶段位置</th><th>投入层级</th><th>退出参考</th><th>下一步</th></tr>
+            <tr><th>代码</th><th>名称</th><th>共振路径</th><th>State</th><th>当前阶段</th><th>下一步</th></tr>
           </thead>
           <tbody>
           {% for row in execution.recent_queue %}
@@ -194,15 +178,7 @@
                   </div>
                 </details>
               </td>
-              <td>{{ row.strategy_reason }}</td>
-              <td>{{ row.support_hint }}</td>
-              <td>{{ row.moneyflow_confirmation }}</td>
-              <td>{{ row.moneyflow_divergence_text }}</td>
-              <td>{{ row.sector_followthrough }}</td>
-              <td>{{ row.transition_note }}</td>
               <td>{{ row.current_state_label }}</td>
-              <td>{{ row.allocation_tier }}</td>
-              <td>{{ row.exit_reference }}</td>
               <td>
                 {{ row.next_action }}
                 <br />
