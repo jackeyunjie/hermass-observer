@@ -235,3 +235,27 @@ test-stress: install
 .PHONY: test-full
 test-full: install
 	$(PYTHON_VENV) -m pytest tests/ -v
+
+# ─── 数据库迁移 ──────────────────────────────────────
+.PHONY: db-migrate
+db-migrate: install
+	@echo "════════════════════════════════════════════"
+	@echo "  DB Migrate - $(DATE)"
+	@echo "════════════════════════════════════════════"
+	@echo ""
+	@echo "[1/3] 数据质量字段..."
+	$(PYTHON_VENV) scripts/add_data_quality_fields.py --date $(DATE) || { echo "✗ add_data_quality_fields.py 失败"; exit 1; }
+	@echo ""
+	@echo "[2/3] AgentMemory DDL..."
+	@if [ -f "$(ROOT)/scripts/init_agent_memory.py" ]; then \
+		$(PYTHON_VENV) scripts/init_agent_memory.py; \
+	else \
+		echo "⚠ AgentMemory schema skipped (init_agent_memory.py not found)"; \
+	fi
+	@echo ""
+	@echo "[3/3] 重建 BB/Pivot/ATR 物化视图..."
+	$(PYTHON_VENV) scripts/rebuild_bb_pivot_atr.py || { echo "✗ rebuild_bb_pivot_atr.py 失败"; exit 1; }
+	@echo ""
+	@echo "════════════════════════════════════════════"
+	@echo "  ✓ db-migrate complete: $(DATE)"
+	@echo "════════════════════════════════════════════"
