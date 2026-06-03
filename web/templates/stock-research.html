@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Hermass 多周期研究收束台</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/ai-assistant.css" />
   <script>
     tailwind.config = {
       theme: {
@@ -372,6 +373,19 @@
       </nav>
     </div>
   </header>
+
+  <!-- 7-item nav strip -->
+  <div class="border-b border-h-border bg-h-card">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center gap-4 text-sm">
+      <a href="/" class="text-h-muted hover:text-h-ink transition-colors">首页</a>
+      <a href="/market" class="text-h-muted hover:text-h-ink transition-colors">市场</a>
+      <a href="/industry" class="text-h-muted hover:text-h-ink transition-colors">行业</a>
+      <a href="/research" class="text-h-green font-bold">研究</a>
+      <a href="/watchlist" class="text-h-muted hover:text-h-ink transition-colors">执行</a>
+      <a href="/backtest" class="text-h-muted hover:text-h-ink transition-colors">回测</a>
+      <a href="javascript:void(0)" onclick="aiToggle()" class="text-h-muted hover:text-h-ink transition-colors">观象</a>
+    </div>
+  </div>
 
   <!-- Metric Strip -->
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-2">
@@ -874,5 +888,6 @@
     });
   </script>
 
+  {% include '_ai_assistant.html' %}
 </body>
 </html>

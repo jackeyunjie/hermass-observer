@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/ai-assistant.css" />
   <style>
     :root {
       --mn1-tianshi: #E74C3C;
@@ -84,6 +85,19 @@
       </div>
     </div>
   </header>
+
+  <!-- 7-item nav strip -->
+  <div class="border-b border-slate-200 bg-white">
+    <div class="max-w-[1440px] mx-auto px-6 py-2 flex items-center gap-5 text-[13px]">
+      <a href="/" class="text-emerald-700 font-bold">首页</a>
+      <a href="/market" class="text-slate-600 hover:text-slate-800 transition-colors">市场</a>
+      <a href="/industry" class="text-slate-600 hover:text-slate-800 transition-colors">行业</a>
+      <a href="/research" class="text-slate-600 hover:text-slate-800 transition-colors">研究</a>
+      <a href="/watchlist" class="text-slate-600 hover:text-slate-800 transition-colors">执行</a>
+      <a href="/backtest" class="text-slate-600 hover:text-slate-800 transition-colors">回测</a>
+      <a href="javascript:void(0)" onclick="aiToggle()" class="text-slate-600 hover:text-slate-800 transition-colors">观象</a>
+    </div>
+  </div>
 
   <!-- ─── Main Content ────────────────────────────────── -->
   <main class="max-w-[1440px] mx-auto px-6 py-5 space-y-5">
@@ -413,5 +427,6 @@
     });
   </script>
 
+  {% include '_ai_assistant.html' %}
 </body>
 </html>
