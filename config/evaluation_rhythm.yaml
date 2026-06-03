@@ -20,7 +20,7 @@ self_review:
         foundation_pattern: "outputs/p116_foundation_*/p116_foundation.duckdb"
     - judgment_backlog:               # Agent 判断积压
         max_unreviewed_judgments: 100
-  output: "outputs/reviews/self_review_$(date +%Y%m%d_%H%M).json"
+  output_pattern: "outputs/reviews/self_review_{timestamp}.json"   # 由脚本内部生成，不取本字段
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 第 2 层：Agent 互评（交叉校验，每日收盘后，自动为主）
@@ -46,7 +46,7 @@ cross_review:
       reviewee: "diagnoser"
       question: "市场判官结论与诊断 Agent 结论是否自洽"
       consistency_threshold: 0.7
-  output: "outputs/reviews/cross_review_$(date +%Y%m%d).json"
+  output_pattern: "outputs/reviews/cross_review_{date}.json"     # 由脚本内部生成，不取本字段
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 第 3 层：人类审阅（每日收盘后，人类审 Agent 输出）
@@ -59,7 +59,7 @@ human_review:
     - "Agent互评差异项是否需要人工仲裁"
     - "当前市场判断是否与个人观察一致"
     - "是否有需要调整的因子/权重"
-  output: "outputs/reviews/human_review_$(date +%Y%m%d).md"
+  output_pattern: "outputs/reviews/human_review_{date}.md"       # 人类手动创建，不自动生成
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 降级规则

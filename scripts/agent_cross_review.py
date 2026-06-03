@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
+import re
 import sys
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
@@ -22,6 +24,14 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_DB = ROOT / "outputs" / "agent_memory" / "AgentMemory.duckdb"
 REVIEW_DIR = ROOT / "outputs" / "reviews"
+ALERT_FILE = REVIEW_DIR / ".alert_cross_review"
+
+logging.basicConfig(
+    level=logging.WARNING,
+    format="[%(asctime)s] %(levelname)s %(name)s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger("agent_cross_review")
 
 
 def _now() -> str:
@@ -107,45 +117,89 @@ def group_by_agent(judgments: list[dict]) -> dict[str, list[dict]]:
 def check_consistency(
     reviewer_judgments: list[dict],
     reviewee_judgments: list[dict],
+    pair_label: str = "",
+    pair_explanation: str = "",
 ) -> dict[str, Any]:
-    """规则化一致性检查（占位：当前用关键词匹配，后续 LLM 深度比较）。"""
+    """规则化一致性检查 v2：跨日期窗口 + judgment_content 关键词交叉比对。
+
+    相比 v1（只比 judgment_type 集合交集），v2 增加：
+    - 日期窗口：双方最近 2 天内的判断都纳入
+    - 内容交叉：judgment_content 中的中文关键词是否重叠
+    - 差异时给出具体提示：哪一方有数据、哪一方缺失
+    """
 
     reviewer_has = bool(reviewer_judgments)
     reviewee_has = bool(reviewee_judgments)
 
     if not reviewer_has and not reviewee_has:
-        return {"consistent": True, "label": "双方均无输出", "detail": "无判断可比较", "method": "rule_based"}
+        return {
+            "consistent": True,
+            "label": "双方均无输出",
+            "detail": "近 2 日无判断可比较",
+            "method": "keyword_overlap_v2",
+        }
 
     if not reviewer_has:
         return {
-            "consistent": True,
-            "label": "评价方无输出",
-            "detail": f"Agent 互评方无今日判断",
-            "method": "rule_based",
+            "consistent": False,
+            "label": "差异",
+            "detail": f"评价方（{pair_label.split(' vs ')[0] if ' vs ' in pair_label else ''}）近 2 日无产出",
+            "method": "keyword_overlap_v2",
         }
 
     if not reviewee_has:
         return {
-            "consistent": True,
-            "label": "被评价方无输出",
-            "detail": f"被评价 Agent 无今日判断",
-            "method": "rule_based",
+            "consistent": False,
+            "label": "差异",
+            "detail": f"被评价方（{pair_label.split(' vs ')[-1] if ' vs ' in pair_label else ''}）近 2 日无产出",
+            "method": "keyword_overlap_v2",
         }
 
-    # 规则化：检查 judgment_type 是否在同一类别
-    reviewer_types = {j["judgment_type"] for j in reviewer_judgments}
-    reviewee_types = {j["judgment_type"] for j in reviewee_judgments}
-    overlap = reviewer_types & reviewee_types
+    # 提取中文关键词（2-4 字，去重）
+    def _keywords(judgments: list[dict]) -> set[str]:
+        kws: set[str] = set()
+        for j in judgments:
+            content = j.get("judgment_content", {})
+            text = json.dumps(content, ensure_ascii=False) if isinstance(content, dict) else str(content)
+            found = set(re.findall(r"[\u4e00-\u9fa5]{2,4}", text))
+            kws.update(found)
+        return kws
 
-    consistent = len(overlap) > 0
+    r_kws = _keywords(reviewer_judgments)
+    v_kws = _keywords(reviewee_judgments)
+
+    if not r_kws or not v_kws:
+        return {
+            "consistent": False,
+            "label": "差异",
+            "detail": "一方或多方判断内容无可提取关键词（content 为空或纯英文）",
+            "method": "keyword_overlap_v2",
+        }
+
+    overlap = r_kws & v_kws
+    r_only = r_kws - v_kws
+    v_only = v_kws - r_kws
+
+    # 一致性评分：交集 / (交集 + 差集)
+    total_unique = len(overlap) + len(r_only) + len(v_only)
+    score = len(overlap) / total_unique if total_unique > 0 else 0.0
+    consistent = score >= 0.15  # 15% 关键词重叠即视为一致
+
+    detail_parts = [f"评分={score:.2f}", f"重叠={len(overlap)}词"]
+    if r_only:
+        detail_parts.append(f"评价方独有={len(r_only)}词")
+    if v_only:
+        detail_parts.append(f"被评价方独有={len(v_only)}词")
 
     return {
         "consistent": consistent,
         "label": "一致" if consistent else "差异",
-        "detail": f"共有判断类型: {', '.join(overlap)}" if overlap else "无非重叠判断类型",
-        "reviewer_types": list(reviewer_types),
-        "reviewee_types": list(reviewee_types),
-        "method": "rule_based",
+        "detail": "; ".join(detail_parts),
+        "reviewer_keywords_count": len(r_kws),
+        "reviewee_keywords_count": len(v_kws),
+        "overlap_count": len(overlap),
+        "overlap_score": round(score, 3),
+        "method": "keyword_overlap_v2",
     }
 
 
@@ -162,7 +216,7 @@ def build_report(target_date: str | None = None) -> dict[str, Any]:
         r_judgments = grouped.get(r_name, [])
         v_judgments = grouped.get(v_name, [])
 
-        check = check_consistency(r_judgments, v_judgments)
+        check = check_consistency(r_judgments, v_judgments, pair_label=pair["label"])
         result = {
             "reviewer": r_name,
             "reviewee": v_name,
@@ -187,7 +241,7 @@ def build_report(target_date: str | None = None) -> dict[str, Any]:
         "consistent_pairs": len(CROSS_PAIRS) - inconsistencies,
         "inconsistent_pairs": inconsistencies,
         "pairs": pairs_result,
-        "note": "当前为规则化互评 v1。LLM 语义互评版本后续接入 DeepSeek 进行深度校验。",
+        "note": "规则化互评 v2：关键词重叠评分，阈值 0.15。LLM 语义互评版本后续接入 DeepSeek。",
     }
     return report
 
@@ -211,6 +265,28 @@ def main() -> int:
 
     latest_path = REVIEW_DIR / "cross_review_latest.json"
     latest_path.write_text(json.dumps(report, ensure_ascii=False, indent=2))
+
+    # ── 告警信号：互评差异 >50% 时落标记文件 + ERROR 日志 ──
+    if report["overall"] in ("warn", "error"):
+        logger.error(
+            "互评差异: overall=%s consistent=%d/%d",
+            report["overall"],
+            report["consistent_pairs"],
+            report["total_pairs"],
+        )
+        alert = {
+            "triggered_at": _now(),
+            "overall": report["overall"],
+            "consistent_pairs": report["consistent_pairs"],
+            "total_pairs": report["total_pairs"],
+            "inconsistent_details": [
+                {"reviewer": p["reviewer"], "reviewee": p["reviewee"], "detail": p["detail"]}
+                for p in report["pairs"]
+                if not p["consistent"]
+            ],
+            "action": "AgentBus review_needed 应由 alert_scanner 消费此标记文件后广播",
+        }
+        ALERT_FILE.write_text(json.dumps(alert, ensure_ascii=False, indent=2))
 
     if args.json:
         json.dump(report, sys.stdout, ensure_ascii=False, indent=2)

@@ -8,12 +8,16 @@
 
 输出：outputs/reviews/self_review_YYYYMMDD_HHMM.json
 退出码：0=健康, 1=有警告, 2=有错误
+
+告警：异常时写入 outputs/reviews/.alert_self_review 标记文件 + ERROR 日志。
+AgentBus review_needed topic 由独立的 alert_scanner 消费。
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import logging
 import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -22,6 +26,14 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_DB = ROOT / "outputs" / "agent_memory" / "AgentMemory.duckdb"
 REVIEW_DIR = ROOT / "outputs" / "reviews"
+ALERT_FILE = REVIEW_DIR / ".alert_self_review"
+
+logging.basicConfig(
+    level=logging.WARNING,
+    format="[%(asctime)s] %(levelname)s %(name)s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger("agent_self_review")
 
 
 def _now() -> str:
@@ -107,7 +119,8 @@ def check_judgment_backlog(max_unreviewed: int = 100) -> dict[str, Any]:
         finally:
             con.close()
     except Exception as e:
-        return {"ok": True, "error": str(e)[:200]}
+        logger.warning("check_judgment_backlog 查询失败: %s", e)
+        return {"ok": True, "total_judgments": 0, "unreviewed": 0, "error": str(e)[:200], "backlogged": False}
 
 
 def build_report() -> dict[str, Any]:
@@ -152,9 +165,19 @@ def main() -> int:
     out_path = REVIEW_DIR / f"self_review_{ts}.json"
     out_path.write_text(json.dumps(report, ensure_ascii=False, indent=2))
 
-    # 同步写一份 latest 供 AgentBus 读取
     latest_path = REVIEW_DIR / "self_review_latest.json"
     latest_path.write_text(json.dumps(report, ensure_ascii=False, indent=2))
+
+    # ── 告警信号：异常时落标记文件 + ERROR 日志 ──
+    if report["overall"] in ("warn", "error"):
+        logger.error("自评异常: overall=%s issues=%s", report["overall"], report["issues"])
+        alert = {
+            "triggered_at": _now(),
+            "overall": report["overall"],
+            "issues": report["issues"],
+            "action": "AgentBus review_needed 应由 alert_scanner 消费此标记文件后广播",
+        }
+        ALERT_FILE.write_text(json.dumps(alert, ensure_ascii=False, indent=2))
 
     if args.json:
         json.dump(report, sys.stdout, ensure_ascii=False, indent=2)
