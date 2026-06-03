@@ -2662,6 +2662,21 @@ def mystrategies_page(request: Request) -> HTMLResponse:
     )
 
 
+@app.get("/stock-research", response_class=HTMLResponse)
+def stock_research_page(request: Request) -> HTMLResponse:
+    """研究收束台 —— 单页个股快速研究入口。"""
+    profile = get_current_profile(request)
+    return templates.TemplateResponse(
+        request,
+        "stock-research.html",
+        {
+            "request": request,
+            "today": str(date.today()),
+            "current_user": profile,
+        },
+    )
+
+
 @app.get("/strategy-editor", response_class=HTMLResponse)
 def strategy_editor_page(request: Request) -> HTMLResponse:
     """策略编辑器页面（新路由别名）。"""
