@@ -1,0 +1,9 @@
+vault: "/Users/lv111101/Documents/hermass-observer-product/data/research/conversations"
+source_db: "/Users/lv111101/Documents/hermass-observer-product/data/research/conversations/conversations.db"
+daily_subdir: "daily"
+archive_subdir: "archive"
+markdown_glob: "**/*.md"
+frontmatter: true
+generate_index: true
+incremental: true
+preserve_links: true
