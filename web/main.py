@@ -2663,17 +2663,41 @@ def mystrategies_page(request: Request) -> HTMLResponse:
 
 
 @app.get("/stock-research", response_class=HTMLResponse)
-def stock_research_page(request: Request) -> HTMLResponse:
+def stock_research_page(
+    request: Request,
+    stock_code: str = "000021.SZ",
+    render_profile: str = "full",
+) -> HTMLResponse:
     """研究收束台 —— 单页个股快速研究入口。"""
     profile = get_current_profile(request)
+    ctx = _research_page_context(stock_code, render_profile)
+    ctx["request"] = request
+    ctx["today"] = str(date.today())
+    ctx["current_user"] = profile
+    ctx.setdefault(
+        "research",
+        {
+            "stocks": [
+                {
+                    "code": stock_code,
+                    "name": "-",
+                    "state_mn1": "-",
+                    "state_w1": "-",
+                    "state_d1": "-",
+                    "hex_mn1": "-",
+                    "hex_w1": "-",
+                    "hex_d1": "-",
+                    "bb_percentile": 0,
+                    "atr_percentile": 0,
+                    "signal_strength": 0,
+                }
+            ]
+        },
+    )
     return templates.TemplateResponse(
         request,
         "stock-research.html",
-        {
-            "request": request,
-            "today": str(date.today()),
-            "current_user": profile,
-        },
+        ctx,
     )
 
 
