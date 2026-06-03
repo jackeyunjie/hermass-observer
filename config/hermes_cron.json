@@ -49,6 +49,20 @@
       "command": "cd /Users/lv111101/Documents/hermass-observer-product && bash scripts/send_weekly_cognitive_recap_to_lark.sh $(date +%Y-%m-%d)",
       "description": "每周五 15:35 推送群级认知复盘卡，回顾本周关注轨迹与 State 变化",
       "delivery": "lark"
+    },
+    {
+      "name": "AI 自评健康检查",
+      "schedule": "0 */4 * * *",
+      "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python scripts/agent_self_review.py",
+      "description": "每 4 小时自动运行系统自评：服务心跳 + 数据新鲜度 + 判断积压",
+      "delivery": "terminal"
+    },
+    {
+      "name": "Agent 互评交叉校验",
+      "schedule": "30 15 * * 1-5",
+      "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python scripts/agent_cross_review.py --date $(date +%Y-%m-%d)",
+      "description": "每个交易日 15:30 Agent 互评（策略适配 vs 市场环境 / 仓位 vs 风控 / 收缩 vs 确认 / 判官 vs 诊断）",
+      "delivery": "terminal"
     }
   ]
 }

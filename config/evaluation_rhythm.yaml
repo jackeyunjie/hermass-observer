@@ -1,0 +1,73 @@
+# Hermass 评价节奏配置 — evaluation_rhythm.yaml
+#
+# 用途：定义系统自评、Agent互评、人类审阅的时间节奏和职责边界
+# 关联：AgentMemory.duckdb（记录存储）、hermes_cron.json（定时触发）
+# 版本：2026-06-02，v1.0
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 第 1 层：AI 自评（系统自评，4 小时循环，全自动）
+# ═══════════════════════════════════════════════════════════════════════════
+self_review:
+  enabled: true
+  schedule: "0 */4 * * *"           # 每 4 小时一次
+  script: "scripts/agent_self_review.py"
+  scope:
+    - health_check:                   # 服务心跳
+        endpoint: "http://localhost:8020/health"
+        expect_status: [200]
+    - data_freshness:                 # 数据新鲜度
+        max_stale_hours: 48
+        foundation_pattern: "outputs/p116_foundation_*/p116_foundation.duckdb"
+    - judgment_backlog:               # Agent 判断积压
+        max_unreviewed_judgments: 100
+  output: "outputs/reviews/self_review_$(date +%Y%m%d_%H%M).json"
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 第 2 层：Agent 互评（交叉校验，每日收盘后，自动为主）
+# ═══════════════════════════════════════════════════════════════════════════
+cross_review:
+  enabled: true
+  schedule: "30 15 * * 1-5"          # 交易日 15:30
+  script: "scripts/agent_cross_review.py"
+  evaluators:                         # 谁评价谁
+    - reviewer: "market_analyst"
+      reviewee: "strategy_advisor"
+      question: "策略适配建议是否与当前市场环境一致"
+      consistency_threshold: 0.7
+    - reviewer: "risk_guardian"
+      reviewee: "strategy_advisor"
+      question: "仓位建议是否超出风控约束"
+      consistency_threshold: 0.7
+    - reviewer: "contraction_observer"
+      reviewee: "strategy_advisor"
+      question: "收缩信号是否被策略确认"
+      consistency_threshold: 0.7
+    - reviewer: "judge"
+      reviewee: "diagnoser"
+      question: "市场判官结论与诊断 Agent 结论是否自洽"
+      consistency_threshold: 0.7
+  output: "outputs/reviews/cross_review_$(date +%Y%m%d).json"
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 第 3 层：人类审阅（每日收盘后，人类审 Agent 输出）
+# ═══════════════════════════════════════════════════════════════════════════
+human_review:
+  enabled: false                      # 人类审阅暂不自动触发，由人类手动启动
+  schedule: "45 15 * * 1-5"          # 交易日 15:45
+  checklist:
+    - "AI自评报告中的异常项是否合理"
+    - "Agent互评差异项是否需要人工仲裁"
+    - "当前市场判断是否与个人观察一致"
+    - "是否有需要调整的因子/权重"
+  output: "outputs/reviews/human_review_$(date +%Y%m%d).md"
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 降级规则
+# ═══════════════════════════════════════════════════════════════════════════
+degradation:
+  - if: "self_review 连续 3 轮健康检查失败"
+    action: "暂停 Agent 自组织提案，标记 system=degraded"
+  - if: "cross_review 互评差异超过 50% Agent 对"
+    action: "推送 AgentBus review_needed，等待人类仲裁"
+  - if: "任一 review 产出为 0 字节"
+    action: "记录 ERROR 日志，不阻塞调度 — 下一轮重试"
