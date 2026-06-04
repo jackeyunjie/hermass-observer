@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -674,6 +675,7 @@ def build_ledger(
     guard_result = guard_strategy_structure(
         strategy_name="composite",
         proposed_changes={"action": "build_ledger", "date": date_str},
+        admin_token=os.environ.get("HERMASS_ADMIN_TOKEN", ""),
         agent_id="strategy_signal_ledger",
     )
     if not guard_result.get("allowed"):
