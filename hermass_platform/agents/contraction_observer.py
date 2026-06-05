@@ -602,6 +602,26 @@ def observe_contraction(
         except Exception as e:
             log.warning("AgentBus 广播异常: %s", e)
 
+        # ── 构建 observations（供 Agent Debate 消费） ──
+        observations = []
+        for _, row in contraction_df.iterrows():
+            stock_code = row["stock_code"]
+            tf = row["timeframe"]
+            is_extreme = row.get("is_extreme", False)
+            # 查找该股票的突破结果
+            breakout = next((b for b in breakout_results if b["stock_code"] == stock_code), None)
+            observations.append({
+                "stock_code": stock_code,
+                "timeframe": tf,
+                "is_contraction": True,
+                "is_extreme": bool(is_extreme),
+                "squeeze_score": int(row.get("squeeze_score", 0)),
+                "bb_width_pct": float(row.get("bb_width_pct", 0) or 0),
+                "has_breakout": breakout is not None,
+                "breakout_label": breakout["label"] if breakout else "未突破",
+                "breakout_confidence": breakout["confidence"] if breakout else 0.0,
+            })
+
         # ── 构建结果 ──
         data = {
             "date": target_date,
@@ -619,6 +639,7 @@ def observe_contraction(
                 }
                 for b in breakout_results[:50]
             ],
+            "observations": observations,
             "memory_written": memory_written,
             "bus_events": bus_events,
         }
