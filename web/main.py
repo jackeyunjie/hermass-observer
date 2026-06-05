@@ -7,6 +7,7 @@ Small FastAPI + Jinja2 app for team-visible operational review.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import time
@@ -23,6 +24,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 ROOT = Path(__file__).resolve().parents[1]
+log = logging.getLogger("hermass.web")
 
 import contextlib
 import io
@@ -3583,14 +3585,61 @@ def _llm_required_failure_response(query: ChatQuery) -> dict[str, Any] | None:
     }
 
 
+def _is_llm_failure_payload(result: dict[str, Any] | None) -> bool:
+    if not isinstance(result, dict):
+        return False
+    provider = str(result.get("provider") or "")
+    if provider not in {"agently_deepseek", "managed_deepseek"}:
+        return False
+    if result.get("enhancement_used") is True:
+        return False
+    answer = str(result.get("answer") or "")
+    sources = {str(item) for item in (result.get("sources") or [])}
+    intent = result.get("intent") if isinstance(result.get("intent"), dict) else {}
+    return (
+        intent.get("scenario") == "fallback"
+        or "rule_fallback" in sources
+        or "链路调用失败" in answer
+        or "模型调用失败" in answer
+        or "模型配置" in answer
+    )
+
+
+def _rule_fallback_after_llm_failure(query: ChatQuery, failure: dict[str, Any]) -> dict[str, Any]:
+    session_context = dict(query.session_context or {})
+    session_context["_skip_llm_compound"] = True
+    fallback_query = ChatQuery(
+        message=query.message,
+        page_context=query.page_context,
+        stock_code=query.stock_code,
+        session_id=query.session_id,
+        session_context=session_context,
+        mode=query.mode,
+        use_llm=False,
+    )
+    result = _chat_answer(fallback_query)
+    result["provider"] = "rule_based"
+    result["enhancement_used"] = False
+    result["degraded"] = True
+    result["degraded_reason"] = "llm_unavailable"
+    result["fallback_from_provider"] = failure.get("provider") or "unknown"
+    note = str(result.get("freshness_note") or "").strip()
+    fallback_note = "增强解释链路暂不可用，已使用规则回答。"
+    result["freshness_note"] = f"{note} {fallback_note}".strip()
+    return result
+
+
 def _chat_answer(query: ChatQuery) -> dict[str, Any]:
     """基于用户问题调用现有数据返回回答。"""
     msg = query.message.strip()
     msg_lower = msg.lower()
     mode = "agent" if str(query.mode or "").lower() == "agent" else "chat"
+    skip_llm_compound = bool((query.session_context or {}).get("_skip_llm_compound"))
 
-    llm_result = _llm_chat_answer(query)
+    llm_result = None if skip_llm_compound else _llm_chat_answer(query)
     if llm_result:
+        if _is_llm_failure_payload(llm_result):
+            return _rule_fallback_after_llm_failure(query, llm_result)
         return _enhance_result_defaults(
             llm_result,
             query,
@@ -3600,7 +3649,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
         )
 
     # 复合意图检测：rule_based 路径拦截前，先检查是否是盯盘+行业等复合场景
-    if not query.use_llm and _has_compound_intent(msg_lower):
+    if not query.use_llm and not skip_llm_compound and _has_compound_intent(msg_lower):
         fake = ChatQuery(
             message=query.message,
             page_context=query.page_context,
@@ -3612,6 +3661,8 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
         )
         llm_result = _llm_chat_answer(fake)
         if llm_result:
+            if _is_llm_failure_payload(llm_result):
+                return _rule_fallback_after_llm_failure(query, llm_result)
             return llm_result
 
     llm_required_failure = _llm_required_failure_response(query)
@@ -4124,25 +4175,32 @@ def chat_query(request: Request, query: ChatQuery) -> JSONResponse:
                 pass
         return JSONResponse(content=result)
     except Exception as exc:
+        log.exception("chat_query failed; returning rule fallback")
+        mode_used = str(query.mode or "chat").lower()
         return JSONResponse(
-            status_code=500,
             content={
-                "answer": "回答出了点问题，重试或直接看页面内容。",
-                "why": "",
-                "multi_cycle_view": "",
-                "single_cycle_position": "",
-                "avoid": "",
-                "freshness_note": "",
-                "next_actions": [{"label": "打开首页", "url": "/"}],
-                "sources": [],
-                "remembered_stock_code": "",
-                "remembered_email": "",
-                "mode_used": str(query.mode or "chat").lower(),
+                "answer": "观象的增强回答链路刚才没有跑通，已切回规则回答。",
+                "why": "这通常是 Agently/DeepSeek 调用、结构化输出或某个数据预取分支异常；接口已保留诊断字段，页面不再只显示空泛错误。",
+                "multi_cycle_view": "这不是市场或个股结论，只说明 AI 增强链路临时不可用。当前仍可先按页面数据和规则回答阅读。",
+                "single_cycle_position": "如果你问的是具体股票，先打开研究页看 MN1/W1/D1；如果问市场，先打开市场页看宽基与行业 ETF。",
+                "avoid": "不要把这次链路异常理解成交易信号，也不要重复刷新同一问题。",
+                "freshness_note": "已触发接口级规则兜底，后续应检查服务器日志中的 chat_query failed 记录。",
+                "next_actions": [
+                    {"label": "打开市场页", "url": "/market"},
+                    {"label": "打开行业页", "url": "/industry"},
+                    {"label": "打开首页", "url": "/"},
+                ],
+                "sources": ["chat_query_fallback"],
+                "remembered_stock_code": _chat_stock_code(query),
+                "remembered_email": _chat_email(query),
+                "mode_used": mode_used,
                 "provider": "rule_based",
                 "enhancement_used": False,
                 "user_id": user_id,
                 "session_id": query.session_id or "",
                 "error": str(exc),
+                "error_type": type(exc).__name__,
+                "degraded": True,
             },
         )
 
