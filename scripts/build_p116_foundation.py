@@ -33,7 +33,7 @@ def default_out_db(date: str) -> Path:
     return ROOT / "outputs" / f"p116_foundation_{ymd}" / "p116_foundation.duckdb"
 
 
-def build(raw_db: Path, out_db: Path, date: str) -> dict:
+def build(raw_db: Path, out_db: Path, date: str, m30_db: Path | None = None) -> dict:
     if not raw_db.exists():
         raise FileNotFoundError(raw_db)
     out_db.parent.mkdir(parents=True, exist_ok=True)
@@ -47,6 +47,11 @@ def build(raw_db: Path, out_db: Path, date: str) -> dict:
     conn.execute("SET threads=4")
     conn.execute(f"SET temp_directory='{sql_path(tmp_dir)}'")
     conn.execute(f"ATTACH '{sql_path(raw_db)}' AS rawdb (READ_ONLY)")
+
+    # Attach M30 DB if provided
+    has_m30 = m30_db is not None and m30_db.exists()
+    if has_m30:
+        conn.execute(f"ATTACH '{sql_path(m30_db)}' AS m30db (READ_ONLY)")
 
     conn.execute(
         f"""
@@ -109,8 +114,24 @@ def build(raw_db: Path, out_db: Path, date: str) -> dict:
         """
     )
 
+    # Build M30 bars from external DB if available
+    if has_m30:
+        conn.execute(
+            f"""
+            CREATE TABLE m30_bars AS
+            SELECT
+              stock_code,
+              period_start::TIMESTAMP AS period_start,
+              open, high, low, close, volume, amount,
+              bar_date::DATE AS available_date
+            FROM m30db.m30_bars
+            WHERE bar_date <= DATE '{date}'
+            ORDER BY stock_code, period_start
+            """
+        )
+
     conn.execute(
-        """
+        f"""
         CREATE TABLE timeframe_bars AS
         SELECT stock_code, 'D1' AS timeframe, date AS period_start, date AS period_end, date AS available_date,
                open, high, low, close, volume, amount, 1::BIGINT AS source_bar_count
@@ -123,6 +144,7 @@ def build(raw_db: Path, out_db: Path, date: str) -> dict:
         SELECT stock_code, 'MN1' AS timeframe, period_start, period_end, available_date,
                open, high, low, close, volume, amount, source_bar_count
         FROM monthly_bars
+        {'UNION ALL\n        SELECT stock_code, \'M30\' AS timeframe, period_start, period_start AS period_end, available_date,\n               open, high, low, close, volume, amount, 1::BIGINT AS source_bar_count\n        FROM m30_bars' if has_m30 else ''}
         """
     )
 
@@ -432,6 +454,89 @@ def build(raw_db: Path, out_db: Path, date: str) -> dict:
         """
     )
 
+    # Build M30 daily summary if M30 data is available
+    if has_m30:
+        conn.execute(
+            f"""
+            CREATE TABLE m30_daily_summary AS
+            WITH m30_with_date AS (
+              SELECT
+                ti.*,
+                tb.available_date AS bar_date
+              FROM timeframe_indicators ti
+              JOIN timeframe_bars tb
+                ON ti.stock_code = tb.stock_code
+                AND ti.timeframe = tb.timeframe
+                AND ti.period_start = tb.period_start
+              WHERE ti.timeframe = 'M30'
+            ),
+            latest_m30_per_day AS (
+              SELECT
+                stock_code,
+                bar_date AS state_date,
+                close AS m30_close,
+                bb_width_pct AS m30_bb_width_current,
+                bb_width_q20_20 AS m30_bb_width_q20,
+                adx14 AS m30_adx14,
+                adx_slope_3 AS m30_adx_slope_3,
+                trend AS m30_trend,
+                compression AS m30_compression,
+                (adx14 >= 25 AND adx_slope_3 > 0) AS m30_adx_trend_on,
+                ROW_NUMBER() OVER (PARTITION BY stock_code, bar_date ORDER BY period_start DESC) AS rn
+              FROM m30_with_date
+              WHERE bar_date <= DATE '{date}'
+            ),
+            latest_m30 AS (
+              SELECT * FROM latest_m30_per_day WHERE rn = 1
+            ),
+            m30_intraday_prev_high AS (
+              SELECT
+                stock_code,
+                bar_date AS state_date,
+                max(high) AS m30_intraday_prev_high
+              FROM m30_with_date mwd
+              WHERE period_start < (
+                SELECT max(period_start)
+                FROM m30_with_date md
+                WHERE md.stock_code = mwd.stock_code AND md.bar_date = mwd.bar_date
+              )
+              GROUP BY stock_code, bar_date
+            ),
+            m30_ma20_per_day AS (
+              SELECT
+                stock_code,
+                bar_date AS state_date,
+                avg(close) OVER (PARTITION BY stock_code ORDER BY period_start ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) AS m30_ma20,
+                count(*) OVER (PARTITION BY stock_code ORDER BY period_start ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) AS m30_ma20_bar_count,
+                ROW_NUMBER() OVER (PARTITION BY stock_code, bar_date ORDER BY period_start DESC) AS rn
+              FROM m30_with_date
+            ),
+            m30_ma20 AS (
+              SELECT stock_code, state_date, m30_ma20, (m30_ma20_bar_count >= 20) AS m30_ma20_ready FROM m30_ma20_per_day WHERE rn = 1
+            )
+            SELECT
+              l.stock_code,
+              l.state_date,
+              l.m30_close,
+              l.m30_bb_width_current,
+              l.m30_bb_width_q20,
+              l.m30_adx14,
+              l.m30_adx_slope_3,
+              l.m30_trend,
+              l.m30_compression,
+              l.m30_adx_trend_on,
+              h.m30_intraday_prev_high,
+              m.m30_ma20,
+              m.m30_ma20_ready,
+              CASE WHEN l.m30_adx_slope_3 > 0 AND lag(l.m30_adx_slope_3) OVER (PARTITION BY l.stock_code ORDER BY l.state_date) <= 0 THEN 1 ELSE 0 END AS m30_breakout_signal,
+              CASE WHEN l.m30_close > COALESCE(h.m30_intraday_prev_high, 0) THEN 1 ELSE 0 END AS m30_price_breakout,
+              CASE WHEN m.m30_ma20_ready AND l.m30_close > m.m30_ma20 THEN 1 ELSE 0 END AS m30_close_vs_ma20_flag
+            FROM latest_m30 l
+            LEFT JOIN m30_intraday_prev_high h ON l.stock_code = h.stock_code AND l.state_date = h.state_date
+            LEFT JOIN m30_ma20 m ON l.stock_code = m.stock_code AND l.state_date = m.state_date
+            """
+        )
+
     conn.execute(
         f"""
         CREATE TABLE d1_perspective_state AS
@@ -474,6 +579,7 @@ def build(raw_db: Path, out_db: Path, date: str) -> dict:
             im.bb_width_q80_20 AS mn1_bb_width_q80_20,
             im.atr_ratio_pct AS mn1_atr_ratio_pct,
             im.atr_ratio_avg60 AS mn1_atr_ratio_avg60
+            {', m30.m30_bb_width_current, m30.m30_bb_width_q20, m30.m30_adx14, m30.m30_adx_slope_3, m30.m30_adx_trend_on, m30.m30_trend, m30.m30_compression, m30.m30_breakout_signal, m30.m30_price_breakout, m30.m30_close, m30.m30_intraday_prev_high, m30.m30_close_vs_ma20_flag, m30.m30_ma20, m30.m30_ma20_ready' if has_m30 else ''}
           FROM d1_sr_context ctx
           LEFT JOIN timeframe_indicators id
             ON id.stock_code = ctx.stock_code AND id.timeframe = 'D1' AND id.period_start = ctx.state_date
@@ -481,6 +587,7 @@ def build(raw_db: Path, out_db: Path, date: str) -> dict:
             ON iw.stock_code = ctx.stock_code AND iw.timeframe = 'W1' AND iw.period_start = ctx.w1_period_start
           LEFT JOIN timeframe_indicators im
             ON im.stock_code = ctx.stock_code AND im.timeframe = 'MN1' AND im.period_start = ctx.mn1_period_start
+          {'LEFT JOIN m30_daily_summary m30 ON m30.stock_code = ctx.stock_code AND m30.state_date = ctx.state_date' if has_m30 else ''}
         ),
         bits AS (
           SELECT
@@ -580,10 +687,11 @@ def main() -> int:
     parser.add_argument("--date", required=True)
     parser.add_argument("--raw-db", type=Path)
     parser.add_argument("--out-db", type=Path)
+    parser.add_argument("--m30-db", type=Path, help="Path to M30 DuckDB (optional)")
     args = parser.parse_args()
     raw_db = args.raw_db or default_raw_db(args.date)
     out_db = args.out_db or default_out_db(args.date)
-    summary = build(raw_db, out_db, args.date)
+    summary = build(raw_db, out_db, args.date, m30_db=args.m30_db)
     print(json.dumps(summary, ensure_ascii=False, indent=2, default=str))
     return 0
 

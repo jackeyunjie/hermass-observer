@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import re
 import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -55,7 +56,11 @@ def check_health() -> dict[str, Any]:
 def check_data_freshness(max_stale_hours: int = 48) -> dict[str, Any]:
     """检查最新 Foundation DB 是否过期。"""
     pattern = "outputs/p116_foundation_*/p116_foundation.duckdb"
-    dbs = sorted(ROOT.glob(pattern), reverse=True)
+    dbs = sorted(
+        ROOT.glob(pattern),
+        key=lambda path: _foundation_date_key(path),
+        reverse=True,
+    )
     if not dbs:
         return {"ok": False, "latest_date": None, "error": "no foundation db found"}
 
@@ -87,6 +92,11 @@ def check_data_freshness(max_stale_hours: int = 48) -> dict[str, Any]:
         "hours_ago": round(hours_ago, 1) if hours_ago is not None else None,
         "max_stale_hours": max_stale_hours,
     }
+
+
+def _foundation_date_key(path: Path) -> str:
+    match = re.search(r"p116_foundation_(\d{8})$", path.parent.name)
+    return match.group(1) if match else ""
 
 
 def check_judgment_backlog(max_unreviewed: int = 100) -> dict[str, Any]:
