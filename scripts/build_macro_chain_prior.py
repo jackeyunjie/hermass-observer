@@ -392,18 +392,42 @@ def load_chain_event_counts(chain_db: Path, date_str: str) -> dict[str, int]:
         tables = {row[0] for row in con.execute("SHOW TABLES").fetchall()}
         if "chain_dynamics" not in tables:
             return {}
-        return {
+        chain_counts = {
             row[0]: row[1]
             for row in con.execute(
                 """
-                SELECT industry, COUNT(*) AS event_count
+                SELECT chain_id, COUNT(*) AS event_count
                 FROM chain_dynamics
-                WHERE event_date <= ?
-                GROUP BY industry
+                WHERE as_of_date <= ?
+                GROUP BY chain_id
                 """,
                 [date_str],
             ).fetchall()
         }
+
+        if "solar" in chain_counts and "solar_storage" not in chain_counts:
+            chain_counts["solar_storage"] = chain_counts["solar"]
+
+        industry_counts: dict[str, int] = {}
+        if "chain_fund_manager_candidates" in tables:
+            rows = con.execute(
+                """
+                SELECT DISTINCT sw_l1, chain_id
+                FROM chain_fund_manager_candidates
+                WHERE run_as_of_date <= ?
+                  AND sw_l1 IS NOT NULL AND sw_l1 <> ''
+                  AND chain_id IS NOT NULL AND chain_id <> ''
+                """,
+                [date_str],
+            ).fetchall()
+            for sw_l1, chain_id in rows:
+                event_count = safe_int(chain_counts.get(str(chain_id)))
+                if event_count:
+                    industry_counts[str(sw_l1)] = industry_counts.get(str(sw_l1), 0) + event_count
+
+        out = dict(chain_counts)
+        out.update(industry_counts)
+        return out
     finally:
         con.close()
 

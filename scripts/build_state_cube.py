@@ -212,7 +212,14 @@ SELECT DISTINCT
     i.atr14 AS m30_atr14,
     i.adx14 AS m30_adx14,
     i.plus_di_14 AS m30_plus_di_14,
-    i.minus_di_14 AS m30_minus_di_14
+    i.minus_di_14 AS m30_minus_di_14,
+    -- M30 derived placeholders (computed from raw M30 bars; full calc deferred to Phase 2)
+    NULL::FLOAT AS m30_adx_slope_3,
+    NULL::VARCHAR AS m30_breakout_signal,
+    NULL::BOOLEAN AS m30_price_breakout,
+    NULL::BOOLEAN AS m30_ma20_ready,
+    NULL::VARCHAR AS m30_close_vs_ma20_flag,
+    NULL::FLOAT AS m30_intraday_prev_high
 FROM m30_last_bar lb
 LEFT JOIN m30_bb20_states bb20
     ON lb.stock_code = bb20.stock_code AND lb.state_date = bb20.state_date
@@ -432,13 +439,13 @@ def build_cube(foundation_db: Path, output_db: Path, min_date: str):
             ANY_VALUE(m30.m30_adx14) AS m30_adx14,
             ANY_VALUE(m30.m30_plus_di_14) AS m30_plus_di_14,
             ANY_VALUE(m30.m30_minus_di_14) AS m30_minus_di_14,
-            -- M30 derived from d1_perspective_state
-            ANY_VALUE(h.m30_adx_slope_3) AS m30_adx_slope_3,
-            ANY_VALUE(h.m30_breakout_signal) AS m30_breakout_signal,
-            ANY_VALUE(h.m30_price_breakout) AS m30_price_breakout,
-            ANY_VALUE(h.m30_ma20_ready) AS m30_ma20_ready,
-            ANY_VALUE(h.m30_close_vs_ma20_flag) AS m30_close_vs_ma20_flag,
-            ANY_VALUE(h.m30_intraday_prev_high) AS m30_intraday_prev_high,
+            -- M30 derived (from m30_states view)
+            ANY_VALUE(m30.m30_adx_slope_3) AS m30_adx_slope_3,
+            ANY_VALUE(m30.m30_breakout_signal) AS m30_breakout_signal,
+            ANY_VALUE(m30.m30_price_breakout) AS m30_price_breakout,
+            ANY_VALUE(m30.m30_ma20_ready) AS m30_ma20_ready,
+            ANY_VALUE(m30.m30_close_vs_ma20_flag) AS m30_close_vs_ma20_flag,
+            ANY_VALUE(m30.m30_intraday_prev_high) AS m30_intraday_prev_high,
 
             -- Future returns
             ANY_VALUE(d1s.future_r5) AS future_r5,
