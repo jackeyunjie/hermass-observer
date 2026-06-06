@@ -17,7 +17,7 @@ from typing import Any
 
 import duckdb
 import requests
-from fastapi import FastAPI, Form, Request, UploadFile
+from fastapi import Body, FastAPI, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -942,6 +942,153 @@ def _chain_assistant_data() -> dict[str, Any]:
             },
         ),
     }
+
+
+def _chain_studio_data() -> dict[str, Any]:
+    """读取产业链工作台（新）数据"""
+    if not CHAIN_EVIDENCE_DB.exists():
+        return {
+            "ok": False,
+            "error": f"产业链证据库不存在：{_rel(CHAIN_EVIDENCE_DB)}",
+            "chains": [],
+            "nodes": [],
+            "state_date": str(date.today()),
+        }
+
+    try:
+        con = duckdb.connect(str(CHAIN_EVIDENCE_DB), read_only=True)
+
+        # 读取 overview
+        overview_rows = con.execute("""
+            SELECT chain_id, state_date, prosperity_score, regime,
+                   event_count, lead_node, lag_node
+            FROM chain_studio_overview
+            ORDER BY prosperity_score DESC
+        """).fetchall()
+
+        chains = []
+        for row in overview_rows:
+            chains.append({
+                "chain_id": row[0],
+                "state_date": str(row[1]) if row[1] else "-",
+                "prosperity_score": row[2] if row[2] is not None else 0,
+                "regime": row[3] or "-",
+                "event_count": row[4] or 0,
+                "lead_node": row[5] or "-",
+                "lag_node": row[6] or "-",
+            })
+
+        # 读取 nodes
+        node_rows = con.execute("""
+            SELECT chain_id, node_id, node_name, state_date,
+                   fund_flow_score, position_score, momentum_score, state_hex
+            FROM chain_studio_nodes
+            ORDER BY chain_id, node_id
+        """).fetchall()
+
+        nodes = []
+        for row in node_rows:
+            nodes.append({
+                "chain_id": row[0],
+                "node_id": row[1],
+                "node_name": row[2] or row[1],
+                "state_date": str(row[3]) if row[3] else "-",
+                "fund_flow_score": row[4] if row[4] is not None else 0,
+                "position_score": row[5] if row[5] is not None else 0,
+                "momentum_score": row[6] if row[6] is not None else 0,
+                "state_hex": row[7] or "--",
+            })
+
+        # 读取 events
+        event_rows = con.execute("""
+            SELECT chain_id, event_type, event_source, event_target,
+                   state_date, impact_score, description
+            FROM chain_studio_events
+            ORDER BY impact_score DESC
+            LIMIT 50
+        """).fetchall()
+
+        events = []
+        for row in event_rows:
+            events.append({
+                "chain_id": row[0],
+                "event_type": row[1] or "-",
+                "event_source": row[2] or "-",
+                "event_target": row[3] or "-",
+                "state_date": str(row[4]) if row[4] else "-",
+                "impact_score": row[5] if row[5] is not None else 0,
+                "description": row[6] or "-",
+            })
+
+        # 读取 RRG（Phase 1 可能不存在，兼容处理）
+        rrg = []
+        try:
+            rrg_rows = con.execute("""
+                SELECT chain_id, node_id, rs_ratio, rs_momentum, quadrant, state_date
+                FROM chain_rrg ORDER BY chain_id, node_id
+            """).fetchall()
+            for row in rrg_rows:
+                rrg.append({
+                    "chain_id": row[0],
+                    "node_id": row[1],
+                    "rs_ratio": row[2],
+                    "rs_momentum": row[3],
+                    "quadrant": row[4],
+                    "state_date": str(row[5]) if row[5] else "-",
+                })
+        except Exception:
+            pass
+
+        con.close()
+
+        # 候选池 — 优先读取 chain_studio_candidates 表
+        candidates = []
+        try:
+            con2 = duckdb.connect(str(CHAIN_EVIDENCE_DB), read_only=True)
+            c_rows = con2.execute("""
+                SELECT stock_code, stock_name, chain_id, node_name,
+                       assistant_score, state_hex, ef_count, review_gate
+                FROM chain_studio_candidates
+                WHERE chain_id IN ('ai_compute', 'semiconductor', 'nev')
+                ORDER BY assistant_score DESC NULLS LAST
+                LIMIT 30
+            """).fetchall()
+            con2.close()
+            for row in c_rows:
+                candidates.append({
+                    "stock_code": row[0],
+                    "stock_name": row[1] or row[0],
+                    "chain_id": row[2],
+                    "node_name": row[3] or "-",
+                    "assistant_score": row[4] if row[4] is not None else 0,
+                    "state_hex": row[5] or "--",
+                    "ef_count": row[6] or 0,
+                    "review_gate": row[7],
+                })
+        except Exception:
+            pass
+
+        return {
+            "ok": True,
+            "chains": chains,
+            "nodes": nodes,
+            "events": events,
+            "rrg": rrg,
+            "candidates": candidates,
+            "state_date": chains[0]["state_date"] if chains else str(date.today()),
+        }
+
+    except Exception as exc:
+        return {
+            "ok": False,
+            "error": f"读取产业链工作台数据失败：{exc}",
+            "chains": [],
+            "nodes": [],
+            "events": [],
+            "rrg": [],
+            "candidates": [],
+            "state_date": str(date.today()),
+        }
 
 
 def _latest_unified_snapshot_rows() -> tuple[dict[str, dict[str, Any]], str]:
@@ -2799,6 +2946,407 @@ def chain_assistant_page(request: Request) -> HTMLResponse:
             "current_user": profile,
         },
     )
+
+
+@app.get("/chain-studio", response_class=HTMLResponse)
+def chain_studio_page(request: Request) -> HTMLResponse:
+    """产业链工作台（新）— Phase 1 MVP"""
+    profile = get_current_profile(request)
+    return templates.TemplateResponse(
+        request,
+        "chain-studio.html",
+        {
+            "request": request,
+            "today": str(date.today()),
+            "studio": _chain_studio_data(),
+            "current_user": profile,
+        },
+    )
+
+
+# ── 产业链工作台 API（Phase 2）─────────────────────────────
+
+
+def _chain_db() -> duckdb.DuckDBPyConnection:
+    """返回产业链证据库连接"""
+    return duckdb.connect(str(CHAIN_EVIDENCE_DB))
+
+
+def _chain_list_data() -> dict[str, Any]:
+    """GET /api/chain/list"""
+    if not CHAIN_EVIDENCE_DB.exists():
+        return {"ok": False, "error": "数据库不存在", "chains": []}
+    try:
+        con = _chain_db()
+        rows = con.execute("""
+            SELECT chain_id, state_date, prosperity_score, regime, event_count, lead_node, lag_node
+            FROM chain_studio_overview
+            ORDER BY prosperity_score DESC
+        """).fetchall()
+        con.close()
+        return {
+            "ok": True,
+            "chains": [
+                {
+                    "chain_id": r[0],
+                    "state_date": str(r[1]) if r[1] else None,
+                    "prosperity_score": r[2],
+                    "regime": r[3],
+                    "event_count": r[4],
+                    "lead_node": r[5],
+                    "lag_node": r[6],
+                }
+                for r in rows
+            ],
+        }
+    except Exception as exc:
+        return {"ok": False, "error": str(exc), "chains": []}
+
+
+def _chain_detail_data(chain_id: str) -> dict[str, Any]:
+    """GET /api/chain/{chain_id}"""
+    if not CHAIN_EVIDENCE_DB.exists():
+        return {"ok": False, "error": "数据库不存在"}
+    try:
+        con = _chain_db()
+        # overview
+        ov = con.execute("""
+            SELECT chain_id, state_date, prosperity_score, regime, event_count, lead_node, lag_node
+            FROM chain_studio_overview WHERE chain_id = ?
+        """, [chain_id]).fetchone()
+        # nodes
+        nodes = con.execute("""
+            SELECT node_id, node_name, fund_flow_score, position_score, momentum_score, state_hex
+            FROM chain_studio_nodes WHERE chain_id = ? ORDER BY node_id
+        """, [chain_id]).fetchall()
+        # events
+        events = con.execute("""
+            SELECT event_type, event_source, impact_score, description
+            FROM chain_studio_events WHERE chain_id = ? ORDER BY impact_score DESC LIMIT 20
+        """, [chain_id]).fetchall()
+        con.close()
+
+        return {
+            "ok": True,
+            "chain_id": chain_id,
+            "overview": {
+                "state_date": str(ov[1]) if ov else None,
+                "prosperity_score": ov[2] if ov else None,
+                "regime": ov[3] if ov else None,
+                "event_count": ov[4] if ov else 0,
+                "lead_node": ov[5] if ov else None,
+                "lag_node": ov[6] if ov else None,
+            },
+            "nodes": [
+                {
+                    "node_id": r[0],
+                    "node_name": r[1],
+                    "fund_flow_score": r[2],
+                    "position_score": r[3],
+                    "momentum_score": r[4],
+                    "state_hex": r[5],
+                }
+                for r in nodes
+            ],
+            "events": [
+                {
+                    "event_type": r[0],
+                    "event_source": r[1],
+                    "impact_score": r[2],
+                    "description": r[3],
+                }
+                for r in events
+            ],
+        }
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+def _chain_node_data(chain_id: str, node_id: str) -> dict[str, Any]:
+    """GET /api/chain/{chain_id}/node/{node_id}"""
+    if not CHAIN_EVIDENCE_DB.exists():
+        return {"ok": False, "error": "数据库不存在"}
+    try:
+        con = _chain_db()
+        node = con.execute("""
+            SELECT node_name, fund_flow_score, position_score, momentum_score, state_hex, state_date
+            FROM chain_studio_nodes WHERE chain_id = ? AND node_id = ?
+        """, [chain_id, node_id]).fetchone()
+
+        # 候选股：从数据库读取
+        stock_rows = con.execute("""
+            SELECT stock_code, stock_name, node_name
+            FROM chain_node_stocks
+            WHERE chain_id = ? AND node_id = ?
+            ORDER BY stock_code
+            LIMIT 50
+        """, [chain_id, node_id]).fetchall()
+
+        stocks = [
+            {
+                "stock_code": r[0],
+                "stock_name": r[1],
+                "node_name": r[2] or "",
+            }
+            for r in stock_rows
+        ]
+        con.close()
+
+        return {
+            "ok": True,
+            "chain_id": chain_id,
+            "node_id": node_id,
+            "node": {
+                "node_name": node[0] if node else node_id,
+                "fund_flow_score": node[1] if node else 0,
+                "position_score": node[2] if node else 0,
+                "momentum_score": node[3] if node else 0,
+                "state_hex": node[4] if node else "--",
+                "state_date": str(node[5]) if node else None,
+            },
+            "stocks": stocks[:20],
+        }
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+def _chain_propagation_data(chain_id: str) -> dict[str, Any]:
+    """GET /api/chain/{chain_id}/propagation"""
+    if not CHAIN_EVIDENCE_DB.exists():
+        return {"ok": False, "error": "数据库不存在"}
+    try:
+        con = _chain_db()
+        rows = con.execute("""
+            SELECT source_node, target_node, strength, correlation, lag_days, direction, status, momentum_diff, fund_flow_diff
+            FROM chain_propagation WHERE chain_id = ? ORDER BY strength DESC
+        """, [chain_id]).fetchall()
+        con.close()
+        return {
+            "ok": True,
+            "chain_id": chain_id,
+            "paths": [
+                {
+                    "source_node": r[0],
+                    "target_node": r[1],
+                    "strength": r[2],
+                    "correlation": r[3],
+                    "lag_days": r[4],
+                    "direction": r[5],
+                    "status": r[6],
+                    "momentum_diff": r[7],
+                    "fund_flow_diff": r[8],
+                }
+                for r in rows
+            ],
+        }
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+def _chain_rrg_data() -> dict[str, Any]:
+    """GET /api/chain/rrg"""
+    if not CHAIN_EVIDENCE_DB.exists():
+        return {"ok": False, "error": "数据库不存在"}
+    try:
+        con = _chain_db()
+        rows = con.execute("""
+            SELECT chain_id, node_id, rs_ratio, rs_momentum, quadrant, state_date
+            FROM chain_rrg ORDER BY chain_id, node_id
+        """).fetchall()
+        con.close()
+        return {
+            "ok": True,
+            "rrg": [
+                {
+                    "chain_id": r[0],
+                    "node_id": r[1],
+                    "rs_ratio": r[2],
+                    "rs_momentum": r[3],
+                    "quadrant": r[4],
+                    "state_date": str(r[5]) if r[5] else None,
+                }
+                for r in rows
+            ],
+        }
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+def _chain_events_data() -> dict[str, Any]:
+    """GET /api/chain/events"""
+    if not CHAIN_EVIDENCE_DB.exists():
+        return {"ok": False, "error": "数据库不存在"}
+    try:
+        con = _chain_db()
+        rows = con.execute("""
+            SELECT chain_id, event_type, event_source, event_target, state_date, impact_score, description
+            FROM chain_studio_events ORDER BY state_date DESC, impact_score DESC LIMIT 100
+        """).fetchall()
+        con.close()
+        return {
+            "ok": True,
+            "events": [
+                {
+                    "chain_id": r[0],
+                    "event_type": r[1],
+                    "event_source": r[2],
+                    "event_target": r[3],
+                    "state_date": str(r[4]) if r[4] else None,
+                    "impact_score": r[5],
+                    "description": r[6],
+                }
+                for r in rows
+            ],
+        }
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+def _chain_candidates_data() -> dict[str, Any]:
+    """GET /api/chain/candidates"""
+    if not CHAIN_EVIDENCE_DB.exists():
+        return {"ok": False, "error": "数据库不存在"}
+    try:
+        con = _chain_db()
+        rows = con.execute("""
+            SELECT stock_code, stock_name, chain_id, chain_name, node_name,
+                   assistant_score, state_hex, ef_count, review_gate
+            FROM chain_studio_candidates
+            WHERE chain_id IN ('ai_compute', 'semiconductor', 'nev')
+            ORDER BY assistant_score DESC NULLS LAST
+            LIMIT 30
+        """).fetchall()
+        con.close()
+
+        return {
+            "ok": True,
+            "candidates": [
+                {
+                    "stock_code": r[0],
+                    "stock_name": r[1],
+                    "chain_id": r[2],
+                    "chain_name": r[3],
+                    "node_name": r[4],
+                    "assistant_score": r[5],
+                    "state_hex": r[6] or "--",
+                    "ef_count": r[7] or 0,
+                    "review_gate": r[8],
+                }
+                for r in rows
+            ],
+        }
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+@app.get("/api/chain/list")
+def api_chain_list() -> JSONResponse:
+    return JSONResponse(content=_chain_list_data())
+
+
+@app.get("/api/chain/rrg")
+def api_chain_rrg() -> JSONResponse:
+    return JSONResponse(content=_chain_rrg_data())
+
+
+@app.get("/api/chain/events")
+def api_chain_events() -> JSONResponse:
+    return JSONResponse(content=_chain_events_data())
+
+
+@app.get("/api/chain/candidates")
+def api_chain_candidates() -> JSONResponse:
+    return JSONResponse(content=_chain_candidates_data())
+
+
+@app.get("/api/chain/review")
+def api_chain_review() -> JSONResponse:
+    """返回产业链判断的复盘统计"""
+    try:
+        agent_db = ROOT / "outputs" / "agent_memory" / "AgentMemory.duckdb"
+        if not agent_db.exists():
+            return JSONResponse(content={"ok": True, "stats": {}, "message": "AgentMemory 尚未建立"})
+
+        con = duckdb.connect(str(agent_db), read_only=True)
+        # judgment 统计
+        j_rows = con.execute("""
+            SELECT
+                COUNT(*) as total,
+                SUM(CASE WHEN judgment_type = 'industry_chain' THEN 1 ELSE 0 END) as chain_count,
+                AVG(confidence) as avg_confidence
+            FROM agent_judgments
+        """).fetchone()
+
+        # outcome 统计 — 只关联 industry_chain 的判断
+        o_rows = con.execute("""
+            SELECT
+                COUNT(*) as total,
+                SUM(CASE WHEN jo.direction_correct THEN 1 ELSE 0 END) as correct_count,
+                AVG(jo.actual_value) as avg_return,
+                jo.scenario_label
+            FROM judgment_outcomes jo
+            JOIN agent_judgments aj ON jo.judgment_id = aj.judgment_id
+            WHERE aj.judgment_type = 'industry_chain'
+            GROUP BY jo.scenario_label
+        """).fetchall()
+
+        con.close()
+
+        stats = {
+            "judgments": {
+                "total": j_rows[0] if j_rows else 0,
+                "industry_chain": j_rows[1] if j_rows else 0,
+                "avg_confidence": round(j_rows[2], 3) if j_rows and j_rows[2] else 0,
+            },
+            "outcomes": [
+                {
+                    "scenario": r[3],
+                    "count": r[0],
+                    "correct": r[1],
+                    "avg_return": round(r[2], 4) if r[2] else 0,
+                }
+                for r in o_rows
+            ] if o_rows else [],
+        }
+        return JSONResponse(content={"ok": True, "stats": stats})
+    except Exception as exc:
+        return JSONResponse(content={"ok": False, "error": str(exc)})
+
+
+@app.get("/api/chain/{chain_id}")
+def api_chain_detail(chain_id: str) -> JSONResponse:
+    return JSONResponse(content=_chain_detail_data(chain_id))
+
+
+@app.get("/api/chain/{chain_id}/node/{node_id}")
+def api_chain_node(chain_id: str, node_id: str) -> JSONResponse:
+    return JSONResponse(content=_chain_node_data(chain_id, node_id))
+
+
+@app.get("/api/chain/{chain_id}/propagation")
+def api_chain_propagation(chain_id: str) -> JSONResponse:
+    return JSONResponse(content=_chain_propagation_data(chain_id))
+
+
+@app.post("/api/chain/judgment")
+def api_chain_judgment(body: dict = Body(...)) -> JSONResponse:
+    """触发 IndustryChainAgent 对指定产业链生成判断"""
+    try:
+        chain_id = body.get("chain_id")
+        state_date = body.get("date", str(date.today()))
+        if not chain_id:
+            return JSONResponse(content={"ok": False, "error": "缺少 chain_id"})
+
+        from hermass_platform.agents.industry_chain_agent import analyze_industry_chain
+        result = analyze_industry_chain(chain_id, state_date)
+        return JSONResponse(content=result)
+    except Exception as exc:
+        return JSONResponse(content={"ok": False, "error": str(exc)})
+
+
+@app.get("/api/chain-studio")
+def chain_studio_api() -> JSONResponse:
+    return JSONResponse(content=_chain_studio_data())
 
 
 @app.get("/api/chain-assistant")

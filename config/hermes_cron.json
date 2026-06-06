@@ -65,10 +65,59 @@
       "delivery": "terminal"
     },
     {
+      "name": "Agent 复盘告警扫描",
+      "schedule": "5 */4 * * *",
+      "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python scripts/alert_scanner.py",
+      "description": "每 4 小时消费自评/互评标记文件，广播 AgentBus review_needed 并归档标记",
+      "delivery": "terminal"
+    },
+    {
+      "name": "每日人机对齐复盘",
+      "schedule": "45 15 * * 1-5",
+      "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python scripts/build_human_review_alignment.py --date $(date +%Y-%m-%d)",
+      "description": "每个交易日 15:45 生成当天人机对齐复盘 Markdown，供人工确认并同步 Obsidian",
+      "delivery": "terminal"
+    },
+    {
+      "name": "State Cube 多 Agent 辩论",
+      "schedule": "35 15 * * 1-5",
+      "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python scripts/agent_debate_runner.py --date $(date +%Y-%m-%d) --top-n 50",
+      "description": "每个交易日 15:35 对 State Cube Top50 候选启动多 Agent 辩论",
+      "delivery": "terminal"
+    },
+    {
+      "name": "动态权重路由",
+      "schedule": "40 15 * * 1-5",
+      "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python scripts/dynamic_weight_router.py --date $(date +%Y-%m-%d)",
+      "description": "每个交易日 15:40 基于辩论结果分配权重、识别冲突/共振、输出观察结论",
+      "delivery": "terminal"
+    },
+    {
+      "name": "决策观察账本写入",
+      "schedule": "42 15 * * 1-5",
+      "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python scripts/decision_observation_ledger.py --date $(date +%Y-%m-%d)",
+      "description": "每个交易日 15:42 将 Router 观察结论写入 AgentMemory 与观察账本",
+      "delivery": "terminal"
+    },
+    {
+      "name": "产业链 Agent 辩论",
+      "schedule": "38 15 * * 1-5",
+      "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python scripts/chain_debate_runner.py --date $(date +%Y-%m-%d)",
+      "description": "每个交易日 15:38 运行产业链 Agent 辩论（IndustryChainAgent + RiskAgent 反驳）",
+      "delivery": "terminal"
+    },
+    {
+      "name": "产业链复盘回填",
+      "schedule": "45 15 * * 1-5",
+      "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python scripts/chain_review_backfill.py --date $(date +%Y-%m-%d) --horizon 5 && .venv/bin/python scripts/chain_review_backfill.py --date $(date +%Y-%m-%d) --horizon 20",
+      "description": "每个交易日 15:45 执行产业链 5 日和 20 日 outcome 回填",
+      "delivery": "terminal"
+    },
+    {
       "name": "对话导出到 Obsidian 知识库",
       "schedule": "0 */4 * * *",
-      "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python scripts/export_conversations_to_md.py",
-      "description": "每 4 小时将 conversations.db 导出为 Obsidian Markdown 日记（data/research/conversations/daily/）",
+      "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python tools/obsidian_exporter/cli.py export",
+      "description": "每 4 小时将项目当天对话导出到 Obsidian vault（历史回填手动用 export --all）",
       "delivery": "terminal"
     }
   ]
