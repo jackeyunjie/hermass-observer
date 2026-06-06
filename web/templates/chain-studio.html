@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hermass 产业链工作台（新）</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <style>
+      .studio-table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; font-size: 0.85rem; }
+      .studio-table th, .studio-table td { padding: 0.5rem 0.6rem; text-align: left; border-bottom: 1px solid #e2e8f0; }
+      .studio-table th { background: #f8fafc; font-weight: 600; color: #475569; font-size: 0.8rem; }
+      .studio-table tr:hover { background: #f1f5f9; }
+      .regime-expansion { color: #16a34a; font-weight: 600; }
+      .regime-recovery { color: #2563eb; font-weight: 600; }
+      .regime-contraction { color: #ca8a04; font-weight: 600; }
+      .regime-depression { color: #dc2626; font-weight: 600; }
+      .score-bar { display: inline-block; width: 50px; height: 5px; background: #e2e8f0; border-radius: 3px; vertical-align: middle; margin-left: 4px; }
+      .score-bar-inner { height: 100%; border-radius: 3px; background: #3b82f6; }
+      .old-link { margin-top: 1.5rem; padding: 0.8rem; background: #f8fafc; border-radius: 6px; text-align: center; font-size: 0.85rem; }
+      .tab-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; }
+      .tab-btn { padding: 0.4rem 0.9rem; border: none; background: transparent; cursor: pointer; font-size: 0.85rem; color: #64748b; border-radius: 4px; }
+      .tab-btn.active { background: #0f172a; color: #fff; }
+      .tab-btn:hover:not(.active) { background: #f1f5f9; }
+      .tab-panel { display: none; }
+      .tab-panel.active { display: block; }
+      .node-graph { display: flex; align-items: center; justify-content: center; gap: 2rem; padding: 1.5rem; }
+      .node-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; min-width: 140px; text-align: center; background: #fff; }
+      .node-card.leading { border-color: #16a34a; box-shadow: 0 0 0 2px rgba(22,163,74,0.15); }
+      .node-card.improving { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.15); }
+      .node-card.lagging { border-color: #dc2626; box-shadow: 0 0 0 2px rgba(220,38,38,0.15); }
+      .node-card.weakening { border-color: #ca8a04; box-shadow: 0 0 0 2px rgba(202,138,4,0.15); }
+      .arrow { font-size: 1.5rem; color: #94a3b8; }
+      .arrow.active { color: #3b82f6; }
+      .event-timeline { position: relative; padding-left: 1.5rem; }
+      .event-timeline::before { content: ''; position: absolute; left: 0.4rem; top: 0; bottom: 0; width: 2px; background: #e2e8f0; }
+      .event-item { position: relative; margin-bottom: 1rem; padding-left: 1rem; }
+      .event-item::before { content: ''; position: absolute; left: -1.15rem; top: 0.4rem; width: 8px; height: 8px; border-radius: 50%; background: #3b82f6; }
+      .event-item.high::before { background: #dc2626; }
+      .rrg-quadrant { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; max-width: 400px; margin: 1rem auto; }
+      .rrg-cell { padding: 0.8rem; border-radius: 6px; text-align: center; font-size: 0.8rem; min-height: 80px; }
+      .rrg-leading { background: #dcfce7; }
+      .rrg-improving { background: #dbeafe; }
+      .rrg-lagging { background: #fee2e2; }
+      .rrg-weakening { background: #fef3c7; }
+      .candidate-row { display: flex; align-items: center; gap: 1rem; padding: 0.5rem; border-bottom: 1px solid #f1f5f9; }
+      .candidate-row:hover { background: #f8fafc; }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Hermass 多周期观察</p>
+        <h1>产业链工作台（新）</h1>
+      </div>
+      <div class="date">
+        <a href="/?mode=direction">首页</a>
+        <a href="/market">市场</a>
+        <a href="/industry">行业</a>
+        <a href="/chain-assistant">产业链助手（旧）</a>
+        <a href="/chain-studio" class="active">产业链工作台（新）</a>
+        <a href="/research">研究</a>
+        <a href="/watchlist">执行</a>
+        <a href="/backtest">回测</a>
+        <a href="javascript:void(0)" onclick="aiToggle()">观象</a>
+        <span>{{ today }}</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      {% if not studio.ok %}
+      <section class="panel span-2 warning-panel">
+        <div class="panel-head">
+          <h2>产业链工作台暂不可用</h2>
+          <span>缺少数据</span>
+        </div>
+        <p class="hero-note">{{ studio.error }}</p>
+      </section>
+      {% else %}
+
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="showTab('tab-overview')">热力总览</button>
+        <button class="tab-btn" onclick="showTab('tab-graph')">节点图谱</button>
+        <button class="tab-btn" onclick="showTab('tab-timeline')">事件时间线</button>
+        <button class="tab-btn" onclick="showTab('tab-rrg')">RRG 轮动</button>
+        <button class="tab-btn" onclick="showTab('tab-candidates')">候选池</button>
+      </div>
+
+      <!-- 区块 A：链条热力总览 -->
+      <section id="tab-overview" class="tab-panel active">
+        <div class="panel span-2">
+          <div class="panel-head">
+            <h2>产业链热力总览</h2>
+            <span>数据日期：{{ studio.state_date }}</span>
+          </div>
+          <table class="studio-table">
+            <thead>
+              <tr>
+                <th>产业链</th>
+                <th>景气度</th>
+                <th>状态</th>
+                <th>事件数</th>
+                <th>领涨环节</th>
+                <th>滞涨环节</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for chain in studio.chains %}
+              <tr>
+                <td><strong>{{ chain.chain_id }}</strong></td>
+                <td>
+                  {{ chain.prosperity_score }}
+                  <span class="score-bar"><span class="score-bar-inner" style="width: {{ chain.prosperity_score }}%"></span></span>
+                </td>
+                <td class="regime-{{ chain.regime }}">{{ chain.regime }}</td>
+                <td>{{ chain.event_count }}</td>
+                <td>{{ chain.lead_node }}</td>
+                <td>{{ chain.lag_node }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="panel span-2">
+          <div class="panel-head">
+            <h2>节点状态矩阵</h2>
+            <span>上中下游环节</span>
+          </div>
+          <table class="studio-table">
+            <thead>
+              <tr>
+                <th>产业链</th>
+                <th>环节</th>
+                <th>资金流</th>
+                <th>仓位</th>
+                <th>动量</th>
+                <th>State</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for node in studio.nodes %}
+              <tr>
+                <td>{{ node.chain_id }}</td>
+                <td>{{ node.node_name }}</td>
+                <td>
+                  {{ "%.1f"|format(node.fund_flow_score) }}
+                  <span class="score-bar"><span class="score-bar-inner" style="width: {{ node.fund_flow_score }}%"></span></span>
+                </td>
+                <td>{{ "%.1f"|format(node.position_score) }}</td>
+                <td>{{ "%.1f"|format(node.momentum_score) }}</td>
+                <td><code>{{ node.state_hex }}</code></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 区块 B：节点图谱 -->
+      <section id="tab-graph" class="tab-panel">
+        <div class="panel span-2">
+          <div class="panel-head">
+            <h2>上中下游节点图谱</h2>
+            <span>传导方向与状态</span>
+          </div>
+          {% for chain in studio.chains %}
+          <div style="margin-bottom: 2rem;">
+            <h3 style="margin-bottom: 1rem; color: #334155;">{{ chain.chain_id }}</h3>
+            <div class="node-graph">
+              {% set chain_nodes = studio.nodes | selectattr('chain_id', 'equalto', chain.chain_id) | list %}
+              {% for node in chain_nodes %}
+                {% if loop.index > 1 %}<span class="arrow">→</span>{% endif %}
+                <div class="node-card {% if node.momentum_score > 60 %}leading{% elif node.momentum_score > 45 %}improving{% elif node.momentum_score < 35 %}lagging{% else %}weakening{% endif %}">
+                  <div style="font-weight: 600; margin-bottom: 0.3rem;">{{ node.node_name }}</div>
+                  <div style="font-size: 0.75rem; color: #64748b;">
+                    资金: {{ "%.0f"|format(node.fund_flow_score) }}<br/>
+                    动量: {{ "%.0f"|format(node.momentum_score) }}<br/>
+                    State: <code>{{ node.state_hex }}</code>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <!-- 区块 C：事件扩散时间线 -->
+      <section id="tab-timeline" class="tab-panel">
+        <div class="panel span-2">
+          <div class="panel-head">
+            <h2>事件扩散时间线</h2>
+            <span>近 7 天产业链事件</span>
+          </div>
+          <div class="event-timeline">
+            {% for event in studio.events %}
+            <div class="event-item {% if event.impact_score >= 60 %}high{% endif %}">
+              <div style="font-size: 0.75rem; color: #64748b;">{{ event.state_date }} · {{ event.chain_id }}</div>
+              <div style="font-weight: 600; margin: 0.2rem 0;">[{{ event.event_type }}] {{ event.event_source }}</div>
+              <div style="font-size: 0.8rem; color: #334155;">{{ event.description }}</div>
+              <div style="font-size: 0.75rem; color: #94a3b8;">影响强度: {{ event.impact_score }}</div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </section>
+
+      <!-- 区块 D：RRG 轮动 -->
+      <section id="tab-rrg" class="tab-panel">
+        <div class="panel span-2">
+          <div class="panel-head">
+            <h2>RRG 相对轮动图</h2>
+            <span>RS-Ratio × RS-Momentum 四象限</span>
+          </div>
+          <div class="rrg-quadrant">
+            <div class="rrg-cell rrg-improving">
+              <strong>改善区 Improving</strong><br/>
+              <span style="font-size: 0.7rem; color: #64748b;">RS Ratio &lt; 100, Momentum &gt; 0</span>
+              <div style="margin-top: 0.5rem;">
+                {% for r in studio.rrg if r.quadrant == 'improving' %}
+                  <div style="font-size: 0.75rem;">{{ r.chain_id }}/{{ r.node_id }}</div>
+                {% endfor %}
+              </div>
+            </div>
+            <div class="rrg-cell rrg-leading">
+              <strong>领先区 Leading</strong><br/>
+              <span style="font-size: 0.7rem; color: #64748b;">RS Ratio &gt; 100, Momentum &gt; 0</span>
+              <div style="margin-top: 0.5rem;">
+                {% for r in studio.rrg if r.quadrant == 'leading' %}
+                  <div style="font-size: 0.75rem;">{{ r.chain_id }}/{{ r.node_id }}</div>
+                {% endfor %}
+              </div>
+            </div>
+            <div class="rrg-cell rrg-lagging">
+              <strong>滞后区 Lagging</strong><br/>
+              <span style="font-size: 0.7rem; color: #64748b;">RS Ratio &lt; 100, Momentum &lt; 0</span>
+              <div style="margin-top: 0.5rem;">
+                {% for r in studio.rrg if r.quadrant == 'lagging' %}
+                  <div style="font-size: 0.75rem;">{{ r.chain_id }}/{{ r.node_id }}</div>
+                {% endfor %}
+              </div>
+            </div>
+            <div class="rrg-cell rrg-weakening">
+              <strong>衰退区 Weakening</strong><br/>
+              <span style="font-size: 0.7rem; color: #64748b;">RS Ratio &gt; 100, Momentum &lt; 0</span>
+              <div style="margin-top: 0.5rem;">
+                {% for r in studio.rrg if r.quadrant == 'weakening' %}
+                  <div style="font-size: 0.75rem;">{{ r.chain_id }}/{{ r.node_id }}</div>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+
+          <table class="studio-table" style="margin-top: 1rem;">
+            <thead>
+              <tr><th>产业链</th><th>节点</th><th>RS-Ratio</th><th>RS-Momentum</th><th>象限</th></tr>
+            </thead>
+            <tbody>
+              {% for r in studio.rrg %}
+              <tr>
+                <td>{{ r.chain_id }}</td>
+                <td>{{ r.node_id }}</td>
+                <td>{{ r.rs_ratio }}</td>
+                <td>{{ r.rs_momentum }}</td>
+                <td class="regime-{{ r.quadrant }}">{{ r.quadrant }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 区块 E：候选池观察台 -->
+      <section id="tab-candidates" class="tab-panel">
+        <div class="panel span-2">
+          <div class="panel-head">
+            <h2>候选池观察台</h2>
+            <span>P0 产业链共振过滤后 Top 30</span>
+          </div>
+          <table class="studio-table">
+            <thead>
+              <tr>
+                <th>代码</th>
+                <th>名称</th>
+                <th>产业链</th>
+                <th>环节</th>
+                <th>评分</th>
+                <th>State</th>
+                <th>EF</th>
+                <th>状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for c in studio.candidates %}
+              <tr>
+                <td><code>{{ c.stock_code }}</code></td>
+                <td>{{ c.stock_name }}</td>
+                <td>{{ c.chain_id }}</td>
+                <td>{{ c.node_name }}</td>
+                <td>
+                  {{ c.assistant_score }}
+                  <span class="score-bar"><span class="score-bar-inner" style="width: {{ (c.assistant_score or 0) * 10 }}%"></span></span>
+                </td>
+                <td><code>{{ c.state_hex or '--' }}</code></td>
+                <td>{{ c.ef_count or 0 }}</td>
+                <td>{{ c.review_gate }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {% endif %}
+
+      <section class="old-link">
+        <p>旧版入口：<a href="/chain-assistant">产业链助手（旧）</a></p>
+      </section>
+    </main>
+
+    <script>
+      function showTab(id) {
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        event.target.classList.add('active');
+      }
+    </script>
+  </body>
+</html>
