@@ -3344,6 +3344,22 @@ def api_chain_judgment(body: dict = Body(...)) -> JSONResponse:
         return JSONResponse(content={"ok": False, "error": str(exc)})
 
 
+
+@app.get("/api/chain/{chain_id}/serenity-analysis")
+def chain_serenity_analysis(request: Request, chain_id: str, state_date: str | None = None) -> JSONResponse:
+    """Serenity 式产业链瓶颈分析 — 返回节点打分、稀缺层排序、风险边界。"""
+    profile = get_current_profile(request)
+    username = profile.get("username") or ""
+    if not username or username == "anonymous":
+        return JSONResponse(content={"ok": False, "error": "unauthorized"}, status_code=401)
+    try:
+        from hermass_platform.agents.serenity_chain_analyzer import analyze_serenity_chain
+        result = analyze_serenity_chain(chain_id, state_date)
+        return JSONResponse(content=result)
+    except Exception as exc:
+        return JSONResponse(content={"ok": False, "error": str(exc)})
+
+
 @app.get("/api/chain-studio")
 def chain_studio_api() -> JSONResponse:
     return JSONResponse(content=_chain_studio_data())
@@ -3367,6 +3383,274 @@ def market_page(request: Request) -> HTMLResponse:
             "current_user": profile,
         },
     )
+
+
+def _agent_debate_data(stock_code: str = "") -> dict[str, Any]:
+    """读取 Agent 辩论与 Router 数据，组装为单股票辩论视图。
+
+    消费 agent_debate_runner.py 增强后的输出字段：
+      - debate_summary.per_stock_opinions[stock_code].opinions
+      - debate_summary.per_stock_opinions[stock_code].support_agents / oppose_agents
+      - debate_summary.per_stock_opinions[stock_code].has_fake_breakout / has_overheat / has_data_anomaly
+      - debate_summary.risk_summary
+    """
+    debate_dir = Path("outputs/debate")
+    router_dirs = [Path("outputs/router"), Path("outputs/debate")]
+
+    def _router_rows(data: dict[str, Any]) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        for key in ("all_routed", "top_candidates", "risk_candidates"):
+            value = data.get(key)
+            if isinstance(value, list):
+                rows.extend([r for r in value if isinstance(r, dict)])
+        return rows
+
+    def _load_router_for(target_date_value: str, selected_code: str = "") -> dict[str, Any]:
+        ymd = target_date_value.replace("-", "")
+        patterns = [f"router*{ymd}*.json", "router_*.json", "router_decisions_*.json"]
+        files: list[Path] = []
+        for router_dir in router_dirs:
+            for pattern in patterns:
+                files.extend(router_dir.glob(pattern))
+        unique_files = sorted(set(files), key=lambda p: p.stat().st_mtime, reverse=True)
+
+        fallback: dict[str, Any] = {}
+        for path in unique_files:
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception:
+                continue
+            if not isinstance(data, dict):
+                continue
+            file_date = str(data.get("target_date") or target_date_value)
+            if file_date != target_date_value and ymd not in path.name:
+                continue
+            fallback = fallback or data
+            if not selected_code:
+                return data
+            if any(r.get("stock_code") == selected_code for r in _router_rows(data)):
+                return data
+        return fallback
+
+    # 读取最新 debate JSON（按修改时间，避免 audit/v2/v3 等后缀干扰）
+    debate_files = sorted(
+        debate_dir.glob("debate_*.json"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    debate_data: dict[str, Any] = {}
+    if debate_files:
+        try:
+            with open(debate_files[0], "r", encoding="utf-8") as f:
+                debate_data = json.load(f)
+        except Exception:
+            pass
+
+    target_date = debate_data.get("target_date") or str(date.today())
+
+    debate_summary = debate_data.get("debate_summary", {}) if isinstance(debate_data, dict) else {}
+    per_stock = debate_summary.get("per_stock_opinions", {})
+
+    # 候选列表：合并重点观察与风险提醒，优先使用 all_routed 保证一致性
+    neutral = debate_data.get("debate_summary", {}).get("neutral", [])
+    candidates = [{"stock_code": n.get("stock_code"), "ef_count": n.get("ef_count")} for n in neutral[:20]]
+    if not candidates and isinstance(per_stock, dict):
+        candidates = [
+            {"stock_code": code, "ef_count": opinion.get("ef_count")}
+            for code, opinion in per_stock.items()
+            if isinstance(opinion, dict)
+        ][:20]
+
+    # 默认选中第一个
+    selected_stock = stock_code or (candidates[0]["stock_code"] if candidates else "")
+    router_data = _load_router_for(target_date, selected_stock)
+
+    all_routed = router_data.get("all_routed", []) if isinstance(router_data, dict) else []
+    top_candidates = router_data.get("top_candidates", []) if isinstance(router_data, dict) else []
+    risk_candidates = router_data.get("risk_candidates", []) if isinstance(router_data, dict) else []
+    if not candidates:
+        all_candidates = top_candidates + risk_candidates
+        candidates = [{"stock_code": c.get("stock_code"), "ef_count": c.get("ef_count")} for c in all_candidates]
+    if not candidates and all_routed:
+        candidates = [{"stock_code": r.get("stock_code"), "ef_count": r.get("ef_count")} for r in all_routed[:40]]
+
+    # 查找选中股票的 router 详情（从 all_routed 查找，覆盖 top + risk）
+    selected_router = {}
+    for r in all_routed:
+        if r.get("stock_code") == selected_stock:
+            selected_router = r
+            break
+
+    # ── 优先从增强后的 debate JSON 读取 per-stock 观点 ──
+    stock_opinion = per_stock.get(selected_stock, {}) if isinstance(per_stock, dict) else {}
+
+    agent_id_to_name = {
+        "contraction_observer": "Contraction Observer",
+        "m30_observer": "M30 Observer",
+        "risk_guardian": "Risk Guardian",
+        "market_analyst": "Market Analyst",
+    }
+
+    # Agent 观点矩阵
+    agents: list[dict[str, Any]] = []
+    opinions = stock_opinion.get("opinions", {}) if isinstance(stock_opinion, dict) else {}
+    if opinions:
+        for aid, op in opinions.items():
+            if isinstance(op, dict):
+                agents.append({
+                    "id": aid,
+                    "name": agent_id_to_name.get(aid, aid),
+                    "stance": op.get("stance", "neutral"),
+                    "confidence": op.get("confidence", 50),
+                    "evidence": op.get("evidence", ""),
+                    "concern": op.get("concern", ""),
+                    "action": op.get("action", "观察"),
+                })
+    else:
+        # fallback: 兼容旧格式 debate JSON（无 per_stock_opinions）
+        agent_results = debate_data.get("agent_results", {}) if isinstance(debate_data, dict) else {}
+        for aid, ares in agent_results.items():
+            if not isinstance(ares, dict):
+                continue
+            summary = ares.get("summary", "")
+            data = ares.get("data", {})
+            stance = "neutral"
+            if "risk" in aid or "guardian" in aid:
+                stance = "oppose"
+            elif "breakout" in summary.lower() or "触发" in summary:
+                stance = "support"
+            confidence = 50
+            if aid == "m30_observer" and isinstance(data, dict):
+                for obs in data.get("m30_observations", []):
+                    if obs.get("stock_code") == selected_stock:
+                        confidence = min(100, max(0, int(obs.get("score", 0))))
+                        break
+            elif aid == "risk_guardian" and isinstance(data, dict):
+                for h in data.get("holdings", []):
+                    if h.get("stock_code") == selected_stock:
+                        confidence = max(20, 100 - len(h.get("risk_flags", [])) * 15)
+                        break
+            agents.append({
+                "id": aid,
+                "name": agent_id_to_name.get(aid, aid),
+                "stance": stance,
+                "confidence": confidence,
+                "evidence": summary[:80] + "..." if len(summary) > 80 else summary,
+                "concern": "数据待丰富" if stance == "neutral" else ("风险标记较多" if stance == "oppose" else "暂无显著担忧"),
+                "action": "观察" if stance == "neutral" else ("谨慎" if stance == "oppose" else "关注"),
+            })
+
+    # 冲突/共振（优先从 per_stock_opinion 读取）
+    support_agents = stock_opinion.get("support_agents", []) if isinstance(stock_opinion, dict) else []
+    oppose_agents = stock_opinion.get("oppose_agents", []) if isinstance(stock_opinion, dict) else []
+    resonance_agents = [agent_id_to_name.get(a, a) for a in support_agents] if support_agents else []
+    conflict_agents = [agent_id_to_name.get(a, a) for a in oppose_agents] if oppose_agents else []
+
+    # 异常标记
+    has_fake_breakout = stock_opinion.get("has_fake_breakout", False) if isinstance(stock_opinion, dict) else False
+    has_overheat = stock_opinion.get("has_overheat", False) if isinstance(stock_opinion, dict) else False
+    has_data_anomaly = stock_opinion.get("has_data_anomaly", False) if isinstance(stock_opinion, dict) else False
+
+    # 权重
+    weights = []
+    tf_weights = selected_router.get("tf_weights", {}) if isinstance(selected_router, dict) else {}
+    tf_labels = {"MN1": "MN1 Agent", "W1": "W1 Agent", "D1": "D1 Agent", "M30": "M30 Agent"}
+    for tf, info in tf_weights.items():
+        if isinstance(info, dict):
+            bw = info.get("base_weight", 0)
+            weights.append({
+                "label": tf_labels.get(tf, tf),
+                "value": f"{bw:.0%}",
+                "pct": int(bw * 100),
+            })
+    if not weights:
+        weights = [
+            {"label": "MN1 Agent", "value": "35%", "pct": 35},
+            {"label": "W1 Agent", "value": "30%", "pct": 30},
+            {"label": "D1 Agent", "value": "25%", "pct": 25},
+            {"label": "M30 Agent", "value": "10%", "pct": 10},
+        ]
+
+    # 结论
+    conclusion = selected_router.get("conclusion", "neutral") if isinstance(selected_router, dict) else "neutral"
+    conclusion_map = {
+        "strong_observation": "重点观察",
+        "moderate_observation": "适度观察",
+        "neutral": "观察中",
+        "risk_warning": "风险警告",
+    }
+
+    # 风险反驳（优先从 debate_summary.risk_summary 读取）
+    risk_summary = debate_summary.get("risk_summary", {}) if isinstance(debate_summary, dict) else {}
+    risk_reason = risk_summary.get("reason", "") if isinstance(risk_summary, dict) else ""
+    risk_invalid = risk_summary.get("invalid_condition", "") if isinstance(risk_summary, dict) else ""
+    risk_human = risk_summary.get("human_check", "") if isinstance(risk_summary, dict) else ""
+
+    return {
+        "target_date": target_date,
+        "candidates": candidates,
+        "selected_stock": selected_stock,
+        "selected_state_hex": selected_router.get("state_hex") if isinstance(selected_router, dict) else {},
+        "conclusion": conclusion,
+        "conclusion_label": conclusion_map.get(conclusion, conclusion),
+        "agents": agents,
+        "resonance_agents": resonance_agents,
+        "conflict_agents": conflict_agents,
+        "resonance_reason": "多周期 E/F 共振一致，Agent 观点趋同" if resonance_agents else None,
+        "conflict_reason": "Risk Guardian 对动能衰减/风险标记提出警告" if conflict_agents else None,
+        "weights": weights,
+        "weight_reason": "周期层级基础权重 + Agent 共识调整 + M30 精细微调",
+        "has_fake_breakout": bool(has_fake_breakout),
+        "has_overheat": bool(has_overheat),
+        "has_data_anomaly": bool(has_data_anomaly),
+        "risk_reason": risk_reason or "当前标的处于多周期共振状态，但需确认成交量是否持续配合。",
+        "risk_invalid_condition": risk_invalid or "D1 收盘价跌破支撑位且成交量萎缩",
+        "risk_human_check": risk_human or "是否为假突破？行业承接是否持续？",
+        "ledger_summary": None,
+        "ledger_action": None,
+    }
+
+
+@app.get("/agent-debate", response_class=HTMLResponse)
+def agent_debate_page(
+    request: Request,
+    stock_code: str = "",
+) -> HTMLResponse:
+    profile = get_current_profile(request)
+    return templates.TemplateResponse(
+        request,
+        "agent-debate.html",
+        {
+            "request": request,
+            "today": str(date.today()),
+            "debate": _agent_debate_data(stock_code),
+            "current_user": profile,
+        },
+    )
+
+
+@app.post("/api/agent-debate/ledger")
+def api_agent_debate_ledger(body: dict | None = Body(default=None)) -> JSONResponse:
+    """将当前 Router 观察结论写入 AgentMemory 账本。"""
+    try:
+        body = body or {}
+        stock_code = str(body.get("stock_code") or "").strip()
+        raw_date = str(body.get("date") or date.today()).strip()
+        as_of_date = date.fromisoformat(raw_date)
+
+        from scripts.decision_observation_ledger import write_current_router_ledger
+
+        result = write_current_router_ledger(as_of_date, stock_code=stock_code)
+        if not result.get("ok"):
+            return JSONResponse(
+                content=result,
+                status_code=404,
+            )
+
+        return JSONResponse(content=result)
+    except Exception as exc:
+        return JSONResponse(content={"ok": False, "error": str(exc)}, status_code=500)
 
 
 @app.get("/watchlist", response_class=HTMLResponse)
@@ -3632,6 +3916,9 @@ class ChatResponse(BaseModel):
     mode_used: str = "chat"
     provider: str = "rule_based"
     enhancement_used: bool = False
+    answer_origin: str = "rule_based"
+    data_support: str = "local_data"
+    support_note: str = ""
     task_card: dict[str, Any] | None = None
 
 
@@ -4103,6 +4390,49 @@ def _enhance_result_defaults(
     return result
 
 
+LOCAL_EVIDENCE_SOURCES = {
+    "market_phase",
+    "daily_snapshot",
+    "industry_rotation",
+    "ifind_industry_chain_profile",
+    "research_evidence",
+    "valuation_reference",
+    "market_views",
+    "watch_command",
+    "watch_command_ledger",
+    "page_context",
+    "session_context",
+}
+
+
+def _annotate_chat_support(result: dict[str, Any]) -> dict[str, Any]:
+    """标注观象回答的来源与证据支撑，避免把 LLM 文本包装成数据结论。"""
+    provider = str(result.get("provider") or "rule_based")
+    sources = {str(item) for item in (result.get("sources") or [])}
+    has_local_support = bool(sources & LOCAL_EVIDENCE_SOURCES)
+
+    if provider in {"agently_deepseek", "managed_deepseek"} or provider.startswith("workflow_"):
+        is_workflow = provider.startswith("workflow_")
+        result["answer_origin"] = "workflow" if is_workflow else "deepseek"
+        origin_label = "外部工作流" if is_workflow else "DeepSeek"
+        if has_local_support:
+            result["data_support"] = "local_data"
+            result["support_note"] = f"{origin_label}生成，已结合本地数据证据。"
+        else:
+            result["data_support"] = "llm_only"
+            result["support_note"] = f"{origin_label}生成，暂无实际数据支持。"
+            freshness = str(result.get("freshness_note") or "").strip()
+            warning = f"本回答为{origin_label}生成，当前未匹配到本地数据证据。"
+            if warning not in freshness:
+                result["freshness_note"] = f"{freshness} {warning}".strip()
+    else:
+        result["answer_origin"] = "rule_based"
+        result["data_support"] = "local_data" if has_local_support else "rule_only"
+        result["support_note"] = "规则回答，基于本地页面或快照口径。" if has_local_support else "规则回答，暂无实际数据支持。"
+
+    return result
+
+
 def _build_memory_context(session_id: str) -> dict[str, Any]:
     """从最近 3 轮对话中规则提取记忆上下文。零外部依赖，不调用 LLM。"""
     import json as _json
@@ -4254,7 +4584,7 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
     try:
         from agently_adapter.qa_entry import handle
     except Exception:
-        return None
+        handle = None
 
     msg = query.message.strip().lower()
 
@@ -4350,7 +4680,16 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
             context["stock_states"] = {}
 
     # ── 统一入口：转发到 agently 场景化多 Agent 链 ──────────────────────────
-    return handle(query.message, context)
+    if handle is not None:
+        result = handle(query.message, context)
+        if result is not None:
+            return result
+
+    try:
+        from agently_adapter.workflow_bridge import call_workflow
+        return call_workflow(query.message, context)
+    except Exception:
+        return None
 
 
 def _value_context_for_agent(symbol: str) -> dict[str, Any]:
@@ -5047,6 +5386,7 @@ def chat_query(request: Request, query: ChatQuery) -> JSONResponse:
             result["provider"] = "rule_based"
         if result.get("enhancement_used") is None:
             result["enhancement_used"] = False
+        result = _annotate_chat_support(result)
         result["user_id"] = user_id  # 绑定会话到当前用户
         result["session_id"] = query.session_id or ""
 
@@ -5083,6 +5423,9 @@ def chat_query(request: Request, query: ChatQuery) -> JSONResponse:
                 "mode_used": mode_used,
                 "provider": "rule_based",
                 "enhancement_used": False,
+                "answer_origin": "rule_based",
+                "data_support": "rule_only",
+                "support_note": "规则兜底，暂无实际数据支持。",
                 "user_id": user_id,
                 "session_id": query.session_id or "",
                 "error": str(exc),
@@ -5475,7 +5818,8 @@ async def admin_upload_data(
 def admin_kill_switch_activate(request: Request, payload: dict[str, Any] | None = None) -> JSONResponse:
     """激活 Kill Switch，暂停所有自进化功能。"""
     profile = get_current_profile(request)
-    if not profile.get("username"):
+    username = profile.get("username") or ""
+    if not username or username == "anonymous":
         return JSONResponse(content={"ok": False, "error": "unauthorized"}, status_code=401)
 
     from hermass_platform.red_lines import activate_kill_switch

@@ -66,3 +66,73 @@ def test_chat_query_llm_failure_payload_uses_rule_answer():
     assert payload["degraded_reason"] == "llm_unavailable"
     assert "链路调用失败" not in payload["answer"]
     assert "增强解释链路暂不可用" in payload["freshness_note"]
+
+
+def test_chat_query_workflow_answer_discloses_no_local_support():
+    client = TestClient(app)
+    workflow_payload = {
+        "answer": "这是外部工作流扩展回答。",
+        "why": "由 N8N 知识工作流返回。",
+        "multi_cycle_view": "",
+        "single_cycle_position": "",
+        "avoid": "不要当成本地数据结论。",
+        "next_actions": [],
+        "sources": ["external_workflow", "workflow_n8n"],
+        "freshness_note": "",
+        "provider": "workflow_n8n",
+        "workflow_provider": "n8n",
+        "enhancement_used": True,
+    }
+
+    with patch("web.main._llm_chat_answer", return_value=workflow_payload):
+        response = client.post(
+            "/api/chat/query",
+            json={
+                "message": "解释一个本地没有覆盖的问题",
+                "page_context": "/",
+                "mode": "chat",
+                "use_llm": True,
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "workflow_n8n"
+    assert payload["answer_origin"] == "workflow"
+    assert payload["data_support"] == "llm_only"
+    assert "暂无实际数据支持" in payload["support_note"]
+
+
+def test_chat_query_workflow_answer_with_local_sources_keeps_origin_workflow():
+    client = TestClient(app)
+    workflow_payload = {
+        "answer": "这是外部工作流扩展回答。",
+        "why": "由 Dify 工作流返回。",
+        "multi_cycle_view": "",
+        "single_cycle_position": "",
+        "avoid": "不要当成自动交易建议。",
+        "next_actions": [],
+        "sources": ["daily_snapshot", "workflow_dify"],
+        "freshness_note": "",
+        "provider": "workflow_dify",
+        "workflow_provider": "dify",
+        "enhancement_used": True,
+    }
+
+    with patch("web.main._llm_chat_answer", return_value=workflow_payload):
+        response = client.post(
+            "/api/chat/query",
+            json={
+                "message": "解释一个本地有支持的问题",
+                "page_context": "/",
+                "mode": "chat",
+                "use_llm": True,
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "workflow_dify"
+    assert payload["answer_origin"] == "workflow"
+    assert payload["data_support"] == "local_data"
+    assert "已结合本地数据证据" in payload["support_note"]
