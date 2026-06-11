@@ -119,6 +119,13 @@
       "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python tools/obsidian_exporter/cli.py export",
       "description": "每 4 小时将项目当天对话导出到 Obsidian vault（历史回填手动用 export --all）",
       "delivery": "terminal"
+    },
+    {
+      "name": "Serenity 产业链瓶颈分析",
+      "schedule": "0 22 * * *",
+      "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python scripts/run_serenity_chain_analysis.py --all",
+      "description": "每日 22:00 运行 Serenity 式产业链瓶颈分析，产出 Markdown 报告并写入 AgentMemory",
+      "delivery": "terminal"
     }
   ]
 }
