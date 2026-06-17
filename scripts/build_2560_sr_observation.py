@@ -187,7 +187,7 @@ def load_optional_intraday_bars(
             con.close()
             return empty
         # Auto-detect date column: some sources use available_date, others use bar_date
-        cols = {row[0] for row in con.execute(f"PRAGMA table_info('{table_name}')").fetchall()}
+        cols = {row[1] for row in con.execute(f"PRAGMA table_info('{table_name}')").fetchall()}
         date_col = "available_date" if "available_date" in cols else "bar_date" if "bar_date" in cols else None
         if date_col is None:
             con.close()
