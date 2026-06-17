@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hermass 2560 SR 收缩观察</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <style>
+    .role-badge { padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; }
+    .role-leader { background: #fef3c7; color: #92400e; }
+    .role-core { background: #dbeafe; color: #1e40af; }
+    .role-elastic { background: #fce7f3; color: #9d174d; }
+    .role-laggard { background: #f3f4f6; color: #6b7280; }
+    .filter-pass { color: #059669; font-weight: 600; }
+    .filter-fail { color: #dc2626; }
+    .filter-wait { color: #d97706; }
+    .filter-norun { color: #9ca3af; }
+    .matrix-up { color: #059669; }
+    .matrix-down { color: #dc2626; }
+    .matrix-flat { color: #6b7280; }
+    .sr-zone { font-family: monospace; font-size: 0.85rem; }
+    .contraction-confirmed { background: #d1fae5; padding: 2px 6px; border-radius: 3px; }
+    .contraction-pending { background: #fef3c7; padding: 2px 6px; border-radius: 3px; }
+    .stock-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 16px; margin-bottom: 10px; }
+    .stock-card h4 { margin: 0 0 6px 0; }
+    .filter-row { display: flex; gap: 12px; flex-wrap: wrap; font-size: 0.85rem; margin: 6px 0; }
+    .filter-item { padding: 2px 8px; border-radius: 3px; background: #f9fafb; }
+    .disclaimer { color: #6b7280; font-size: 0.8rem; margin-top: 24px; padding-top: 12px; border-top: 1px solid #e5e7eb; }
+    .subsector-header { background: #f9fafb; padding: 10px 16px; border-radius: 6px; margin: 16px 0 8px; }
+    .subsector-header h3 { margin: 0; }
+    .role-counts { font-size: 0.85rem; color: #6b7280; }
+  </style>
+</head>
+<body>
+<header class="topbar">
+  <div>
+    <p class="eyebrow">Hermass 2560 SR 收缩观察系统</p>
+    <h1>研究观察</h1>
+  </div>
+  <div class="date">
+    <a href="/">首页</a>
+    <a href="/market">市场</a>
+    <a href="/industry">行业</a>
+    <a href="/chain-studio">产业链工作台</a>
+    <a href="/research">研究</a>
+    <a href="/watchlist">执行</a>
+    <a href="/backtest">回测</a>
+    <a href="/2560-sr-observation" class="active">2560 SR</a>
+    <span>数据 {{ report.observation_date }}</span>
+  </div>
+</header>
+
+<main class="layout">
+  <section class="panel">
+    <div class="panel-head">
+      <h2>2560 + 长周期均线 + SR 收缩研究观察</h2>
+      <span>样本数量: {{ report.stock_count }} 只 | 仅作研究观察，不构成交易建议</span>
+    </div>
+
+    <div style="margin: 12px 0; font-size: 0.85rem; color: #6b7280;">
+      <strong>指标口径：</strong>
+      MA25 趋势方向盘 | VMA5 / <strong>60日均量线</strong> 量能组 | MA144/169/200 长周期框架 | SR 支撑阻力区域 | W1/D1/M30 多周期矩阵
+    </div>
+
+    {% for subsector in report.subsectors %}
+    <div class="subsector-header">
+      <h3>{{ subsector.board }} / {{ subsector.subsector }}</h3>
+      <span class="role-counts">
+        {% if subsector.role_counts.get('领头羊', 0) > 0 %}
+        <span class="role-badge role-leader">领头羊 {{ subsector.role_counts['领头羊'] }}</span>
+        {% endif %}
+        {% if subsector.role_counts.get('核心股', 0) > 0 %}
+        <span class="role-badge role-core">核心股 {{ subsector.role_counts['核心股'] }}</span>
+        {% endif %}
+        {% if subsector.role_counts.get('弹性股', 0) > 0 %}
+        <span class="role-badge role-elastic">弹性股 {{ subsector.role_counts['弹性股'] }}</span>
+        {% endif %}
+        {% if subsector.role_counts.get('掉队股', 0) > 0 %}
+        <span class="role-badge role-laggard">掉队股 {{ subsector.role_counts['掉队股'] }}</span>
+        {% endif %}
+      </span>
+    </div>
+
+    {% for stock in subsector.stocks %}
+    <div class="stock-card">
+      <h4>
+        {{ stock.stock_code }} {{ stock.stock_name }}
+        {% if stock.role == '领头羊' %}
+        <span class="role-badge role-leader">领头羊</span>
+        {% elif stock.role == '核心股' %}
+        <span class="role-badge role-core">核心股</span>
+        {% elif stock.role == '弹性股' %}
+        <span class="role-badge role-elastic">弹性股</span>
+        {% else %}
+        <span class="role-badge role-laggard">掉队股</span>
+        {% endif %}
+      </h4>
+
+      <div class="filter-row">
+        <span class="filter-item">
+          长周期框架:
+          {% if stock.serial_filter.long_cycle.status == '通过' %}
+          <span class="filter-pass">{{ stock.serial_filter.long_cycle.status }}</span>
+          {% elif '排除' in stock.serial_filter.long_cycle.status %}
+          <span class="filter-fail">{{ stock.serial_filter.long_cycle.status }}</span>
+          {% else %}
+          <span class="filter-wait">{{ stock.serial_filter.long_cycle.status }}</span>
+          {% endif %}
+        </span>
+        <span class="filter-item">
+          MA25趋势:
+          {% if stock.serial_filter.trend.status == '通过' %}
+          <span class="filter-pass">{{ stock.serial_filter.trend.status }}</span>
+          {% elif stock.serial_filter.trend.status == '掉队' %}
+          <span class="filter-fail">{{ stock.serial_filter.trend.status }}</span>
+          {% else %}
+          <span class="filter-norun">{{ stock.serial_filter.trend.status }}</span>
+          {% endif %}
+        </span>
+        <span class="filter-item">
+          量能扳机:
+          {% if stock.serial_filter.volume_trigger.status == '核心观察' %}
+          <span class="filter-pass">{{ stock.serial_filter.volume_trigger.status }}</span>
+          {% elif stock.serial_filter.volume_trigger.status == '缩量观察' %}
+          <span class="filter-wait">{{ stock.serial_filter.volume_trigger.status }}</span>
+          {% elif '否决' in stock.serial_filter.volume_trigger.status %}
+          <span class="filter-fail">{{ stock.serial_filter.volume_trigger.status }}</span>
+          {% else %}
+          <span class="filter-norun">{{ stock.serial_filter.volume_trigger.status }}</span>
+          {% endif %}
+        </span>
+      </div>
+
+      <div style="margin: 6px 0; font-size: 0.85rem;">
+        {{ stock.stock_code }}
+        长周期: {{ stock.d1.long_cycle_arrangement }}{% if stock.d1.long_ma_converging %} · 收敛中{% endif %}
+        | MA25 close
+        {% if stock.d1.ma25 is not none and stock.d1.close > stock.d1.ma25 %}上方{% else %}下方或贴近{% endif %}
+        · 斜率 {{ "%.2f" % ((stock.d1.ma25_slope or 0.0) * 100) }}%
+        | VMA5 {% if stock.d1.vma5 is not none and stock.d1.vma60 is not none %}{% if stock.d1.vma5 > stock.d1.vma60 %}>{% elif stock.d1.vma5 < stock.d1.vma60 %}<{% else %}≈{% endif %} 60日均量线 · {% if stock.d1.is_green_candle %}收阳{% elif stock.d1.is_red_candle %}收阴{% else %}平收{% endif %}{% else %}量能数据不足{% endif %}
+      </div>
+
+      <div class="sr-zone">
+        {% if stock.d1.sr_zone.support_lower is not none %}
+        SR支撑区 ¥{{ "%.2f" % stock.d1.sr_zone.support_lower }} - ¥{{ "%.2f" % stock.d1.sr_zone.support_upper }}
+        | SR阻力区 ¥{{ "%.2f" % stock.d1.sr_zone.resistance_lower }} - ¥{{ "%.2f" % stock.d1.sr_zone.resistance_upper }}
+        | 当前 {{ stock.d1.sr_zone.position }}
+        {% else %}
+        SR 数据不足
+        {% endif %}
+      </div>
+
+      <div style="font-size: 0.82rem; margin: 4px 0;">
+        多周期矩阵:
+        W1
+        {% if stock.matrix.W1.trend == '↑' %}<span class="matrix-up">↑</span>{% elif stock.matrix.W1.trend == '↓' %}<span class="matrix-down">↓</span>{% else %}<span class="matrix-flat">{{ '→' if stock.matrix.W1.trend == '→' else stock.matrix.W1.trend }}</span>{% endif %}
+        {{ stock.matrix.W1.volume }} {{ stock.matrix.W1.sr_position }}
+        | D1
+        {% if stock.matrix.D1.trend == '↑' %}<span class="matrix-up">↑</span>{% elif stock.matrix.D1.trend == '↓' %}<span class="matrix-down">↓</span>{% else %}<span class="matrix-flat">{{ '→' if stock.matrix.D1.trend == '→' else stock.matrix.D1.trend }}</span>{% endif %}
+        {{ stock.matrix.D1.volume }} {{ stock.matrix.D1.sr_position }}
+        | M30
+        {% if stock.matrix.M30.trend == '↑' %}<span class="matrix-up">↑</span>{% elif stock.matrix.M30.trend == '↓' %}<span class="matrix-down">↓</span>{% else %}<span class="matrix-flat">{{ '→' if stock.matrix.M30.trend == '→' else stock.matrix.M30.trend }}</span>{% endif %}
+        {{ stock.matrix.M30.volume }} {{ stock.matrix.M30.sr_position }}
+        · {{ stock.resonance }}
+      </div>
+
+      <div style="font-size: 0.82rem;">
+        收缩: {{ stock.contraction_summary }}
+      </div>
+
+      <div style="font-size: 0.82rem; color: #6b7280;">
+        失效条件: {{ stock.invalidations }}
+      </div>
+    </div>
+    {% endfor %}
+    {% endfor %}
+
+    <div class="disclaimer">
+      <strong>研究观察声明：</strong>本页面内容仅为技术结构的研究观察，不构成任何形式的投资建议。所有指标（MA25/VMA5/60日均量线/MA144/169/200/SR区域）仅描述当前市场状态，不暗示后续方向或交易机会。具体交易决策请基于自身风险承受能力独立判断。
+    </div>
+  </section>
+</main>
+</body>
+</html>

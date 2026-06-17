@@ -3889,6 +3889,70 @@ def strategy_editor_page(request: Request) -> HTMLResponse:
     )
 
 
+# ─── 2560 SR 观察 ────────────────────────────────────
+
+RESEARCH_OBSERVER_DIR = ROOT / "outputs" / "research_observer"
+
+
+def _load_latest_2560_report() -> dict[str, Any]:
+    """读取最新的 2560 SR 观察 JSON 报告。"""
+    if not RESEARCH_OBSERVER_DIR.exists():
+        return {"subsectors": [], "stock_count": 0, "observation_date": ""}
+    candidates = sorted(RESEARCH_OBSERVER_DIR.glob("ma2560_sr_observation_*.json"), reverse=True)
+    if not candidates:
+        return {"subsectors": [], "stock_count": 0, "observation_date": ""}
+    return json.loads(candidates[0].read_text(encoding="utf-8"))
+
+
+@app.get("/2560-sr-observation", response_class=HTMLResponse)
+def observation_2560_sr_page(request: Request) -> HTMLResponse:
+    """2560 + 长周期均线 + SR 收缩研究观察页面。"""
+    profile = get_current_profile(request)
+    report = _load_latest_2560_report()
+    return templates.TemplateResponse(
+        request,
+        "2560-sr-observation.html",
+        {
+            "request": request,
+            "today": str(date.today()),
+            "current_user": profile,
+            "report": report,
+        },
+    )
+
+
+@app.get("/api/2560-sr-observation")
+def api_observation_2560_sr(request: Request) -> JSONResponse:
+    """返回最新 2560 SR 观察 JSON 数据。"""
+    report = _load_latest_2560_report()
+    report["ok"] = True
+    return JSONResponse(content=report)
+
+
+@app.post("/api/2560-sr-observation/build")
+def api_observation_2560_sr_build(request: Request) -> JSONResponse:
+    """触发 2560 SR 观察报告重建。"""
+    import subprocess
+    import sys
+    try:
+        script = ROOT / "scripts" / "build_2560_sr_observation.py"
+        result = subprocess.run(
+            [sys.executable, str(script), "--date", str(date.today())],
+            capture_output=True, text=True, timeout=120, cwd=str(ROOT),
+        )
+        if result.returncode == 0:
+            output = json.loads(result.stdout.strip())
+            return JSONResponse(content={"ok": True, **output})
+        return JSONResponse(
+            content={"ok": False, "error": result.stderr.strip() or result.stdout.strip()},
+            status_code=500,
+        )
+    except subprocess.TimeoutExpired:
+        return JSONResponse(content={"ok": False, "error": "构建超时"}, status_code=504)
+    except Exception as exc:
+        return JSONResponse(content={"ok": False, "error": str(exc)}, status_code=500)
+
+
 # ─── AI 助手接口 ─────────────────────────────────────
 
 

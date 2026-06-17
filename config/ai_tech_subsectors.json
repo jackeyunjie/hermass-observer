@@ -1,0 +1,46 @@
+{
+  "schema_version": "ai_tech_subsectors_v1",
+  "board": "AI科技",
+  "subsectors": [
+    {
+      "id": 1,
+      "name": "AI算力芯片",
+      "direction": "GPU / ASIC / AI加速器 / 国产替代"
+    },
+    {
+      "id": 2,
+      "name": "AI服务器与整机",
+      "direction": "服务器 / ODM-OEM / 液冷服务器"
+    },
+    {
+      "id": 3,
+      "name": "光模块与高速互联",
+      "direction": "光模块 / CPO / 交换芯片 / PCB / 高速连接器"
+    },
+    {
+      "id": 4,
+      "name": "数据中心与电力配套",
+      "direction": "IDC / 液冷 / UPS / 电源 / 温控"
+    },
+    {
+      "id": 5,
+      "name": "云与大模型平台",
+      "direction": "云厂商 / 模型服务 / MaaS / AI开发平台"
+    },
+    {
+      "id": 6,
+      "name": "AI应用软件",
+      "direction": "办公 / 教育 / 医疗 / 金融 / 营销 / 工业软件"
+    },
+    {
+      "id": 7,
+      "name": "端侧AI",
+      "direction": "AI PC / AI手机 / 智能硬件 / 机器人"
+    },
+    {
+      "id": 8,
+      "name": "数据与安全",
+      "direction": "数据要素 / 数据治理 / 隐私计算 / AI安全"
+    }
+  ]
+}
