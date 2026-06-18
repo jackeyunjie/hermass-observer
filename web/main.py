@@ -5039,7 +5039,10 @@ def _rule_fallback_after_llm_failure(query: ChatQuery, failure: dict[str, Any]) 
         use_llm=False,
     )
     result = _chat_answer(fallback_query)
-    result["provider"] = "rule_based"
+    # 只有当 _chat_answer 实际走规则回答时才覆盖 provider；
+    # 若 _chat_answer 已落到 _general_deepseek_answer() 返回了 deepseek_direct，则保留。
+    if result.get("provider") in (None, "", "rule_based"):
+        result["provider"] = "rule_based"
     result["enhancement_used"] = False
     result["degraded"] = True
     result["degraded_reason"] = "llm_unavailable"
