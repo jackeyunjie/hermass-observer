@@ -3239,9 +3239,41 @@ def _chain_candidates_data() -> dict[str, Any]:
         return {"ok": False, "error": str(exc)}
 
 
+def _chain_nodes_data() -> dict[str, Any]:
+    """GET /api/chain/nodes — 所有产业链节点"""
+    if not CHAIN_EVIDENCE_DB.exists():
+        return {"ok": False, "error": "数据库不存在", "nodes": []}
+    try:
+        con = _chain_db()
+        rows = con.execute("""
+            SELECT chain_id, node_id, node_name, state_date,
+                   fund_flow_score, position_score, momentum_score, state_hex
+            FROM chain_studio_nodes ORDER BY chain_id, node_id
+        """).fetchall()
+        con.close()
+        return {
+            "ok": True,
+            "nodes": [
+                {
+                    "chain_id": r[0], "node_id": r[1], "node_name": r[2] or r[1],
+                    "state_date": str(r[3]) if r[3] else None,
+                    "fund_flow_score": r[4], "position_score": r[5],
+                    "momentum_score": r[6], "state_hex": r[7] or "--",
+                }
+                for r in rows
+            ],
+        }
+    except Exception as exc:
+        return {"ok": False, "error": str(exc), "nodes": []}
+
+
 @app.get("/api/chain/list")
 def api_chain_list() -> JSONResponse:
     return JSONResponse(content=_chain_list_data())
+
+@app.get("/api/chain/nodes")
+def api_chain_nodes() -> JSONResponse:
+    return JSONResponse(content=_chain_nodes_data())
 
 
 @app.get("/api/chain/rrg")
