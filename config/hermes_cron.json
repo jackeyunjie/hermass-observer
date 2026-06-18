@@ -121,6 +121,13 @@
       "delivery": "terminal"
     },
     {
+      "name": "M30 2560 回调二波信号邮件",
+      "schedule": "50 15 * * 1-5",
+      "command": "cd /Users/lv111101/Documents/hermass-observer-product && set -a && source .env && set +a && .venv/bin/python scripts/merge_m30_db.py && .venv/bin/python scripts/build_m30_2560_second_wave.py --date $(date +%Y-%m-%d) --foundation-db $(ls -t outputs/p116_foundation_*/p116_foundation.duckdb | head -1) --m30-db data/blackwolf_m30_merged.duckdb && .venv/bin/python scripts/send_m30_second_wave_email.py --date $(date +%Y-%m-%d)",
+      "description": "每个交易日 15:50 合并当日M30数据、生成A/B/C分级信号、邮件发送",
+      "delivery": "terminal"
+    },
+    {
       "name": "Serenity 产业链瓶颈分析",
       "schedule": "0 22 * * *",
       "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python scripts/run_serenity_chain_analysis.py --all",

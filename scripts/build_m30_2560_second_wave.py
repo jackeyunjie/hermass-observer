@@ -18,8 +18,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import statistics
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -205,7 +204,8 @@ def check_w1(bars: list[dict[str, Any]]) -> W1Status:
 @dataclass
 class D1Pullback:
     is_healthy: bool
-    status: str = ""  # "健康回调" / "趋势失败" / "正常行进" / "数据不足"
+    tier: str = ""  # "强通过" / "边界观察" / "失败"
+    status: str = ""  # 中文状态描述
     close: float | None = None
     ma25: float | None = None
     ma25_slope: float | None = None
@@ -213,14 +213,15 @@ class D1Pullback:
     vma60: float | None = None
     is_green: bool = False
     retrace_pct: float | None = None
+    overextension_pct: float | None = None  # D1 close 相对 MA25 的偏离百分比
     consecutive_red: int = 0
     details: list[str] = field(default_factory=list)
 
 
 def check_d1_pullback(bars: list[dict[str, Any]]) -> D1Pullback:
-    """D1 判断：健康回调 vs 趋势失败。"""
+    """D1 判断：强通过 / 边界观察 / 失败。"""
     if len(bars) < 80:
-        return D1Pullback(False, status="数据不足")
+        return D1Pullback(False, tier="失败", status="数据不足")
 
     closes = [float(b["close"]) for b in bars]
     opens = [float(b["open"]) for b in bars]
@@ -237,6 +238,7 @@ def check_d1_pullback(bars: list[dict[str, Any]]) -> D1Pullback:
     cur_vma60 = vma60[-1]
     is_green = cur_close > cur_open
     retrace = max_retrace_pct(closes, 60)
+    overextension = ((cur_close / cur_ma25) - 1.0) if cur_ma25 and cur_ma25 > 0 else None
 
     # consecutive red candles (high volume only: volume > VMA60)
     cons_red = 0
@@ -246,49 +248,47 @@ def check_d1_pullback(bars: list[dict[str, Any]]) -> D1Pullback:
         else:
             break
 
-    details: list[str] = []
+    if cur_ma25 is None:
+        return D1Pullback(False, tier="失败", status="数据不足")
 
-    # Normal uptrend: close > MA25 and slope not down
-    if cur_ma25 is not None and cur_close > cur_ma25 and ma25_slope_val is not None and ma25_slope_val >= 0:
-        return D1Pullback(True, status="正常行进", close=cur_close, ma25=cur_ma25,
-                          ma25_slope=ma25_slope_val, vma5=cur_vma5, vma60=cur_vma60, is_green=is_green,
-                          retrace_pct=retrace, consecutive_red=cons_red)
-
-    # Pullback check
-    if cur_ma25 is None or ma25_slope_val is None or cur_vma60 is None:
-        return D1Pullback(False, status="数据不足")
-
+    # ── 失败条件 ──
     fail_flags: list[str] = []
 
-    # Retrace too deep (> 25%)
     if retrace is not None and retrace > 0.25:
         fail_flags.append(f"回调深度 {retrace:.1%} > 25%")
-
-    # Consecutive high-volume red candles >= 3
     if cons_red >= 3:
         fail_flags.append(f"连续 {cons_red} 天放量阴线")
-
-    # MA25 slope clearly down
-    if ma25_slope_val < -0.02:
+    if ma25_slope_val is not None and ma25_slope_val < -0.02:
         fail_flags.append("D1 MA25 斜率明确向下")
 
     if fail_flags:
-        return D1Pullback(False, status="趋势失败",
+        return D1Pullback(False, tier="失败", status="趋势失败",
                           close=cur_close, ma25=cur_ma25, ma25_slope=ma25_slope_val,
                           vma5=cur_vma5, vma60=cur_vma60, is_green=is_green,
-                          retrace_pct=retrace, consecutive_red=cons_red, details=fail_flags)
+                          retrace_pct=retrace, overextension_pct=overextension,
+                          consecutive_red=cons_red, details=fail_flags)
 
-    # Healthy pullback: close < MA25 but none of the fail flags
+    # ── 强通过：close > MA25 且 slope >= 0 ──
+    if cur_close > cur_ma25 and ma25_slope_val is not None and ma25_slope_val >= 0:
+        return D1Pullback(True, tier="强通过", status="正常行进",
+                          close=cur_close, ma25=cur_ma25, ma25_slope=ma25_slope_val,
+                          vma5=cur_vma5, vma60=cur_vma60, is_green=is_green,
+                          retrace_pct=retrace, overextension_pct=overextension,
+                          consecutive_red=cons_red)
+
+    # ── 边界观察：close < MA25 但无失败信号，或 slope 轻微走平 ──
     if cur_close < cur_ma25 and cur_vma5 is not None and cur_vma5 < cur_vma60:
-        return D1Pullback(True, status="健康回调(缩量回踩)",
+        return D1Pullback(True, tier="边界观察", status="缩量回踩",
                           close=cur_close, ma25=cur_ma25, ma25_slope=ma25_slope_val,
                           vma5=cur_vma5, vma60=cur_vma60, is_green=is_green,
-                          retrace_pct=retrace, consecutive_red=cons_red)
+                          retrace_pct=retrace, overextension_pct=overextension,
+                          consecutive_red=cons_red)
 
-    return D1Pullback(True, status="横盘整理",
+    return D1Pullback(True, tier="边界观察", status="横盘整理",
                       close=cur_close, ma25=cur_ma25, ma25_slope=ma25_slope_val,
                       vma5=cur_vma5, vma60=cur_vma60, is_green=is_green,
-                      retrace_pct=retrace, consecutive_red=cons_red)
+                      retrace_pct=retrace, overextension_pct=overextension,
+                      consecutive_red=cons_red)
 
 
 # ── M30 触发评分 ────────────────────────────────────────────
@@ -458,6 +458,12 @@ def scan_signals(
         m30 = check_m30_trigger(mb)
 
         # Aggregate
+        entry_p = calc_entry_price(mb)
+        stop_p = calc_stop_price(mb)
+        risk_width = abs((entry_p - stop_p) / entry_p) if entry_p and stop_p and entry_p > 0 else None
+        overext_pct = d1.overextension_pct
+        overextension = overext_pct is not None and overext_pct > 0.15
+
         signal: dict[str, Any] = {
             "stock_code": code,
             "stock_name": stock_names.get(code, ""),
@@ -467,10 +473,12 @@ def scan_signals(
             "w1_veto_reason": w1.veto_reason,
             "w1_arrangement": w1.arrangement,
             "w1_close_vs_ma25": "上方" if (w1.close is not None and w1.ma25 is not None and w1.close > w1.ma25) else "下方" if w1.close is not None else "N/A",
+            "d1_tier": d1.tier,
             "d1_status": d1.status,
             "d1_close": d1.close,
             "d1_ma25": d1.ma25,
             "d1_ma25_slope": f"{d1.ma25_slope:.4f}" if d1.ma25_slope else "N/A",
+            "d1_overextension_pct": f"{overext_pct:.1%}" if overext_pct is not None else "N/A",
             "d1_retrace_pct": f"{d1.retrace_pct:.1%}" if d1.retrace_pct else "N/A",
             "d1_consecutive_red": d1.consecutive_red,
             "m30_triggered": m30.triggered,
@@ -479,25 +487,42 @@ def scan_signals(
             "m30_close": m30.close,
             "m30_ma25": m30.ma25,
             "m30_ma25_slope": f"{m30.ma25_slope:.4f}" if m30.ma25_slope else "N/A",
-            "entry_price": calc_entry_price(mb),
-            "stop_price": calc_stop_price(mb),
+            "entry_price": entry_p,
+            "stop_price": stop_p,
+            "risk_width_pct": f"{risk_width:.1%}" if risk_width is not None else "N/A",
+            "overextension_flag": overextension,
             "risk_flags": [],
         }
 
         # Build risk flags
-        if d1.status == "趋势失败":
+        if d1.tier == "失败":
             signal["risk_flags"].append("D1 趋势失败")
         if d1.consecutive_red >= 3:
             signal["risk_flags"].append(f"D1 连续 {d1.consecutive_red} 天放量阴线")
         if w1.arrangement == "空头排列":
             signal["risk_flags"].append("W1 空头排列")
+        if overextension:
+            signal["risk_flags"].append(f"D1 乖离过大 ({overext_pct:.1%})")
+        if risk_width is not None and risk_width > 0.25:
+            signal["risk_flags"].append(f"止损宽度过大 ({risk_width:.1%})")
 
-        # Determine if this is a valid second-wave signal
-        eligible = (
-            w1.qualified
-            and d1.is_healthy
-            and m30.triggered
-        )
+        # ── 信号分级 A / B / C ──
+        w1_strong = w1.qualified and w1.close is not None and w1.ma25 is not None and w1.close > w1.ma25
+        d1_strong = d1.tier == "强通过"
+        d1_borderline = d1.tier == "边界观察"
+        m30_ok = m30.triggered
+
+        if w1_strong and d1_strong and m30_ok and not overextension and (risk_width is None or risk_width <= 0.25):
+            grade = "A"
+        elif w1.qualified and d1_borderline and m30_ok and not overextension and (risk_width is None or risk_width <= 0.25):
+            grade = "B"
+        elif m30.triggered:
+            grade = "C"
+        else:
+            grade = "-"
+
+        signal["signal_grade"] = grade
+        eligible = grade in ("A", "B")
         signal["eligible"] = eligible
 
         signals.append(signal)
@@ -508,11 +533,14 @@ def scan_signals(
 
 
 def render_markdown(signals: list[dict[str, Any]]) -> str:
+    a_count = sum(1 for s in signals if s.get("signal_grade") == "A")
+    b_count = sum(1 for s in signals if s.get("signal_grade") == "B")
+    c_count = sum(1 for s in signals if s.get("signal_grade") == "C")
     lines = [
         "# M30 2560 回调二波信号",
         "",
         f"扫描日期: {signals[0]['scan_date'] if signals else 'N/A'}",
-        f"总信号数: {len(signals)} | 合格: {sum(1 for s in signals if s['eligible'])}",
+        f"总信号数: {len(signals)} | A类(强): {a_count} | B类(边界): {b_count} | C类(仅观察): {c_count} | 否决: {len(signals)-a_count-b_count-c_count}",
         "",
         f"**{REQUIRED_DISCLAIMER}**",
         "",
@@ -521,18 +549,24 @@ def render_markdown(signals: list[dict[str, Any]]) -> str:
     ]
 
     for s in signals:
-        tag = "✅ 合格" if s["eligible"] else "❌ 否决"
+        grade = s.get("signal_grade", "-")
+        if grade in ("A", "B"):
+            tag = f"✅ {grade}类"
+        elif grade == "C":
+            tag = f"🔶 C类（仅观察）"
+        else:
+            tag = f"❌ 否决"
         lines.extend([
             f"## {s['stock_code']} {s['stock_name']} {tag}",
             "",
             f"| 层级 | 状态 | 详情 |",
             f"|------|------|------|",
             f"| W1 战略 | {'通过' if s['w1_qualified'] else '否决'} | 排列:{s['w1_arrangement']} close:{s['w1_close_vs_ma25']}MA25 |",
-            f"| D1 回调 | {s['d1_status']} | 回撤:{s['d1_retrace_pct']} 连阴:{s['d1_consecutive_red']}d MA25斜率:{s['d1_ma25_slope']} |",
+            f"| D1 回调 | {s['d1_tier']} ({s['d1_status']}) | 回撤:{s['d1_retrace_pct']} 乖离:{s['d1_overextension_pct']} 连阴:{s['d1_consecutive_red']}d |",
             f"| M30 触发 | {'触发' if s['m30_triggered'] else '未触发'} | 评分:{s['m30_score']}/100 {' '.join(s['m30_details'])} |",
             "",
-            f"入场参考: ¥{s['entry_price']} | 止损参考: ¥{s['stop_price']}",
-            f"风险标志: {', '.join(s['risk_flags']) if s['risk_flags'] else '无'}",
+            f"入场参考: ¥{s['entry_price']} | 止损参考: ¥{s['stop_price']} | 风险宽度: {s['risk_width_pct']}",
+            f"过热标志: {'是' if s.get('overextension_flag') else '否'} | 风险标志: {', '.join(s['risk_flags']) if s['risk_flags'] else '无'}",
             f"否决原因: {s['w1_veto_reason'] if not s['w1_qualified'] else 'W1通过'}",
             "",
         ])
@@ -587,11 +621,15 @@ def main() -> int:
     md_path = out_dir / f"{stem}.md"
     md_path.write_text(render_markdown(signals), encoding="utf-8")
 
-    eligible = sum(1 for s in signals if s["eligible"])
+    a_count = sum(1 for s in signals if s.get("signal_grade") == "A")
+    b_count = sum(1 for s in signals if s.get("signal_grade") == "B")
+    c_count = sum(1 for s in signals if s.get("signal_grade") == "C")
     print(json.dumps({
         "ok": True,
         "total": len(signals),
-        "eligible": eligible,
+        "grade_A": a_count,
+        "grade_B": b_count,
+        "grade_C": c_count,
         "json": str(json_path),
         "markdown": str(md_path),
     }, ensure_ascii=False))
