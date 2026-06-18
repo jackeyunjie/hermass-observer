@@ -186,6 +186,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
 <div class="toast" id="toast"></div>
 
 <script>
+// ── Safe fetch (strip credentials from URL inherited from Basic Auth) ──
+const API_BASE = window.location.origin;
+function sf(path, opts) { return fetch(new URL(path, API_BASE).toString(), opts); }
+
 // ── State ──
 let allChains = []; let allNodes = []; let allEvents = []; let allRRG = []; let allCandidates = [];
 let selectedChain = null; let expandedNode = null;
@@ -220,9 +224,9 @@ function updateFreshness(stateDate) {
 async function loadAll() {
   try {
     const [listRes, nodesRes, eventsRes, rrgRes, candRes] = await Promise.all([
-      fetch('/api/chain/list'), fetch('/api/chain/nodes'),
-      fetch('/api/chain/events'), fetch('/api/chain/rrg'),
-      fetch('/api/chain/candidates')
+      sf('/api/chain/list'), sf('/api/chain/nodes'),
+      sf('/api/chain/events'), sf('/api/chain/rrg'),
+      sf('/api/chain/candidates')
     ]);
     const list = await listRes.json();
     const nodes = await nodesRes.json();
@@ -279,8 +283,8 @@ async function selectChain(chainId) {
 
   try {
     const [detailRes, propRes] = await Promise.all([
-      fetch(`/api/chain/${chainId}`),
-      fetch(`/api/chain/${chainId}/propagation`)
+      sf(`/api/chain/${chainId}`),
+      sf(`/api/chain/${chainId}/propagation`)
     ]);
     const detail = await detailRes.json();
     const prop = await propRes.json();
@@ -482,7 +486,7 @@ async function showNodeDetail(chainId, nodeId) {
   if (detailEl) {
     detailEl.innerHTML = '<span style="color:var(--c-muted);">加载中...</span>';
     try {
-      const res = await fetch(`/api/chain/${chainId}/node/${nodeId}`);
+      const res = await sf(`/api/chain/${chainId}/node/${nodeId}`);
       const data = await res.json();
       if (data.ok && data.stocks && data.stocks.length > 0) {
         const stocksHtml = data.stocks.map(s =>
@@ -501,8 +505,8 @@ async function showNodeDetail(chainId, nodeId) {
     // Re-render to show the expanded row
     try {
       const [detailRes, propRes] = await Promise.all([
-        fetch(`/api/chain/${chainId}`),
-        fetch(`/api/chain/${chainId}/propagation`)
+        sf(`/api/chain/${chainId}`),
+        sf(`/api/chain/${chainId}/propagation`)
       ]);
       renderDetail(chainId, await detailRes.json(), await propRes.json());
       // Async load node detail
@@ -510,7 +514,7 @@ async function showNodeDetail(chainId, nodeId) {
         const el = document.getElementById(`node-detail-${nodeId}`);
         if (!el) return;
         try {
-          const res = await fetch(`/api/chain/${chainId}/node/${nodeId}`);
+          const res = await sf(`/api/chain/${chainId}/node/${nodeId}`);
           const data = await res.json();
           if (data.ok && data.stocks && data.stocks.length > 0) {
             const stocksHtml = data.stocks.map(s =>
