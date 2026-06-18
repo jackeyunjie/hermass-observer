@@ -976,40 +976,59 @@ code {
   box-shadow: 0 0 0 2px rgba(244, 238, 207, 0.25);
 }
 
-.chip-ai-icon {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
+/* ── 首页观象 C 位面板 ── */
+.hero-ai-panel {
+  padding: 16px 18px;
 }
 
-/* ── Hero 区域问观象按钮 ── */
-.hero-ask-ai {
-  display: inline-flex;
+.hero-ai-row {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border: 1px solid rgba(14, 124, 102, 0.3);
-  border-radius: 999px;
-  background: linear-gradient(135deg, rgba(14, 124, 102, 0.1), rgba(14, 124, 102, 0.04));
-  color: var(--good);
-  font-size: 13px;
-  font-weight: 700;
-  text-decoration: none;
-  cursor: pointer;
-  transition: all 0.15s ease;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
-.hero-ask-ai:hover {
-  border-color: var(--good);
-  background: linear-gradient(135deg, rgba(14, 124, 102, 0.18), rgba(14, 124, 102, 0.08));
-  box-shadow: 0 4px 12px rgba(14, 124, 102, 0.15);
-  transform: translateY(-1px);
-}
-
-.hero-ai-icon {
-  width: 18px;
-  height: 18px;
+.hero-ai-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   flex-shrink: 0;
+}
+
+.hero-ai-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.hero-ai-subtitle {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.hero-ai-input-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 260px;
+  max-width: 520px;
+}
+
+.hero-ai-search {
+  flex: 1;
+}
+
+.btn-nowrap {
+  white-space: nowrap;
+}
+
+.hero-ai-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 @media (max-width: 860px) {

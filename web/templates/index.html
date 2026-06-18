@@ -141,20 +141,20 @@
 
     <main class="layout">
       {# ── 0. 观象 AI 助手 ── #}
-      <section class="panel span-2" style="padding:16px 18px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
-          <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">
-            <span style="font-size:16px;font-weight:700;color:var(--ink);">观象</span>
-            <span style="color:var(--muted);font-size:12px;">多周期研究助手 · 提问或输入股票代码</span>
+      <section class="panel span-2 hero-ai-panel">
+        <div class="hero-ai-row">
+          <div class="hero-ai-title-group">
+            <span class="hero-ai-name">观象</span>
+            <span class="hero-ai-subtitle">多周期研究助手 · 提问或输入股票代码</span>
           </div>
-          <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:260px;max-width:520px;">
-            <input type="text" id="ai-hero-input" class="input" placeholder="问观象：今天先看什么方向？" style="flex:1;"
+          <div class="hero-ai-input-group">
+            <input type="text" id="ai-hero-input" class="input hero-ai-search" placeholder="问观象：今天先看什么方向？"
               onkeydown="if(event.key==='Enter'){heroAsk();}" />
             <button class="btn btn-primary btn-sm" onclick="heroAsk()">提问</button>
-            <button class="btn btn-sm" onclick="aiToggle()" style="white-space:nowrap;">打开面板</button>
+            <button class="btn btn-sm btn-nowrap" onclick="aiToggle()">打开面板</button>
           </div>
         </div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
+        <div class="hero-ai-chips">
           <button class="btn btn-sm" onclick="heroAskChip('现在能不能做')">现在能做吗</button>
           <button class="btn btn-sm" onclick="heroAskChip('今天先看什么方向')">今天看什么</button>
           <button class="btn btn-sm" onclick="heroAskChip('我先去哪一页')">新手引导</button>

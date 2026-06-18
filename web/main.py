@@ -5443,7 +5443,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
             "avoid": "暂时不要平均用力看所有行业。",
             "next_actions": [
                 {"label": "打开行业页", "url": "/industry"},
-                {"label": f"打开 {focus_code or '标的'} 研究页", "url": f"/research?stock_code={focus_code or ''}"},
+                *([{"label": f"打开 {focus_code} 研究页", "url": f"/research?stock_code={focus_code}"}] if focus_code else []),
             ],
             "sources": ["industry_rotation", "ifind_industry_chain_profile"],
             "freshness_note": f"行业回答按 {industry.get('date', str(date.today()))} 快照展示。",

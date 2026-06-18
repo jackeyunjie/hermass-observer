@@ -3,6 +3,7 @@
 Uses Python stdlib sqlite3. No ORM, no external dependencies.
 """
 
+import json
 import sqlite3
 import threading
 from datetime import datetime, timezone
@@ -35,9 +36,14 @@ class ConversationStore:
                 session_id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
                 created_at TEXT NOT NULL,
-                last_active TEXT NOT NULL
+                last_active TEXT NOT NULL,
+                context TEXT DEFAULT ''
             )
         """)
+        try:
+            conn.execute("ALTER TABLE sessions ADD COLUMN context TEXT DEFAULT ''")
+        except Exception:
+            pass
         conn.execute("""
             CREATE TABLE IF NOT EXISTS turns (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -57,11 +63,12 @@ class ConversationStore:
             pass
         conn.commit()
 
-    def save_session(self, session_id: str, user_id: str, created_at: str, last_active: str) -> None:
+    def save_session(self, session_id: str, user_id: str, created_at: str, last_active: str, context: dict | None = None) -> None:
         conn = self._conn()
+        ctx_json = json.dumps(context or {}, ensure_ascii=False)
         conn.execute(
-            "INSERT OR REPLACE INTO sessions (session_id, user_id, created_at, last_active) VALUES (?, ?, ?, ?)",
-            (session_id, user_id, created_at, last_active),
+            "INSERT OR REPLACE INTO sessions (session_id, user_id, created_at, last_active, context) VALUES (?, ?, ?, ?, ?)",
+            (session_id, user_id, created_at, last_active, ctx_json),
         )
         conn.commit()
 
@@ -69,27 +76,41 @@ class ConversationStore:
         """Load most recent session for a user."""
         conn = self._conn()
         row = conn.execute(
-            "SELECT session_id, user_id, created_at, last_active FROM sessions WHERE user_id = ? ORDER BY last_active DESC LIMIT 1",
+            "SELECT session_id, user_id, created_at, last_active, context FROM sessions WHERE user_id = ? ORDER BY last_active DESC LIMIT 1",
             (user_id,),
         ).fetchone()
         if row is None:
             return None
+        ctx = {}
+        try:
+            if len(row) > 4 and row[4]:
+                ctx = json.loads(row[4])
+        except (json.JSONDecodeError, TypeError):
+            pass
         return {
             "session_id": row[0],
             "user_id": row[1],
             "created_at": row[2],
             "last_active": row[3],
+            "context": ctx,
         }
 
     def load_session(self, session_id: str, max_turns: int = 20) -> Optional[dict]:
         """Load session from SQLite. Returns a plain dict with turns list."""
         conn = self._conn()
         row = conn.execute(
-            "SELECT session_id, user_id, created_at, last_active FROM sessions WHERE session_id = ?",
+            "SELECT session_id, user_id, created_at, last_active, context FROM sessions WHERE session_id = ?",
             (session_id,),
         ).fetchone()
         if row is None:
             return None
+
+        ctx = {}
+        try:
+            if len(row) > 4 and row[4]:
+                ctx = json.loads(row[4])
+        except (json.JSONDecodeError, TypeError):
+            pass
 
         turn_rows = conn.execute(
             "SELECT role, message, intent, agent, timestamp FROM turns WHERE session_id = ? ORDER BY id DESC LIMIT ?",
@@ -107,6 +128,7 @@ class ConversationStore:
             "created_at": row[2],
             "last_active": row[3],
             "turns": turns,
+            "context": ctx,
         }
 
     def add_turn(self, session_id: str, role: str, message: str, intent: str, agent: str) -> None:
@@ -126,4 +148,14 @@ class ConversationStore:
         conn = self._conn()
         conn.execute("DELETE FROM turns WHERE session_id = ?", (session_id,))
         conn.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))
+        conn.commit()
+
+    def save_context(self, session_id: str, context: dict) -> None:
+        """Persist session context as JSON to SQLite."""
+        conn = self._conn()
+        ctx_json = json.dumps(context, ensure_ascii=False)
+        conn.execute(
+            "UPDATE sessions SET context = ? WHERE session_id = ?",
+            (ctx_json, session_id),
+        )
         conn.commit()

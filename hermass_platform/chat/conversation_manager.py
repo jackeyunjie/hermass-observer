@@ -127,7 +127,7 @@ class ConversationManager:
             ttl_seconds=self._ttl_seconds,
         )
         self._sessions[session_id] = session
-        self._store.save_session(session.session_id, session.user_id, session.created_at, session.last_active)
+        self._store.save_session(session.session_id, session.user_id, session.created_at, session.last_active, session.context)
         self._gc()
         return session
 
@@ -151,6 +151,9 @@ class ConversationManager:
             last_active=data["last_active"],
             ttl_seconds=self._ttl_seconds,
         )
+        # Restore persisted context from SQLite
+        if data.get("context"):
+            session.context.update(data["context"])
         for t in data["turns"]:
             session.turns.append(Turn(**t))
             for key, value in session._extract_context(t["message"], t["role"], t["intent"]):
@@ -205,13 +208,18 @@ class ConversationManager:
         return session.get_context_for_prompt()
 
     def update_context(self, session_id: str, context: dict):
-        """Merge new keys into session context for cross-turn memory persistence."""
+        """Merge new keys into session context and persist to SQLite."""
         session = self.get_session(session_id)
         if session is None:
             return
         for k, v in context.items():
             if v not in (None, '', [], {}):
                 session.context[k] = v
+        # Persist to SQLite for cross-restart memory
+        try:
+            self._store.save_context(session_id, session.context)
+        except Exception:
+            pass
 
     def end_session(self, session_id: str):
         self._sessions.pop(session_id, None)
