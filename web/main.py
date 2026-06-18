@@ -4332,6 +4332,136 @@ def _is_market_question(message: str) -> bool:
     return any(k in message for k in ("能不能", "能做", "市场", "现在能", "今天能", "等待", "试错"))
 
 
+def _is_learning_question(message: str) -> bool:
+    """判断是否为教学/概念解释类问题。"""
+    return any(k in message for k in (
+        "什么是", "什么意思", "解释一下", "怎么理解", "如何理解",
+        "state", "vcp", "2560", "atr", "布林", "多周期", "怎么看",
+        "adx", "rsi", "macd", "均线", "突破", "收缩", "共振",
+        "不懂", "不明白", "讲一下", "说说",
+    ))
+
+
+def _learning_answer(message: str, query: ChatQuery, mode: str) -> dict[str, Any]:
+    """教学/概念解释类问题的规则回答。"""
+    msg_lower = message.strip().lower()
+
+    # State 体系解释
+    if any(k in msg_lower for k in ("state", "状态", "e/f", "ef")):
+        return {
+            "answer": (
+                "State 是 Hermass 的多周期市场状态编码，由趋势、突破、波动、方向四个维度组成。"
+                "E(14) 和 F(15) 代表「天时」—— 强趋势+突破+扩张共振的强势状态；"
+                "C/D 是「地利」—— 趋势明确但未完全共振；"
+                "8/9/A/B 是「人和」—— 局部改善；"
+                "0-7 是「蓄力」或「冬眠」—— 弱势或休整。"
+                "ef_count 统计 MN1/W1/D1 三周期中 E/F 的数量，数值越大共振越强。"
+            ),
+            "why": "State 编码是 Hermass 的底层语言，理解它是用好整个平台的基础。",
+            "multi_cycle_view": "同一个 State 在月线、周线、日线上含义不同：月线 E 是大势确认，日线 E 可能只是短期脉冲。关键看三周期的配合关系。",
+            "single_cycle_position": "即使日线是 E，也要看它在整个波段中的位置：是刚突破、中段推进，还是高位延展。位置不同，含义完全不同。",
+            "avoid": "不要只看 ef_count 大小就做判断；要结合周期关系和位置综合看。",
+            "next_actions": [
+                {"label": "打开概念页", "url": "/learn"},
+                {"label": "打开市场页", "url": "/market"},
+            ],
+            "sources": ["page_context"],
+            "freshness_note": "",
+            "remembered_stock_code": _chat_stock_code(query),
+            "remembered_email": _chat_email(query),
+            "mode_used": mode,
+        }
+
+    # VCP 解释
+    if "vcp" in msg_lower:
+        return {
+            "answer": (
+                "VCP（Volatility Contraction Pattern）是波动收缩形态，核心逻辑是："
+                "价格在经历一段上涨/下跌后，波动幅度逐级收窄，形成「收缩→释放→突破」的节奏。"
+                "在 Hermass 中，VCP 策略关注波幅递减、突破确认和量能分级三个信号的同时出现。"
+            ),
+            "why": "VCP 是 Hermass 三大策略之一，适合抓从蓄力转向释放的拐点。",
+            "multi_cycle_view": "VCP 的效果高度依赖多周期环境：周线 VCP + 日线突破确认，比单纯日线 VCP 可靠性更高。",
+            "single_cycle_position": "VCP 的关键不是收缩本身，而是收缩末端的突破确认 —— 没有确认就没有信号。",
+            "avoid": "不要把任何价格窄幅震荡都当 VCP；需要波幅逐级递减 + 突破时放量。",
+            "next_actions": [
+                {"label": "打开策略页", "url": "/strategies"},
+                {"label": "打开执行页", "url": "/watchlist"},
+            ],
+            "sources": ["page_context"],
+            "freshness_note": "",
+            "remembered_stock_code": _chat_stock_code(query),
+            "remembered_email": _chat_email(query),
+            "mode_used": mode,
+        }
+
+    # 2560 解释
+    if "2560" in msg_lower:
+        return {
+            "answer": (
+                "2560 战法是一种基于量价关系的波段交易系统，核心要素包括："
+                "价格位置（在 MA25/MA60 的什么位置）、量能确认（突破是否带量）、"
+                "支撑阻力（SR 位置）和 State 编码。在 Hermass 中已整合为多周期观测框架的一部分。"
+            ),
+            "why": "2560 是 Hermass 平台的重要策略基础，理解它有助于理解 SR 和 State 的关系。",
+            "multi_cycle_view": "2560 的 MA25/MA60 在日线上看位置，但周线和月线的 SR 位置同样关键 —— 多周期共振才是核心。",
+            "single_cycle_position": "2560 的核心入场逻辑关注价格与 MA 的关系和量能配合，但具体执行要结合 State 编码。",
+            "avoid": "不要机械套用 MA 交叉信号；2560 的精髓是位置+量能+结构的综合判断。",
+            "next_actions": [
+                {"label": "打开概念页", "url": "/learn"},
+            ],
+            "sources": ["page_context"],
+            "freshness_note": "",
+            "remembered_stock_code": _chat_stock_code(query),
+            "remembered_email": _chat_email(query),
+            "mode_used": mode,
+        }
+
+    # 多周期解释
+    if "多周期" in msg_lower:
+        return {
+            "answer": (
+                "多周期分析是 Hermass 的核心方法论：同时看 MN1（月线）、W1（周线）、D1（日线）三个时间维度。"
+                "月线定大方向（能不能做），周线看中期结构（做什么方向），日线找具体时机（什么时候做）。"
+                "三个周期共振时信号最强，周期冲突时需要更谨慎。"
+            ),
+            "why": "多周期框架可以过滤单周期噪音，提高判断的稳定性。",
+            "multi_cycle_view": "多周期最关键的价值是「周期共振」—— 当月线、周线、日线同时指向同一方向时，判断的置信度最高。",
+            "single_cycle_position": "即使只看日线，也要知道它在周线和月线的什么位置：大周期支撑位附近的日线突破，和大周期阻力位附近的日线突破，意义完全不同。",
+            "avoid": "不要只看日线做判断；至少看一眼周线位置，避免逆大势操作。",
+            "next_actions": [
+                {"label": "打开市场页", "url": "/market"},
+                {"label": "打开研究页", "url": f"/research?stock_code={_chat_stock_code(query) or '000021.SZ'}"},
+            ],
+            "sources": ["page_context"],
+            "freshness_note": "",
+            "remembered_stock_code": _chat_stock_code(query),
+            "remembered_email": _chat_email(query),
+            "mode_used": mode,
+        }
+
+    # 通用概念解释 —— 交给 DeepSeek 处理
+    deepseek_answer = _general_deepseek_answer(query)
+    if deepseek_answer:
+        return deepseek_answer
+
+    return {
+        "answer": "这是一个学习类问题。建议你先打开概念页面查看相关文档，或者换一种更具体的问法。",
+        "why": "当前规则库可以覆盖 State、VCP、2560、多周期等核心概念，更具体的问题可以试试其他问法。",
+        "multi_cycle_view": "学习概念时，试着把它们放到多周期框架里理解 —— 同一个概念在月线、周线、日线上含义不同。",
+        "single_cycle_position": "你可以直接问「什么是 State E」或「VCP 怎么用」这类具体问题。",
+        "avoid": "先不用追求一次性理解所有概念，一次搞懂一个，再串起来。",
+        "next_actions": [
+            {"label": "打开概念页", "url": "/learn"},
+        ],
+        "sources": ["page_context"],
+        "freshness_note": "",
+        "remembered_stock_code": _chat_stock_code(query),
+        "remembered_email": _chat_email(query),
+        "mode_used": mode,
+    }
+
+
 
 def _user_wants_llm(query: ChatQuery) -> bool:
     """用户是否打开了 LLM 增强开关。
@@ -4475,10 +4605,11 @@ def _annotate_chat_support(result: dict[str, Any]) -> dict[str, Any]:
     sources = {str(item) for item in (result.get("sources") or [])}
     has_local_support = bool(sources & LOCAL_EVIDENCE_SOURCES)
 
-    if provider in {"agently_deepseek", "managed_deepseek"} or provider.startswith("workflow_"):
+    if provider in {"agently_deepseek", "managed_deepseek", "deepseek_direct"} or provider.startswith("workflow_"):
         is_workflow = provider.startswith("workflow_")
+        is_direct = provider == "deepseek_direct"
         result["answer_origin"] = "workflow" if is_workflow else "deepseek"
-        origin_label = "外部工作流" if is_workflow else "DeepSeek"
+        origin_label = "外部工作流" if is_workflow else ("观象·AI" if is_direct else "DeepSeek")
         if has_local_support:
             result["data_support"] = "local_data"
             result["support_note"] = f"{origin_label}生成，已结合本地数据证据。"
@@ -4919,6 +5050,133 @@ def _rule_fallback_after_llm_failure(query: ChatQuery, failure: dict[str, Any]) 
     return result
 
 
+# ── 通用 DeepSeek Q&A 兜底 ────────────────────────────────────────────────
+
+_GENERAL_QA_SYSTEM_PROMPT = (
+    "你是「观象」，Hermass 量化观测台的 AI 助手。\n"
+    "你帮助用户理解市场、行业、个股、策略概念和使用方法。\n\n"
+    "## 回答原则\n"
+    "1. 研究导向：只做解释、翻译和导航，不给出买卖建议。\n"
+    "2. 坦诚直接：有数据说数据，没数据说明当前未覆盖，不编造。\n"
+    "3. 简洁有用：一句话能说清的不堆段落，但也不敷衍。\n"
+    "4. 多周期视角：涉及市场或个股时，自然带入 MN1/W1/D1 多周期框架。\n\n"
+    "## 你能做什么\n"
+    "- 解释量化概念（State E/F、VCP、2560、布林强盗、ATR 等）\n"
+    "- 介绍平台功能和使用方法\n"
+    "- 回答市场/行业/个股的结构化问题\n"
+    "- 解释产业链、新概念、行业术语\n"
+    "- 帮用户导航到正确的页面\n\n"
+    "## 输出格式\n"
+    "必须输出 JSON，字段说明：\n"
+    "- answer: 核心回答（简短有力，50-300字）\n"
+    "- why: 为什么这样回答（1-2句）\n"
+    "- multi_cycle_view: 多周期视角（如不适用填空字符串）\n"
+    "- single_cycle_position: 单周期位置判断（如不适用填空字符串）\n"
+    "- avoid: 需要避免的误解或滥用\n"
+    "- next_actions: 建议的下一步操作 [{label: 按钮文字, url: 页面路径}]\n"
+    "- sources: 信息来源列表，如 [general_knowledge, page_context]\n"
+    "- freshness_note: 时效性说明（如不适用填空字符串）\n\n"
+    "## 语气规则\n"
+    "- 概念解释 → 老师语气：清晰、结构化、举例说明\n"
+    "- 功能介绍 → 向导语气：直接告诉怎么操作\n"
+    "- 市场/个股 → 分析师语气：有判断但不越界\n"
+    "- 闲聊 → 友好简洁，但不偏离研究定位\n"
+    "## next_actions 可用页面\n"
+    "- 市场页 /market、行业页 /industry、执行页 /watchlist\n"
+    "- 研究页 /research?stock_code=XXXXXX.SZ\n"
+    "- 产业链 /chain-studio、首页 /\n"
+)
+
+
+def _direct_deepseek_call(system_prompt: str, user_message: str) -> dict[str, Any] | None:
+    """直接 HTTP 调用 DeepSeek API，不依赖 Agently 包。"""
+    import requests as _requests
+    api_key = (
+        os.environ.get("HERMASS_DEEPSEEK_API_KEY", "").strip()
+        or os.environ.get("DEEPSEEK_API_KEY", "").strip()
+    )
+    if not api_key:
+        return None
+    base_url = (
+        os.environ.get("HERMASS_DEEPSEEK_BASE_URL", "").strip()
+        or os.environ.get("DEEPSEEK_API_BASE", "https://api.deepseek.com").strip()
+    )
+    if not base_url.endswith("/v1"):
+        base_url = base_url.rstrip("/") + "/v1"
+    model = (
+        os.environ.get("HERMASS_DEEPSEEK_MODEL", "").strip()
+        or os.environ.get("HERMASS_LLM_MODEL", "deepseek-chat").strip()
+    )
+    model = model if model != "deepseekV4" else "deepseek-chat"
+
+    try:
+        resp = _requests.post(
+            f"{base_url}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message},
+                ],
+                "temperature": 0.7,
+                "max_tokens": 1500,
+                "response_format": {"type": "json_object"},
+            },
+            timeout=25,
+        )
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        if not content:
+            return None
+        parsed = json.loads(content)
+        return parsed if isinstance(parsed, dict) else None
+    except Exception:
+        return None
+
+
+def _general_deepseek_answer(query: ChatQuery) -> dict[str, Any] | None:
+    """通用 DeepSeek Q&A 兜底 —— 处理所有规则未覆盖的问题。
+
+    与 Agently 多 Agent 链不同，这条路径使用更灵活的系统提示词，
+    可以回答概念解释、使用帮助、泛知识等非交易类问题。
+    """
+    # 优先走 Agently 包装层，失败则直连 DeepSeek
+    try:
+        from agently_adapter.deepseek import call as deepseek_call
+        result = deepseek_call(
+            {"message": query.message, "page_context": query.page_context or ""},
+            system_prompt=_GENERAL_QA_SYSTEM_PROMPT,
+            instruct="请回答用户的问题，严格按 JSON 格式输出。",
+        )
+        if result:
+            result["provider"] = "deepseek_direct"
+            result["enhancement_used"] = True
+            result.setdefault("remembered_stock_code", _chat_stock_code(query))
+            result.setdefault("remembered_email", _chat_email(query))
+            result.setdefault("mode_used", str(query.mode or "chat").lower())
+            return result
+    except Exception:
+        pass
+
+    # Agently 不可用时，直连 DeepSeek API
+    result = _direct_deepseek_call(_GENERAL_QA_SYSTEM_PROMPT, query.message.strip())
+    if result:
+        result["provider"] = "deepseek_direct"
+        result["enhancement_used"] = True
+        result.setdefault("remembered_stock_code", _chat_stock_code(query))
+        result.setdefault("remembered_email", _chat_email(query))
+        result.setdefault("mode_used", str(query.mode or "chat").lower())
+        return result
+
+    return None
+
+
 def _chat_answer(query: ChatQuery) -> dict[str, Any]:
     """基于用户问题调用现有数据返回回答。"""
     msg = query.message.strip()
@@ -5211,18 +5469,78 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
             "mode_used": mode,
         }
 
-    # 默认回答
+    # 问题 5：泛问题（自我介绍 / 能力说明）
+    if any(k in msg_lower for k in ("你是谁", "你能做什么", "你是什么", "你的功能", "你能帮我", "介绍一下自己")):
+        return {
+            "answer": (
+                "我是「观象」，Hermass 量化观测台的 AI 助手。"
+                "我可以帮你理解市场环境、分析行业方向、解读个股结构、解释量化概念，"
+                "也可以帮你建立盯盘提醒、导航到对应功能页面。"
+                "我只做研究和解释，不直接给买卖建议。"
+            ),
+            "why": "观象是 Hermass 平台内置的 AI 助手，目标是把多周期观测框架用自然对话的方式交付给你。",
+            "multi_cycle_view": "我的核心框架是 MN1/W1/D1 三周期共振分析 —— 大周期定方向，周线看结构，日线找时机。",
+            "single_cycle_position": "你可以直接问我市场怎么样、某只股票什么状态、某个行业方向如何，我会用结构化的方式回答。",
+            "avoid": "不要把我当成下单工具或投资顾问；我是研究辅助，不是决策替代。",
+            "next_actions": [
+                {"label": "打开首页", "url": "/"},
+                {"label": "看看市场", "url": "/market"},
+                {"label": "搜一只股票", "url": "/research?stock_code=000021.SZ"},
+            ],
+            "sources": ["page_context"],
+            "freshness_note": "",
+            "remembered_stock_code": _chat_stock_code(query),
+            "remembered_email": _chat_email(query),
+            "mode_used": mode,
+        }
+
+    # 问题 6：使用帮助
+    if any(k in msg_lower for k in ("怎么用", "如何使用", "使用说明", "帮助", "help", "从哪开始", "新手")):
+        return {
+            "answer": (
+                "建议按「市场 → 行业 → 研究」的顺序上手："
+                "先看市场页判断大环境能不能做，再看行业页找顺风方向，"
+                "最后到研究页看具体股票的多周期结构。"
+                "你也可以直接问我问题，比如「现在能不能做」「000021 怎么样」。"
+            ),
+            "why": "多周期框架的核心是先判断大环境，再缩圈到方向，最后看个股执行，这个顺序能避免逆势操作。",
+            "multi_cycle_view": "上手后你会慢慢习惯 MN1/W1/D1 三层视角：月线看大势、周线看结构、日线找介入时机。",
+            "single_cycle_position": "刚开始不用追求完美判断，先把市场页和行业页看熟，再逐步深入个股。",
+            "avoid": "不要一上来就盯着个股涨跌做决定，先建立「环境 → 方向 → 标的」的思考习惯。",
+            "next_actions": [
+                {"label": "打开市场页", "url": "/market"},
+                {"label": "打开行业页", "url": "/industry"},
+                {"label": "打开首页", "url": "/"},
+            ],
+            "sources": ["page_context"],
+            "freshness_note": "",
+            "remembered_stock_code": _chat_stock_code(query),
+            "remembered_email": _chat_email(query),
+            "mode_used": mode,
+        }
+
+    # 问题 7：教学 / 概念解释（规则可覆盖的量化术语）
+    if _is_learning_question(msg_lower):
+        return _learning_answer(msg, query, mode)
+
+    # ── 默认回答：规则未命中时，走通用 DeepSeek Q&A ──────────────────────
+    deepseek_answer = _general_deepseek_answer(query)
+    if deepseek_answer:
+        return deepseek_answer
+
+    # 最终兜底：DeepSeek 不可用时的规则回答
     return {
-        "answer": "当前更适合做结构跟踪，不适合把局部转暖直接外推成全面进攻。",
-        "why": "多周期结构并非同步强势，当前更偏局部改善。",
-        "multi_cycle_view": "先看大周期共振是否成立，再判断周线和日线是不是在同一个方向上推进。",
-        "single_cycle_position": "当前更像局部修复和中段推进，不宜把所有样本都当成刚起步机会。",
-        "avoid": "暂时少看高位延展样本，不把所有突破都当成早期机会。",
+        "answer": "这个问题我暂时没有预设的规则回答，也未能调用 AI 增强链路。你可以试试换一种问法，或者直接打开相关页面查看。",
+        "why": "当前规则库未覆盖此问题类型，且 DeepSeek AI 链路暂时不可用。",
+        "multi_cycle_view": "如果问题涉及市场或个股，建议先打开市场页或研究页自行查看多周期结构。",
+        "single_cycle_position": "在没有 AI 增强时，直接看页面数据比揣测更可靠。",
+        "avoid": "先不要反复问同一个问题；链路恢复后会自动启用 AI 增强。",
         "next_actions": [
             {"label": "打开市场页", "url": "/market"},
+            {"label": "打开研究页", "url": f"/research?stock_code={_chat_stock_code(query) or '000021.SZ'}"},
         ],
-        "sources": ["market_phase"],
-        "freshness_note": "",
+        "sources": ["rule_fallback"],
+        "freshness_note": "AI 增强链路暂不可用，请稍后重试。",
         "remembered_stock_code": _chat_stock_code(query),
         "remembered_email": _chat_email(query),
         "mode_used": mode,
