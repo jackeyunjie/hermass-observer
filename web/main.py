@@ -4825,13 +4825,15 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
             pass  # 记忆提取失败不阻塞主链路
 
     symbol = query.stock_code or _chat_stock_code(query) or ""
-    # 代词解析：从记忆上下文中还原"它/这个/这只/刚才那个/上一只"
+    # 跨轮次记忆：当用户未显式提供股票代码时，从会话记忆中恢复最近讨论的股票
     if not symbol:
         recent_codes = memory.get("recent_stock_codes", [])
-        pronouns = ("它", "这个", "这只", "那个", "那只", "刚才", "上一只", "上面那个", "刚才那只")
-        if recent_codes and any(p in msg for p in pronouns):
+        # 先尝试从当前消息中提取股票代码
+        symbol = _extract_stock_code_from_message(msg) or ""
+        # 如仍无，回退到最近讨论过的股票（自然处理"它目前怎么样""继续分析"等省略主语的情况）
+        if not symbol and recent_codes:
             symbol = _canonical_stock_code(recent_codes[0])
-    # 补充：从前端传递的 recent_topics 中提取股票代码
+    # 兜底：从前端传递的 recent_topics 中提取股票代码
     if not symbol and query.session_context:
         for topic in (query.session_context.get("recent_topics") or []):
             code = _extract_stock_code_from_message(str(topic))
@@ -5802,11 +5804,23 @@ def chat_query(request: Request, query: ChatQuery) -> JSONResponse:
             query.session_id = session.session_id
         else:
             session = conv_mgr.get_or_create(user_id, query.session_id)
-        # 合并会话上下文：服务端已有 + 前端传递的 recent_topics/turn_count
+        # 合并会话上下文：服务端持久化 + 前端瞬时，列表归并，标量取最新
         merged_ctx = dict(session.context or {})
         if query.session_context:
             for k, v in query.session_context.items():
-                if v not in (None, '', [], {}):
+                if v in (None, '', [], {}):
+                    continue
+                if isinstance(v, list) and isinstance(merged_ctx.get(k), list):
+                    # 列表字段（如 recent_topics）：追加去重，保留最多 20 条
+                    existing = merged_ctx[k]
+                    for item in v:
+                        if item not in existing:
+                            existing.append(item)
+                    merged_ctx[k] = existing[:20]
+                elif isinstance(v, (int, float)) and isinstance(merged_ctx.get(k), (int, float)):
+                    # 数值字段（如 turn_count）：取较大值
+                    merged_ctx[k] = max(v, merged_ctx[k])
+                else:
                     merged_ctx[k] = v
         # 回填会话上下文：保证 _chat_stock_code() 在第二轮"它"提问时能找到历史股票代码
         query.session_context = merged_ctx

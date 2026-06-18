@@ -113,131 +113,8 @@
         font-weight: 700;
         color: var(--ink);
       }
-      /* ── 观象 AI Hero ── */
-      .ai-hero-panel {
-        border: 1px solid rgba(14,124,102,0.18);
-        background: linear-gradient(135deg, rgba(14,124,102,0.04) 0%, rgba(255,255,255,0.96) 60%);
-      }
-      .ai-hero {
-        display: flex;
-        align-items: center;
-        gap: 24px;
-        flex-wrap: wrap;
-      }
-      .ai-hero-left {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        flex-shrink: 0;
-      }
-      .ai-hero-avatar {
-        position: relative;
-        width: 56px;
-        height: 56px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 999px;
-        background: radial-gradient(circle, rgba(244,238,207,0.3), rgba(14,124,102,0.08));
-        overflow: hidden;
-      }
-      .ai-hero-ring {
-        position: absolute;
-        inset: 4px;
-        border-radius: 999px;
-        border: 1.5px solid rgba(14,124,102,0.2);
-      }
-      .ai-hero-ring-1 { animation: aiSpin 10s linear infinite; }
-      .ai-hero-ring-2 { inset: 10px; border-color: rgba(21,45,53,0.2); animation: aiSpinReverse 12s linear infinite; }
-      .ai-hero-core {
-        width: 16px;
-        height: 16px;
-        border-radius: 999px;
-        background: linear-gradient(180deg, #f4eecf, #e7d99f);
-        box-shadow: 0 0 0 8px rgba(14,124,102,0.1);
-      }
-      .ai-hero-title {
-        margin: 0;
-        font-size: 20px;
-        font-weight: 800;
-        color: var(--ink);
-        letter-spacing: 0.02em;
-      }
-      .ai-hero-subtitle {
-        margin: 4px 0 0;
-        color: var(--muted);
-        font-size: 13px;
-      }
-      .ai-hero-right {
-        flex: 1;
-        min-width: 240px;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-      }
-      .ai-hero-input-row {
-        display: flex;
-        gap: 8px;
-      }
-      .ai-hero-input {
-        flex: 1;
-        padding: 10px 14px;
-        border: 1px solid rgba(14,124,102,0.25);
-        border-radius: 10px;
-        font-size: 14px;
-        background: #fff;
-        transition: border-color 0.15s;
-      }
-      .ai-hero-input:focus {
-        outline: none;
-        border-color: var(--good);
-        box-shadow: 0 0 0 3px rgba(14,124,102,0.08);
-      }
-      .ai-hero-btn {
-        padding: 10px 20px;
-        border: none;
-        border-radius: 10px;
-        background: var(--good);
-        color: #fff;
-        font-size: 13px;
-        font-weight: 700;
-        cursor: pointer;
-        transition: background 0.15s;
-        white-space: nowrap;
-      }
-      .ai-hero-btn:hover { background: #0a6b57; }
-      .ai-hero-chips {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-      }
-      .ai-hero-chip {
-        padding: 6px 12px;
-        border: 1px solid rgba(14,124,102,0.2);
-        border-radius: 999px;
-        background: rgba(14,124,102,0.04);
-        color: var(--good);
-        font-size: 12px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.15s;
-      }
-      .ai-hero-chip:hover {
-        border-color: var(--good);
-        background: rgba(14,124,102,0.1);
-      }
-      @keyframes aiSpin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-      }
-      @keyframes aiSpinReverse {
-        from { transform: rotate(360deg); }
-        to { transform: rotate(0deg); }
-      }
       @media (max-width: 860px) {
         .health-grid { grid-template-columns: repeat(2, 1fr); }
-        .ai-hero { flex-direction: column; align-items: stretch; }
-        .ai-hero-left { justify-content: center; }
       }
     </style>
   </head>
@@ -257,38 +134,30 @@
         <a href="/watchlist">模拟跟踪</a>
         <a href="/backtest">回测</a>
         <a href="/agent-debate">Agent 辩论</a>
-        <a href="javascript:void(0)" class="nav-ai" onclick="aiToggle()"><span class="nav-ai-dot"></span>观象</a>
+        <a href="javascript:void(0)" class="nav-ai" onclick="aiToggle()">观象</a>
         <span>{{ today }}</span>
       </div>
     </header>
 
     <main class="layout">
-      {# ── 0. 观象 AI 助手 C 位入口 ── #}
-      <section class="panel span-2 ai-hero-panel">
-        <div class="ai-hero">
-          <div class="ai-hero-left">
-            <div class="ai-hero-avatar">
-              <span class="ai-hero-ring ai-hero-ring-1"></span>
-              <span class="ai-hero-ring ai-hero-ring-2"></span>
-              <span class="ai-hero-core"></span>
-            </div>
-            <div class="ai-hero-text">
-              <h2 class="ai-hero-title">观象</h2>
-              <p class="ai-hero-subtitle">你的多周期研究助手 · 策略 · 回测 · 盯盘 · 价值分析</p>
-            </div>
+      {# ── 0. 观象 AI 助手 ── #}
+      <section class="panel span-2" style="padding:16px 18px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">
+            <span style="font-size:16px;font-weight:700;color:var(--ink);">观象</span>
+            <span style="color:var(--muted);font-size:12px;">多周期研究助手 · 提问或输入股票代码</span>
           </div>
-          <div class="ai-hero-right">
-            <div class="ai-hero-input-row">
-              <input type="text" id="ai-hero-input" class="ai-hero-input" placeholder="问观象：今天先看什么方向？" onkeydown="if(event.key==='Enter'){aiAsk(this.value);this.value='';}" />
-              <button class="ai-hero-btn" onclick="var v=document.getElementById('ai-hero-input').value.trim();if(v){aiAsk(v);document.getElementById('ai-hero-input').value='';}">发送</button>
-            </div>
-            <div class="ai-hero-chips">
-              <button class="ai-hero-chip" onclick="aiAsk('现在能不能做')">现在能做吗</button>
-              <button class="ai-hero-chip" onclick="aiAsk('今天先看什么方向')">今天看什么</button>
-              <button class="ai-hero-chip" onclick="aiAsk('帮我看 000021')">看一只票</button>
-              <button class="ai-hero-chip" onclick="aiAsk('我应该先去哪一页')">新手引导</button>
-            </div>
+          <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:260px;max-width:520px;">
+            <input type="text" id="ai-hero-input" class="input" placeholder="问观象：今天先看什么方向？" style="flex:1;"
+              onkeydown="if(event.key==='Enter'){heroAsk();}" />
+            <button class="btn btn-primary btn-sm" onclick="heroAsk()">提问</button>
+            <button class="btn btn-sm" onclick="aiToggle()" style="white-space:nowrap;">打开面板</button>
           </div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
+          <button class="btn btn-sm" onclick="heroAskChip('现在能不能做')">现在能做吗</button>
+          <button class="btn btn-sm" onclick="heroAskChip('今天先看什么方向')">今天看什么</button>
+          <button class="btn btn-sm" onclick="heroAskChip('我先去哪一页')">新手引导</button>
         </div>
       </section>
 
@@ -381,7 +250,7 @@
               </td>
               <td>{{ row.next_action or '持续观察' }}</td>
               <td>
-                <button class="ask-ai-chip" onclick="event.stopPropagation();aiSession.stock_code='{{ row.stock_code }}';aiAsk('帮我分析 {{ row.stock_code }} {{ row.stock_name or '' }} 当前多周期状态')">
+                <button class="ask-ai-chip" data-stock="{{ row.stock_code }}" data-name="{{ row.stock_name or '' }}">
                   <span class="dot"></span>问观象
                 </button>
               </td>

@@ -239,6 +239,33 @@ function aiRender(data) {
         }
         window.aiSetMode = aiSetMode;
 
+        function heroAsk() {
+          var v = (document.getElementById('ai-hero-input') || {}).value;
+          if (!v || !v.trim()) return;
+          aiAsk(v.trim());
+          document.getElementById('ai-hero-input').value = '';
+        }
+        window.heroAsk = heroAsk;
+
+        function heroAskChip(text) {
+          aiAsk(text);
+          document.getElementById('ai-hero-input').value = '';
+        }
+        window.heroAskChip = heroAskChip;
+
+        // 委托「问观象」按钮点击：从 data-stock / data-name 读取股票信息
+        document.addEventListener('click', function(e) {
+          var btn = e.target.closest('.ask-ai-chip');
+          if (!btn) return;
+          e.stopPropagation();
+          var code = btn.getAttribute('data-stock') || '';
+          var name = btn.getAttribute('data-name') || '';
+          if (!code) return;
+          aiSession.stock_code = code;
+          var label = name ? (code + ' ' + name) : code;
+          aiAsk('帮我分析 ' + label + ' 当前多周期状态和操作建议');
+        });
+
         function aiAsk(text) {
           // 从首页 C 位或 watchlist 问观象按钮触发时，确保抽屉打开
           var drawer = document.getElementById('ai-drawer');
@@ -281,7 +308,6 @@ function aiRender(data) {
               page_context: pageContext,
               session_id: aiSession.session_id,
               session_context: {
-                session_id: aiSession.session_id,
                 stock_code: aiSession.stock_code,
                 email: aiSession.email,
                 recent_topics: aiSession.recent_topics || [],
@@ -293,20 +319,23 @@ function aiRender(data) {
             })
           })
           .then(function(r) {
-            if (!r.ok) throw new Error('请求失败');
+            if (!r.ok) {
+              var msg = r.status === 429 ? '请求太频繁，请稍后再试。' :
+                        r.status >= 500 ? '服务端异常（HTTP ' + r.status + '），稍后重试。' :
+                        '请求失败（HTTP ' + r.status + '）。';
+              throw new Error(msg);
+            }
             return r.json();
           })
           .then(function(data) {
             aiRemoveTyping();
             aiRender(data);
           })
-          .catch(function() {
+          .catch(function(err) {
+            console.error('[观象] fetch error:', err);
             aiRemoveTyping();
             aiRender({
-              answer: '回答出了点问题，重试或直接看页面内容。',
-              why: '',
-              avoid: '',
-              freshness_note: '',
+              answer: err.message || '请求失败，请检查网络后重试。',
               next_actions: [{label: '打开首页', url: '/'}]
             });
           });

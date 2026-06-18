@@ -115,7 +115,7 @@
         <a href="/backtest">回测</a>
         <a href="/agent-debate">Agent 辩论</a>
         <a href="/mystrategies">策略工坊</a>
-        <a href="javascript:void(0)" class="nav-ai" onclick="aiToggle()"><span class="nav-ai-dot"></span>观象</a>
+        <a href="javascript:void(0)" class="nav-ai" onclick="aiToggle()">观象</a>
         <span>{{ today }}</span>
       </div>
     </header>
@@ -203,7 +203,7 @@
                 <td>{{ row.next_action or '持续观察' }}</td>
                 <td><span class="tag tag-gray">待复盘</span></td>
                 <td onclick="event.stopPropagation()">
-                  <button class="ask-ai-chip" onclick="askGuanXiang('{{ row.stock_code }}', '{{ row.stock_name or '' }}')">
+                  <button class="ask-ai-chip" data-stock="{{ row.stock_code }}" data-name="{{ row.stock_name or '' }}">
                     <span class="dot"></span>问观象
                   </button>
                 </td>
@@ -251,11 +251,6 @@
     </main>
 
     <script>
-      function askGuanXiang(code, name) {
-        aiSession.stock_code = code;
-        var label = name ? (code + ' ' + name) : code;
-        aiAsk('帮我分析 ' + label + ' 当前多周期状态和操作建议');
-      }
       function toggleSelectAll() {
         var checked = document.getElementById('selectAll').checked;
         document.querySelectorAll('.row-check').forEach(function(cb) { cb.checked = checked; });
