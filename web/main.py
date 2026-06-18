@@ -2933,21 +2933,6 @@ def industry_page(request: Request) -> HTMLResponse:
     )
 
 
-@app.get("/chain-assistant", response_class=HTMLResponse)
-def chain_assistant_page(request: Request) -> HTMLResponse:
-    profile = get_current_profile(request)
-    return templates.TemplateResponse(
-        request,
-        "chain-assistant.html",
-        {
-            "request": request,
-            "today": str(date.today()),
-            "chain": _chain_assistant_data(),
-            "current_user": profile,
-        },
-    )
-
-
 @app.get("/chain-studio", response_class=HTMLResponse)
 def chain_studio_page(request: Request) -> HTMLResponse:
     """产业链工作台（新）— Phase 1 MVP"""
@@ -3395,11 +3380,6 @@ def chain_serenity_analysis(request: Request, chain_id: str, state_date: str | N
 @app.get("/api/chain-studio")
 def chain_studio_api() -> JSONResponse:
     return JSONResponse(content=_chain_studio_data())
-
-
-@app.get("/api/chain-assistant")
-def chain_assistant_api() -> JSONResponse:
-    return JSONResponse(content=_chain_assistant_data())
 
 
 @app.get("/market", response_class=HTMLResponse)
@@ -4364,13 +4344,33 @@ def _is_market_question(message: str) -> bool:
     return any(k in message for k in ("能不能", "能做", "市场", "现在能", "今天能", "等待", "试错"))
 
 
-def _is_learning_question(message: str) -> bool:
-    """判断是否为教学/概念解释类问题。"""
+def _has_stock_code(message: str) -> bool:
+    """检测消息中是否包含 6 位股票代码。"""
+    return bool(re.search(r'\d{6}', message))
+
+
+def _is_explicit_learning_question(message: str) -> bool:
+    """显式教学意图：明确请求解释/学习，不含主题关键词。
+
+    只有出现「什么是/什么意思/解释一下/怎么理解/不懂/讲一下」
+    这类明确教学触发词时才返回 True，不含"多周期/突破/共振"等
+    可能在个股分析中自然出现的高频词。
+    """
     return any(k in message for k in (
         "什么是", "什么意思", "解释一下", "怎么理解", "如何理解",
+        "不懂", "不明白", "讲一下",
+    ))
+
+
+def _is_topic_learning_question(message: str) -> bool:
+    """主题关键词：可能在个股分析中也出现，优先级低于市场/个股路由。
+
+    仅当市场、行业、个股路由全部未命中时，才用主题关键词兜底判断
+    是否为概念解释类问题。
+    """
+    return any(k in message for k in (
         "state", "vcp", "2560", "atr", "布林", "多周期", "怎么看",
-        "adx", "rsi", "macd", "均线", "突破", "收缩", "共振",
-        "不懂", "不明白", "讲一下", "说说",
+        "adx", "rsi", "macd", "均线", "突破", "收缩", "共振", "说说",
     ))
 
 
@@ -5417,8 +5417,8 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
             "mode_used": mode,
         }
 
-    # 问题 0.3：教学 / 概念解释（规则可覆盖的量化术语）
-    if _is_learning_question(msg_lower):
+    # 问题 0.3：显式教学意图（仅无股票代码时抢先，避免误伤个股分析）
+    if _is_explicit_learning_question(msg_lower) and not _has_stock_code(msg):
         return _learning_answer(msg, query, mode)
 
     # ── 市场/行业/个股路由 ──
@@ -5578,6 +5578,10 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
             "remembered_email": _chat_email(query),
             "mode_used": mode,
         }
+
+    # 问题 7：主题概念解释（低优先级兜底，仅在未命中个股/市场时触发）
+    if _is_topic_learning_question(msg_lower) and not _has_stock_code(msg):
+        return _learning_answer(msg, query, mode)
 
     # ── 默认回答：规则未命中时，走通用 DeepSeek Q&A ──────────────────────
     deepseek_answer = _general_deepseek_answer(query)
