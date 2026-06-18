@@ -2968,8 +2968,8 @@ def chain_studio_page(request: Request) -> HTMLResponse:
 
 
 def _chain_db() -> duckdb.DuckDBPyConnection:
-    """返回产业链证据库连接"""
-    return duckdb.connect(str(CHAIN_EVIDENCE_DB))
+    """返回产业链证据库连接（只读，避免服务器 WAL 权限问题）"""
+    return duckdb.connect(str(CHAIN_EVIDENCE_DB), read_only=True)
 
 
 def _chain_list_data() -> dict[str, Any]:
@@ -4716,6 +4716,7 @@ def _build_memory_context(session_id: str) -> dict[str, Any]:
         "user_focus": user_focus,
         "user_preferred_scenarios": preferred,
         "recent_turns": recent_turns_data,
+        "turn_count": len(session.turns),
     }
 
 
@@ -4824,11 +4825,19 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
             pass  # 记忆提取失败不阻塞主链路
 
     symbol = query.stock_code or _chat_stock_code(query) or ""
-    # 代词解析：从记忆上下文中还原"它/这个/这只"
+    # 代词解析：从记忆上下文中还原"它/这个/这只/刚才那个/上一只"
     if not symbol:
         recent_codes = memory.get("recent_stock_codes", [])
-        if recent_codes and any(p in msg for p in ("它", "这个", "这只", "那个", "那只")):
-            symbol = recent_codes[0]
+        pronouns = ("它", "这个", "这只", "那个", "那只", "刚才", "上一只", "上面那个", "刚才那只")
+        if recent_codes and any(p in msg for p in pronouns):
+            symbol = _canonical_stock_code(recent_codes[0])
+    # 补充：从前端传递的 recent_topics 中提取股票代码
+    if not symbol and query.session_context:
+        for topic in (query.session_context.get("recent_topics") or []):
+            code = _extract_stock_code_from_message(str(topic))
+            if code:
+                symbol = code
+                break
 
     context = {
         "user_type": "执行型",
@@ -4840,8 +4849,14 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
         "user_focus": memory.get("user_focus", ""),
         "user_preferred_scenarios": memory.get("user_preferred_scenarios", []),
         "recent_turns": memory.get("recent_turns", []),
+        "turn_count": memory.get("turn_count", 0),
         "value_call": _agently_value_deepseek_call,
     }
+    # 合并前端传递的最近话题到上下文，供 LLM 编排层消费
+    if query.session_context:
+        fe_topics = query.session_context.get("recent_topics") or []
+        if fe_topics and not context["recent_topics"]:
+            context["recent_topics"] = [t[:40] for t in fe_topics[:5]]
 
     # ── 数据预取区：市场/行业/价值数据（场景编排消费） ──────────────────────
     if _is_market_question(msg) or _is_industry_question(msg) or _is_value_question(msg):
@@ -5787,10 +5802,14 @@ def chat_query(request: Request, query: ChatQuery) -> JSONResponse:
             query.session_id = session.session_id
         else:
             session = conv_mgr.get_or_create(user_id, query.session_id)
-        # 回填会话上下文：将 store 中已提取的 remembered_stock_code 等注入 query
-        # 保证 _chat_stock_code() 在第二轮"它"提问时能找到历史股票代码
-        if session.context and not query.session_context:
-            query.session_context = dict(session.context)
+        # 合并会话上下文：服务端已有 + 前端传递的 recent_topics/turn_count
+        merged_ctx = dict(session.context or {})
+        if query.session_context:
+            for k, v in query.session_context.items():
+                if v not in (None, '', [], {}):
+                    merged_ctx[k] = v
+        # 回填会话上下文：保证 _chat_stock_code() 在第二轮"它"提问时能找到历史股票代码
+        query.session_context = merged_ctx
         conv_mgr.add_message(session.session_id, "user", query.message)
     except Exception:
         # 会话层失败不阻塞主链路，降级为无状态
@@ -5815,6 +5834,15 @@ def chat_query(request: Request, query: ChatQuery) -> JSONResponse:
                 conv_mgr.add_message(
                     query.session_id, "assistant", result.get("answer", ""), intent=intent_str
                 )
+                # 持久化股票代码到会话上下文，支持跨轮次记忆
+                remembered_code = result.get("remembered_stock_code") or ""
+                if remembered_code:
+                    merged_ctx["stock_code"] = remembered_code
+                merged_ctx["turn_count"] = (merged_ctx.get("turn_count") or 0)
+                try:
+                    conv_mgr.update_context(query.session_id, merged_ctx)
+                except (AttributeError, Exception):
+                    pass  # update_context 不存在时忽略
             except Exception:
                 pass
         return JSONResponse(content=result)
