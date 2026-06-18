@@ -3,70 +3,44 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Hermass 策略编辑器</title>
+  <title>Hermass 策略工坊</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --mn1-tianshi: #E74C3C;
-      --mn1-dili: #F39C12;
-      --mn1-renhe: #F1C40F;
-      --mn1-xuli: #3498DB;
-      --mn1-dongmian: #95A5A6;
-      --mn1-niwei: #9B59B6;
-      --cond-entry: #60a5fa;
-      --cond-filter: #fbbf24;
-      --cond-exit: #fb7185;
+      --mn1-tianshi: #E74C3C; --mn1-dili: #F39C12; --mn1-renhe: #F1C40F;
+      --mn1-xuli: #3498DB; --mn1-dongmian: #95A5A6; --mn1-niwei: #9B59B6;
+      --cond-entry: #60a5fa; --cond-filter: #fbbf24; --cond-exit: #fb7185;
     }
-    body {
-      font-family: 'Inter', 'PingFang SC', -apple-system, 'Helvetica Neue', sans-serif;
-      font-feature-settings: 'cv01', 'ss03';
-    }
-    .num {
-      font-family: 'Inter', sans-serif;
-      font-variant-numeric: tabular-nums;
-    }
-    .strategy-input {
-      background: transparent;
-      border: none;
-      border-bottom: 1px solid transparent;
-      outline: none;
-      transition: border-color 0.15s ease;
-    }
-    .strategy-input:hover {
-      border-bottom-color: #e2e8f0;
-    }
-    .strategy-input:focus {
-      border-bottom-color: #3b82f6;
-    }
-    .add-btn-group:hover .add-dropdown {
-      opacity: 1;
-      pointer-events: auto;
-      transform: translateY(0);
-    }
-    .add-dropdown {
-      opacity: 0;
-      pointer-events: none;
-      transform: translateY(-4px);
-      transition: opacity 0.15s ease, transform 0.15s ease;
-    }
-    .pill-close {
-      opacity: 0;
-      transition: opacity 0.1s ease;
-    }
-    .cond-pill:hover .pill-close {
-      opacity: 1;
-    }
-    table th {
-      font-variant-numeric: tabular-nums;
-    }
-    /* Subtle scrollbar */
+    body { font-family: 'Inter', 'PingFang SC', -apple-system, 'Helvetica Neue', sans-serif; font-feature-settings: 'cv01', 'ss03'; }
+    .num { font-family: 'Inter', sans-serif; font-variant-numeric: tabular-nums; }
+    .strategy-input { background: transparent; border: none; border-bottom: 1px solid transparent; outline: none; transition: border-color 0.15s ease; }
+    .strategy-input:hover { border-bottom-color: #e2e8f0; }
+    .strategy-input:focus { border-bottom-color: #3b82f6; }
+    .add-btn-group:hover .add-dropdown { opacity: 1; pointer-events: auto; transform: translateY(0); }
+    .add-dropdown { opacity: 0; pointer-events: none; transform: translateY(-4px); transition: opacity 0.15s ease, transform 0.15s ease; }
+    .pill-close { opacity: 0; transition: opacity 0.1s ease; }
+    .cond-pill:hover .pill-close { opacity: 1; }
+    table th { font-variant-numeric: tabular-nums; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.08); border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.14); }
+    .sidebar-section { margin-bottom: 1rem; }
+    .sidebar-section h4 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; margin-bottom: 0.5rem; }
+    .redline-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0; font-size: 12.5px; border-bottom: 1px solid #f1f5f9; }
+    .redline-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .redline-ok { background: #16a34a; }
+    .redline-triggered { background: #dc2626; }
+    .funnel-bar { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem; }
+    .funnel-track { flex: 1; height: 5px; background: #e2e8f0; border-radius: 3px; overflow: hidden; }
+    .funnel-fill { height: 100%; border-radius: 3px; }
+    .candidate-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .candidate-table th, .candidate-table td { padding: 0.4rem 0.5rem; text-align: left; border-bottom: 1px solid #e2e8f0; }
+    .candidate-table th { background: #f8fafc; font-weight: 600; color: #475569; font-size: 11px; }
+    .candidate-table tr:hover { background: #f1f5f9; }
   </style>
 </head>
 <body class="min-h-screen" style="background:#f8fafc; color:#0f172a;">
@@ -74,35 +48,19 @@
   <!-- ─── Top Bar ─────────────────────────────────────── -->
   <header class="sticky top-0 z-30 px-6 py-3" style="background:#ffffff; border-bottom: 1px solid #e2e8f0;">
     <div class="max-w-[1440px] mx-auto flex items-center gap-5">
-      <!-- Breadcrumb -->
       <nav class="flex items-center gap-1.5 text-[13px] shrink-0" aria-label="面包屑导航">
-        <a href="/mystrategies" class="text-slate-600 hover:text-slate-700 transition-colors" data-route="mystrategies">我的策略</a>
+        <a href="/" class="text-slate-600 hover:text-slate-700 transition-colors">首页</a>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-slate-400"><path d="M9 18l6-6-6-6"/></svg>
-        <span class="text-slate-700 font-medium">编辑</span>
+        <span class="text-slate-700 font-medium">策略工坊</span>
       </nav>
-
-      <!-- Strategy Name -->
       <div class="flex-1 min-w-0">
-        <label class="sr-only" for="strategy-name">策略名称</label>
-        <input
-          id="strategy-name"
-          type="text"
-          value="放量突破策略 v2"
-          aria-label="策略名称"
-          class="strategy-input w-full text-[17px] font-semibold text-slate-900 tracking-tight py-1 num"
-          style="letter-spacing:-0.02em;"
-        />
+        <input id="strategy-name" type="text" value="放量突破策略 v2" class="strategy-input w-full text-[17px] font-semibold text-slate-900 tracking-tight py-1 num" style="letter-spacing:-0.02em;" />
       </div>
-
-      <!-- Actions -->
       <div class="flex items-center gap-2.5 shrink-0">
         <span class="text-[11px] text-slate-500 font-medium tracking-wide uppercase">已自动保存</span>
-        <button class="px-3.5 py-[7px] text-[13px] font-medium text-slate-600 rounded-md border border-slate-200 hover:bg-slate-50 transition-colors">
-          保存草稿
-        </button>
+        <button class="px-3.5 py-[7px] text-[13px] font-medium text-slate-600 rounded-md border border-slate-200 hover:bg-slate-50 transition-colors">保存草稿</button>
         <button class="px-3.5 py-[7px] text-[13px] font-medium text-white rounded-md transition-colors flex items-center gap-1.5" style="background:#3b82f6;">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-          运行回测
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> 运行回测
         </button>
       </div>
     </div>
@@ -111,429 +69,345 @@
   <!-- ─── 统一导航条 ─────────────────────────────────────── -->
   <div class="border-b border-slate-200 px-6 py-2" style="background:#f8fafc;">
     <div class="max-w-[1440px] mx-auto flex items-center gap-4 text-[13px]">
-      <a href="/?mode=direction" class="text-slate-500 hover:text-slate-700 transition-colors">首页</a>
+      <a href="/" class="text-slate-500 hover:text-slate-700 transition-colors">首页</a>
       <a href="/market" class="text-slate-500 hover:text-slate-700 transition-colors">市场</a>
       <a href="/industry" class="text-slate-500 hover:text-slate-700 transition-colors">行业</a>
-      <a href="/chain-assistant" class="text-slate-500 hover:text-slate-700 transition-colors">产业链助手（旧）</a><a href="/chain-studio" class="text-slate-500 hover:text-slate-700 transition-colors">产业链工作台（新）</a>
+      <a href="/chain-assistant" class="text-slate-500 hover:text-slate-700 transition-colors">产业链助手（旧）</a>
+      <a href="/chain-studio" class="text-slate-500 hover:text-slate-700 transition-colors">产业链工作台（新）</a>
       <a href="/research" class="text-slate-500 hover:text-slate-700 transition-colors">研究</a>
-      <a href="/watchlist" class="text-slate-500 hover:text-slate-700 transition-colors">执行</a>
+      <a href="/watchlist" class="text-slate-500 hover:text-slate-700 transition-colors">模拟跟踪</a>
       <a href="/backtest" class="text-slate-500 hover:text-slate-700 transition-colors">回测</a>
+      <a href="/agent-debate" class="text-slate-500 hover:text-slate-700 transition-colors">Agent 辩论</a>
       <a href="javascript:void(0)" onclick="aiToggle()" class="text-slate-500 hover:text-slate-700 transition-colors">观象</a>
     </div>
   </div>
 
-  <!-- ─── Main: 70/30 Split ──────────────────────────── -->
+  <!-- ─── Main: 三栏 Split ──────────────────────────── -->
   <main class="max-w-[1440px] mx-auto px-6 py-5">
     <div class="flex gap-5 items-start">
 
-      <!-- ═══ Left: Condition Editor (70%) ═══ -->
-      <div class="flex-[7] min-w-0 space-y-4">
-
-        <!-- ── 入场条件 ── -->
-        <section data-component="Entry Conditions" class="rounded-lg p-4" style="background:#ffffff; border:1px solid #e2e8f0;">
-          <div class="flex items-center justify-between mb-3">
-            <div class="flex items-center gap-2">
-              <span class="w-1.5 h-1.5 rounded-full" style="background:var(--cond-entry);"></span>
-              <h3 class="text-[13px] font-semibold text-slate-700 tracking-wide">入场条件</h3>
-              <span class="text-[11px] text-slate-500 num font-medium">3 条</span>
-            </div>
-          </div>
-          <div class="flex flex-wrap gap-2 items-center">
-            <!-- Condition Pill -->
-            <div class="cond-pill group inline-flex items-center gap-2 px-3 py-[6px] rounded-full text-[12.5px] font-medium text-slate-700" style="background:#eff6ff; border:1px solid #bfdbfe;">
-              <span class="w-1 h-1 rounded-full" style="background:var(--cond-entry);"></span>
-              <span>价格突破 <span class="num text-slate-800">20</span> 日均线</span>
-              <button class="pill-close text-slate-500 hover:text-slate-600 ml-0.5">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-              </button>
-            </div>
-            <div class="cond-pill group inline-flex items-center gap-2 px-3 py-[6px] rounded-full text-[12.5px] font-medium text-slate-700" style="background:#eff6ff; border:1px solid #bfdbfe;">
-              <span class="w-1 h-1 rounded-full" style="background:var(--cond-entry);"></span>
-              <span>成交量 &gt; <span class="num text-slate-800">5</span> 日均量 × <span class="num text-slate-800">1.5</span></span>
-              <button class="pill-close text-slate-500 hover:text-slate-600 ml-0.5">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-              </button>
-            </div>
-            <div class="cond-pill group inline-flex items-center gap-2 px-3 py-[6px] rounded-full text-[12.5px] font-medium text-slate-700" style="background:#eff6ff; border:1px solid #bfdbfe;">
-              <span class="w-1 h-1 rounded-full" style="background:var(--cond-entry);"></span>
-              <span>ef_count ≥ <span class="num text-slate-800">2</span></span>
-              <button class="pill-close text-slate-500 hover:text-slate-600 ml-0.5">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-              </button>
-            </div>
-            <!-- Add Button with Dropdown -->
-            <div class="add-btn-group relative">
-              <button class="inline-flex items-center gap-1.5 px-2.5 py-[6px] rounded-full text-[12px] font-medium text-slate-500 border border-dashed border-slate-200 hover:border-slate-300 hover:text-slate-600 transition-colors" aria-label="添加入场条件">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-                添加条件
-              </button>
-              <div class="add-dropdown absolute top-full left-0 mt-1.5 w-52 rounded-lg py-1 z-20" style="background:#ffffff; border:1px solid #e2e8f0; box-shadow: 0 8px 24px rgba(0,0,0,0.08);">
-                <button type="button" class="flex w-full items-center gap-2.5 px-3 py-2 text-[12.5px] text-slate-600 hover:bg-slate-50 transition-colors text-left">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-slate-500"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg>
-                  价格突破
-                </button>
-                <button type="button" class="flex w-full items-center gap-2.5 px-3 py-2 text-[12.5px] text-slate-600 hover:bg-slate-50 transition-colors text-left">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-slate-500"><rect x="3" y="12" width="3" height="8" rx="1"/><rect x="8" y="8" width="3" height="12" rx="1"/><rect x="13" y="5" width="3" height="15" rx="1"/><rect x="18" y="10" width="3" height="10" rx="1"/></svg>
-                  成交量
-                </button>
-                <button type="button" class="flex w-full items-center gap-2.5 px-3 py-2 text-[12.5px] text-slate-600 hover:bg-slate-50 transition-colors text-left">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-slate-500"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg>
-                  State 条件
-                </button>
-                <button type="button" class="flex w-full items-center gap-2.5 px-3 py-2 text-[12.5px] text-slate-600 hover:bg-slate-50 transition-colors text-left">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-slate-500"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
-                  均线排列
-                </button>
-                <div class="my-1 border-t border-slate-200"></div>
-                <button type="button" class="flex w-full items-center gap-2.5 px-3 py-2 text-[12.5px] text-slate-600 hover:bg-slate-50 transition-colors text-left">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-slate-500"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
-                  涨跌幅
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- ── 过滤条件 ── -->
-        <section data-component="Filter Conditions" class="rounded-lg p-4" style="background:#ffffff; border:1px solid #e2e8f0;">
-          <div class="flex items-center justify-between mb-3">
-            <div class="flex items-center gap-2">
-              <span class="w-1.5 h-1.5 rounded-full" style="background:var(--cond-filter);"></span>
-              <h3 class="text-[13px] font-semibold text-slate-700 tracking-wide">过滤条件</h3>
-              <span class="text-[11px] text-slate-500 num font-medium">1 条</span>
-            </div>
-          </div>
-          <div class="flex flex-wrap gap-2 items-center">
-            <div class="cond-pill group inline-flex items-center gap-2 px-3 py-[6px] rounded-full text-[12.5px] font-medium text-slate-700" style="background:#fffbeb; border:1px solid #fde68a;">
-              <span class="w-1 h-1 rounded-full" style="background:var(--cond-filter);"></span>
-              <span>行业 ≠ 银行</span>
-              <button class="pill-close text-slate-500 hover:text-slate-600 ml-0.5">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-              </button>
-            </div>
-            <div class="add-btn-group relative">
-              <button class="inline-flex items-center gap-1.5 px-2.5 py-[6px] rounded-full text-[12px] font-medium text-slate-500 border border-dashed border-slate-200 hover:border-slate-300 hover:text-slate-600 transition-colors" aria-label="添加过滤条件">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-                添加条件
-              </button>
-              <div class="add-dropdown absolute top-full left-0 mt-1.5 w-52 rounded-lg py-1 z-20" style="background:#ffffff; border:1px solid #e2e8f0; box-shadow: 0 8px 24px rgba(0,0,0,0.08);">
-                <button type="button" class="flex w-full items-center gap-2.5 px-3 py-2 text-[12.5px] text-slate-600 hover:bg-slate-50 transition-colors text-left">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-slate-500"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
-                  行业过滤
-                </button>
-                <button type="button" class="flex w-full items-center gap-2.5 px-3 py-2 text-[12.5px] text-slate-600 hover:bg-slate-50 transition-colors text-left">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-slate-500"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg>
-                  State 条件
-                </button>
-                <button type="button" class="flex w-full items-center gap-2.5 px-3 py-2 text-[12.5px] text-slate-600 hover:bg-slate-50 transition-colors text-left">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-slate-500"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
-                  涨跌幅
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- ── 退出条件 ── -->
-        <section data-component="Exit Conditions" class="rounded-lg p-4" style="background:#ffffff; border:1px solid #e2e8f0;">
-          <div class="flex items-center justify-between mb-3">
-            <div class="flex items-center gap-2">
-              <span class="w-1.5 h-1.5 rounded-full" style="background:var(--cond-exit);"></span>
-              <h3 class="text-[13px] font-semibold text-slate-700 tracking-wide">退出条件</h3>
-              <span class="text-[11px] text-slate-500 num font-medium">2 条</span>
-            </div>
-          </div>
-          <div class="flex flex-wrap gap-2 items-center">
-            <div class="cond-pill group inline-flex items-center gap-2 px-3 py-[6px] rounded-full text-[12.5px] font-medium text-slate-700" style="background:#fef2f2; border:1px solid #fecaca;">
-              <span class="w-1 h-1 rounded-full" style="background:var(--cond-exit);"></span>
-              <span>收盘价 &lt; 入场价 × <span class="num text-slate-800">0.93</span>（<span class="num text-slate-800">7%</span> 止损）</span>
-              <button class="pill-close text-slate-500 hover:text-slate-600 ml-0.5">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-              </button>
-            </div>
-            <div class="cond-pill group inline-flex items-center gap-2 px-3 py-[6px] rounded-full text-[12.5px] font-medium text-slate-700" style="background:#fef2f2; border:1px solid #fecaca;">
-              <span class="w-1 h-1 rounded-full" style="background:var(--cond-exit);"></span>
-              <span>收盘价 &lt; <span class="num text-slate-800">MA20</span></span>
-              <button class="pill-close text-slate-500 hover:text-slate-600 ml-0.5">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-              </button>
-            </div>
-            <div class="add-btn-group relative">
-              <button class="inline-flex items-center gap-1.5 px-2.5 py-[6px] rounded-full text-[12px] font-medium text-slate-500 border border-dashed border-slate-200 hover:border-slate-300 hover:text-slate-600 transition-colors" aria-label="添加退出条件">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-                添加条件
-              </button>
-              <div class="add-dropdown absolute top-full left-0 mt-1.5 w-52 rounded-lg py-1 z-20" style="background:#ffffff; border:1px solid #e2e8f0; box-shadow: 0 8px 24px rgba(0,0,0,0.08);">
-                <button type="button" class="flex w-full items-center gap-2.5 px-3 py-2 text-[12.5px] text-slate-600 hover:bg-slate-50 transition-colors text-left">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-slate-500"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
-                  止损 / 止盈
-                </button>
-                <button type="button" class="flex w-full items-center gap-2.5 px-3 py-2 text-[12.5px] text-slate-600 hover:bg-slate-50 transition-colors text-left">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-slate-500"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg>
-                  价格突破
-                </button>
-                <button type="button" class="flex w-full items-center gap-2.5 px-3 py-2 text-[12.5px] text-slate-600 hover:bg-slate-50 transition-colors text-left">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-slate-500"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
-                  均线排列
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-      </div>
-
-      <!-- ═══ Right: Preview Panel (30%) ═══ -->
-      <aside data-component="Preview Panel" class="flex-[3] sticky top-[60px] shrink-0">
+      <!-- ═══ Left: 策略输入与筛选 (240px) ═══ -->
+      <aside class="w-[240px] shrink-0 space-y-4">
         <div class="rounded-lg p-4" style="background:#ffffff; border:1px solid #e2e8f0;">
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="text-[13px] font-semibold text-slate-700 tracking-wide">即时预览</h3>
-            <span class="inline-flex items-center gap-1 text-[11px] text-emerald-400 font-medium">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-              实时
-            </span>
+          <h3 class="text-[13px] font-semibold text-slate-700 tracking-wide mb-3">策略输入与筛选</h3>
+
+          <div class="sidebar-section">
+            <h4>标的池</h4>
+            <select class="w-full text-[12.5px] py-1.5 px-2 rounded border border-slate-200 bg-white">
+              <option>全市场</option>
+              <option>自选池</option>
+              <option>EF ≥ 2 候选</option>
+            </select>
           </div>
 
-          <!-- Funnel Metrics -->
-          <div class="space-y-2.5">
-            <!-- Total Market -->
-            <div class="flex items-center justify-between py-2 border-b border-slate-200">
-              <span class="text-[12.5px] text-slate-600">全市场</span>
-              <span class="num text-[14px] font-semibold text-slate-700">5,508</span>
-            </div>
-
-            <!-- Entry Hits -->
-            <div class="flex items-center justify-between py-2 border-b border-slate-200">
-              <div class="flex items-center gap-2">
-                <span class="w-1 h-1 rounded-full" style="background:var(--cond-entry);"></span>
-                <span class="text-[12.5px] text-slate-600">入场满足</span>
-              </div>
-              <div class="flex items-center gap-2">
-                <span class="num text-[14px] font-semibold text-slate-800">142</span>
-                <span class="num text-[11px] text-slate-500">2.6%</span>
-              </div>
-            </div>
-
-            <!-- Filter Hits -->
-            <div class="flex items-center justify-between py-2 border-b border-slate-200">
-              <div class="flex items-center gap-2">
-                <span class="w-1 h-1 rounded-full" style="background:var(--cond-filter);"></span>
-                <span class="text-[12.5px] text-slate-600">入场 + 过滤</span>
-              </div>
-              <div class="flex items-center gap-2">
-                <span class="num text-[14px] font-semibold text-slate-800">98</span>
-                <span class="num text-[11px] text-slate-500">1.8%</span>
-              </div>
-            </div>
-
-            <!-- All Conditions -->
-            <div class="flex items-center justify-between py-2.5 rounded-md px-3 -mx-1" style="background:#eff6ff; border:1px solid #bfdbfe;">
-              <div class="flex items-center gap-2">
-                <span class="w-1.5 h-1.5 rounded-full" style="background:#3b82f6;"></span>
-                <span class="text-[12.5px] text-slate-600 font-medium">全部满足</span>
-              </div>
-              <div class="flex items-center gap-2">
-                <span class="num text-[16px] font-semibold text-blue-600">98</span>
-                <span class="num text-[11px] text-slate-600">1.8%</span>
-              </div>
+          <div class="sidebar-section">
+            <h4>周期选择</h4>
+            <div class="flex flex-wrap gap-2">
+              <label class="flex items-center gap-1 text-[12px] text-slate-600"><input type="checkbox" checked class="w-3.5 h-3.5"> MN1</label>
+              <label class="flex items-center gap-1 text-[12px] text-slate-600"><input type="checkbox" checked class="w-3.5 h-3.5"> W1</label>
+              <label class="flex items-center gap-1 text-[12px] text-slate-600"><input type="checkbox" checked class="w-3.5 h-3.5"> D1</label>
+              <label class="flex items-center gap-1 text-[12px] text-slate-600"><input type="checkbox" class="w-3.5 h-3.5"> M30</label>
             </div>
           </div>
 
-          <!-- Visual Bar -->
-          <div class="mt-4 pt-3 border-t border-slate-200">
-            <div class="flex items-center gap-1 mb-2">
-              <span class="text-[11px] text-slate-500">条件漏斗</span>
+          <div class="sidebar-section">
+            <h4>策略类型</h4>
+            <select class="w-full text-[12.5px] py-1.5 px-2 rounded border border-slate-200 bg-white">
+              <option>EF共振（环境过滤）</option>
+              <option>VCP收缩突破</option>
+              <option>MA2560趋势</option>
+              <option>布林强盗</option>
+              <option>复合策略</option>
+            </select>
+          </div>
+
+          <div class="sidebar-section">
+            <h4>状态条件</h4>
+            <div class="flex items-center gap-2 mb-1.5">
+              <span class="text-[12px] text-slate-500">ef_count ≥</span>
+              <input type="number" value="2" min="0" max="3" class="w-12 text-[12.5px] py-1 px-1.5 rounded border border-slate-200 text-center" />
             </div>
+            <div class="flex flex-wrap gap-1.5">
+              <span class="text-[11px] px-2 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-100">E</span>
+              <span class="text-[11px] px-2 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-100">F</span>
+              <span class="text-[11px] px-2 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200">C</span>
+              <span class="text-[11px] px-2 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200">D</span>
+            </div>
+          </div>
+
+          <div class="sidebar-section">
+            <h4>风险约束</h4>
             <div class="space-y-1.5">
-              <div class="flex items-center gap-2">
-                <span class="text-[10px] text-slate-500 w-16 shrink-0">全市场</span>
-                <div class="h-[6px] rounded-full" style="background:#e2e8f0; width:100%;">
-                  <div class="h-full rounded-full" style="background:#cbd5e1; width:100%;"></div>
-                </div>
+              <div class="flex items-center justify-between text-[12px]">
+                <span class="text-slate-500">止损</span>
+                <span class="num font-medium">7%</span>
               </div>
-              <div class="flex items-center gap-2">
-                <span class="text-[10px] text-slate-500 w-16 shrink-0">入场</span>
-                <div class="h-[6px] rounded-full" style="background:#e2e8f0; width:100%;">
-                  <div class="h-full rounded-full" style="background:var(--cond-entry); opacity:0.5; width:2.6%;"></div>
-                </div>
+              <div class="flex items-center justify-between text-[12px]">
+                <span class="text-slate-500">最大持仓</span>
+                <span class="num font-medium">10 只</span>
               </div>
-              <div class="flex items-center gap-2">
-                <span class="text-[10px] text-slate-500 w-16 shrink-0">+ 过滤</span>
-                <div class="h-[6px] rounded-full" style="background:#e2e8f0; width:100%;">
-                  <div class="h-full rounded-full" style="background:var(--cond-filter); opacity:0.5; width:1.8%;"></div>
-                </div>
+              <div class="flex items-center justify-between text-[12px]">
+                <span class="text-slate-500">单行业上限</span>
+                <span class="num font-medium">40%</span>
               </div>
             </div>
           </div>
 
-          <!-- Info -->
-          <div class="mt-4 pt-3 border-t border-slate-200">
-            <p class="text-[11px] text-slate-500 leading-relaxed">
-              预览仅查询当日数据，秒级返回。修改条件后自动刷新。
-            </p>
-            <div class="mt-2.5 flex items-center gap-1.5 text-[11px] text-slate-500">
-              <kbd class="px-1.5 py-0.5 rounded text-[10px] font-medium" style="background:#f1f5f9; border:1px solid #e2e8f0;">/</kbd>
-              <span>快速添加条件</span>
-            </div>
+          <div class="sidebar-section">
+            <h4>回测时间范围</h4>
+            <select class="w-full text-[12.5px] py-1.5 px-2 rounded border border-slate-200 bg-white">
+              <option>30 天</option>
+              <option>60 天</option>
+              <option selected>90 天</option>
+              <option>180 天</option>
+              <option>252 天（一年）</option>
+            </select>
           </div>
         </div>
       </aside>
 
+      <!-- ═══ Center: 主工作区 ═══ -->
+      <div class="flex-1 min-w-0 space-y-4">
+
+        <!-- 策略假设摘要 -->
+        <div class="rounded-lg p-4" style="background:#ffffff; border:1px solid #e2e8f0;">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-[13px] font-semibold text-slate-700 tracking-wide">策略假设摘要</h3>
+            <span class="text-[11px] text-slate-500">基于当前条件</span>
+          </div>
+          <p class="text-[13px] text-slate-600 leading-relaxed">
+            <strong>价格突破 MA20</strong> + <strong>成交量大于 5 日均量 × 1.5</strong> + <strong>ef_count ≥ 2</strong>，
+            排除银行业，止损 7%，最大持仓 10 只，回测窗口 90 天。
+          </p>
+        </div>
+
+        <!-- 条件组合构建器 -->
+        <div class="rounded-lg p-4" style="background:#ffffff; border:1px solid #e2e8f0;">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-[13px] font-semibold text-slate-700 tracking-wide">条件组合构建器</h3>
+            <span class="text-[11px] text-slate-500">满足即产生信号</span>
+          </div>
+          <div class="space-y-3">
+            <!-- 入场条件 -->
+            <div>
+              <div class="flex items-center gap-2 mb-2">
+                <span class="w-1.5 h-1.5 rounded-full" style="background:var(--cond-entry);"></span>
+                <span class="text-[12px] font-semibold text-slate-600 tracking-wide">入场条件</span>
+                <span class="text-[11px] text-slate-500 num">3 条</span>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <div class="cond-pill group inline-flex items-center gap-2 px-3 py-[6px] rounded-full text-[12.5px] font-medium text-slate-700" style="background:#eff6ff; border:1px solid #bfdbfe;">
+                  <span class="w-1 h-1 rounded-full" style="background:var(--cond-entry);"></span>
+                  <span>价格突破 <span class="num text-slate-800">20</span> 日均线</span>
+                  <button class="pill-close text-slate-500 hover:text-slate-600 ml-0.5"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+                </div>
+                <div class="cond-pill group inline-flex items-center gap-2 px-3 py-[6px] rounded-full text-[12.5px] font-medium text-slate-700" style="background:#eff6ff; border:1px solid #bfdbfe;">
+                  <span class="w-1 h-1 rounded-full" style="background:var(--cond-entry);"></span>
+                  <span>成交量 &gt; <span class="num text-slate-800">5</span> 日均量 × <span class="num text-slate-800">1.5</span></span>
+                  <button class="pill-close text-slate-500 hover:text-slate-600 ml-0.5"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+                </div>
+                <div class="cond-pill group inline-flex items-center gap-2 px-3 py-[6px] rounded-full text-[12.5px] font-medium text-slate-700" style="background:#eff6ff; border:1px solid #bfdbfe;">
+                  <span class="w-1 h-1 rounded-full" style="background:var(--cond-entry);"></span>
+                  <span>ef_count ≥ <span class="num text-slate-800">2</span></span>
+                  <button class="pill-close text-slate-500 hover:text-slate-600 ml-0.5"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+                </div>
+                <button class="inline-flex items-center gap-1.5 px-2.5 py-[6px] rounded-full text-[12px] font-medium text-slate-500 border border-dashed border-slate-200 hover:border-slate-300 hover:text-slate-600 transition-colors"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> 添加</button>
+              </div>
+            </div>
+            <!-- 过滤条件 -->
+            <div>
+              <div class="flex items-center gap-2 mb-2">
+                <span class="w-1.5 h-1.5 rounded-full" style="background:var(--cond-filter);"></span>
+                <span class="text-[12px] font-semibold text-slate-600 tracking-wide">过滤条件</span>
+                <span class="text-[11px] text-slate-500 num">1 条</span>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <div class="cond-pill group inline-flex items-center gap-2 px-3 py-[6px] rounded-full text-[12.5px] font-medium text-slate-700" style="background:#fffbeb; border:1px solid #fde68a;">
+                  <span class="w-1 h-1 rounded-full" style="background:var(--cond-filter);"></span>
+                  <span>行业 ≠ 银行</span>
+                  <button class="pill-close text-slate-500 hover:text-slate-600 ml-0.5"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+                </div>
+                <button class="inline-flex items-center gap-1.5 px-2.5 py-[6px] rounded-full text-[12px] font-medium text-slate-500 border border-dashed border-slate-200 hover:border-slate-300 hover:text-slate-600 transition-colors"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> 添加</button>
+              </div>
+            </div>
+            <!-- 退出条件 -->
+            <div>
+              <div class="flex items-center gap-2 mb-2">
+                <span class="w-1.5 h-1.5 rounded-full" style="background:var(--cond-exit);"></span>
+                <span class="text-[12px] font-semibold text-slate-600 tracking-wide">退出条件</span>
+                <span class="text-[11px] text-slate-500 num">2 条</span>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <div class="cond-pill group inline-flex items-center gap-2 px-3 py-[6px] rounded-full text-[12.5px] font-medium text-slate-700" style="background:#fef2f2; border:1px solid #fecaca;">
+                  <span class="w-1 h-1 rounded-full" style="background:var(--cond-exit);"></span>
+                  <span>收盘价 &lt; 入场价 × <span class="num text-slate-800">0.93</span></span>
+                  <button class="pill-close text-slate-500 hover:text-slate-600 ml-0.5"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+                </div>
+                <div class="cond-pill group inline-flex items-center gap-2 px-3 py-[6px] rounded-full text-[12.5px] font-medium text-slate-700" style="background:#fef2f2; border:1px solid #fecaca;">
+                  <span class="w-1 h-1 rounded-full" style="background:var(--cond-exit);"></span>
+                  <span>收盘价 &lt; <span class="num text-slate-800">MA20</span></span>
+                  <button class="pill-close text-slate-500 hover:text-slate-600 ml-0.5"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+                </div>
+                <button class="inline-flex items-center gap-1.5 px-2.5 py-[6px] rounded-full text-[12px] font-medium text-slate-500 border border-dashed border-slate-200 hover:border-slate-300 hover:text-slate-600 transition-colors"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> 添加</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 当前命中样本数量 + 状态分布 -->
+        <div class="grid grid-cols-2 gap-4">
+          <div class="rounded-lg p-4" style="background:#ffffff; border:1px solid #e2e8f0;">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-[13px] font-semibold text-slate-700 tracking-wide">当前命中样本</h3>
+              <span class="text-[11px] text-emerald-600 font-medium">实时</span>
+            </div>
+            <div class="text-[32px] font-bold text-slate-900 num" style="letter-spacing:-0.02em;">98</div>
+            <div class="text-[12px] text-slate-500 mt-1">占全市场 1.8%</div>
+            <div class="mt-3 space-y-1.5">
+              <div class="funnel-bar"><span class="text-[10px] text-slate-500 w-12">全市场</span><div class="funnel-track"><div class="funnel-fill" style="background:#cbd5e1; width:100%;"></div></div><span class="text-[11px] text-slate-600 num">5,508</span></div>
+              <div class="funnel-bar"><span class="text-[10px] text-slate-500 w-12">入场</span><div class="funnel-track"><div class="funnel-fill" style="background:var(--cond-entry); opacity:0.6; width:2.6%;"></div></div><span class="text-[11px] text-slate-600 num">142</span></div>
+              <div class="funnel-bar"><span class="text-[10px] text-slate-500 w-12">+过滤</span><div class="funnel-track"><div class="funnel-fill" style="background:var(--cond-filter); opacity:0.6; width:1.8%;"></div></div><span class="text-[11px] text-blue-600 font-semibold num">98</span></div>
+            </div>
+          </div>
+          <div class="rounded-lg p-4" style="background:#ffffff; border:1px solid #e2e8f0;">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-[13px] font-semibold text-slate-700 tracking-wide">命中样本状态分布</h3>
+            </div>
+            <p class="text-[12px] text-slate-600 mb-2">集中在<strong>地利</strong>与<strong>蓄力</strong>状态，天时占比偏低。</p>
+            <div class="space-y-1.5">
+              <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full shrink-0" style="background:var(--mn1-tianshi);"></span><span class="text-[11px] text-slate-500 w-10">天时</span><div class="flex-1 bg-slate-100 rounded-full h-2"><div class="h-full rounded-full" style="background:var(--mn1-tianshi); width:12%;"></div></div><span class="text-[11px] text-slate-600 num w-8 text-right">12</span></div>
+              <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full shrink-0" style="background:var(--mn1-dili);"></span><span class="text-[11px] text-slate-500 w-10">地利</span><div class="flex-1 bg-slate-100 rounded-full h-2"><div class="h-full rounded-full" style="background:var(--mn1-dili); width:38%;"></div></div><span class="text-[11px] text-slate-600 num w-8 text-right">38</span></div>
+              <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full shrink-0" style="background:var(--mn1-xuli);"></span><span class="text-[11px] text-slate-500 w-10">蓄力</span><div class="flex-1 bg-slate-100 rounded-full h-2"><div class="h-full rounded-full" style="background:var(--mn1-xuli); width:31%;"></div></div><span class="text-[11px] text-slate-600 num w-8 text-right">31</span></div>
+              <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full shrink-0" style="background:var(--mn1-dongmian);"></span><span class="text-[11px] text-slate-500 w-10">冬眠</span><div class="flex-1 bg-slate-100 rounded-full h-2"><div class="h-full rounded-full" style="background:var(--mn1-dongmian); width:17%;"></div></div><span class="text-[11px] text-slate-600 num w-8 text-right">17</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 候选标的列表 -->
+        <div class="rounded-lg overflow-hidden" style="background:#ffffff; border:1px solid #e2e8f0;">
+          <div class="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+            <h3 class="text-[13px] font-semibold text-slate-700 tracking-wide">候选标的列表</h3>
+            <span class="text-[11px] text-slate-500">Top 20</span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="candidate-table">
+              <thead>
+                <tr>
+                  <th>代码</th><th>名称</th><th>MN1</th><th>W1</th><th>D1</th><th>EF</th><th>评分</th><th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td class="num">688981</td><td>中芯国际</td><td><span class="text-[11px] px-1.5 py-0.5 rounded" style="background:#E74C3C20;color:#E74C3C">E</span></td><td><span class="text-[11px] px-1.5 py-0.5 rounded" style="background:#F39C1220;color:#F39C12">F</span></td><td><span class="text-[11px] px-1.5 py-0.5 rounded" style="background:#E74C3C20;color:#E74C3C">E</span></td><td class="num font-semibold">3</td><td class="num">87</td><td><a href="/research?stock_code=688981" class="text-[11px] text-blue-600 hover:underline">研究 →</a></td></tr>
+                <tr><td class="num">688256</td><td>寒武纪</td><td><span class="text-[11px] px-1.5 py-0.5 rounded" style="background:#E74C3C20;color:#E74C3C">E</span></td><td><span class="text-[11px] px-1.5 py-0.5 rounded" style="background:#E74C3C20;color:#E74C3C">E</span></td><td><span class="text-[11px] px-1.5 py-0.5 rounded" style="background:#3498DB20;color:#3498DB">4</span></td><td class="num font-semibold">2</td><td class="num">82</td><td><a href="/research?stock_code=688256" class="text-[11px] text-blue-600 hover:underline">研究 →</a></td></tr>
+                <tr><td class="num">300750</td><td>宁德时代</td><td><span class="text-[11px] px-1.5 py-0.5 rounded" style="background:#F39C1220;color:#F39C12">F</span></td><td><span class="text-[11px] px-1.5 py-0.5 rounded" style="background:#3498DB20;color:#3498DB">4</span></td><td><span class="text-[11px] px-1.5 py-0.5 rounded" style="background:#E74C3C20;color:#E74C3C">E</span></td><td class="num font-semibold">2</td><td class="num">78</td><td><a href="/research?stock_code=300750" class="text-[11px] text-blue-600 hover:underline">研究 →</a></td></tr>
+                <tr><td class="num">600519</td><td>贵州茅台</td><td><span class="text-[11px] px-1.5 py-0.5 rounded" style="background:#95A5A620;color:#95A5A6">0</span></td><td><span class="text-[11px] px-1.5 py-0.5 rounded" style="background:#F1C40F20;color:#b4910b">8</span></td><td><span class="text-[11px] px-1.5 py-0.5 rounded" style="background:#F39C1220;color:#F39C12">F</span></td><td class="num font-semibold">1</td><td class="num">65</td><td><a href="/research?stock_code=600519" class="text-[11px] text-blue-600 hover:underline">研究 →</a></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ Right: 上下文与约束 (280px) ═══ -->
+      <aside class="w-[280px] shrink-0 space-y-4">
+        <div class="rounded-lg p-4" style="background:#ffffff; border:1px solid #e2e8f0;">
+          <h3 class="text-[13px] font-semibold text-slate-700 tracking-wide mb-3">上下文与约束</h3>
+
+          <div class="sidebar-section">
+            <h4>风险红线</h4>
+            <div class="redline-item"><span class="redline-dot redline-ok"></span><span>止损/止盈不可自动执行</span></div>
+            <div class="redline-item"><span class="redline-dot redline-ok"></span><span>策略结构不可变</span></div>
+            <div class="redline-item"><span class="redline-dot redline-ok"></span><span>数据异常必报人类</span></div>
+            <div class="redline-item"><span class="redline-dot redline-ok"></span><span>仓位上限不可突破</span></div>
+            <div class="redline-item"><span class="redline-dot redline-ok"></span><span>Admin kill-switch</span></div>
+          </div>
+
+          <div class="sidebar-section">
+            <h4>数据完整性</h4>
+            <div class="flex items-center justify-between text-[12px] py-1">
+              <span class="text-slate-500">Foundation DB</span>
+              <span class="num font-medium text-emerald-600">2026-06-02</span>
+            </div>
+            <div class="flex items-center justify-between text-[12px] py-1">
+              <span class="text-slate-500">覆盖标的</span>
+              <span class="num font-medium">5,508</span>
+            </div>
+            <div class="flex items-center justify-between text-[12px] py-1">
+              <span class="text-slate-500">State Cube</span>
+              <span class="font-medium text-emerald-600">已更新</span>
+            </div>
+          </div>
+
+          <div class="sidebar-section">
+            <h4>Agent 初步意见</h4>
+            <p class="text-[12.5px] text-slate-600 leading-relaxed">
+              当前条件组合在<strong>天时</strong>和<strong>地利</strong>环境下命中率高，
+              但冬眠环境下样本偏少，建议关注 State 分布是否均衡。
+            </p>
+          </div>
+
+          <div class="sidebar-section">
+            <h4>历史相似场景</h4>
+            <div class="flex items-center justify-between text-[12px] py-1">
+              <span class="text-slate-500">同类条件胜率</span>
+              <span class="num font-semibold text-slate-800">58%</span>
+            </div>
+            <div class="flex items-center justify-between text-[12px] py-1">
+              <span class="text-slate-500">盈亏比</span>
+              <span class="num font-semibold text-slate-800">2.1</span>
+            </div>
+            <div class="flex items-center justify-between text-[12px] py-1">
+              <span class="text-slate-500">期望收益</span>
+              <span class="num font-semibold text-emerald-600">+2.8%</span>
+            </div>
+          </div>
+
+          <div class="pt-2 border-t border-slate-200 flex flex-col gap-2">
+            <button class="w-full px-3.5 py-[7px] text-[13px] font-medium text-white rounded-md transition-colors" style="background:#3b82f6;">保存策略假设</button>
+            <button class="w-full px-3.5 py-[7px] text-[13px] font-medium text-slate-600 rounded-md border border-slate-200 hover:bg-slate-50 transition-colors">提交回测验证</button>
+          </div>
+        </div>
+      </aside>
     </div>
 
-    <!-- ─── Backtest Results: MN1 Environment Matrix ──── -->
-    <section data-component="Backtest Matrix" class="mt-6">
-      <div class="rounded-lg overflow-hidden" style="background:#ffffff; border:1px solid #e2e8f0;">
-
-        <!-- Header -->
-        <div class="flex items-center justify-between px-5 py-3.5 border-b border-slate-200">
-          <div class="flex items-center gap-3">
-            <h3 class="text-[14px] font-semibold text-slate-800">按 MN1 环境分层</h3>
-            <span class="text-[12px] text-slate-500 num">2025-06 ~ 2026-05</span>
-          </div>
-          <div class="flex items-center gap-4">
-            <div class="flex items-center gap-1.5 text-[12px] text-slate-600">
-              <span>样本</span>
-              <span class="num font-semibold text-slate-700">1,247</span>
-            </div>
-            <div class="flex items-center gap-1.5 text-[12px] text-slate-600">
-              <span>胜率</span>
-              <span class="num font-semibold text-slate-700">58%</span>
-            </div>
-            <div class="flex items-center gap-1.5 text-[12px] text-slate-600">
-              <span>盈亏比</span>
-              <span class="num font-semibold text-slate-700">2.1</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Matrix Table -->
-        <div class="overflow-x-auto">
-          <table class="w-full text-[13px]">
-            <thead>
-              <tr class="border-b border-slate-200">
-                <th class="text-left text-[11px] font-medium text-slate-500 tracking-wider uppercase px-5 py-2.5">MN1 环境</th>
-                <th class="text-right text-[11px] font-medium text-slate-500 tracking-wider uppercase px-4 py-2.5 num">样本</th>
-                <th class="text-right text-[11px] font-medium text-slate-500 tracking-wider uppercase px-4 py-2.5 num">胜率</th>
-                <th class="text-right text-[11px] font-medium text-slate-500 tracking-wider uppercase px-4 py-2.5 num">盈亏比</th>
-                <th class="text-right text-[11px] font-medium text-slate-500 tracking-wider uppercase px-4 py-2.5 num">平均持仓天</th>
-                <th class="text-right text-[11px] font-medium text-slate-500 tracking-wider uppercase px-5 py-2.5 num">期望收益</th>
-              </tr>
-            </thead>
-            <tbody>
-              <!-- 天时 -->
-              <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                <td class="px-5 py-2.5">
-                  <div class="flex items-center gap-2.5">
-                    <span class="w-2 h-2 rounded-full shrink-0" style="background:var(--mn1-tianshi);"></span>
-                    <span class="text-slate-700 font-medium">天时</span>
-                    <span class="text-[11px] text-slate-500">E/F</span>
-                  </div>
-                </td>
-                <td class="text-right px-4 py-2.5 num text-slate-600">312</td>
-                <td class="text-right px-4 py-2.5 num text-slate-800 font-medium">68%</td>
-                <td class="text-right px-4 py-2.5 num text-slate-800 font-medium">2.8</td>
-                <td class="text-right px-4 py-2.5 num text-slate-600">8.2</td>
-                <td class="text-right px-5 py-2.5 num font-medium" style="color:var(--mn1-tianshi);">+4.2%</td>
-              </tr>
-              <!-- 地利 -->
-              <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                <td class="px-5 py-2.5">
-                  <div class="flex items-center gap-2.5">
-                    <span class="w-2 h-2 rounded-full shrink-0" style="background:var(--mn1-dili);"></span>
-                    <span class="text-slate-700 font-medium">地利</span>
-                    <span class="text-[11px] text-slate-500">C/D</span>
-                  </div>
-                </td>
-                <td class="text-right px-4 py-2.5 num text-slate-600">489</td>
-                <td class="text-right px-4 py-2.5 num text-slate-800 font-medium">57%</td>
-                <td class="text-right px-4 py-2.5 num text-slate-800 font-medium">1.9</td>
-                <td class="text-right px-4 py-2.5 num text-slate-600">11.4</td>
-                <td class="text-right px-5 py-2.5 num font-medium" style="color:var(--mn1-dili);">+2.1%</td>
-              </tr>
-              <!-- 人和 -->
-              <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                <td class="px-5 py-2.5">
-                  <div class="flex items-center gap-2.5">
-                    <span class="w-2 h-2 rounded-full shrink-0" style="background:var(--mn1-renhe);"></span>
-                    <span class="text-slate-700 font-medium">人和</span>
-                    <span class="text-[11px] text-slate-500">8/B</span>
-                  </div>
-                </td>
-                <td class="text-right px-4 py-2.5 num text-slate-600">238</td>
-                <td class="text-right px-4 py-2.5 num text-slate-600">51%</td>
-                <td class="text-right px-4 py-2.5 num text-slate-600">1.5</td>
-                <td class="text-right px-4 py-2.5 num text-slate-600">12.8</td>
-                <td class="text-right px-5 py-2.5 num text-slate-600">+0.8%</td>
-              </tr>
-              <!-- 蓄力 -->
-              <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                <td class="px-5 py-2.5">
-                  <div class="flex items-center gap-2.5">
-                    <span class="w-2 h-2 rounded-full shrink-0" style="background:var(--mn1-xuli);"></span>
-                    <span class="text-slate-700 font-medium">蓄力</span>
-                    <span class="text-[11px] text-slate-500">4-7</span>
-                  </div>
-                </td>
-                <td class="text-right px-4 py-2.5 num text-slate-600">96</td>
-                <td class="text-right px-4 py-2.5 num text-slate-600">42%</td>
-                <td class="text-right px-4 py-2.5 num text-slate-600">1.1</td>
-                <td class="text-right px-4 py-2.5 num text-slate-600">9.6</td>
-                <td class="text-right px-5 py-2.5 num text-slate-500">+0.1%</td>
-              </tr>
-              <!-- 冬眠 -->
-              <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                <td class="px-5 py-2.5">
-                  <div class="flex items-center gap-2.5">
-                    <span class="w-2 h-2 rounded-full shrink-0" style="background:var(--mn1-dongmian);"></span>
-                    <span class="text-slate-600 font-medium">冬眠</span>
-                    <span class="text-[11px] text-slate-500">0-3</span>
-                  </div>
-                </td>
-                <td class="text-right px-4 py-2.5 num text-slate-600">31</td>
-                <td class="text-right px-4 py-2.5 num text-slate-500">19%</td>
-                <td class="text-right px-4 py-2.5 num text-red-400/70">0.4</td>
-                <td class="text-right px-4 py-2.5 num text-slate-600">5.1</td>
-                <td class="text-right px-5 py-2.5 num text-red-400/80">-1.2%</td>
-              </tr>
-              <!-- 逆位 -->
-              <tr class="hover:bg-slate-50 transition-colors">
-                <td class="px-5 py-2.5">
-                  <div class="flex items-center gap-2.5">
-                    <span class="w-2 h-2 rounded-full shrink-0" style="background:var(--mn1-niwei);"></span>
-                    <span class="text-slate-600 font-medium">逆位</span>
-                    <span class="text-[11px] text-slate-500">负值</span>
-                  </div>
-                </td>
-                <td class="text-right px-4 py-2.5 num text-slate-600">81</td>
-                <td class="text-right px-4 py-2.5 num text-slate-500">23%</td>
-                <td class="text-right px-4 py-2.5 num text-red-400/70">0.7</td>
-                <td class="text-right px-4 py-2.5 num text-slate-600">7.3</td>
-                <td class="text-right px-5 py-2.5 num text-red-400/80">-0.6%</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <!-- Conclusion -->
-        <div class="px-5 py-3.5 border-t border-slate-200" style="background:#ffffff;">
-          <div class="flex items-start gap-3">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-slate-500 mt-0.5 shrink-0"><path d="M3 3v18h18"/><path d="M7 16l4-8 4 4 5-9"/></svg>
-            <div>
-              <p class="text-[12.5px] text-slate-600 leading-relaxed">
-                此策略在<strong class="text-slate-800 font-semibold">天时</strong>和<strong class="text-slate-800 font-semibold">地利</strong>环境下显著有效，胜率分别达 68% 和 57%，盈亏比均 &gt; 1.5。
-                在<strong class="text-slate-800 font-semibold">冬眠</strong>和<strong class="text-slate-800 font-semibold">逆位</strong>环境下期望收益为负，不应触发入场。
-              </p>
-              <p class="text-[11.5px] text-slate-500 mt-1.5">
-                建议：仅在 ef ≥ 2 且 MN1 处于正值环境（天时 / 地利 / 人和）时执行此策略。
-              </p>
-            </div>
-          </div>
-        </div>
-
+    <!-- ─── Bottom: 最近草稿和运行历史 ──────────────────────────── -->
+    <section class="mt-6 rounded-lg overflow-hidden" style="background:#ffffff; border:1px solid #e2e8f0;">
+      <div class="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
+        <h3 class="text-[14px] font-semibold text-slate-800">最近草稿和运行历史</h3>
+        <span class="text-[12px] text-slate-500">最近 5 条</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-[13px]">
+          <thead>
+            <tr class="border-b border-slate-200">
+              <th class="text-left text-[11px] font-medium text-slate-500 tracking-wider uppercase px-5 py-2.5">策略名称</th>
+              <th class="text-left text-[11px] font-medium text-slate-500 tracking-wider uppercase px-4 py-2.5">修改时间</th>
+              <th class="text-left text-[11px] font-medium text-slate-500 tracking-wider uppercase px-4 py-2.5">最近结果</th>
+              <th class="text-right text-[11px] font-medium text-slate-500 tracking-wider uppercase px-5 py-2.5">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+              <td class="px-5 py-2.5 font-medium text-slate-700">放量突破策略 v2</td>
+              <td class="px-4 py-2.5 num text-slate-600">2026-06-02 14:32</td>
+              <td class="px-4 py-2.5"><span class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">胜率 58% · 盈亏比 2.1</span></td>
+              <td class="px-5 py-2.5 text-right"><a href="/backtest" class="text-[12px] text-blue-600 hover:underline">查看回测 →</a></td>
+            </tr>
+            <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+              <td class="px-5 py-2.5 font-medium text-slate-700">VCP 收缩观察</td>
+              <td class="px-4 py-2.5 num text-slate-600">2026-06-01 09:15</td>
+              <td class="px-4 py-2.5"><span class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">胜率 42% · 需调整</span></td>
+              <td class="px-5 py-2.5 text-right"><a href="/backtest" class="text-[12px] text-blue-600 hover:underline">查看回测 →</a></td>
+            </tr>
+            <tr class="hover:bg-slate-50 transition-colors">
+              <td class="px-5 py-2.5 font-medium text-slate-700">MA2560 趋势跟踪</td>
+              <td class="px-4 py-2.5 num text-slate-600">2026-05-28 16:00</td>
+              <td class="px-4 py-2.5"><span class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">胜率 61% · 盈亏比 1.8</span></td>
+              <td class="px-5 py-2.5 text-right"><a href="/backtest" class="text-[12px] text-blue-600 hover:underline">查看回测 →</a></td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </section>
-
   </main>
 
   {% include '_ai_assistant.html' %}

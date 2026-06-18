@@ -3,232 +3,471 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Hermass 多周期观察台</title>
+    <title>Hermass 量化工作室</title>
     <link rel="stylesheet" href="/static/style.css" />
+    <style>
+      .status-bar {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        padding: 14px 18px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        font-size: 14px;
+      }
+      .status-bar strong {
+        color: var(--ink);
+        font-size: 16px;
+      }
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 6px;
+      }
+      .dot-ok { background: var(--good); }
+      .dot-warn { background: var(--accent); }
+      .dot-risk { background: var(--bad); }
+      .entry-bar {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .entry-item {
+        flex: 1;
+        min-width: 180px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        text-decoration: none;
+        color: var(--ink);
+        transition: border-color 0.15s;
+      }
+      .entry-item:hover {
+        border-color: var(--good);
+      }
+      .entry-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        flex-shrink: 0;
+      }
+      .entry-icon.strategy { background: rgba(14,124,102,0.1); }
+      .entry-icon.backtest { background: rgba(37,99,235,0.1); }
+      .entry-icon.debate  { background: rgba(217,138,26,0.1); }
+      .entry-icon.track   { background: rgba(184,74,58,0.1); }
+      .entry-label {
+        font-size: 15px;
+        font-weight: 700;
+      }
+      .entry-desc {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+      .compact-table th,
+      .compact-table td {
+        padding: 8px 10px;
+        font-size: 13px;
+      }
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .tag-green { background: rgba(14,124,102,0.1); color: var(--good); }
+      .tag-amber { background: rgba(217,138,26,0.1); color: var(--accent); }
+      .tag-red   { background: rgba(184,74,58,0.1); color: var(--bad); }
+      .tag-gray  { background: #f1f5f9; color: var(--muted); }
+      .health-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 14px;
+      }
+      .health-item {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .health-label {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .health-value {
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--ink);
+      }
+      /* ── 观象 AI Hero ── */
+      .ai-hero-panel {
+        border: 1px solid rgba(14,124,102,0.18);
+        background: linear-gradient(135deg, rgba(14,124,102,0.04) 0%, rgba(255,255,255,0.96) 60%);
+      }
+      .ai-hero {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        flex-wrap: wrap;
+      }
+      .ai-hero-left {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-shrink: 0;
+      }
+      .ai-hero-avatar {
+        position: relative;
+        width: 56px;
+        height: 56px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        background: radial-gradient(circle, rgba(244,238,207,0.3), rgba(14,124,102,0.08));
+        overflow: hidden;
+      }
+      .ai-hero-ring {
+        position: absolute;
+        inset: 4px;
+        border-radius: 999px;
+        border: 1.5px solid rgba(14,124,102,0.2);
+      }
+      .ai-hero-ring-1 { animation: aiSpin 10s linear infinite; }
+      .ai-hero-ring-2 { inset: 10px; border-color: rgba(21,45,53,0.2); animation: aiSpinReverse 12s linear infinite; }
+      .ai-hero-core {
+        width: 16px;
+        height: 16px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, #f4eecf, #e7d99f);
+        box-shadow: 0 0 0 8px rgba(14,124,102,0.1);
+      }
+      .ai-hero-title {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 800;
+        color: var(--ink);
+        letter-spacing: 0.02em;
+      }
+      .ai-hero-subtitle {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .ai-hero-right {
+        flex: 1;
+        min-width: 240px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .ai-hero-input-row {
+        display: flex;
+        gap: 8px;
+      }
+      .ai-hero-input {
+        flex: 1;
+        padding: 10px 14px;
+        border: 1px solid rgba(14,124,102,0.25);
+        border-radius: 10px;
+        font-size: 14px;
+        background: #fff;
+        transition: border-color 0.15s;
+      }
+      .ai-hero-input:focus {
+        outline: none;
+        border-color: var(--good);
+        box-shadow: 0 0 0 3px rgba(14,124,102,0.08);
+      }
+      .ai-hero-btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 10px;
+        background: var(--good);
+        color: #fff;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background 0.15s;
+        white-space: nowrap;
+      }
+      .ai-hero-btn:hover { background: #0a6b57; }
+      .ai-hero-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .ai-hero-chip {
+        padding: 6px 12px;
+        border: 1px solid rgba(14,124,102,0.2);
+        border-radius: 999px;
+        background: rgba(14,124,102,0.04);
+        color: var(--good);
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .ai-hero-chip:hover {
+        border-color: var(--good);
+        background: rgba(14,124,102,0.1);
+      }
+      @keyframes aiSpin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      @keyframes aiSpinReverse {
+        from { transform: rotate(360deg); }
+        to { transform: rotate(0deg); }
+      }
+      @media (max-width: 860px) {
+        .health-grid { grid-template-columns: repeat(2, 1fr); }
+        .ai-hero { flex-direction: column; align-items: stretch; }
+        .ai-hero-left { justify-content: center; }
+      }
+    </style>
   </head>
   <body>
     <header class="topbar">
       <div>
         <p class="eyebrow">Hermass 多周期观察</p>
-        <h1>多周期观察台</h1>
+        <h1>量化工作室</h1>
       </div>
       <div class="date">
         <a href="/" class="active">首页</a>
         <a href="/market">市场</a>
         <a href="/industry">行业</a>
-        <a href="/chain-assistant">产业链助手（旧）</a><a href="/chain-studio">产业链工作台（新）</a>
+        <a href="/chain-assistant">产业链助手（旧）</a>
+        <a href="/chain-studio">产业链工作台（新）</a>
         <a href="/research">研究</a>
-        <a href="/watchlist">执行</a>
+        <a href="/watchlist">模拟跟踪</a>
         <a href="/backtest">回测</a>
-        <a href="javascript:void(0)" onclick="aiToggle()">观象</a>
+        <a href="/agent-debate">Agent 辩论</a>
+        <a href="javascript:void(0)" class="nav-ai" onclick="aiToggle()"><span class="nav-ai-dot"></span>观象</a>
         <span>{{ today }}</span>
       </div>
     </header>
 
     <main class="layout">
-      {# ── 面板 1：今日判断（Hero）── #}
-      <section class="panel span-2 hero-panel">
-        <div class="panel-head">
-          <h2>{{ mode_summary.label }}</h2>
-          <span>多周期相互影响观察 + 单周期运行观察 + 概率与盈亏比验证</span>
-        </div>
-        <div class="daily-brief-card">
-          <h2>今日判断</h2>
-          <p class="hero-copy">{{ daily_brief.conclusion }}</p>
-          <p class="hero-note">有疑问？<a href="javascript:void(0)" class="hero-ask-ai" onclick="window.aiAsk('{{ daily_brief.conclusion }}')"><svg class="hero-ai-icon" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="16" cy="18" r="8" fill="#4a9e9e"/><ellipse cx="10" cy="14" rx="5" ry="6" fill="#6bcbcb" transform="rotate(-15 10 14)"/><ellipse cx="22" cy="14" rx="5" ry="6" fill="#6bcbcb" transform="rotate(15 22 14)"/><circle cx="13" cy="17" r="1.2" fill="#1a3c3c"/><circle cx="19" cy="17" r="1.2" fill="#1a3c3c"/><path d="M15 20 Q16 25 14.5 27 Q13.5 28 15 28.5 Q17 28 17.5 27 Q18 24 17 20" fill="#5fbdbd"/></svg>问观象 →</a></p>
+      {# ── 0. 观象 AI 助手 C 位入口 ── #}
+      <section class="panel span-2 ai-hero-panel">
+        <div class="ai-hero">
+          <div class="ai-hero-left">
+            <div class="ai-hero-avatar">
+              <span class="ai-hero-ring ai-hero-ring-1"></span>
+              <span class="ai-hero-ring ai-hero-ring-2"></span>
+              <span class="ai-hero-core"></span>
+            </div>
+            <div class="ai-hero-text">
+              <h2 class="ai-hero-title">观象</h2>
+              <p class="ai-hero-subtitle">你的多周期研究助手 · 策略 · 回测 · 盯盘 · 价值分析</p>
+            </div>
+          </div>
+          <div class="ai-hero-right">
+            <div class="ai-hero-input-row">
+              <input type="text" id="ai-hero-input" class="ai-hero-input" placeholder="问观象：今天先看什么方向？" onkeydown="if(event.key==='Enter'){aiAsk(this.value);this.value='';}" />
+              <button class="ai-hero-btn" onclick="var v=document.getElementById('ai-hero-input').value.trim();if(v){aiAsk(v);document.getElementById('ai-hero-input').value='';}">发送</button>
+            </div>
+            <div class="ai-hero-chips">
+              <button class="ai-hero-chip" onclick="aiAsk('现在能不能做')">现在能做吗</button>
+              <button class="ai-hero-chip" onclick="aiAsk('今天先看什么方向')">今天看什么</button>
+              <button class="ai-hero-chip" onclick="aiAsk('帮我看 000021')">看一只票</button>
+              <button class="ai-hero-chip" onclick="aiAsk('我应该先去哪一页')">新手引导</button>
+            </div>
+          </div>
         </div>
       </section>
 
-      {# ── 面板 2：重点行业速览 ── #}
-      {% if daily_brief.top_industries %}
+      {# ── 1. 顶部一句话状态栏 ── #}
+      <section class="panel span-2">
+        <div class="status-bar">
+          <span class="status-dot dot-ok"></span>
+          <span>
+            今天有 <strong>{{ execution.priority_queue | length }}</strong> 个标的进入优先观察，
+            <strong>{{ execution.observe_queue | length }}</strong> 个在观察队列，
+            {% set risk_count = execution.high_rr | selectattr('rr_ratio', 'defined') | list | length %}
+            <strong>{{ risk_count }}</strong> 个存在风险标记。
+          </span>
+        </div>
+      </section>
+
+      {# ── 2. 主任务区：4 个入口 ── #}
       <section class="panel span-2">
         <div class="panel-head">
-          <h2>重点行业速览</h2>
-          <span>{{ daily_brief.date }}</span>
+          <h2>工作室入口</h2>
+          <span>按当前任务进入</span>
         </div>
-        <div class="starter-grid" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
-          {% for item in daily_brief.top_industries %}
-          <a class="starter-card" href="/industry">
-            <strong>{{ item.name }}</strong>
-            <span>{{ item.resonance }} | 资金{{ item.capital }}</span>
+        <div class="entry-bar">
+          <a class="entry-item" href="/mystrategies">
+            <div class="entry-icon strategy">⚙️</div>
+            <div>
+              <div class="entry-label">策略工坊</div>
+              <div class="entry-desc">构造、调整、保存策略假设</div>
+            </div>
           </a>
+          <a class="entry-item" href="/backtest">
+            <div class="entry-icon backtest">📊</div>
+            <div>
+              <div class="entry-label">回测验证</div>
+              <div class="entry-desc">先给结论，再给证据</div>
+            </div>
+          </a>
+          <a class="entry-item" href="/agent-debate">
+            <div class="entry-icon debate">🗣️</div>
+            <div>
+              <div class="entry-label">Agent 辩论</div>
+              <div class="entry-desc">结构化观点、冲突与权重</div>
+            </div>
+          </a>
+          <a class="entry-item" href="/watchlist">
+            <div class="entry-icon track">📋</div>
+            <div>
+              <div class="entry-label">模拟跟踪</div>
+              <div class="entry-desc">账本式管理观察对象</div>
+            </div>
+          </a>
+        </div>
+      </section>
+
+      {# ── 3. 今日待处理队列 ── #}
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>今日待处理队列</h2>
+          <span>优先处理这些</span>
+        </div>
+        {% if execution.priority_queue %}
+        <table class="compact-table">
+          <thead>
+            <tr>
+              <th>标的</th>
+              <th>当前阶段</th>
+              <th>触发原因</th>
+              <th>风险状态</th>
+              <th>下一步动作</th>
+              <th style="width:72px;">问观象</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in execution.priority_queue[:8] %}
+            <tr>
+              <td>
+                <a href="/research?stock_code={{ row.stock_code }}">{{ row.stock_code }}</a>
+                <span style="color:var(--muted);font-size:12px;">{{ row.stock_name }}</span>
+              </td>
+              <td>
+                <span class="tag tag-green">{{ row.current_state_label or '观察' }}</span>
+              </td>
+              <td>{{ row.queue_reason or row.path_label or '-' }}</td>
+              <td>
+                {% if row.rr_ratio %}
+                  <span class="tag tag-amber">RR {{ row.rr_ratio }}</span>
+                {% else %}
+                  <span class="tag tag-gray">待评估</span>
+                {% endif %}
+              </td>
+              <td>{{ row.next_action or '持续观察' }}</td>
+              <td>
+                <button class="ask-ai-chip" onclick="event.stopPropagation();aiSession.stock_code='{{ row.stock_code }}';aiAsk('帮我分析 {{ row.stock_code }} {{ row.stock_name or '' }} 当前多周期状态')">
+                  <span class="dot"></span>问观象
+                </button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% if execution.priority_queue | length > 8 %}
+        <p class="hero-note" style="margin-top:8px;">还有 {{ execution.priority_queue | length - 8 }} 条，<a href="/watchlist">去模拟跟踪查看全部 →</a></p>
+        {% endif %}
+        {% else %}
+        <p class="muted">当前没有优先处理对象。</p>
+        {% endif %}
+      </section>
+
+      {# ── 4. 系统健康与数据新鲜度 ── #}
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>系统健康与数据新鲜度</h2>
+          <span>只展示关键异常</span>
+        </div>
+        <div class="health-grid">
+          <div class="health-item">
+            <span class="health-label">数据日期</span>
+            <span class="health-value">{{ daily_brief.date or today }}</span>
+          </div>
+          <div class="health-item">
+            <span class="health-label">State Cube</span>
+            <span class="health-value">
+              {% if outputs and outputs.state_cube %}
+                <span class="status-dot dot-ok"></span>正常
+              {% else %}
+                <span class="status-dot dot-warn"></span>待检查
+              {% endif %}
+            </span>
+          </div>
+          <div class="health-item">
+            <span class="health-label">Agent 复盘</span>
+            <span class="health-value">
+              {% if cron_rows %}
+                <span class="status-dot dot-ok"></span>运行中
+              {% else %}
+                <span class="status-dot dot-warn"></span>未启动
+              {% endif %}
+            </span>
+          </div>
+          <div class="health-item">
+            <span class="health-label">最近一次同步</span>
+            <span class="health-value">
+              {% if alert_rows %}
+                <span class="status-dot dot-ok"></span>正常
+              {% else %}
+                <span class="status-dot dot-warn"></span>暂无告警
+              {% endif %}
+            </span>
+          </div>
+        </div>
+        {% if alert_rows %}
+        <div style="margin-top:12px;">
+          {% for alert in alert_rows[:3] %}
+          <div style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;border-bottom:1px solid var(--line);">
+            <span class="status-dot {% if alert.severity == 'high' %}dot-risk{% else %}dot-warn{% endif %}"></span>
+            <span style="flex:1;">{{ alert.message or alert.name or '告警' }}</span>
+            <span style="color:var(--muted);font-size:12px;">{{ alert.time or '' }}</span>
+          </div>
           {% endfor %}
         </div>
-      </section>
-      {% endif %}
-
-      {# ── 面板 3：从这里开始（导航入口）── #}
-      <section class="panel span-2 starter-links">
-        <div class="panel-head">
-          <h2>从这里开始</h2>
-          <span>不必先读全站，按你的当下问题进入</span>
-        </div>
-        <div class="starter-grid">
-          <a class="starter-card" href="/market">
-            <strong>我想先判断现在能不能做</strong>
-            <span>先看市场环境、阶段节奏和顺风方向。</span>
-          </a>
-          <a class="starter-card" href="/industry">
-            <strong>我想先知道看哪些方向</strong>
-            <span>先挑少数行业，不平均看全市场。</span>
-          </a>
-          <a class="starter-card" href="/chain-assistant">
-            <strong>我想看产业链里的可观察公司</strong>
-            <span>先看已核验节点，再处理待核验候选。</span>
-          </a>
-          <a class="starter-card" href="/watchlist">
-            <strong>我想直接看今天该跟踪什么</strong>
-            <span>先看优先队列、真假突破和资金流确认。</span>
-          </a>
-          <a class="starter-card" href="/research?stock_code={{ stock_code }}&render_profile=value">
-            <strong>我想先研究一只票</strong>
-            <span>先看价值组合研究视图，再决定是否切回标准研究卡。</span>
-          </a>
-        </div>
-      </section>
-
-      {# ── 面板 4：术语说明 ── #}
-      <section class="panel span-2 warning-panel">
-        <div class="panel-head">
-          <h2>术语说明</h2>
-          <span>保留少量缩写，但不让你自己猜</span>
-        </div>
-        <table>
-          <tbody>
-            <tr><td>State</td><td>结构状态，表示多周期结构环境，不等于直接买卖点。</td></tr>
-            <tr><td>EF</td><td>E/F 共振，表示多周期达到较强结构状态的数量，不等于盈利保证。</td></tr>
-            <tr><td>RR</td><td>Risk / Reward，风报比，表示潜在风险与潜在收益的对比。</td></tr>
-            <tr><td>Cron</td><td>定时任务规则，表示系统按什么时间计划自动运行。</td></tr>
-          </tbody>
-        </table>
-      </section>
-
-      {# ── 面板 5：模式队列（按用户类型展示对应视角）── #}
-      {% if mode == "direction" %}
-      <section class="panel span-2">
-        <div class="panel-head">
-          <h2>方向重点</h2>
-          <span>少看个股，先看方向</span>
-        </div>
-        <table>
-          <thead>
-            <tr><th>行业</th><th>ETF 数量</th><th>代表样本</th></tr>
-          </thead>
-          <tbody>
-            {% for row in industry.top_industries[:5] %}
-            <tr>
-              <td>{{ row.industry }}</td>
-              <td>{{ row.asset_count }}</td>
-              <td class="path">{{ row.sample }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </section>
-      {% endif %}
-
-      {% if mode == "research" %}
-      <section class="panel span-2">
-        <div class="panel-head">
-          <h2>研究队列</h2>
-          <span>先展开当前最值得看的对象</span>
-        </div>
-        <table>
-          <thead>
-            <tr><th>代码</th><th>名称</th><th>共振路径</th><th>信号解读</th><th>适配度</th></tr>
-          </thead>
-          <tbody>
-            {% for row in research_lane.recent_research %}
-            <tr>
-              <td><a href="/research?stock_code={{ row.stock_code }}">{{ row.stock_code }}</a></td>
-              <td>{{ row.stock_name }}</td>
-              <td>{{ row.path_label }}</td>
-              <td>{{ row.signal_read }}</td>
-              <td>{{ row.fit }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </section>
-      {% endif %}
-
-      {% if mode == "execution" %}
-      <section class="panel span-2">
-        <div class="panel-head">
-          <h2>执行队列</h2>
-          <span>只看待处理对象</span>
-        </div>
-        <p class="hero-note">{{ execution.lane_hint }}</p>
-        <table>
-          <thead>
-            <tr><th>代码</th><th>名称</th><th>共振路径</th><th>原因</th><th>下一步</th></tr>
-          </thead>
-          <tbody>
-            {% for row in execution.priority_queue %}
-            <tr>
-              <td><a href="/research?stock_code={{ row.stock_code }}">{{ row.stock_code }}</a></td>
-              <td>{{ row.stock_name }}</td>
-              <td>{{ row.path_label }}</td>
-              <td>{{ row.queue_reason }}</td>
-              <td>{{ row.next_action }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-        {% if not execution.priority_queue %}
-        <p class="muted">当前没有优先执行对象，先看观察队列即可。</p>
         {% endif %}
       </section>
-      {% endif %}
 
-      {# ── 面板 6：研究预览 ── #}
-      <section class="panel" id="research-preview">
-        <div class="panel-head">
-          <h2>研究预览</h2>
-          <span>快速卡 / 深度卡 / 证据卡</span>
-        </div>
-        <form method="post" class="form">
-          <input type="hidden" name="mode" value="{{ mode }}" />
-          <label>
-            股票代码
-            <input name="stock_code" value="{{ stock_code }}" />
-          </label>
-          <label>
-            展开深度
-            <select name="render_profile">
-              <option value="standard" {% if render_profile == "standard" %}selected{% endif %}>标准</option>
-              <option value="full" {% if render_profile == "full" %}selected{% endif %}>完整</option>
-            </select>
-          </label>
-          <button type="submit">生成研究卡</button>
-        </form>
-        {% if cards %}
-        {% set quick_text = cards.quick or cards.error %}
-        {% if quick_text and quick_text not in ('暂无', '—') %}
-        <section class="panel span-2">
-          <div class="panel-head"><h2>快速卡</h2></div>
-          <pre>{{ quick_text }}</pre>
-        </section>
-        {% endif %}
-        {% set deep_text = cards.deep or cards.error %}
-        {% if deep_text and deep_text not in ('暂无', '—') %}
-        <section class="panel span-2">
-          <div class="panel-head"><h2>深度卡</h2></div>
-          <pre>{{ deep_text }}</pre>
-        </section>
-        {% endif %}
-        {% set evidence_text = cards.evidence or cards.error %}
-        {% if evidence_text and evidence_text not in ('暂无', '—') %}
-        <section class="panel span-2">
-          <div class="panel-head"><h2>证据卡</h2></div>
-          <pre>{{ evidence_text }}</pre>
-        </section>
-        {% endif %}
-        {% endif %}
+      {# ── 5. 术语说明（折叠） ── #}
+      <section class="panel span-2" style="padding:12px 18px;">
+        <details>
+          <summary style="font-size:13px;">术语说明</summary>
+          <table style="margin-top:8px;font-size:13px;">
+            <tbody>
+              <tr><td>State</td><td>结构状态，表示多周期结构环境，不等于直接买卖点。</td></tr>
+              <tr><td>EF</td><td>E/F 共振，表示多周期达到较强结构状态的数量，不等于盈利保证。</td></tr>
+              <tr><td>RR</td><td>Risk / Reward，风报比，表示潜在风险与潜在收益的对比。</td></tr>
+            </tbody>
+          </table>
+        </details>
       </section>
     </main>
 
-    {% set ai_page_context = '/?mode=' ~ mode %}
+    {% set ai_page_context = '/' %}
     {% include '_ai_assistant.html' %}
   </body>
 </html>

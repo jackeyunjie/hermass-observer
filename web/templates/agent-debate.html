@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hermass Agent 辩论</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <style>
+      .object-bar {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        flex-wrap: wrap;
+        padding: 14px 18px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+      }
+      .object-bar .object-group {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .object-bar .object-label {
+        font-size: 11px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      .object-bar .object-value {
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--ink);
+      }
+      .object-bar .object-value.conclusion-pass { color: var(--good); }
+      .object-bar .object-value.conclusion-warn { color: var(--accent); }
+      .object-bar .object-value.conclusion-risk { color: var(--bad); }
+      .state-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 700;
+        font-family: Menlo, Consolas, monospace;
+      }
+      .matrix-table th, .matrix-table td {
+        padding: 10px 12px;
+        font-size: 13px;
+        vertical-align: top;
+      }
+      .matrix-table th {
+        background: #f8fafc;
+        font-weight: 600;
+        color: #475569;
+        font-size: 12px;
+      }
+      .agent-row td { border-bottom: 1px solid var(--line); }
+      .stance-support { color: var(--good); font-weight: 700; }
+      .stance-neutral { color: var(--accent); font-weight: 700; }
+      .stance-oppose  { color: var(--bad); font-weight: 700; }
+      .weight-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .weight-track {
+        width: 80px;
+        height: 6px;
+        background: #e2e8f0;
+        border-radius: 3px;
+        overflow: hidden;
+      }
+      .weight-fill {
+        height: 100%;
+        border-radius: 3px;
+      }
+      .risk-panel {
+        padding: 14px;
+        border: 1px solid rgba(184, 74, 58, 0.25);
+        border-radius: 8px;
+        background: rgba(184, 74, 58, 0.04);
+      }
+      .ledger-panel {
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+      }
+      .two-col-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      @media (max-width: 860px) {
+        .two-col-grid { grid-template-columns: 1fr; }
+        .object-bar { flex-direction: column; align-items: flex-start; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Hermass 多周期观察</p>
+        <h1>Agent 辩论</h1>
+      </div>
+      <div class="date">
+        <a href="/">首页</a>
+        <a href="/market">市场</a>
+        <a href="/industry">行业</a>
+        <a href="/chain-assistant">产业链助手（旧）</a>
+        <a href="/chain-studio">产业链工作台（新）</a>
+        <a href="/research">研究</a>
+        <a href="/watchlist">模拟跟踪</a>
+        <a href="/backtest">回测</a>
+        <a href="/agent-debate" class="active">Agent 辩论</a>
+        <a href="/mystrategies">策略工坊</a>
+        <a href="javascript:void(0)" class="nav-ai" onclick="aiToggle()"><span class="nav-ai-dot"></span>观象</a>
+        <span>{{ today }}</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      {# ── 1. 顶部对象栏 ── #}
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>辩论对象</h2>
+          <span>{{ debate.target_date or today }}</span>
+        </div>
+        <div class="object-bar">
+          <div class="object-group">
+            <span class="object-label">标的</span>
+            <form method="get" action="/agent-debate" style="margin:0;display:flex;gap:8px;">
+              <select name="stock_code" onchange="this.form.submit()" style="width:auto;min-width:140px;font-size:14px;">
+                {% for c in debate.candidates %}
+                <option value="{{ c.stock_code }}" {% if c.stock_code == debate.selected_stock %}selected{% endif %}>{{ c.stock_code }}</option>
+                {% endfor %}
+              </select>
+            </form>
+          </div>
+          <div class="object-group">
+            <span class="object-label">State Cube</span>
+            <div style="display:flex;gap:6px;">
+              {% if debate.selected_state_hex %}
+                {% for tf, hex in debate.selected_state_hex.items() %}
+                <span class="state-badge" style="background:{% if hex in ['E','F'] %}rgba(14,124,102,0.1){% elif hex in ['C','D','8','9','A','B'] %}rgba(217,138,26,0.1){% else %}#f1f5f9{% endif %};color:{% if hex in ['E','F'] %}var(--good){% elif hex in ['C','D','8','9','A','B'] %}var(--accent){% else %}var(--muted){% endif %};">{{ tf }}={{ hex }}</span>
+                {% endfor %}
+              {% else %}
+                <span class="state-badge" style="background:#f1f5f9;color:var(--muted);">--</span>
+              {% endif %}
+            </div>
+          </div>
+          <div class="object-group">
+            <span class="object-label">策略假设</span>
+            <span class="object-value" style="font-size:13px;font-weight:400;color:var(--muted);">EF ≥ 2 多周期共振观察</span>
+          </div>
+          <div class="object-group">
+            <span class="object-label">最终观察结论</span>
+            <span class="object-value {% if debate.conclusion == 'strong_observation' %}conclusion-pass{% elif debate.conclusion == 'risk_warning' %}conclusion-risk{% else %}conclusion-warn{% endif %}">
+              {{ debate.conclusion_label or '观察中' }}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {# ── 2. Agent 观点矩阵 ── #}
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>Agent 观点矩阵</h2>
+          <span>行是 Agent，列是立场与证据</span>
+        </div>
+        <table class="matrix-table" style="width:100%;">
+          <thead>
+            <tr>
+              <th>Agent</th>
+              <th>立场</th>
+              <th>置信度</th>
+              <th>核心证据</th>
+              <th>最大担忧</th>
+              <th>建议动作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for agent in debate.agents %}
+            <tr class="agent-row">
+              <td><strong>{{ agent.name }}</strong><br><span style="font-size:11px;color:var(--muted);">{{ agent.id }}</span></td>
+              <td>
+                {% if agent.stance == 'support' %}
+                  <span class="stance-support">▲ 支持</span>
+                {% elif agent.stance == 'oppose' %}
+                  <span class="stance-oppose">▼ 反对</span>
+                {% else %}
+                  <span class="stance-neutral">● 中性</span>
+                {% endif %}
+              </td>
+              <td class="num">{{ agent.confidence or '--' }}%</td>
+              <td>{{ agent.evidence or '数据待丰富' }}</td>
+              <td>{{ agent.concern or '数据待丰富' }}</td>
+              <td>{{ agent.action or '持续观察' }}</td>
+            </tr>
+            {% endfor %}
+            {% if not debate.agents %}
+            <tr><td colspan="6" class="muted" style="padding:20px;text-align:center;">暂无 Agent 辩论数据</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </section>
+
+      {# ── 3. 冲突与共振区 + Router 权重区 ── #}
+      <section class="panel span-2">
+        <div class="two-col-grid">
+          <div>
+            <div class="panel-head" style="padding:0 0 10px;">
+              <h2>冲突与共振</h2>
+            </div>
+            {% if debate.resonance_agents %}
+            <div style="margin-bottom:12px;">
+              <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">同意 Agent</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                {% for a in debate.resonance_agents %}
+                <span class="tag" style="background:rgba(14,124,102,0.1);color:var(--good);font-size:12px;">{{ a }}</span>
+                {% endfor %}
+              </div>
+              <p style="font-size:13px;color:var(--ink);margin-top:6px;">{{ debate.resonance_reason or '在多周期 E/F 共振上达成一致。' }}</p>
+            </div>
+            {% endif %}
+            {% if debate.conflict_agents %}
+            <div>
+              <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">反对 Agent</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                {% for a in debate.conflict_agents %}
+                <span class="tag" style="background:rgba(184,74,58,0.1);color:var(--bad);font-size:12px;">{{ a }}</span>
+                {% endfor %}
+              </div>
+              <p style="font-size:13px;color:var(--ink);margin-top:6px;">{{ debate.conflict_reason or '在入场时机与风险边界上存在分歧。' }}</p>
+            </div>
+            {% endif %}
+            {% if not debate.resonance_agents and not debate.conflict_agents %}
+            <p class="muted">当前 Agent 之间无明显冲突或共振。</p>
+            {% endif %}
+            <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line);">
+              <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">异常标记</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                {% if debate.has_fake_breakout %}<span class="tag" style="background:rgba(217,138,26,0.1);color:var(--accent);font-size:12px;">⚠ 假突破</span>{% endif %}
+                {% if debate.has_overheat %}<span class="tag" style="background:rgba(217,138,26,0.1);color:var(--accent);font-size:12px;">🔥 过热</span>{% endif %}
+                {% if debate.has_data_anomaly %}<span class="tag" style="background:rgba(184,74,58,0.1);color:var(--bad);font-size:12px;">⚡ 数据异常</span>{% endif %}
+                {% if not debate.has_fake_breakout and not debate.has_overheat and not debate.has_data_anomaly %}
+                <span class="tag" style="background:#f1f5f9;color:var(--muted);font-size:12px;">无异常</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div class="panel-head" style="padding:0 0 10px;">
+              <h2>Router 权重分配</h2>
+            </div>
+            {% if debate.weights %}
+            <div class="space-y-2.5">
+              {% for w in debate.weights %}
+              <div class="weight-bar">
+                <span style="font-size:12px;color:var(--muted);width:90px;">{{ w.label }}</span>
+                <div class="weight-track"><div class="weight-fill" style="width:{{ w.pct }}%;background:{% if w.pct >= 30 %}#3b82f6{% elif w.pct >= 15 %}#fbbf24{% else %}#94a3b8{% endif %};"></div></div>
+                <span class="num" style="font-size:13px;font-weight:700;width:40px;text-align:right;">{{ w.value }}</span>
+              </div>
+              {% endfor %}
+            </div>
+            <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line);">
+              <p style="font-size:13px;color:var(--ink);line-height:1.6;">
+                <strong>权重变化原因：</strong>{{ debate.weight_reason or '周期层级基础权重 + Agent 共识调整 + M30 精细微调。' }}
+              </p>
+            </div>
+            {% else %}
+            <p class="muted">暂无权重分配数据。</p>
+            {% endif %}
+          </div>
+        </div>
+      </section>
+
+      {# ── 4. 风险反驳区 ── #}
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>风险反驳</h2>
+          <span>Risk Agent 常驻展示</span>
+        </div>
+        <div class="risk-panel">
+          <div style="display:flex;gap:12px;align-items:flex-start;">
+            <span style="font-size:20px;">🛡️</span>
+            <div style="flex:1;">
+              <div style="font-size:14px;font-weight:700;color:var(--bad);margin-bottom:6px;">Risk Guardian 反驳理由</div>
+              <p style="font-size:13px;color:var(--ink);line-height:1.6;margin:0;">
+                {{ debate.risk_reason or '当前标的处于多周期共振状态，但 M30 ADX 斜率为负，短期动能可能衰减。需确认成交量是否持续配合。' }}
+              </p>
+              <div style="margin-top:10px;display:flex;gap:16px;flex-wrap:wrap;">
+                <div>
+                  <div style="font-size:11px;color:var(--muted);">失效条件</div>
+                  <div style="font-size:13px;font-weight:600;">{{ debate.risk_invalid_condition or 'D1 收盘价跌破支撑位且成交量萎缩' }}</div>
+                </div>
+                <div>
+                  <div style="font-size:11px;color:var(--muted);">需人类确认</div>
+                  <div style="font-size:13px;font-weight:600;">{{ debate.risk_human_check or '是否为假突破？行业承接是否持续？' }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {# ── 5. Ledger 写入区 ── #}
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>决策观察账本</h2>
+          <span>记录本次判断，后续回填 5/20 日结果</span>
+        </div>
+        <div class="ledger-panel">
+          <div class="two-col-grid">
+            <div>
+              <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">本次判断摘要</div>
+              <div style="font-size:14px;font-weight:600;color:var(--ink);">
+                {{ debate.ledger_summary or debate.conclusion_label or '观察中，等待更多确认信号。' }}
+              </div>
+              <div style="margin-top:12px;font-size:12px;color:var(--muted);">观察动作</div>
+              <div style="font-size:13px;color:var(--ink);">{{ debate.ledger_action or '持续跟踪，不急于动作。' }}</div>
+            </div>
+            <div>
+              <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">后续 5/20 日回填状态</div>
+              <div style="display:flex;gap:8px;">
+                <span class="tag" style="background:#f1f5f9;color:var(--muted);font-size:12px;">5日: 待回填</span>
+                <span class="tag" style="background:#f1f5f9;color:var(--muted);font-size:12px;">20日: 待回填</span>
+              </div>
+              <div style="margin-top:16px;">
+                <button id="ledger-write-btn" class="px-4 py-2 text-[13px] font-medium text-white rounded-md transition-colors" style="background:var(--good);border:none;cursor:pointer;width:auto;" type="button">写入账本</button>
+                <span id="ledger-write-status" class="muted" style="margin-left:10px;font-size:12px;"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    {% set ai_page_context = '/agent-debate' %}
+    {% include '_ai_assistant.html' %}
+    <script>
+      const ledgerBtn = document.getElementById("ledger-write-btn");
+      const ledgerStatus = document.getElementById("ledger-write-status");
+      if (ledgerBtn) {
+        ledgerBtn.addEventListener("click", async () => {
+          ledgerBtn.disabled = true;
+          ledgerBtn.style.opacity = "0.7";
+          ledgerStatus.textContent = "写入中...";
+          try {
+            const res = await fetch("/api/agent-debate/ledger", {
+              method: "POST",
+              headers: {"Content-Type": "application/json"},
+              body: JSON.stringify({
+                date: "{{ debate.target_date or today }}",
+                stock_code: "{{ debate.selected_stock }}",
+              }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.ok) {
+              throw new Error(data.error || "写入失败");
+            }
+            ledgerStatus.textContent = `已写入 ${data.record_count || 0} 条`;
+          } catch (err) {
+            ledgerStatus.textContent = err.message || "写入失败";
+          } finally {
+            ledgerBtn.disabled = false;
+            ledgerBtn.style.opacity = "1";
+          }
+        });
+      }
+    </script>
+  </body>
+</html>

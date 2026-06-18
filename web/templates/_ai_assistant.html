@@ -63,6 +63,10 @@
           <strong>当前模式说明</strong>
           <span id="ai-hint-text">对话模式适合先问市场、方向、个股怎么看；任务模式适合把盯盘、长期跟踪和提醒任务交给系统。</span>
         </div>
+        <div class="ai-session-ctx" id="ai-session-ctx" style="display:none;">
+          <span class="ctx-dot"></span>
+          <span id="ai-ctx-text">跟踪中：000021.SZ</span>
+        </div>
         <div class="ai-quick" id="ai-quick">
           <button onclick="aiAsk('现在能不能做')">现在能不能做</button>
           <button onclick="aiAsk('今天先看什么方向')">今天先看什么方向</button>
@@ -87,7 +91,7 @@
         var messages = document.getElementById('ai-messages');
         var input = document.getElementById('ai-input');
         var pageContext = "{{ ai_page_context or request.url.path }}";
-        var aiSession = { session_id: '', stock_code: '', email: '' };
+        var aiSession = { session_id: '', stock_code: '', email: '', recent_topics: [], turn_count: 0 };
         window.aiSession = aiSession;
         var aiMode = 'chat';
 
@@ -116,10 +120,38 @@
           div.className = 'ai-msg ' + (isUser ? 'user' : 'bot');
           div.innerHTML = text;
           messages.appendChild(div);
-          document.getElementById('ai-body').scrollTop = document.getElementById('ai-body').scrollHeight;
+          var body = document.getElementById('ai-body');
+          body.scrollTop = body.scrollHeight;
+        }
+
+        function aiShowTyping() {
+          var div = document.createElement('div');
+          div.className = 'ai-msg bot';
+          div.id = 'ai-typing-msg';
+          div.innerHTML = '<div class="ai-typing"><span></span><span></span><span></span></div>';
+          messages.appendChild(div);
+          var body = document.getElementById('ai-body');
+          body.scrollTop = body.scrollHeight;
+        }
+
+        function aiRemoveTyping() {
+          var el = document.getElementById('ai-typing-msg');
+          if (el) el.remove();
+        }
+
+        function aiUpdateCtx() {
+          var ctxEl = document.getElementById('ai-session-ctx');
+          var ctxText = document.getElementById('ai-ctx-text');
+          if (aiSession.stock_code) {
+            ctxEl.style.display = 'inline-flex';
+            ctxText.textContent = '跟踪中：' + aiSession.stock_code;
+          } else {
+            ctxEl.style.display = 'none';
+          }
         }
 
 function aiRender(data) {
+          aiRemoveTyping();
           if (data.session_id) {
             aiSession.session_id = data.session_id;
           }
@@ -129,6 +161,7 @@ function aiRender(data) {
           if (data.remembered_email) {
             aiSession.email = data.remembered_email;
           }
+          aiUpdateCtx();
           var html = '';
           // 主回答区置顶，元信息沉底
           if (data.answer) {
@@ -150,13 +183,25 @@ function aiRender(data) {
           }
           if (data.provider || data.enhancement_used !== undefined || data.mode_used) {
             var meta = [];
-            if (data.provider === 'managed_deepseek') meta.push('DeepSeek 增强');
+            if (data.provider === 'managed_deepseek' || data.provider === 'deepseek_direct') meta.push('DeepSeek 增强');
             else if (data.provider === 'agently_deepseek') meta.push('Agently + DeepSeek');
+            else if ((data.provider || '').indexOf('workflow_') === 0) meta.push('外部工作流');
             else meta.push('规则回答');
             if (data.enhancement_used === true) meta.push('已启用增强解释');
             else if (data.enhancement_used === false && data.provider !== 'rule_based') meta.push('未使用增强');
             if (data.mode_used === 'agent') meta.push('任务模式');
             html += '<div class="ai-meta">' + escapeHtml(meta.join(' · ')) + '</div>';
+            // 数据来源标注徽章
+            if (data.data_support === 'local_data') {
+              html += '<span class="ai-source-badge local">● 本地数据支持</span>';
+            } else if (data.data_support === 'llm_only') {
+              html += '<span class="ai-source-badge llm">○ 暂无本地数据</span>';
+            } else if (data.data_support === 'rule_only') {
+              html += '<span class="ai-source-badge rule">● 规则口径</span>';
+            }
+          }
+          if (data.support_note) {
+            html += '<div class="ai-support-note">' + escapeHtml(data.support_note) + '</div>';
           }
           if (data.freshness_note) {
             html += '<div class="ai-meta">' + escapeHtml(data.freshness_note) + '</div>';
@@ -195,6 +240,15 @@ function aiRender(data) {
         window.aiSetMode = aiSetMode;
 
         function aiAsk(text) {
+          // 从首页 C 位或 watchlist 问观象按钮触发时，确保抽屉打开
+          var drawer = document.getElementById('ai-drawer');
+          var overlay = document.getElementById('ai-overlay');
+          var trigger = document.getElementById('ai-trigger');
+          if (drawer && !drawer.classList.contains('open')) {
+            drawer.classList.add('open');
+            if (overlay) overlay.classList.add('open');
+            if (trigger) trigger.style.display = 'none';
+          }
           aiAppend(text, true);
           aiSendMsg(text);
         }
@@ -210,8 +264,14 @@ function aiRender(data) {
         window.aiSend = aiSend;
 
         function aiSendMsg(text) {
-          aiAppend('<em style="color:var(--muted)">思考中…</em>', false);
-          var placeholder = messages.lastChild;
+          aiShowTyping();
+          var placeholder = document.getElementById('ai-typing-msg');
+
+          // 更新本地会话记忆
+          aiSession.turn_count = (aiSession.turn_count || 0) + 1;
+          if (!aiSession.recent_topics) aiSession.recent_topics = [];
+          aiSession.recent_topics.unshift(text.substring(0, 80));
+          if (aiSession.recent_topics.length > 5) aiSession.recent_topics = aiSession.recent_topics.slice(0, 5);
 
           fetch('/api/chat/query', {
             method: 'POST',
@@ -220,7 +280,14 @@ function aiRender(data) {
               message: text,
               page_context: pageContext,
               session_id: aiSession.session_id,
-              session_context: aiSession,
+              session_context: {
+                session_id: aiSession.session_id,
+                stock_code: aiSession.stock_code,
+                email: aiSession.email,
+                recent_topics: aiSession.recent_topics || [],
+                turn_count: aiSession.turn_count || 0,
+                page: pageContext
+              },
               mode: aiMode,
               use_llm: !!document.getElementById('ai-use-llm')?.checked
             })
@@ -230,11 +297,11 @@ function aiRender(data) {
             return r.json();
           })
           .then(function(data) {
-            messages.removeChild(placeholder);
+            aiRemoveTyping();
             aiRender(data);
           })
           .catch(function() {
-            messages.removeChild(placeholder);
+            aiRemoveTyping();
             aiRender({
               answer: '回答出了点问题，重试或直接看页面内容。',
               why: '',

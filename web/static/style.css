@@ -69,6 +69,31 @@ h3 {
   font-weight: 700;
 }
 
+/* 观象 AI 导航入口突出样式 */
+.date a.nav-ai {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border: 1px solid rgba(14,124,102,0.25);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(14,124,102,0.08), rgba(14,124,102,0.03));
+  font-size: 13px;
+  transition: all 0.15s ease;
+}
+.date a.nav-ai:hover {
+  border-color: var(--good);
+  background: linear-gradient(180deg, rgba(14,124,102,0.15), rgba(14,124,102,0.06));
+  box-shadow: 0 2px 8px rgba(14,124,102,0.12);
+}
+.date a.nav-ai .nav-ai-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #f4eecf, #e7d99f);
+  box-shadow: 0 0 0 2px rgba(244,238,207,0.3);
+}
+
 .date span {
   margin-left: 10px;
 }
@@ -790,6 +815,17 @@ code {
 }
 .ai-msg.bot .ai-section--meta strong {
   color: rgba(148,163,184,0.75);
+}
+
+.ai-support-note {
+  margin-top: 8px;
+  padding: 7px 9px;
+  border: 1px solid rgba(217,138,26,0.22);
+  border-radius: 6px;
+  background: rgba(217,138,26,0.06);
+  color: #8a5a12;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .ai-actions {

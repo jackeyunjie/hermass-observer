@@ -3,224 +3,321 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Hermass 多周期执行观察</title>
+    <title>Hermass 模拟跟踪</title>
     <link rel="stylesheet" href="/static/style.css" />
+    <style>
+      .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--line);
+      }
+      .toolbar select, .toolbar button {
+        width: auto;
+        min-width: 100px;
+        padding: 8px 12px;
+        font-size: 13px;
+      }
+      .toolbar button.secondary {
+        background: #fff;
+        color: var(--ink);
+        border: 1px solid var(--line);
+      }
+      .ledger-table th, .ledger-table td {
+        padding: 8px 10px;
+        font-size: 13px;
+        vertical-align: middle;
+      }
+      .ledger-table th {
+        cursor: pointer;
+        user-select: none;
+      }
+      .ledger-table th:hover {
+        background: #f8fbf9;
+      }
+      .ledger-table tbody tr:hover {
+        background: #f8fbf9;
+        cursor: pointer;
+      }
+      .ledger-table .row-select {
+        width: 32px;
+        text-align: center;
+      }
+      .ledger-table .row-select input {
+        width: auto;
+        margin: 0;
+      }
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .tag-green { background: rgba(14,124,102,0.1); color: var(--good); }
+      .tag-amber { background: rgba(217,138,26,0.1); color: var(--accent); }
+      .tag-red   { background: rgba(184,74,58,0.1); color: var(--bad); }
+      .tag-gray  { background: #f1f5f9; color: var(--muted); }
+      .tag-blue  { background: rgba(37,99,235,0.1); color: #2563eb; }
+      .sort-arrow { font-size: 10px; color: var(--muted); margin-left: 4px; }
+      .detail-drawer {
+        display: none;
+        padding: 16px;
+        border-top: 1px solid var(--line);
+        background: #f8fbf9;
+      }
+      .detail-drawer.open {
+        display: block;
+      }
+      .detail-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+      }
+      .detail-col h4 {
+        font-size: 12px;
+        color: var(--muted);
+        margin: 0 0 8px;
+        text-transform: uppercase;
+      }
+      .detail-col p, .detail-col ul {
+        font-size: 13px;
+        margin: 0;
+        padding-left: 16px;
+        line-height: 1.6;
+      }
+      @media (max-width: 860px) {
+        .detail-grid { grid-template-columns: 1fr; }
+        .toolbar { flex-direction: column; align-items: stretch; }
+      }
+    </style>
   </head>
   <body>
     <header class="topbar">
       <div>
         <p class="eyebrow">Hermass 多周期观察</p>
-        <h1>执行观察</h1>
+        <h1>模拟跟踪</h1>
       </div>
       <div class="date">
-        <a href="/?mode=execution">首页</a>
+        <a href="/">首页</a>
         <a href="/market">市场</a>
         <a href="/industry">行业</a>
-        <a href="/chain-assistant">产业链助手（旧）</a><a href="/chain-studio">产业链工作台（新）</a>
+        <a href="/chain-assistant">产业链助手（旧）</a>
+        <a href="/chain-studio">产业链工作台（新）</a>
         <a href="/research">研究</a>
-        <a href="/watchlist" class="active">执行</a>
+        <a href="/watchlist" class="active">模拟跟踪</a>
         <a href="/backtest">回测</a>
-        <a href="javascript:void(0)" onclick="aiToggle()">观象</a>
+        <a href="/agent-debate">Agent 辩论</a>
+        <a href="/mystrategies">策略工坊</a>
+        <a href="javascript:void(0)" class="nav-ai" onclick="aiToggle()"><span class="nav-ai-dot"></span>观象</a>
         <span>{{ today }}</span>
       </div>
     </header>
 
     <main class="layout">
-      <section class="metric-strip span-2">
-        <div>
-          <span>待标注</span>
-          <strong>{{ execution.pending }}</strong>
-          <em>前瞻观察</em>
-        </div>
-        <div>
-          <span>总数</span>
-          <strong>{{ execution.total }}</strong>
-          <em>执行队列</em>
-        </div>
-        <div>
-          <span>高风报比</span>
-          <strong>{{ execution.high_rr|length }}</strong>
-          <em>优先子集</em>
-        </div>
-      </section>
-
-      <section class="panel span-2 hero-panel">
-        <div class="panel-head">
-          <h2>执行框架</h2>
-          <span>先知道今天该怎么排队</span>
-        </div>
-        <p class="hero-copy">{{ execution.lane_hint }}</p>
-        {% if execution.meta.used_fallback or execution.meta.latest_is_empty %}
-        <div class="warning-panel">
-          <strong>执行产物提示</strong>
-          <p>最新 forward observation 产物为空，当前页面已回退到最近非空日期 {{ execution.meta.effective_date }}。</p>
-          <p class="muted">当前展示来源：{{ execution.meta.effective_relpath }}</p>
-        </div>
-        {% endif %}
-        <div class="warning-panel" style="margin-top: 14px;">
-          <strong>MECE 状态说明</strong>
-          <p>本页每只股票只出现一次。当前状态唯一，路径仅作转移候选，不再混写。</p>
-          <p class="muted">个股资金流来源：{{ execution.unified_date }}；行业承接来源：{{ execution.industry_rotation_date }}。</p>
-        </div>
-        {% if execution.stale_rows %}
-        <div class="warning-panel" style="margin-top: 14px;">
-          <strong>外围数据新鲜度</strong>
-          <ul class="focus-list">
-            {% for row in execution.stale_rows %}
-              <li>{{ row.message }}</li>
-            {% endfor %}
-          </ul>
-        </div>
-        {% endif %}
-        <div class="warning-panel" style="margin-top: 14px;">
-          <strong>缩写说明</strong>
-          <p>State = 结构状态；EF = 多周期强结构共振数；RR = 风报比（Risk / Reward）。</p>
-        </div>
-      </section>
-
+      {# ── 主体：高密度表格账本 ── #}
       <section class="panel span-2">
         <div class="panel-head">
-          <h2>优先队列</h2>
-          <span>先处理这些</span>
+          <h2>跟踪账本</h2>
+          <span>共 {{ execution.total }} 条记录</span>
         </div>
-        <table>
-          <thead>
-            <tr><th>代码</th><th>名称</th><th>共振路径</th><th>State</th><th>当前阶段</th><th>下一步</th></tr>
-          </thead>
-          <tbody>
-          {% for row in execution.priority_queue %}
-            <tr>
-              <td><a href="/research?stock_code={{ row.stock_code }}">{{ row.stock_code }}</a></td>
-              <td>{{ row.stock_name }}</td>
-              <td>{{ row.path_label }}</td>
-              <td>
-                <strong>{{ row.resonance_label or '-' }}</strong>
-                <details>
-                  <summary>周期详情</summary>
-                  <div class="muted">
-                    MN1: {{ row.mn1_label or '-' }} | W1: {{ row.w1_label or '-' }} | D1: {{ row.d1_label or '-' }}<br />
-                    Hex: {{ row.mn1_state or '-' }} / {{ row.w1_state or '-' }} / {{ row.d1_state or '-' }}
+
+        {# 工具栏 #}
+        <div class="toolbar">
+          <select id="filterStage" onchange="filterTable()">
+            <option value="">全部阶段</option>
+            <option value="priority">优先</option>
+            <option value="observe">观察</option>
+            <option value="queue">常规</option>
+          </select>
+          <select id="filterRisk" onchange="filterTable()">
+            <option value="">全部风险</option>
+            <option value="high">高风险</option>
+            <option value="medium">中风险</option>
+            <option value="low">低风险</option>
+          </select>
+          <button class="secondary" onclick="batchAction('archive')">批量归档</button>
+          <button class="secondary" onclick="batchAction('review')">批量复盘</button>
+          <button class="secondary" onclick="exportTable()">导出</button>
+        </div>
+
+        {# 统一表格：合并 priority + observe + recent + high_rr #}
+        <div style="overflow:auto;">
+          <table class="ledger-table" id="ledgerTable">
+            <thead>
+              <tr>
+                <th class="row-select"><input type="checkbox" id="selectAll" onclick="toggleSelectAll()"></th>
+                <th onclick="sortTable(1)">标的 <span class="sort-arrow">↕</span></th>
+                <th onclick="sortTable(2)">策略 <span class="sort-arrow">↕</span></th>
+                <th onclick="sortTable(3)">入选日期 <span class="sort-arrow">↕</span></th>
+                <th onclick="sortTable(4)">当前阶段 <span class="sort-arrow">↕</span></th>
+                <th onclick="sortTable(5)">当前收益 <span class="sort-arrow">↕</span></th>
+                <th onclick="sortTable(6)">最大回撤 <span class="sort-arrow">↕</span></th>
+                <th onclick="sortTable(7)">持续天数 <span class="sort-arrow">↕</span></th>
+                <th>Agent 结论</th>
+                <th>风险状态</th>
+                <th>下一步动作</th>
+                <th>复盘状态</th>
+                <th style="width:72px;">问观象</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% set all_rows = execution.priority_queue + execution.observe_queue + execution.recent_queue %}
+              {% for row in all_rows %}
+              {% set is_priority = row in execution.priority_queue %}
+              {% set is_observe = row in execution.observe_queue %}
+              {% set stage_label = '优先' if is_priority else ('观察' if is_observe else '常规') %}
+              {% set stage_tag = 'tag-green' if is_priority else ('tag-amber' if is_observe else 'tag-gray') %}
+              <tr data-stage="{{ 'priority' if is_priority else ('observe' if is_observe else 'queue') }}" data-risk="{{ 'high' if row.rr_ratio and row.rr_ratio < 1.5 else 'medium' if row.rr_ratio and row.rr_ratio < 2.5 else 'low' }}" onclick="toggleDetail(this)">
+                <td class="row-select" onclick="event.stopPropagation()"><input type="checkbox" class="row-check"></td>
+                <td>
+                  <a href="/research?stock_code={{ row.stock_code }}">{{ row.stock_code }}</a>
+                  <div style="font-size:11px;color:var(--muted);">{{ row.stock_name }}</div>
+                </td>
+                <td>{{ row.strategy_id or '-' }}</td>
+                <td>{{ execution.unified_date or '-' }}</td>
+                <td><span class="tag {{ stage_tag }}">{{ stage_label }}</span></td>
+                <td>—</td>
+                <td>—</td>
+                <td>—</td>
+                <td>
+                  {% if row.resonance_label %}
+                    <span class="tag tag-blue">{{ row.resonance_label }}</span>
+                  {% else %}
+                    <span class="tag tag-gray">待评估</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if row.rr_ratio %}
+                    <span class="tag {% if row.rr_ratio >= 3 %}tag-green{% elif row.rr_ratio >= 1.5 %}tag-amber{% else %}tag-red{% endif %}">RR {{ row.rr_ratio }}</span>
+                  {% else %}
+                    <span class="tag tag-gray">待评估</span>
+                  {% endif %}
+                </td>
+                <td>{{ row.next_action or '持续观察' }}</td>
+                <td><span class="tag tag-gray">待复盘</span></td>
+                <td onclick="event.stopPropagation()">
+                  <button class="ask-ai-chip" onclick="askGuanXiang('{{ row.stock_code }}', '{{ row.stock_name or '' }}')">
+                    <span class="dot"></span>问观象
+                  </button>
+                </td>
+              </tr>
+              {# 详情抽屉 #}
+              <tr class="detail-row" style="display:none;">
+                <td colspan="13" style="padding:0;">
+                  <div class="detail-drawer" id="detail-{{ loop.index }}">
+                    <div class="detail-grid">
+                      <div class="detail-col">
+                        <h4>入选原因</h4>
+                        <p>{{ row.queue_reason or row.path_label or '策略触发入选' }}</p>
+                        <h4 style="margin-top:12px;">回测证据</h4>
+                        <p>适配度：{{ row.strategy_environment_fit or '-' }}<br>生命周期：{{ row.lifecycle_stage or '-' }}</p>
+                      </div>
+                      <div class="detail-col">
+                        <h4>多周期状态</h4>
+                        <p>
+                          MN1: {{ row.mn1_state or '-' }}<br>
+                          W1: {{ row.w1_state or '-' }}<br>
+                          D1: {{ row.d1_state or '-' }}<br>
+                          EF: {{ row.ef_count or 0 }}
+                        </p>
+                        <h4 style="margin-top:12px;">风险反驳</h4>
+                        <p>{{ row.sr_boundary_direction or '暂无风险标记' }}</p>
+                      </div>
+                      <div class="detail-col">
+                        <h4>当前观察日志</h4>
+                        <p>{{ row.fit_reasons or '暂无日志' }}</p>
+                        <h4 style="margin-top:12px;">后续动作</h4>
+                        <p>{{ row.next_action or '持续观察' }}</p>
+                      </div>
+                    </div>
                   </div>
-                </details>
-              </td>
-              <td>{{ row.current_state_label }}</td>
-              <td>
-                {{ row.next_action }}
-                <br />
-              </td>
-            </tr>
-          {% endfor %}
-          </tbody>
-        </table>
-        {% if not execution.priority_queue %}
-        <p class="muted">当前没有优先处理对象。</p>
-        {% endif %}
-      </section>
-
-      <section class="panel span-2">
-        <div class="panel-head">
-          <h2>观察队列</h2>
-          <span>先观察，不急于动作</span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
-        <table>
-          <thead>
-            <tr><th>代码</th><th>名称</th><th>共振路径</th><th>State</th><th>当前阶段</th><th>下一步</th></tr>
-          </thead>
-          <tbody>
-          {% for row in execution.observe_queue %}
-            <tr>
-              <td><a href="/research?stock_code={{ row.stock_code }}">{{ row.stock_code }}</a></td>
-              <td>{{ row.stock_name }}</td>
-              <td>{{ row.path_label }}</td>
-              <td>
-                <strong>{{ row.resonance_label or '-' }}</strong>
-                <details>
-                  <summary>周期详情</summary>
-                  <div class="muted">
-                    MN1: {{ row.mn1_label or '-' }} | W1: {{ row.w1_label or '-' }} | D1: {{ row.d1_label or '-' }}<br />
-                    Hex: {{ row.mn1_state or '-' }} / {{ row.w1_state or '-' }} / {{ row.d1_state or '-' }}
-                  </div>
-                </details>
-              </td>
-              <td>{{ row.current_state_label }}</td>
-              <td>
-                {{ row.next_action }}
-                <br />
-              </td>
-            </tr>
-          {% endfor %}
-          </tbody>
-        </table>
-        {% if not execution.observe_queue %}
-        <p class="muted">当前没有单独观察对象。</p>
-        {% endif %}
-      </section>
-
-      <section class="panel span-2">
-        <div class="panel-head">
-          <h2>常规积压队列</h2>
-          <span>常规处理队列</span>
-        </div>
-        <table>
-          <thead>
-            <tr><th>代码</th><th>名称</th><th>共振路径</th><th>State</th><th>当前阶段</th><th>下一步</th></tr>
-          </thead>
-          <tbody>
-          {% for row in execution.recent_queue %}
-            <tr>
-              <td><a href="/research?stock_code={{ row.stock_code }}">{{ row.stock_code }}</a></td>
-              <td>{{ row.stock_name }}</td>
-              <td>{{ row.path_label }}</td>
-              <td>
-                <strong>{{ row.resonance_label or '-' }}</strong>
-                <details>
-                  <summary>周期详情</summary>
-                  <div class="muted">
-                    MN1: {{ row.mn1_label or '-' }} | W1: {{ row.w1_label or '-' }} | D1: {{ row.d1_label or '-' }}<br />
-                    Hex: {{ row.mn1_state or '-' }} / {{ row.w1_state or '-' }} / {{ row.d1_state or '-' }}
-                  </div>
-                </details>
-              </td>
-              <td>{{ row.current_state_label }}</td>
-              <td>
-                {{ row.next_action }}
-                <br />
-              </td>
-            </tr>
-          {% endfor %}
-          </tbody>
-        </table>
-        {% if not execution.recent_queue %}
-        <p class="muted">当前没有常规 backlog，执行压力较低。</p>
-        {% endif %}
-      </section>
-
-      <section class="panel span-2">
-        <div class="panel-head">
-          <h2>高风报比参考</h2>
-          <span>高风报比样本单独查看</span>
-        </div>
-        <table>
-          <thead>
-            <tr><th>代码</th><th>名称</th><th>共振路径</th><th>RR（风报比）</th><th>置信度</th></tr>
-          </thead>
-          <tbody>
-          {% for row in execution.high_rr %}
-            <tr>
-              <td><a href="/research?stock_code={{ row.stock_code }}">{{ row.stock_code }}</a></td>
-              <td>{{ row.stock_name }}</td>
-              <td>{{ row.path_label or "—" }}</td>
-              <td>{{ row.rr_ratio }}</td>
-              <td>{{ row.confidence }}</td>
-            </tr>
-          {% endfor %}
-          </tbody>
-        </table>
-        {% if not execution.high_rr %}
-        <p class="muted">当前没有高风报比样本。</p>
+        {% if not all_rows %}
+        <p class="muted">当前没有跟踪对象。</p>
         {% endif %}
       </section>
     </main>
+
+    <script>
+      function askGuanXiang(code, name) {
+        aiSession.stock_code = code;
+        var label = name ? (code + ' ' + name) : code;
+        aiAsk('帮我分析 ' + label + ' 当前多周期状态和操作建议');
+      }
+      function toggleSelectAll() {
+        var checked = document.getElementById('selectAll').checked;
+        document.querySelectorAll('.row-check').forEach(function(cb) { cb.checked = checked; });
+      }
+      function toggleDetail(row) {
+        var next = row.nextElementSibling;
+        if (!next || !next.classList.contains('detail-row')) return;
+        var drawer = next.querySelector('.detail-drawer');
+        if (!drawer) return;
+        var isOpen = drawer.classList.contains('open');
+        document.querySelectorAll('.detail-drawer.open').forEach(function(d) { d.classList.remove('open'); d.closest('tr').style.display = 'none'; });
+        if (!isOpen) {
+          drawer.classList.add('open');
+          next.style.display = 'table-row';
+        }
+      }
+      function filterTable() {
+        var stage = document.getElementById('filterStage').value;
+        var risk = document.getElementById('filterRisk').value;
+        document.querySelectorAll('#ledgerTable tbody > tr:not(.detail-row)').forEach(function(row) {
+          var show = true;
+          if (stage && row.dataset.stage !== stage) show = false;
+          if (risk && row.dataset.risk !== risk) show = false;
+          row.style.display = show ? '' : 'none';
+          var next = row.nextElementSibling;
+          if (next && next.classList.contains('detail-row')) {
+            next.style.display = 'none';
+            var drawer = next.querySelector('.detail-drawer');
+            if (drawer) drawer.classList.remove('open');
+          }
+        });
+      }
+      function sortTable(colIndex) {
+        var tbody = document.querySelector('#ledgerTable tbody');
+        var groups = Array.from(tbody.querySelectorAll('tr:not(.detail-row)')).map(function(row) {
+          return {
+            row: row,
+            detail: row.nextElementSibling && row.nextElementSibling.classList.contains('detail-row') ? row.nextElementSibling : null
+          };
+        });
+        groups.sort(function(a, b) {
+          var aVal = a.row.cells[colIndex].innerText.trim();
+          var bVal = b.row.cells[colIndex].innerText.trim();
+          var aNum = parseFloat(aVal.replace(/[^0-9.-]/g, ''));
+          var bNum = parseFloat(bVal.replace(/[^0-9.-]/g, ''));
+          if (!isNaN(aNum) && !isNaN(bNum)) return bNum - aNum;
+          return aVal.localeCompare(bVal);
+        });
+        groups.forEach(function(group) {
+          tbody.appendChild(group.row);
+          if (group.detail) tbody.appendChild(group.detail);
+        });
+      }
+      function batchAction(action) {
+        var selected = document.querySelectorAll('.row-check:checked').length;
+        alert('已选择 ' + selected + ' 条记录，执行：' + action + '（功能开发中）');
+      }
+      function exportTable() {
+        alert('导出功能开发中');
+      }
+    </script>
+
     {% set ai_page_context = '/watchlist' %}
     {% include '_ai_assistant.html' %}
   </body>

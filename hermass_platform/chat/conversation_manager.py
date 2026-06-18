@@ -204,6 +204,15 @@ class ConversationManager:
             return {}
         return session.get_context_for_prompt()
 
+    def update_context(self, session_id: str, context: dict):
+        """Merge new keys into session context for cross-turn memory persistence."""
+        session = self.get_session(session_id)
+        if session is None:
+            return
+        for k, v in context.items():
+            if v not in (None, '', [], {}):
+                session.context[k] = v
+
     def end_session(self, session_id: str):
         self._sessions.pop(session_id, None)
         self._store.delete_session(session_id)
