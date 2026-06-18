@@ -254,6 +254,7 @@ function aiRender(data) {
         window.heroAskChip = heroAskChip;
 
         // 委托「问观象」按钮点击：从 data-stock / data-name 读取股票信息
+        // 使用捕获阶段，避免 watchlist 等页面 stopPropagation() 阻断冒泡
         document.addEventListener('click', function(e) {
           var btn = e.target.closest('.ask-ai-chip');
           if (!btn) return;
@@ -262,9 +263,10 @@ function aiRender(data) {
           var name = btn.getAttribute('data-name') || '';
           if (!code) return;
           aiSession.stock_code = code;
+          aiUpdateCtx();
           var label = name ? (code + ' ' + name) : code;
           aiAsk('帮我分析 ' + label + ' 当前多周期状态和操作建议');
-        });
+        }, true);
 
         function aiAsk(text) {
           // 从首页 C 位或 watchlist 问观象按钮触发时，确保抽屉打开

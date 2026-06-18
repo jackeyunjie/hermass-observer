@@ -5365,6 +5365,64 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
             "mode_used": mode,
         }
 
+    # ── 高优先级：自我介绍、帮助、概念解释（先于市场/行业/个股，避免关键词误判）──
+
+    # 问题 0.1：泛问题（自我介绍 / 能力说明）
+    if any(k in msg_lower for k in ("你是谁", "你能做什么", "你是什么", "你的功能", "你能帮我", "介绍一下自己")):
+        return {
+            "answer": (
+                "我是「观象」，Hermass 量化观测台的 AI 助手。"
+                "我可以帮你理解市场环境、分析行业方向、解读个股结构、解释量化概念，"
+                "也可以帮你建立盯盘提醒、导航到对应功能页面。"
+                "我只做研究和解释，不直接给买卖建议。"
+            ),
+            "why": "观象是 Hermass 平台内置的 AI 助手，目标是把多周期观测框架用自然对话的方式交付给你。",
+            "multi_cycle_view": "我的核心框架是 MN1/W1/D1 三周期共振分析 —— 大周期定方向，周线看结构，日线找时机。",
+            "single_cycle_position": "你可以直接问我市场怎么样、某只股票什么状态、某个行业方向如何，我会用结构化的方式回答。",
+            "avoid": "不要把我当成下单工具或投资顾问；我是研究辅助，不是决策替代。",
+            "next_actions": [
+                {"label": "打开首页", "url": "/"},
+                {"label": "看看市场", "url": "/market"},
+                {"label": "搜一只股票", "url": "/research?stock_code=000021.SZ"},
+            ],
+            "sources": ["page_context"],
+            "freshness_note": "",
+            "remembered_stock_code": _chat_stock_code(query),
+            "remembered_email": _chat_email(query),
+            "mode_used": mode,
+        }
+
+    # 问题 0.2：使用帮助
+    if any(k in msg_lower for k in ("怎么用", "如何使用", "使用说明", "帮助", "help", "从哪开始", "新手")):
+        return {
+            "answer": (
+                "建议按「市场 → 行业 → 研究」的顺序上手："
+                "先看市场页判断大环境能不能做，再看行业页找顺风方向，"
+                "最后到研究页看具体股票的多周期结构。"
+                "你也可以直接问我问题，比如「现在能不能做」「000021 怎么样」。"
+            ),
+            "why": "多周期框架的核心是先判断大环境，再缩圈到方向，最后看个股执行，这个顺序能避免逆势操作。",
+            "multi_cycle_view": "上手后你会慢慢习惯 MN1/W1/D1 三层视角：月线看大势、周线看结构、日线找介入时机。",
+            "single_cycle_position": "刚开始不用追求完美判断，先把市场页和行业页看熟，再逐步深入个股。",
+            "avoid": "不要一上来就盯着个股涨跌做决定，先建立「环境 → 方向 → 标的」的思考习惯。",
+            "next_actions": [
+                {"label": "打开市场页", "url": "/market"},
+                {"label": "打开行业页", "url": "/industry"},
+                {"label": "打开首页", "url": "/"},
+            ],
+            "sources": ["page_context"],
+            "freshness_note": "",
+            "remembered_stock_code": _chat_stock_code(query),
+            "remembered_email": _chat_email(query),
+            "mode_used": mode,
+        }
+
+    # 问题 0.3：教学 / 概念解释（规则可覆盖的量化术语）
+    if _is_learning_question(msg_lower):
+        return _learning_answer(msg, query, mode)
+
+    # ── 市场/行业/个股路由 ──
+
     # 问题 1：市场/能不能做
     if _is_market_question(msg_lower):
         market = _market_analysis_data()
@@ -5520,60 +5578,6 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
             "remembered_email": _chat_email(query),
             "mode_used": mode,
         }
-
-    # 问题 5：泛问题（自我介绍 / 能力说明）
-    if any(k in msg_lower for k in ("你是谁", "你能做什么", "你是什么", "你的功能", "你能帮我", "介绍一下自己")):
-        return {
-            "answer": (
-                "我是「观象」，Hermass 量化观测台的 AI 助手。"
-                "我可以帮你理解市场环境、分析行业方向、解读个股结构、解释量化概念，"
-                "也可以帮你建立盯盘提醒、导航到对应功能页面。"
-                "我只做研究和解释，不直接给买卖建议。"
-            ),
-            "why": "观象是 Hermass 平台内置的 AI 助手，目标是把多周期观测框架用自然对话的方式交付给你。",
-            "multi_cycle_view": "我的核心框架是 MN1/W1/D1 三周期共振分析 —— 大周期定方向，周线看结构，日线找时机。",
-            "single_cycle_position": "你可以直接问我市场怎么样、某只股票什么状态、某个行业方向如何，我会用结构化的方式回答。",
-            "avoid": "不要把我当成下单工具或投资顾问；我是研究辅助，不是决策替代。",
-            "next_actions": [
-                {"label": "打开首页", "url": "/"},
-                {"label": "看看市场", "url": "/market"},
-                {"label": "搜一只股票", "url": "/research?stock_code=000021.SZ"},
-            ],
-            "sources": ["page_context"],
-            "freshness_note": "",
-            "remembered_stock_code": _chat_stock_code(query),
-            "remembered_email": _chat_email(query),
-            "mode_used": mode,
-        }
-
-    # 问题 6：使用帮助
-    if any(k in msg_lower for k in ("怎么用", "如何使用", "使用说明", "帮助", "help", "从哪开始", "新手")):
-        return {
-            "answer": (
-                "建议按「市场 → 行业 → 研究」的顺序上手："
-                "先看市场页判断大环境能不能做，再看行业页找顺风方向，"
-                "最后到研究页看具体股票的多周期结构。"
-                "你也可以直接问我问题，比如「现在能不能做」「000021 怎么样」。"
-            ),
-            "why": "多周期框架的核心是先判断大环境，再缩圈到方向，最后看个股执行，这个顺序能避免逆势操作。",
-            "multi_cycle_view": "上手后你会慢慢习惯 MN1/W1/D1 三层视角：月线看大势、周线看结构、日线找介入时机。",
-            "single_cycle_position": "刚开始不用追求完美判断，先把市场页和行业页看熟，再逐步深入个股。",
-            "avoid": "不要一上来就盯着个股涨跌做决定，先建立「环境 → 方向 → 标的」的思考习惯。",
-            "next_actions": [
-                {"label": "打开市场页", "url": "/market"},
-                {"label": "打开行业页", "url": "/industry"},
-                {"label": "打开首页", "url": "/"},
-            ],
-            "sources": ["page_context"],
-            "freshness_note": "",
-            "remembered_stock_code": _chat_stock_code(query),
-            "remembered_email": _chat_email(query),
-            "mode_used": mode,
-        }
-
-    # 问题 7：教学 / 概念解释（规则可覆盖的量化术语）
-    if _is_learning_question(msg_lower):
-        return _learning_answer(msg, query, mode)
 
     # ── 默认回答：规则未命中时，走通用 DeepSeek Q&A ──────────────────────
     deepseek_answer = _general_deepseek_answer(query)
