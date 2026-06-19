@@ -42,9 +42,102 @@ P0_CHAINS = {
 }
 
 
+def _merged_rows(state_date: date) -> list[dict]:
+    """合并 JSON 与 ifind_chain_panel，返回统一 rows 列表"""
+    rows: list[dict] = []
+    if CHAIN_JSON.exists():
+        payload = _load_chain_json()
+        rows = list(payload.get("rows", []))
+    ifind_rows = _load_ifind_panel_rows(state_date)
+    if ifind_rows:
+        existing = {(r.get("chain_id"), r.get("stock_code")) for r in rows}
+        for ir in ifind_rows:
+            key = (ir["chain_id"], ir["stock_code"])
+            if key not in existing:
+                rows.append(ir)
+    return rows
+
+
 def _load_chain_json() -> dict[str, Any]:
     with open(CHAIN_JSON, "r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def _load_ifind_panel_rows(state_date: date) -> list[dict]:
+    """从 ifind_chain_panel 读取链（用于 JSON 中不存在的链）
+
+    返回与 JSON rows 兼容的结构，同时从 state_cube 补充技术指标。
+    """
+    if not CHAIN_DB.exists():
+        return []
+    con = duckdb.connect(str(CHAIN_DB), read_only=True)
+    try:
+        try:
+            panels = con.execute("""
+                SELECT chain_id, chain_name, node_id, node_name, node_position,
+                       stock_code, stock_name, role
+                FROM ifind_chain_panel
+                WHERE chain_id IN ('optical_communication','memory_chips','dc_transformer','power_equipment')
+                ORDER BY chain_id, node_id, stock_code
+            """).fetchall()
+        except Exception:
+            return []
+
+        if not panels:
+            return []
+
+        stock_codes = list({p[5] for p in panels if p[5]})
+        if not stock_codes:
+            return []
+
+        # 批量从 state_cube 读取技术指标
+        placeholders = ",".join([f"'{s}'" for s in stock_codes])
+        cube = duckdb.connect(str(STATE_CUBE_DB), read_only=True)
+        tech_rows = cube.execute(f"""
+            SELECT stock_code, ef_count, future_r5, future_r20,
+                   COALESCE(d1_state_hex, '--') AS d1_state_hex,
+                   COALESCE(w1_state_hex, '--') AS w1_state_hex,
+                   d1_close
+            FROM state_cube
+            WHERE stock_code IN ({placeholders})
+              AND state_date = '{state_date}'
+        """).fetchall()
+        cube.close()
+
+        tech_map = {}
+        for r in tech_rows:
+            tech_map[r[0]] = {
+                "ef_count": r[1] or 0,
+                "future_r5": r[2],
+                "future_r20": r[3],
+                "d1_state_hex": r[4],
+                "w1_state_hex": r[5],
+                "d1_close": r[6],
+            }
+
+        rows = []
+        for p in panels:
+            code = p[5]
+            tech = tech_map.get(code, {})
+            rows.append({
+                "chain_id": p[0],
+                "chain_name": p[1] or p[0],
+                "node_position": p[4] or "unknown",
+                "node_name": p[3] or p[2],
+                "stock_code": code,
+                "stock_name": p[6] or code,
+                "assistant_score": 50,  # 默认中值
+                "ef_count": tech.get("ef_count", 0),
+                "future_r5": tech.get("future_r5"),
+                "future_r20": tech.get("future_r20"),
+                "d1_state_hex": tech.get("d1_state_hex", "--"),
+                "w1_state_hex": tech.get("w1_state_hex", "--"),
+                "d1_close": tech.get("d1_close"),
+                "review_gate": "research_only_unverified",
+            })
+        return rows
+    finally:
+        con.close()
 
 
 def _resolve_state_date(cube_db: Path) -> date:
@@ -318,7 +411,7 @@ def _build_events(payload: dict, state_date: date) -> list[dict]:
     return list(best.values())
 
 
-def _write_tables(overview: list[dict], nodes: list[dict], events: list[dict]) -> None:
+def _write_tables(overview: list[dict], nodes: list[dict], events: list[dict], state_date: date) -> None:
     """写入 DuckDB，表不存在则创建"""
     os.makedirs(CHAIN_DB.parent, exist_ok=True)
     con = duckdb.connect(str(CHAIN_DB))
@@ -447,10 +540,10 @@ def _write_tables(overview: list[dict], nodes: list[dict], events: list[dict]) -
     con.execute("CREATE INDEX IF NOT EXISTS idx_cns_chain ON chain_node_stocks(chain_id)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_cns_node ON chain_node_stocks(node_id)")
 
-    # 从 JSON 填充
-    payload = _load_chain_json()
+    # 从合并数据填充 stock_records
+    merged_rows = _merged_rows(state_date)
     stock_records = []
-    for r in payload.get("rows", []):
+    for r in merged_rows:
         cid = r.get("chain_id")
         if cid not in P0_CHAINS:
             continue
@@ -498,7 +591,7 @@ def _write_tables(overview: list[dict], nodes: list[dict], events: list[dict]) -
     con.execute("CREATE INDEX IF NOT EXISTS idx_csc_score ON chain_studio_candidates(assistant_score DESC)")
 
     candidate_records = []
-    for r in payload.get("rows", []):
+    for r in merged_rows:
         cid = r.get("chain_id")
         if cid not in P0_CHAINS:
             continue
@@ -537,29 +630,32 @@ def _write_tables(overview: list[dict], nodes: list[dict], events: list[dict]) -
 
 
 def main() -> int:
-    print("[build_chain_studio] Phase 1 MVP 启动")
+    print("[build_chain_studio] 启动")
 
-    if not CHAIN_JSON.exists():
-        print(f"ERROR: 产业链 JSON 不存在: {CHAIN_JSON}", file=sys.stderr)
-        return 1
     if not STATE_CUBE_DB.exists():
         print(f"ERROR: State Cube DB 不存在: {STATE_CUBE_DB}", file=sys.stderr)
         return 1
 
-    payload = _load_chain_json()
     state_date = _resolve_state_date(STATE_CUBE_DB)
     print(f"[build_chain_studio] 使用 state_date: {state_date}")
 
+    # ── 合并所有数据源 ──
+    rows = _merged_rows(state_date)
+    print(f"[build_chain_studio] 合并后 total rows: {len(rows)}")
+    payload = {"rows": rows, "summary": {}}
+
     overview = _build_overview(payload, state_date)
-    print(f"[build_chain_studio] overview 行数: {len(overview)}")
+    print(f"[build_chain_studio] overview: {len(overview)} chains")
+    for o in overview:
+        print(f"  {o['chain_id']:25s} score={o['prosperity_score']:5.1f}  regime={o['regime']:12s}  lead={o['lead_node']}")
 
     nodes = _build_nodes(payload, state_date)
-    print(f"[build_chain_studio] nodes 行数: {len(nodes)}")
+    print(f"[build_chain_studio] nodes: {len(nodes)}")
 
     events = _build_events(payload, state_date)
-    print(f"[build_chain_studio] events 行数: {len(events)}")
+    print(f"[build_chain_studio] events: {len(events)}")
 
-    _write_tables(overview, nodes, events)
+    _write_tables(overview, nodes, events, state_date)
     print(f"[build_chain_studio] 已写入: {CHAIN_DB}")
 
     # 快速验证

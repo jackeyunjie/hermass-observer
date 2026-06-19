@@ -1,0 +1,112 @@
+{
+  "schema_version": "ifind_mcp_chain_queries_v1",
+  "description": "iFinD MCP search_stocks fallback queries for chain nodes with weak or missing MCP coverage.",
+  "queries": {
+    "ai_compute/ai_chip": [
+      "AI芯片概念A股",
+      "GPU芯片A股上市公司",
+      "人工智能芯片A股",
+      "国产GPU A股"
+    ],
+    "ai_compute/storage_chip": [
+      "存储芯片A股",
+      "DRAM NAND NOR Flash A股",
+      "半导体存储器A股"
+    ],
+    "ai_compute/idc": [
+      "IDC数据中心A股",
+      "算力租赁A股",
+      "云计算数据中心A股"
+    ],
+    "nev/anode": [
+      "锂电负极材料A股",
+      "人造石墨负极A股",
+      "硅基负极A股"
+    ],
+    "nev/cathode": [
+      "锂电正极材料A股",
+      "磷酸铁锂正极A股",
+      "三元正极材料A股"
+    ],
+    "nev/electrolyte": [
+      "锂电电解液A股",
+      "六氟磷酸锂A股",
+      "LiFSI电解液A股"
+    ],
+    "nev/separator": [
+      "锂电隔膜A股",
+      "锂电池隔离膜A股",
+      "湿法隔膜A股"
+    ],
+    "nev/whole_vehicle": [
+      "新能源汽车整车A股",
+      "电动汽车整车A股",
+      "乘用车新能源A股"
+    ],
+    "semiconductor/eda_ip": [
+      "EDA软件A股",
+      "半导体IP核A股",
+      "集成电路设计软件A股"
+    ],
+    "semiconductor/foundry": [
+      "晶圆制造A股",
+      "晶圆代工A股",
+      "集成电路制造A股"
+    ],
+    "semiconductor/semiconductor_equipment": [
+      "半导体设备A股",
+      "刻蚀机薄膜沉积设备A股",
+      "光刻胶设备清洗设备A股"
+    ],
+    "solar_storage/inverter": [
+      "光伏逆变器A股",
+      "储能逆变器A股",
+      "组串式逆变器A股"
+    ],
+    "solar_storage/pv_glass_aux": [
+      "光伏玻璃胶膜A股",
+      "光伏辅材A股",
+      "EVA POE胶膜A股"
+    ],
+
+    "optical_communication/optical_chip": [
+      "光芯片A股", "激光器芯片A股", "光电子芯片A股", "高速光芯片A股"
+    ],
+    "optical_communication/optical_module": [
+      "光模块A股", "光收发模块A股", "800G光模块A股", "CPO共封装A股"
+    ],
+    "optical_communication/fiber_equipment": [
+      "光纤光缆A股", "光通信设备A股", "OTN设备A股"
+    ],
+
+    "memory_chips/wafer_material": [
+      "半导体硅片A股", "光刻胶材料A股", "电子特气A股"
+    ],
+    "memory_chips/memory_fab": [
+      "DRAM存储芯片A股", "NAND存储器A股", "存储芯片设计A股", "HBM概念A股"
+    ],
+    "memory_chips/memory_module": [
+      "SSD固态硬盘A股", "存储模组A股", "企业级存储A股"
+    ],
+
+    "dc_transformer/core_winding": [
+      "取向硅钢A股", "电磁线A股", "变压器铁芯材料A股"
+    ],
+    "dc_transformer/transformer_equip": [
+      "电力变压器A股", "特高压变压器A股", "配电柜A股", "直流输电设备A股"
+    ],
+    "dc_transformer/datacenter_power": [
+      "数据中心电力A股", "IDC供电A股"
+    ],
+
+    "power_equipment/metal_insulation": [
+      "电力电缆材料A股", "铜导体A股", "绝缘材料A股"
+    ],
+    "power_equipment/switchgear_cable": [
+      "高压开关柜A股", "电网设备A股", "电力电缆A股", "GIS组合电器A股"
+    ],
+    "power_equipment/grid_operator": [
+      "智能电网A股", "配电网建设A股", "特高压A股"
+    ]
+  }
+}

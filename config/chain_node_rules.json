@@ -1,0 +1,615 @@
+{
+  "schema_version": "chain_node_rules_v1",
+  "description": "产业链节点推断规则。用于从 ifind_industry_chain_profile 自动映射个股到产业链节点。规则优先级：name_keyword > product_keyword > business_keyword > sw_l3_exact > sw_l3_contains。",
+  "chains": [
+    {
+      "chain_id": "ai_compute",
+      "chain_name": "AI算力",
+      "nodes": [
+        {
+          "node_id": "ai_chip",
+          "node_name": "AI芯片/GPU",
+          "position": "上游",
+          "match_rules": {
+            "sw_l3_exact": ["数字芯片设计", "模拟芯片设计"],
+            "product_keyword": ["AI芯片", "GPU", "DCU", "NPU", "TPU", "云端智能芯片", "边缘智能芯片"],
+            "business_keyword": ["人工智能芯片", "高端处理器", "深度学习芯片"],
+            "name_keyword": ["寒武纪", "海光", "龙芯", "景嘉微"]
+          },
+          "role_rules": {
+            "default": "核心供应商",
+            "leader_names": ["寒武纪", "海光信息"]
+          }
+        },
+        {
+          "node_id": "storage_chip",
+          "node_name": "存储芯片",
+          "position": "上游",
+          "match_rules": {
+            "sw_l3_exact": ["数字芯片设计"],
+            "product_keyword": ["存储芯片", "DRAM", "NAND", "NOR Flash", "SRAM", "内存芯片"],
+            "business_keyword": ["存储芯片", "存储器"],
+            "name_keyword": ["兆易创新", "东芯股份", "聚辰股份", "普冉股份"]
+          },
+          "role_rules": {
+            "default": "核心供应商",
+            "leader_names": ["兆易创新"]
+          }
+        },
+        {
+          "node_id": "optical_module",
+          "node_name": "光模块/CPO",
+          "position": "中游",
+          "match_rules": {
+            "sw_l3_exact": ["通信网络设备及器件"],
+            "product_keyword": ["光模块", "光引擎", "光通信", "光收发", "CPO", "AOC", "DAC"],
+            "business_keyword": ["光通信收发模块", "光模块", "光引擎"],
+            "name_keyword": ["中际旭创", "新易盛", "天孚通信", "光迅科技", "源杰科技"]
+          },
+          "role_rules": {
+            "default": "核心供应商",
+            "leader_names": ["中际旭创", "新易盛"]
+          }
+        },
+        {
+          "node_id": "server",
+          "node_name": "算力服务器",
+          "position": "中游",
+          "match_rules": {
+            "sw_l3_exact": ["计算机设备", "其他计算机设备"],
+            "product_keyword": ["服务器", "AI服务器", "高性能计算", "HPC"],
+            "business_keyword": ["服务器", "云计算基础设施"],
+            "name_keyword": ["浪潮信息", "中科曙光", "工业富联", "紫光股份"]
+          },
+          "role_rules": {
+            "default": "核心供应商",
+            "leader_names": ["浪潮信息", "工业富联"]
+          }
+        },
+        {
+          "node_id": "pcb_carrier",
+          "node_name": "PCB/载板",
+          "position": "中游",
+          "match_rules": {
+            "sw_l3_exact": ["印制电路板"],
+            "product_keyword": ["PCB", "印制电路板", "IC载板", "HDI", "服务器板", "通信板"],
+            "business_keyword": ["印刷电路板", "PCB"],
+            "name_keyword": ["沪电股份", "深南电路", "生益电子", "胜宏科技"]
+          },
+          "role_rules": {
+            "default": "配套",
+            "leader_names": ["沪电股份", "深南电路"]
+          }
+        },
+        {
+          "node_id": "idc",
+          "node_name": "数据中心/IDC",
+          "position": "下游",
+          "match_rules": {
+            "sw_l3_exact": ["通信服务", "IT服务Ⅲ"],
+            "product_keyword": ["IDC", "数据中心", "云计算", "算力租赁"],
+            "business_keyword": ["互联网数据中心", "IDC", "云服务"],
+            "name_keyword": ["光环新网", "数据港", "奥飞数据", "宝信软件"]
+          },
+          "role_rules": {
+            "default": "核心供应商",
+            "leader_names": ["光环新网", "宝信软件"]
+          }
+        }
+      ]
+    },
+    {
+      "chain_id": "nev",
+      "chain_name": "新能源车/锂电",
+      "nodes": [
+        {
+          "node_id": "lithium",
+          "node_name": "锂矿/锂盐",
+          "position": "上游",
+          "match_rules": {
+            "sw_l3_exact": ["能源金属"],
+            "product_keyword": ["锂精矿", "锂化工", "碳酸锂", "氢氧化锂", "锂系列产品"],
+            "business_keyword": ["锂精矿", "锂化工", "锂产品"],
+            "name_keyword": ["天齐锂业", "赣锋锂业", "盐湖股份", "永兴材料", "中矿资源"]
+          },
+          "role_rules": {
+            "default": "核心供应商",
+            "leader_names": ["天齐锂业", "赣锋锂业"]
+          }
+        },
+        {
+          "node_id": "cathode",
+          "node_name": "正极材料",
+          "position": "中游",
+          "match_rules": {
+            "sw_l3_exact": ["电池化学品"],
+            "product_keyword": ["正极材料", "三元材料", "磷酸铁锂", "钴酸锂", "锰酸锂", "磷酸锰铁锂"],
+            "business_keyword": ["正极材料", "锂电池正极"],
+            "name_keyword": ["当升科技", "容百科技", "德方纳米", "杉杉股份", "华友钴业"]
+          },
+          "role_rules": {
+            "default": "核心供应商",
+            "leader_names": ["当升科技", "容百科技"]
+          }
+        },
+        {
+          "node_id": "anode",
+          "node_name": "负极材料",
+          "position": "中游",
+          "match_rules": {
+            "sw_l3_exact": ["电池化学品"],
+            "product_keyword": ["负极材料", "人造石墨", "天然石墨", "硅基负极"],
+            "business_keyword": ["负极材料", "锂电池负极"],
+            "name_keyword": ["璞泰来", "贝特瑞", "杉杉股份"]
+          },
+          "role_rules": {
+            "default": "核心供应商",
+            "leader_names": ["璞泰来", "贝特瑞"]
+          }
+        },
+        {
+          "node_id": "electrolyte",
+          "node_name": "电解液",
+          "position": "中游",
+          "match_rules": {
+            "sw_l3_exact": ["电池化学品"],
+            "product_keyword": ["电解液", "六氟磷酸锂", "LiFSI"],
+            "business_keyword": ["电解液", "电池化学品"],
+            "name_keyword": ["天赐材料", "新宙邦"]
+          },
+          "role_rules": {
+            "default": "核心供应商",
+            "leader_names": ["天赐材料", "新宙邦"]
+          }
+        },
+        {
+          "node_id": "separator",
+          "node_name": "隔膜",
+          "position": "中游",
+          "match_rules": {
+            "sw_l3_exact": ["电池化学品"],
+            "product_keyword": ["隔膜", "锂电池隔离膜", "涂覆隔膜"],
+            "business_keyword": ["隔膜", "锂电池隔膜"],
+            "name_keyword": ["恩捷股份", "星源材质"]
+          },
+          "role_rules": {
+            "default": "核心供应商",
+            "leader_names": ["恩捷股份"]
+          }
+        },
+        {
+          "node_id": "battery_cell",
+          "node_name": "电芯/电池系统",
+          "position": "中游",
+          "match_rules": {
+            "sw_l3_exact": ["锂电池"],
+            "product_keyword": ["动力电池", "储能电池", "电池系统", "电芯"],
+            "business_keyword": ["动力电池", "储能系统", "锂离子电池"],
+            "name_keyword": ["宁德时代", "亿纬锂能", "国轩高科", "欣旺达", "中创新航"]
+          },
+          "role_rules": {
+            "default": "核心供应商",
+            "leader_names": ["宁德时代"]
+          }
+        },
+        {
+          "node_id": "battery_equipment",
+          "node_name": "锂电设备",
+          "position": "中游-配套",
+          "match_rules": {
+            "sw_l3_exact": ["锂电专用设备"],
+            "product_keyword": ["锂电设备", "涂布机", "卷绕机", "化成分容"],
+            "business_keyword": ["锂电池设备", "锂电智能装备"],
+            "name_keyword": ["先导智能", "赢合科技"]
+          },
+          "role_rules": {
+            "default": "配套",
+            "leader_names": ["先导智能"]
+          }
+        },
+        {
+          "node_id": "whole_vehicle",
+          "node_name": "整车",
+          "position": "下游",
+          "match_rules": {
+            "sw_l3_exact": ["乘用车", "商用车"],
+            "product_keyword": ["新能源汽车", "电动汽车", "乘用车", "商用车"],
+            "business_keyword": ["新能源汽车", "汽车整车"],
+            "name_keyword": ["比亚迪", "长城汽车", "长安汽车", "上汽集团", "广汽集团"]
+          },
+          "role_rules": {
+            "default": "核心供应商",
+            "leader_names": ["比亚迪"]
+          }
+        }
+      ]
+    },
+    {
+      "chain_id": "solar_storage",
+      "chain_name": "光伏/储能",
+      "nodes": [
+        {
+          "node_id": "polysilicon",
+          "node_name": "硅料/工业硅",
+          "position": "上游",
+          "match_rules": {
+            "sw_l3_exact": ["光伏设备"],
+            "product_keyword": ["高纯晶硅", "多晶硅", "工业硅", "硅料"],
+            "business_keyword": ["多晶硅", "高纯晶硅", "硅料"],
+            "name_keyword": ["通威股份", "大全能源", "协鑫科技"]
+          },
+          "role_rules": {
+            "default": "核心供应商",
+            "leader_names": ["通威股份", "大全能源"]
+          }
+        },
+        {
+          "node_id": "wafer",
+          "node_name": "硅片",
+          "position": "上游",
+          "match_rules": {
+            "sw_l3_exact": ["光伏设备"],
+            "product_keyword": ["硅片", "单晶硅棒", "单晶硅片"],
+            "business_keyword": ["单晶硅片", "硅片"],
+            "name_keyword": ["隆基绿能", "TCL中环", "晶科能源", "晶澳科技"]
+          },
+          "role_rules": {
+            "default": "核心供应商",
+            "leader_names": ["隆基绿能", "TCL中环"]
+          }
+        },
+        {
+          "node_id": "cell_module",
+          "node_name": "电池片/组件",
+          "position": "中游",
+          "match_rules": {
+            "sw_l3_exact": ["光伏电池组件", "光伏设备"],
+            "product_keyword": ["光伏电池", "太阳能电池", "光伏组件", "电池片"],
+            "business_keyword": ["太阳能电池", "光伏组件"],
+            "name_keyword": ["晶澳科技", "天合光能", "晶科能源", "爱旭股份", "钧达股份"]
+          },
+          "role_rules": {
+            "default": "核心供应商",
+            "leader_names": ["晶澳科技", "天合光能"]
+          }
+        },
+        {
+          "node_id": "pv_glass_aux",
+          "node_name": "光伏玻璃/胶膜/辅材",
+          "position": "中游-配套",
+          "match_rules": {
+            "sw_l3_exact": ["光伏辅材"],
+            "product_keyword": ["光伏玻璃", "光伏胶膜", "EVA", "POE", "背板", "光伏焊带", "石英坩埚"],
+            "business_keyword": ["光伏玻璃", "光伏胶膜", "光伏辅材"],
+            "name_keyword": ["福莱特", "信义光能", "福斯特", "海优新材", "欧晶科技"]
+          },
+          "role_rules": {
+            "default": "配套",
+            "leader_names": ["福莱特", "福斯特"]
+          }
+        },
+        {
+          "node_id": "inverter",
+          "node_name": "逆变器",
+          "position": "下游",
+          "match_rules": {
+            "sw_l3_exact": ["光伏设备", "其他电源设备Ⅲ"],
+            "product_keyword": ["逆变器", "光伏逆变器", "组串式逆变器", "集中式逆变器", "微型逆变器"],
+            "business_keyword": ["光伏逆变器", "逆变器"],
+            "name_keyword": ["阳光电源", "锦浪科技", "固德威", "禾迈股份", "昱能科技"]
+          },
+          "role_rules": {
+            "default": "核心供应商",
+            "leader_names": ["阳光电源"]
+          }
+        },
+        {
+          "node_id": "energy_storage",
+          "node_name": "储能系统",
+          "position": "下游",
+          "match_rules": {
+            "sw_l3_exact": ["电池", "其他电源设备Ⅲ", "光伏设备"],
+            "product_keyword": ["储能系统", "储能电池", "户用储能", "工商业储能", "大型储能"],
+            "business_keyword": ["储能系统", "储能电池"],
+            "name_keyword": ["宁德时代", "亿纬锂能", "派能科技", "鹏辉能源", "阳光电源"]
+          },
+          "role_rules": {
+            "default": "核心供应商",
+            "leader_names": ["宁德时代", "阳光电源"]
+          }
+        },
+        {
+          "node_id": "power_station",
+          "node_name": "电站运营",
+          "position": "下游",
+          "match_rules": {
+            "sw_l3_exact": ["光伏发电", "风力发电", "电力"],
+            "product_keyword": ["光伏电站", "风电场", "电站运营", "新能源发电"],
+            "business_keyword": ["光伏电站", "新能源发电", "电力运营"],
+            "name_keyword": ["三峡能源", "晶科科技", "太阳能", "林洋能源"]
+          },
+          "role_rules": {
+            "default": "核心供应商",
+            "leader_names": ["三峡能源"]
+          }
+        }
+      ]
+    },
+    {
+      "chain_id": "semiconductor",
+      "chain_name": "半导体",
+      "nodes": [
+        {
+          "node_id": "eda_ip",
+          "node_name": "EDA/IP",
+          "position": "上游",
+          "match_rules": {
+            "sw_l3_exact": ["垂直应用软件", "横向通用软件"],
+            "product_keyword": ["EDA", "IP核", "设计软件"],
+            "business_keyword": ["EDA", "集成电路设计服务"],
+            "name_keyword": ["华大九天", "概伦电子", "广立微"]
+          },
+          "role_rules": {
+            "default": "核心供应商",
+            "leader_names": ["华大九天"]
+          }
+        },
+        {
+          "node_id": "semiconductor_equipment",
+          "node_name": "半导体设备",
+          "position": "上游-配套",
+          "match_rules": {
+            "sw_l3_exact": ["半导体设备"],
+            "product_keyword": ["光刻机", "刻蚀机", "薄膜沉积", "量测设备", "清洗设备", "CMP设备"],
+            "business_keyword": ["半导体设备", "集成电路设备"],
+            "name_keyword": ["北方华创", "中微公司", "拓荆科技", "芯源微", "华海清科"]
+          },
+          "role_rules": {
+            "default": "核心供应商",
+            "leader_names": ["北方华创", "中微公司"]
+          }
+        },
+        {
+          "node_id": "semiconductor_materials",
+          "node_name": "半导体材料",
+          "position": "上游-配套",
+          "match_rules": {
+            "sw_l3_exact": ["半导体材料"],
+            "product_keyword": ["硅片", "光刻胶", "电子特气", "CMP材料", "靶材", "封装材料"],
+            "business_keyword": ["半导体材料", "集成电路材料"],
+            "name_keyword": ["沪硅产业", "安集科技", "鼎龙股份", "江丰电子"]
+          },
+          "role_rules": {
+            "default": "核心供应商",
+            "leader_names": ["沪硅产业", "安集科技"]
+          }
+        },
+        {
+          "node_id": "chip_design",
+          "node_name": "芯片设计",
+          "position": "上游",
+          "match_rules": {
+            "sw_l3_exact": ["数字芯片设计", "模拟芯片设计"],
+            "product_keyword": ["芯片设计", "SoC", "MCU", "FPGA", "ASIC"],
+            "business_keyword": ["集成电路设计", "芯片设计"],
+            "name_keyword": ["韦尔股份", "紫光国微", "圣邦股份", "卓胜微", "兆易创新"]
+          },
+          "role_rules": {
+            "default": "核心供应商",
+            "leader_names": ["韦尔股份", "紫光国微"]
+          }
+        },
+        {
+          "node_id": "foundry",
+          "node_name": "晶圆制造",
+          "position": "中游",
+          "match_rules": {
+            "sw_l3_exact": ["集成电路制造"],
+            "product_keyword": ["晶圆代工", "晶圆制造"],
+            "business_keyword": ["晶圆代工", "集成电路制造"],
+            "name_keyword": ["中芯国际", "华虹公司"]
+          },
+          "role_rules": {
+            "default": "龙头",
+            "leader_names": ["中芯国际", "华虹公司"]
+          }
+        },
+        {
+          "node_id": "packaging_test",
+          "node_name": "封装测试",
+          "position": "中游",
+          "match_rules": {
+            "sw_l3_exact": ["集成电路封测"],
+            "product_keyword": ["封装测试", "先进封装", "Chiplet", "OSAT"],
+            "business_keyword": ["集成电路封装测试", "晶圆测试", "芯片成品测试"],
+            "name_keyword": ["长电科技", "通富微电", "华天科技", "甬矽电子"]
+          },
+          "role_rules": {
+            "default": "核心供应商",
+            "leader_names": ["长电科技", "通富微电"]
+          }
+        }
+      ]
+    },
+    {
+      "chain_id": "optical_communication",
+      "chain_name": "光通信",
+      "nodes": [
+        {
+          "node_id": "optical_chip",
+          "node_name": "光芯片/电芯片",
+          "position": "上游",
+          "match_rules": {
+            "product_keyword": ["光芯片", "电芯片", "激光器", "探测器", "DSP"],
+            "business_keyword": ["光电子芯片", "光通信芯片", "高速光芯片"],
+            "name_keyword": ["源杰科技", "长光华芯", "光库科技"]
+          },
+          "role_rules": {"default": "核心供应商", "leader_names": ["源杰科技"]}
+        },
+        {
+          "node_id": "optical_module",
+          "node_name": "光模块/CPO",
+          "position": "中游",
+          "match_rules": {
+            "product_keyword": ["光模块", "光收发", "CPO", "AOC", "光引擎"],
+            "business_keyword": ["光模块", "光通信器件"],
+            "name_keyword": ["中际旭创", "新易盛", "天孚通信", "光迅科技", "联特科技"]
+          },
+          "role_rules": {"default": "核心供应商", "leader_names": ["中际旭创", "新易盛"]}
+        },
+        {
+          "node_id": "fiber_equipment",
+          "node_name": "光纤/设备商",
+          "position": "下游",
+          "match_rules": {
+            "product_keyword": ["光纤光缆", "光通信设备", "OTN"],
+            "business_keyword": ["光纤", "光缆", "光通信系统"],
+            "name_keyword": ["长飞光纤", "亨通光电", "烽火通信"]
+          },
+          "role_rules": {"default": "核心供应商", "leader_names": ["长飞光纤"]}
+        }
+      ]
+    },
+    {
+      "chain_id": "memory_chips",
+      "chain_name": "存储芯片",
+      "nodes": [
+        {
+          "node_id": "wafer_material",
+          "node_name": "硅片/光刻胶",
+          "position": "上游",
+          "match_rules": {
+            "product_keyword": ["硅片", "光刻胶", "电子特气", "靶材"],
+            "business_keyword": ["半导体硅片", "半导体材料"],
+            "name_keyword": ["沪硅产业", "立昂微", "彤程新材"]
+          },
+          "role_rules": {"default": "核心供应商", "leader_names": ["沪硅产业"]}
+        },
+        {
+          "node_id": "memory_fab",
+          "node_name": "晶圆制造/封测",
+          "position": "中游",
+          "match_rules": {
+            "product_keyword": ["DRAM", "NAND", "NOR Flash", "存储芯片", "HBM"],
+            "business_keyword": ["存储芯片", "存储器", "内存"],
+            "name_keyword": ["兆易创新", "东芯股份", "长鑫存储", "江波龙", "北京君正"]
+          },
+          "role_rules": {"default": "核心供应商", "leader_names": ["兆易创新"]}
+        },
+        {
+          "node_id": "memory_module",
+          "node_name": "模组/服务器",
+          "position": "下游",
+          "match_rules": {
+            "product_keyword": ["内存模组", "SSD", "服务器", "存储系统"],
+            "business_keyword": ["存储模组", "固态硬盘"],
+            "name_keyword": ["江波龙", "佰维存储", "浪潮信息"]
+          },
+          "role_rules": {"default": "配套", "leader_names": ["江波龙"]}
+        }
+      ]
+    },
+    {
+      "chain_id": "dc_transformer",
+      "chain_name": "直流变压器",
+      "nodes": [
+        {
+          "node_id": "core_winding",
+          "node_name": "铁芯/绕组材料",
+          "position": "上游",
+          "match_rules": {
+            "product_keyword": ["取向硅钢", "电磁线", "绝缘材料", "变压器铁芯"],
+            "business_keyword": ["硅钢", "电磁线", "变压器材料"],
+            "name_keyword": ["首钢股份", "宝钢股份", "精达股份"]
+          },
+          "role_rules": {"default": "核心供应商", "leader_names": ["首钢股份"]}
+        },
+        {
+          "node_id": "transformer_equip",
+          "node_name": "变压器/配电柜",
+          "position": "中游",
+          "match_rules": {
+            "product_keyword": ["变压器", "配电柜", "开关柜", "直流输电"],
+            "business_keyword": ["变压器", "配电设备", "输变电"],
+            "name_keyword": ["特变电工", "保变电气", "中国西电", "思源电气"]
+          },
+          "role_rules": {"default": "核心供应商", "leader_names": ["特变电工", "中国西电"]}
+        },
+        {
+          "node_id": "datacenter_power",
+          "node_name": "数据中心/新能源",
+          "position": "下游",
+          "match_rules": {
+            "product_keyword": ["数据中心", "新能源电站", "充电桩"],
+            "business_keyword": ["数据中心电力", "新能源发电"],
+            "name_keyword": ["数据港", "奥飞数据", "国电南瑞"]
+          },
+          "role_rules": {"default": "配套", "leader_names": ["国电南瑞"]}
+        }
+      ]
+    },
+    {
+      "chain_id": "power_equipment",
+      "chain_name": "电力设备",
+      "nodes": [
+        {
+          "node_id": "metal_insulation",
+          "node_name": "铜/铝/绝缘材料",
+          "position": "上游",
+          "match_rules": {
+            "product_keyword": ["铜导体", "铝合金", "绝缘材料", "电缆料"],
+            "business_keyword": ["铜加工", "铝材", "绝缘材料"],
+            "name_keyword": ["金杯电工", "万马股份", "中超控股"]
+          },
+          "role_rules": {"default": "核心供应商", "leader_names": ["金杯电工"]}
+        },
+        {
+          "node_id": "switchgear_cable",
+          "node_name": "开关柜/电缆/GIS",
+          "position": "中游",
+          "match_rules": {
+            "product_keyword": ["开关柜", "电缆", "GIS", "断路器", "电力设备"],
+            "business_keyword": ["电力设备", "开关设备", "电力电缆"],
+            "name_keyword": ["平高电气", "许继电气", "正泰电器", "思源电气"]
+          },
+          "role_rules": {"default": "核心供应商", "leader_names": ["平高电气", "许继电气"]}
+        },
+        {
+          "node_id": "grid_operator",
+          "node_name": "电网公司/新能源电站",
+          "position": "下游",
+          "match_rules": {
+            "product_keyword": ["智能电网", "特高压", "配电网", "新能源电站"],
+            "business_keyword": ["电力运营", "电网建设", "新能源发电"],
+            "name_keyword": ["国电南瑞", "三峡能源", "涪陵电力"]
+          },
+          "role_rules": {"default": "配套", "leader_names": ["国电南瑞"]}
+        }
+      ]
+    }
+  ],
+  "global_settings": {
+    "confidence": {
+      "name_keyword_match": 0.95,
+      "product_keyword_match": 0.85,
+      "business_keyword_match": 0.80,
+      "sw_l3_exact_match": 0.75,
+      "sw_l3_contains_match": 0.60,
+      "default_no_match": 0.0
+    },
+    "evidence_level": {
+      "name_keyword_match": "strong",
+      "product_keyword_match": "medium",
+      "business_keyword_match": "medium",
+      "sw_l3_exact_match": "weak",
+      "sw_l3_contains_match": "weak"
+    },
+    "match_priority": [
+      "name_keyword",
+      "product_keyword",
+      "business_keyword",
+      "sw_l3_exact",
+      "sw_l3_contains"
+    ]
+  }
+}
