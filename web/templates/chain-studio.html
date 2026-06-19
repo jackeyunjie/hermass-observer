@@ -9,6 +9,7 @@
 :root {
   --c-leading: #168a4a; --c-improving: #2563eb; --c-weakening: #b7791f; --c-lagging: #c2413b;
   --c-bg: #f4f5f7; --c-card: #fff; --c-border: #dfe3e8; --c-soft: #f7f8fa; --c-muted: #687385; --c-ink: #151a23;
+  --c-topic: #7c3aed;
   --radius: 8px; --shadow: 0 1px 2px rgba(16,24,40,.05);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -32,16 +33,31 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
 /* ── Layout ── */
 .app { display: flex; min-height: calc(100vh - 58px); }
 .sidebar { width: 294px; flex-shrink: 0; background: #fff; border-right: 1px solid var(--c-border); padding: 0.95rem; overflow-y: auto; }
-.sidebar h3 { font-size: 0.72rem; color: var(--c-muted); margin: 0.85rem 0 0.6rem; text-transform: uppercase; letter-spacing: 0; font-weight: 700; }
+.sidebar h3 { font-size: 0.72rem; color: var(--c-muted); margin: 0.85rem 0 0.6rem; text-transform: none; letter-spacing: 0; font-weight: 700; }
+.sidebar h3.section-label { display: flex; align-items: center; gap: 0.4rem; }
+.sidebar h3.section-label .dot { width: 6px; height: 6px; border-radius: 50%; }
+.sidebar h3.section-label .dot.live { background: #16a34a; }
+.sidebar h3.section-label .dot.plan { background: #f59e0b; }
+.sidebar h3.section-label .dot.topic { background: var(--c-topic); }
 .chain-item { display: flex; flex-direction: column; padding: 0.7rem 0.72rem; border-radius: var(--radius); cursor: pointer; margin-bottom: 0.38rem; border: 1px solid transparent; transition: background .15s, border-color .15s, box-shadow .15s; }
 .chain-item:hover { background: #f7f9fc; border-color: #d8dee8; }
 .chain-item.selected { background: #f1f6ff; border-color: #8fb7ff; box-shadow: inset 3px 0 0 #2563eb; }
+.chain-item.pending { opacity: 0.65; cursor: pointer; border-style: dashed; }
+.chain-item.pending:hover { opacity: 0.9; background: #fffbeb; border-color: #fbbf24; }
 .chain-item .ci-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem; }
 .chain-item .ci-name { font-weight: 700; font-size: 0.88rem; }
+.chain-item .ci-name-sm { font-weight: 700; font-size: 0.82rem; display: flex; align-items: center; gap: 0.35rem; }
 .chain-item .ci-regime { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; font-weight: 700; border: 1px solid currentColor; }
 .chain-item .ci-details { font-size: 0.72rem; color: var(--c-muted); display: flex; gap: 0.75rem; }
 .ci-progress { height: 3px; background: #e5e9f0; border-radius: 2px; margin-top: 0.4rem; overflow: hidden; }
 .ci-progress-bar { height: 100%; border-radius: 2px; transition: width .3s; }
+/* Topic item */
+.topic-item { display: flex; flex-direction: column; padding: 0.65rem 0.72rem; border-radius: var(--radius); cursor: pointer; margin-bottom: 0.38rem; border: 1px solid #ede9fe; background: #faf8ff; transition: all .15s; }
+.topic-item:hover { border-color: #c4b5fd; box-shadow: 0 1px 4px rgba(124,58,237,.08); }
+.topic-item.selected { background: #f5f3ff; border-color: #8b5cf6; }
+.topic-item .ti-header { font-weight: 700; font-size: 0.82rem; color: var(--c-topic); margin-bottom: 0.2rem; }
+.topic-item .ti-date { font-size: 0.68rem; color: var(--c-muted); }
+.topic-item .ti-summary { font-size: 0.72rem; color: var(--c-muted); margin-top: 0.3rem; line-height: 1.3; }
 
 .main { flex: 1; padding: 1.15rem 1.25rem 2rem; overflow-y: auto; max-width: 1180px; }
 .panel { background: var(--c-card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1rem; margin-bottom: 0.95rem; border: 1px solid var(--c-border); }
@@ -71,6 +87,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
 .metric-pill .mp-value { font-size: 1rem; font-weight: 760; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .metric-pill .mp-sub { font-size: 0.7rem; color: var(--c-muted); margin-top: 0.1rem; }
 
+/* ── Chain structure diagram ── */
+.chain-struct { display: flex; gap: 0; align-items: stretch; justify-content: center; border: 1px solid #edf0f4; border-radius: var(--radius); overflow: hidden; margin-bottom: 1rem; }
+.chain-struct .cs-tier { flex: 1; padding: 0.8rem 0.6rem; text-align: center; border-right: 1px solid #edf0f4; background: #fbfcfd; }
+.chain-struct .cs-tier:last-child { border-right: 0; }
+.chain-struct .cs-tier .cs-label { font-size: 0.68rem; color: var(--c-muted); margin-bottom: 0.3rem; }
+.chain-struct .cs-tier .cs-nodes { font-size: 0.78rem; font-weight: 650; color: var(--c-ink); }
+
 /* ── Flow graph ── */
 .flow-graph { position: relative; padding: 0.35rem 0 0.55rem; overflow-x: auto; }
 .flow-row { display: flex; align-items: stretch; justify-content: flex-start; gap: 0; margin-bottom: 0.5rem; min-width: max-content; }
@@ -87,8 +110,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
 .data-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; table-layout: auto; }
 .data-table th { text-align: left; padding: 0.48rem 0.6rem; font-size: 0.7rem; color: var(--c-muted); font-weight: 740; border-bottom: 1px solid #dfe3e8; cursor: pointer; user-select: none; white-space: nowrap; background: #fafbfc; }
 .data-table th:hover { color: var(--c-ink); }
-.data-table th .sort-icon { margin-left: 2px; opacity: 0.3; }
-.data-table th.sorted .sort-icon { opacity: 1; }
+.data-table th.sorted { color: var(--c-ink); }
 .data-table td { padding: 0.48rem 0.6rem; border-bottom: 1px solid #edf0f4; vertical-align: middle; }
 .data-table tbody tr { cursor: pointer; transition: background .1s; }
 .data-table tbody tr:hover { background: #f7f9fc; }
@@ -96,25 +118,34 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
 
 .score-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
 
-/* ── RRG scatter ── */
-.rrg-container { position: relative; width: 100%; max-width: 500px; margin: 0 auto; }
-.rrg-svg { width: 100%; }
-.rrg-dot { cursor: pointer; transition: r .2s; }
-.rrg-dot:hover { filter: brightness(0.9); }
-.rrg-tooltip { position: absolute; background: #1f2937; color: #fff; padding: 0.35rem 0.6rem; border-radius: 4px; font-size: 0.72rem; pointer-events: none; white-space: nowrap; display: none; z-index: 10; }
-
 /* ── Detail expand ── */
 .detail-row { display: none; }
 .detail-row.open { display: table-row; }
 .detail-row td { padding: 0.75rem 1rem; background: #f7f9fc; border-bottom: 1px solid #e5e7eb; font-size: 0.8rem; }
-.detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.5rem; }
-.detail-grid .dg-item { padding: 0.4rem 0.6rem; background: #fff; border-radius: 6px; border: 1px solid #e5e7eb; }
-.detail-grid .dg-label { font-size: 0.68rem; color: var(--c-muted); }
-.detail-grid .dg-value { font-weight: 600; font-size: 0.85rem; }
 
 /* ── Search ── */
 .search-input { width: 100%; padding: 0.52rem 0.68rem; border: 1px solid var(--c-border); border-radius: var(--radius); font-size: 0.82rem; outline: none; transition: border-color .15s, box-shadow .15s; margin-bottom: 0.75rem; background: #fbfcfd; }
 .search-input:focus { border-color: var(--c-improving); box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+
+/* ── Topic content ── */
+.topic-hero { background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%); border: 1px solid #c4b5fd; border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1rem; }
+.topic-hero .th-tag { display: inline-block; background: var(--c-topic); color: #fff; padding: 0.15rem 0.6rem; border-radius: 999px; font-size: 0.68rem; font-weight: 700; margin-bottom: 0.5rem; }
+.topic-hero h2 { font-size: 1.1rem; margin-bottom: 0.3rem; }
+.topic-hero .th-sub { font-size: 0.78rem; color: var(--c-muted); }
+.topic-section { margin-bottom: 1.25rem; }
+.topic-section h3 { font-size: 0.9rem; font-weight: 750; margin-bottom: 0.5rem; padding-bottom: 0.35rem; border-bottom: 2px solid #ede9fe; }
+.topic-section p, .topic-section li { font-size: 0.83rem; line-height: 1.65; color: #374151; }
+.topic-section ul { padding-left: 1.2rem; margin: 0.4rem 0; }
+.topic-section li { margin-bottom: 0.25rem; }
+.strategy-card { border: 1px solid #e5e7eb; border-radius: var(--radius); padding: 0.75rem 0.85rem; margin-bottom: 0.5rem; background: #fff; }
+.strategy-card .sc-title { font-weight: 700; font-size: 0.83rem; margin-bottom: 0.3rem; }
+.strategy-card .sc-desc { font-size: 0.78rem; color: var(--c-muted); line-height: 1.5; }
+.signal-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin: 0.5rem 0; }
+.signal-table th { text-align: left; padding: 0.4rem 0.55rem; background: #f5f3ff; font-size: 0.72rem; font-weight: 700; color: var(--c-topic); border: 1px solid #ede9fe; }
+.signal-table td { padding: 0.4rem 0.55rem; border: 1px solid #ede9fe; font-size: 0.78rem; }
+
+/* ── Risk note ── */
+.risk-note { background: #fef2f2; border: 1px solid #fecaca; border-radius: var(--radius); padding: 0.75rem 0.85rem; font-size: 0.8rem; color: #991b1b; margin-top: 0.5rem; }
 
 /* ── Toast ── */
 .toast { position: fixed; bottom: 1.5rem; right: 1.5rem; padding: 0.6rem 1rem; background: #1f2937; color: #fff; border-radius: 8px; font-size: 0.8rem; z-index: 200; opacity: 0; transition: opacity .3s; pointer-events: none; }
@@ -127,7 +158,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .app { flex-direction: column; }
-  .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--c-border); max-height: 220px; }
+  .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--c-border); max-height: 260px; }
   .topbar { align-items: flex-start; flex-direction: column; }
   .main { padding: 1rem; }
   .summary-strip { grid-template-columns: 1fr; }
@@ -135,7 +166,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
   .flow-node { width: 126px; padding: 0.55rem; font-size: 0.72rem; }
   .flow-arrow { width: 42px; font-size: 0.8rem; }
 }
-
 </style>
 </head>
 <body>
@@ -169,8 +199,18 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
   <!-- Sidebar -->
   <aside class="sidebar">
     <input type="text" class="search-input" placeholder="搜索产业链..." id="chain-search" />
-    <h3>产业链列表</h3>
+
+    <!-- 在线产业链 -->
+    <h3 class="section-label"><span class="dot live"></span>在线产业链</h3>
     <div id="chain-list"></div>
+
+    <!-- 规划建设 -->
+    <h3 class="section-label" style="margin-top:1rem;"><span class="dot plan"></span>规划建设</h3>
+    <div id="planned-list"></div>
+
+    <!-- 特别专题 -->
+    <h3 class="section-label" style="margin-top:1rem;"><span class="dot topic"></span>特别专题</h3>
+    <div id="topic-list"></div>
   </aside>
 
   <!-- Main -->
@@ -194,12 +234,32 @@ function sf(path, opts) { return fetch(new URL(path, API_BASE).toString(), opts)
 let allChains = []; let allNodes = []; let allEvents = []; let allRRG = []; let allCandidates = [];
 let selectedChain = null; let expandedNode = null;
 
-const REGIME_COLORS = {
-  expansion: '#16a34a', recovery: '#2563eb', contraction: '#ca8a04', depression: '#dc2626'
+// ── 产业链中文显示名 ──
+const CHAIN_NAMES = {
+  ai_compute: 'AI算力链', semiconductor: '半导体链', nev: '新能源车链',
+  optical_communication: '光通信', memory_chips: '存储芯片', dc_transformer: '直流变压器', power_equipment: '电力设备'
 };
-const REGIME_LABELS = {
-  expansion: '扩张', recovery: '复苏', contraction: '收缩', depression: '低迷'
-};
+
+// ── 状态 / 象限 中文 ──
+const REGIME_COLORS = { expansion: '#16a34a', recovery: '#2563eb', contraction: '#ca8a04', depression: '#dc2626' };
+const REGIME_LABELS = { expansion: '扩张', recovery: '复苏', contraction: '收缩', depression: '低迷' };
+const QUADRANT_LABELS = { leading: '领先区', improving: '改善区', lagging: '滞后区', weakening: '衰退区' };
+
+// ── 规划建设中的产业链（静态定义，待数据入库）──
+const PLANNED_CHAINS = [
+  { chain_id: 'optical_communication',  name: '光通信',   desc: '光模块/CPO/光纤链路',       tiers: {上游: '光芯片/电芯片', 中游: '光模块/CPO',     下游: '数据中心/设备商'} },
+  { chain_id: 'memory_chips',           name: '存储芯片', desc: 'HBM/DRAM/NAND 产业链',       tiers: {上游: '硅片/光刻胶',   中游: '晶圆制造/封测',  下游: '模组/服务器'} },
+  { chain_id: 'dc_transformer',         name: '直流变压器', desc: '数据中心电力配送核心环节', tiers: {上游: '铁芯/绕组材料', 中游: '变压器/配电柜',  下游: '数据中心/新能源'} },
+  { chain_id: 'power_equipment',        name: '电力设备', desc: '特高压/配电网/智能电网',     tiers: {上游: '铜/铝/绝缘材料',中游: '开关柜/电缆/ GIS', 下游: '电网公司/新能源电站'} },
+];
+
+// ── 特别专题 ──
+const TOPICS = [
+  { id: 'proshares-etf-2026', date: '2026-06-18', title: 'ProShares 中国AI杠杆ETF 策略分析', summary: '9只两倍杠杆ETF即将上市，量化套利机制解析与A股防守策略' },
+];
+
+// ── 当前查看模式 ──
+let viewMode = null; // 'chain' | 'planned' | 'topic'
 
 // ── Toast ──
 function toast(msg) {
@@ -216,8 +276,8 @@ function updateFreshness(stateDate) {
   const today = new Date(); today.setHours(0,0,0,0);
   const diff = Math.floor((today - d) / 86400000);
   if (diff <= 1) { badge.className = 'fresh-badge ok'; badge.textContent = '● 数据新鲜'; }
-  else if (diff <= 3) { badge.className = 'fresh-badge stale'; badge.textContent = `● ${diff} 天前`; }
-  else { badge.className = 'fresh-badge old'; badge.textContent = `● ${diff} 天前`; }
+  else if (diff <= 3) { badge.className = 'fresh-badge stale'; badge.textContent = '● ' + diff + ' 天前'; }
+  else { badge.className = 'fresh-badge old'; badge.textContent = '● ' + diff + ' 天前'; }
 }
 
 // ── Fetch all ──
@@ -241,63 +301,182 @@ async function loadAll() {
     if (cand.ok) allCandidates = cand.candidates || [];
 
     if (allChains.length > 0) updateFreshness(allChains[0].state_date);
-    renderChainList(allChains);
   } catch (e) {
-    document.getElementById('main-panel').innerHTML = `<div class="error-box"><h2>数据加载失败</h2><code>${e.message}</code></div>`;
+    document.getElementById('main-panel').innerHTML = '<div class="error-box"><h2>数据加载失败</h2><code>' + e.message + '</code></div>';
   }
+  renderSidebar();
 }
 
-// ── Render sidebar ──
-function renderChainList(chains) {
-  const el = document.getElementById('chain-list');
-  if (!chains.length) { el.innerHTML = '<p style="color:var(--c-muted);font-size:0.8rem;">暂无产业链数据</p>'; return; }
-  el.innerHTML = chains.map(c => {
-    const regimeClass = c.regime || 'contraction';
-    const color = REGIME_COLORS[regimeClass] || '#6b7280';
-    const sel = selectedChain === c.chain_id ? ' selected' : '';
-    return `<div class="chain-item${sel}" data-chain="${c.chain_id}" onclick="selectChain('${c.chain_id}')">
-      <div class="ci-top">
-        <span class="ci-name">${c.chain_id}</span>
-        <span class="ci-regime" style="background:${color}20;color:${color}">${REGIME_LABELS[regimeClass]||c.regime}</span>
-      </div>
-      <div class="ci-progress"><div class="ci-progress-bar" style="width:${c.prosperity_score}%;background:${color}"></div></div>
-      <div class="ci-details">
-        <span>景气 ${c.prosperity_score}</span>
-        <span>事件 ${c.event_count}</span>
-      </div>
-    </div>`;
+// ── Sidebar render (live + planned + topic) ──
+function renderSidebar() {
+  // 在线产业链
+  const liveEl = document.getElementById('chain-list');
+  const q = (document.getElementById('chain-search')?.value || '').toLowerCase();
+  const filtered = allChains.filter(c => {
+    const cn = CHAIN_NAMES[c.chain_id] || c.chain_id;
+    return cn.toLowerCase().includes(q) || c.chain_id.toLowerCase().includes(q);
+  });
+  if (!filtered.length) {
+    liveEl.innerHTML = '<p style="color:var(--c-muted);font-size:0.78rem;">暂无匹配产业链</p>';
+  } else {
+    liveEl.innerHTML = filtered.map(c => {
+      const cn = CHAIN_NAMES[c.chain_id] || c.chain_id;
+      const regimeClass = c.regime || 'contraction';
+      const color = REGIME_COLORS[regimeClass] || '#6b7280';
+      const sel = (viewMode === 'chain' && selectedChain === c.chain_id) ? ' selected' : '';
+      return '<div class="chain-item' + sel + '" onclick="selectChain(\'' + c.chain_id + '\')">'
+        + '<div class="ci-top">'
+        + '<span class="ci-name">' + cn + '</span>'
+        + '<span class="ci-regime" style="background:' + color + '20;color:' + color + '">' + (REGIME_LABELS[regimeClass]||c.regime) + '</span>'
+        + '</div>'
+        + '<div class="ci-progress"><div class="ci-progress-bar" style="width:' + c.prosperity_score + '%;background:' + color + '"></div></div>'
+        + '<div class="ci-details"><span>景气 ' + c.prosperity_score + '</span><span>事件 ' + c.event_count + '</span></div>'
+        + '</div>';
+    }).join('');
+  }
+
+  // 规划建设
+  const planEl = document.getElementById('planned-list');
+  planEl.innerHTML = PLANNED_CHAINS.map(p => {
+    const sel = (viewMode === 'planned' && selectedChain === p.chain_id) ? ' selected' : '';
+    return '<div class="chain-item pending' + sel + '" onclick="selectPlanned(\'' + p.chain_id + '\')">'
+      + '<div class="ci-top">'
+      + '<span class="ci-name-sm">' + p.name + ' <span style="font-size:0.62rem;background:#fef3c7;color:#92400e;padding:0 4px;border-radius:3px;">规划中</span></span>'
+      + '</div>'
+      + '<div class="ci-details" style="font-size:0.68rem;">' + p.desc + '</div>'
+      + '</div>';
+  }).join('');
+
+  // 特别专题
+  const topicEl = document.getElementById('topic-list');
+  topicEl.innerHTML = TOPICS.map(t => {
+    const sel = (viewMode === 'topic' && selectedChain === t.id) ? ' selected' : '';
+    return '<div class="topic-item' + sel + '" onclick="selectTopic(\'' + t.id + '\')">'
+      + '<div class="ti-header">' + t.title + '</div>'
+      + '<div class="ti-date">' + t.date + '</div>'
+      + '<div class="ti-summary">' + t.summary + '</div>'
+      + '</div>';
   }).join('');
 }
 
 // ── Search ──
-document.getElementById('chain-search').addEventListener('input', function() {
-  const q = this.value.toLowerCase();
-  const filtered = allChains.filter(c => c.chain_id.toLowerCase().includes(q));
-  renderChainList(filtered);
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('chain-search').addEventListener('input', renderSidebar);
 });
 
 // ── Select chain ──
 async function selectChain(chainId) {
-  selectedChain = chainId;
-  renderChainList(allChains.filter(c => c.chain_id.toLowerCase().includes(document.getElementById('chain-search').value.toLowerCase())));
+  selectedChain = chainId; viewMode = 'chain'; renderSidebar();
 
   try {
     const [detailRes, propRes] = await Promise.all([
-      sf(`/api/chain/${chainId}`),
-      sf(`/api/chain/${chainId}/propagation`)
+      sf('/api/chain/' + chainId),
+      sf('/api/chain/' + chainId + '/propagation')
     ]);
-    const detail = await detailRes.json();
-    const prop = await propRes.json();
-    renderDetail(chainId, detail, prop);
+    renderDetail(chainId, await detailRes.json(), await propRes.json());
   } catch(e) {
-    document.getElementById('main-panel').innerHTML = `<div class="error-box"><h2>加载失败</h2><code>${e.message}</code></div>`;
+    document.getElementById('main-panel').innerHTML = '<div class="error-box"><h2>加载失败</h2><code>' + e.message + '</code></div>';
   }
+}
+
+// ── Select planned chain ──
+function selectPlanned(chainId) {
+  selectedChain = chainId; viewMode = 'planned'; renderSidebar();
+  const pc = PLANNED_CHAINS.find(p => p.chain_id === chainId);
+  if (!pc) return;
+
+  const tiers = pc.tiers;
+  const tierKeys = Object.keys(tiers);
+  document.getElementById('main-panel').innerHTML = '<div class="panel">'
+    + '<div class="panel-hd"><h2>' + pc.name + ' · 产业链图谱（规划建设中）</h2><span>数据即将入库</span></div>'
+    + '<p style="font-size:0.82rem;color:var(--c-muted);margin-bottom:0.8rem;">' + pc.desc + ' — 上中下游结构已定义，实时数据接入后将自动激活在线监控。</p>'
+    + '<div class="chain-struct">'
+    + tierKeys.map((t, i) => '<div class="cs-tier"><div class="cs-label">' + t + '</div><div class="cs-nodes">' + tiers[t] + '</div></div>').join('')
+    + '</div>'
+    + '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:var(--radius);padding:0.7rem 0.85rem;font-size:0.78rem;color:#92400e;">'
+    + '提示：该产业链已加入 P0 构建列表，下次运行 <code>build_chain_studio.py</code> 时将自动从数据源中提取关联标的与节点状态。届时此处将展示完整的景气度仪表盘与传导链路。'
+    + '</div>'
+    + '</div>';
+}
+
+// ── Select topic ──
+function selectTopic(topicId) {
+  selectedChain = topicId; viewMode = 'topic'; renderSidebar();
+  if (topicId === 'proshares-etf-2026') renderProSharesTopic();
+}
+
+// ── Render ProShares topic ──
+function renderProSharesTopic() {
+  document.getElementById('main-panel').innerHTML = ''
+    + '<div class="topic-hero">'
+    + '<div class="th-tag">特别专题 · 首期</div>'
+    + '<h2>ProShares 中国AI杠杆ETF 策略分析</h2>'
+    + '<div class="th-sub">2026年6月18日 · 9只两倍杠杆ETF即将上市 · A股跨市场情绪传导与防守策略</div>'
+    + '</div>'
+
+    // 核心策略
+    + '<div class="panel topic-section">'
+    + '<div class="panel-hd"><h2>一、核心策略与运作机制</h2></div>'
+    + '<div class="strategy-card">'
+    + '<div class="sc-title">ProShares 注册9只针对中国AI个股的两倍杠杆ETF</div>'
+    + '<div class="sc-desc">覆盖光模块（中际旭创、新易盛）、算力芯片（寒武纪、海光信息）等赛道，计划2026年6月上市。</div>'
+    + '</div>'
+    + '<div class="strategy-card">'
+    + '<div class="sc-title">量化模型已完成上万次回测</div>'
+    + '<div class="sc-desc">提前锁定套利规则，构建跨市场溢价捕捉与波动率收割的自动化策略框架。</div>'
+    + '</div>'
+    + '</div>'
+
+    // 无风险套利
+    + '<div class="panel topic-section">'
+    + '<div class="panel-hd"><h2>二、无风险套利模式</h2></div>'
+    + '<div class="strategy-card">'
+    + '<div class="sc-title">溢价收割</div>'
+    + '<div class="sc-desc">若ETF市价高于净值1%，量化基金提前买入股票并高价卖出ETF，收盘时做市商按净值接盘，锁定差价。</div>'
+    + '</div>'
+    + '<div class="strategy-card">'
+    + '<div class="sc-title">波动率收割（双向）</div>'
+    + '<div class="sc-desc">'
+    + '<strong>上涨时：</strong>ETF需追买股票维持杠杆，量化高价挂单抛售。<br/>'
+    + '<strong>下跌时：</strong>ETF被迫砍仓，量化低价接盘，双向收割波动利润。'
+    + '</div>'
+    + '</div>'
+    + '</div>'
+
+    // 情绪传导
+    + '<div class="panel topic-section">'
+    + '<div class="panel-hd"><h2>三、情绪传导风险</h2></div>'
+    + '<p>美股杠杆ETF暴跌可能触发算法 <strong style="color:#dc2626;">无差别抛售</strong> 关联A股（如新易盛），导致次日低开，散户被动承受情绪化踩踏。</p>'
+    + '<div class="risk-note">注意：跨市场情绪传导存在时差（美股收盘→A股次日开盘），量化资金利用这一窗口完成仓位调整，散户往往在开盘后才被动反应。</div>'
+    + '</div>'
+
+    // 散户防御策略
+    + '<div class="panel topic-section">'
+    + '<div class="panel-hd"><h2>四、散户防御策略</h2></div>'
+    + '<p style="margin-bottom:0.6rem;"><strong>监控美股ETF溢价率作为先行指标：</strong></p>'
+    + '<table class="signal-table">'
+    + '<thead><tr><th>信号</th><th>A股后续走势</th><th>操作建议</th></tr></thead>'
+    + '<tbody>'
+    + '<tr><td><strong style="color:#dc2626;">溢价 &gt; 3%</strong></td><td>冲高回落概率高</td><td style="color:#dc2626;">开盘半小时内减仓</td></tr>'
+    + '<tr><td><strong style="color:#16a34a;">折价 &gt; 5%</strong></td><td>情绪修复性高开</td><td style="color:#16a34a;">做T套利窗口</td></tr>'
+    + '</tbody>'
+    + '</table>'
+    + '<div class="strategy-card" style="margin-top:0.6rem;">'
+    + '<div class="sc-title">长期应对</div>'
+    + '<div class="sc-desc">避免情绪化跟风，关注量化资金异动数据。在Hermass平台中持续监控相关A股标的的技术状态与资金流向变化。</div>'
+    + '</div>'
+    + '</div>'
+
+    // 免责声明
+    + '<div class="risk-note" style="margin-top:1rem;">'
+    + '免责声明：本文仅为产业链研究方法论展示，不构成任何投资建议。具体交易决策请以个人风险承受能力与专业投顾意见为准。'
+    + '</div>';
 }
 
 // ── Render detail ──
 function renderDetail(chainId, detail, prop) {
   if (!detail.ok) {
-    document.getElementById('main-panel').innerHTML = `<div class="error-box"><h2>数据不可用</h2><code>${detail.error}</code></div>`;
+    document.getElementById('main-panel').innerHTML = '<div class="error-box"><h2>数据不可用</h2><code>' + detail.error + '</code></div>';
     return;
   }
 
@@ -311,218 +490,196 @@ function renderDetail(chainId, detail, prop) {
   const circumference = 2 * Math.PI * 35;
   const dash = (score / 100) * circumference;
 
-  // Candidate stocks for this chain
   const chainCands = allCandidates.filter(c => c.chain_id === chainId);
   const chainRrg = allRRG.filter(r => r.chain_id === chainId);
+  const cn = CHAIN_NAMES[chainId] || chainId;
 
   let html = '';
 
   // ── Overview card ──
-  html += `<div class="panel">
-    <div class="panel-hd"><h2>${chainId} · 全景指标</h2><span>${ov.state_date || '-'}</span></div>
-    <div class="summary-strip">
-      <div class="score-gauge">
-        <div class="score-ring">
-          <svg width="70" height="70" viewBox="0 0 80 80">
-            <circle cx="40" cy="40" r="35" fill="none" stroke="#e5e9f0" stroke-width="6"/>
-            <circle cx="40" cy="40" r="35" fill="none" stroke="${regColor}" stroke-width="6" stroke-dasharray="${dash} ${circumference}" stroke-linecap="round"/>
-          </svg>
-          <div class="val" style="color:${regColor}">${score}</div>
-        </div>
-        <div class="score-info">
-          <div class="label">景气度评分</div>
-          <div class="value" style="color:${regColor}">${REGIME_LABELS[regime]||regime}</div>
-        </div>
-      </div>
-      <div class="metric-pill"><div class="mp-label">事件数</div><div class="mp-value">${ov.event_count||0}</div><div class="mp-sub">近端冲击</div></div>
-      <div class="metric-pill"><div class="mp-label">领涨环节</div><div class="mp-value" style="color:var(--c-leading)">${ov.lead_node||'-'}</div><div class="mp-sub">相对强势</div></div>
-      <div class="metric-pill"><div class="mp-label">滞涨环节</div><div class="mp-value" style="color:var(--c-lagging)">${ov.lag_node||'-'}</div><div class="mp-sub">风险观察</div></div>
-    </div>
-  </div>`;
+  html += '<div class="panel">'
+    + '<div class="panel-hd"><h2>' + cn + ' · 全景指标</h2><span>' + (ov.state_date || '-') + '</span></div>'
+    + '<div class="summary-strip">'
+    + '<div class="score-gauge">'
+    + '<div class="score-ring">'
+    + '<svg width="70" height="70" viewBox="0 0 80 80">'
+    + '<circle cx="40" cy="40" r="35" fill="none" stroke="#e5e9f0" stroke-width="6"/>'
+    + '<circle cx="40" cy="40" r="35" fill="none" stroke="' + regColor + '" stroke-width="6" stroke-dasharray="' + dash + ' ' + circumference + '" stroke-linecap="round"/>'
+    + '</svg>'
+    + '<div class="val" style="color:' + regColor + '">' + score + '</div>'
+    + '</div>'
+    + '<div class="score-info">'
+    + '<div class="label">景气度评分</div>'
+    + '<div class="value" style="color:' + regColor + '">' + (REGIME_LABELS[regime]||regime) + '周期</div>'
+    + '</div>'
+    + '</div>'
+    + '<div class="metric-pill"><div class="mp-label">事件数</div><div class="mp-value">' + (ov.event_count||0) + '</div><div class="mp-sub">近端冲击</div></div>'
+    + '<div class="metric-pill"><div class="mp-label">领涨环节</div><div class="mp-value" style="color:var(--c-leading)">' + (ov.lead_node||'未确定') + '</div><div class="mp-sub">相对强势</div></div>'
+    + '<div class="metric-pill"><div class="mp-label">滞涨环节</div><div class="mp-value" style="color:var(--c-lagging)">' + (ov.lag_node||'未确定') + '</div><div class="mp-sub">风险观察</div></div>'
+    + '</div>'
+    + '</div>';
 
-  // ── RRG compact strip ──
+  // ── RRG ──
   if (chainRrg.length > 0) {
-    html += `<div class="panel">
-      <div class="panel-hd"><h2>RRG 相对轮动</h2><span>RS-Ratio / RS-Momentum</span></div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.55rem;">`;
+    html += '<div class="panel">'
+      + '<div class="panel-hd"><h2>RRG 相对轮动</h2><span>RS-Ratio / RS-Momentum 四象限</span></div>'
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.55rem;">';
     chainRrg.forEach(r => {
-      const qColor = REGIME_COLORS[r.quadrant] || (r.quadrant === 'leading' ? 'var(--c-leading)' : r.quadrant === 'improving' ? 'var(--c-improving)' : r.quadrant === 'lagging' ? 'var(--c-lagging)' : 'var(--c-weakening)');
-      html += `<div style="border:1px solid #edf0f4;border-left:3px solid ${qColor};border-radius:8px;padding:.58rem .65rem;background:#fbfcfd;">
-        <div style="display:flex;justify-content:space-between;gap:.6rem;align-items:center;">
-          <strong style="font-size:.8rem;">${r.node_id}</strong>
-          <span style="font-size:.66rem;color:${qColor};font-weight:760;">${r.quadrant}</span>
-        </div>
-        <div style="display:flex;gap:.8rem;margin-top:.35rem;color:var(--c-muted);font-size:.7rem;">
-          <span>Ratio ${Number(r.rs_ratio || 0).toFixed(1)}</span>
-          <span>Mom ${Number(r.rs_momentum || 0).toFixed(1)}</span>
-        </div>
-      </div>`;
+      const qcn = r.quadrant || 'improving';
+      const qColor = REGIME_COLORS[qcn] || (qcn === 'lagging' ? 'var(--c-lagging)' : 'var(--c-weakening)');
+      html += '<div style="border:1px solid #edf0f4;border-left:3px solid ' + qColor + ';border-radius:8px;padding:.58rem .65rem;background:#fbfcfd;">'
+        + '<div style="display:flex;justify-content:space-between;gap:.6rem;align-items:center;">'
+        + '<strong style="font-size:.8rem;">' + (r.node_id) + '</strong>'
+        + '<span style="font-size:.66rem;color:' + qColor + ';font-weight:760;">' + (QUADRANT_LABELS[qcn]||qcn) + '</span>'
+        + '</div>'
+        + '<div style="display:flex;gap:.8rem;margin-top:.35rem;color:var(--c-muted);font-size:.7rem;">'
+        + '<span>比值 ' + Number(r.rs_ratio || 0).toFixed(1) + '</span>'
+        + '<span>动量 ' + Number(r.rs_momentum || 0).toFixed(1) + '</span>'
+        + '</div>'
+        + '</div>';
     });
-    html += `</div></div>`;
+    html += '</div></div>';
   }
 
   // ── Propagation flow ──
   if (paths.length > 0) {
-    html += `<div class="panel">
-      <div class="panel-hd"><h2>传导链路</h2><span>上下游资金与动量传导</span></div>
-      <div class="flow-graph">`;
-    
+    html += '<div class="panel">'
+      + '<div class="panel-hd"><h2>传导链路</h2><span>上下游资金与动量传导</span></div>'
+      + '<div class="flow-graph">';
     const nodeSet = new Set();
     paths.forEach(p => { nodeSet.add(p.source_node); nodeSet.add(p.target_node); });
     const flowNodes = Array.from(nodeSet);
     const total = flowNodes.length;
 
-    html += `<div class="flow-row">`;
+    html += '<div class="flow-row">';
     flowNodes.forEach((n, i) => {
       const nodeData = nodes.find(nd => nd.node_id === n) || {};
       const mom = nodeData.momentum_score || 0;
       const nodeColor = mom > 60 ? 'var(--c-leading)' : mom > 45 ? 'var(--c-improving)' : mom < 35 ? 'var(--c-lagging)' : 'var(--c-weakening)';
       const isLead = ov.lead_node === n;
       const isLag = ov.lag_node === n;
-      html += `<div class="flow-node" style="border-color:${nodeColor};" onclick="showNodeDetail('${chainId}','${n}')" title="点击查看详情">
-        <div style="display:flex;justify-content:space-between;gap:.45rem;align-items:flex-start;">
-          <div style="font-weight:760;font-size:0.82rem;">${nodeData.node_name || n}</div>
-          <code style="font-size:.64rem;color:var(--c-muted);">${nodeData.state_hex || '--'}</code>
-        </div>
-        <div style="font-size:0.68rem;color:var(--c-muted);margin-top:.35rem;">${n} · 动量 ${Number(mom || 0).toFixed(1)}</div>
-        ${isLead ? '<span class="node-badge" style="background:#dcfce7;color:#15803d;">领涨</span>' : ''}
-        ${isLag ? '<span class="node-badge" style="background:#fee2e2;color:#b91c1c;">滞涨</span>' : ''}
-      </div>`;
+      html += '<div class="flow-node" style="border-color:' + nodeColor + ';" onclick="showNodeDetail(\'' + chainId + '\',\'' + n + '\')" title="点击查看详情">'
+        + '<div style="display:flex;justify-content:space-between;gap:.45rem;align-items:flex-start;">'
+        + '<div style="font-weight:760;font-size:0.82rem;">' + (nodeData.node_name || n) + '</div>'
+        + '<code style="font-size:.64rem;color:var(--c-muted);">' + (nodeData.state_hex || '--') + '</code>'
+        + '</div>'
+        + '<div style="font-size:0.68rem;color:var(--c-muted);margin-top:.35rem;">' + n + ' · 动量 ' + Number(mom || 0).toFixed(1) + '</div>'
+        + (isLead ? '<span class="node-badge" style="background:#dcfce7;color:#15803d;">领涨</span>' : '')
+        + (isLag ? '<span class="node-badge" style="background:#fee2e2;color:#b91c1c;">滞涨</span>' : '')
+        + '</div>';
       if (i < total - 1) {
         const path = paths.find(p => p.source_node === flowNodes[i] && p.target_node === flowNodes[i+1]);
         const active = path && Math.abs(path.correlation || 0) > 0.3;
-        html += `<div class="flow-arrow${active?' active':''}">
-          <span class="flow-label">${path ? 'r='+(path.correlation||0).toFixed(2) : ''}</span>
-          <span class="flow-dir">${path ? (path.direction||'→') : '→'}</span>
-          →
-        </div>`;
+        html += '<div class="flow-arrow' + (active ? ' active' : '') + '">'
+          + '<span class="flow-label">' + (path ? 'r=' + (path.correlation||0).toFixed(2) : '') + '</span>'
+          + '<span class="flow-dir">' + (path ? (path.direction||'→') : '→') + '</span>'
+          + '→</div>';
       }
     });
-    html += `</div>
-      </div>
-    </div>`;
+    html += '</div></div></div>';
   }
 
   // ── Node detail table ──
   if (nodes.length > 0) {
-    html += `<div class="panel">
-      <div class="panel-hd"><h2>环节详情</h2><span>点击环节查看关联标的</span></div>
-      <table class="data-table">
-        <thead><tr>
-          <th>环节</th><th>资金流</th><th>仓位</th><th>动量</th><th>State</th><th>操作</th>
-        </tr></thead>
-        <tbody>`;
+    html += '<div class="panel">'
+      + '<div class="panel-hd"><h2>环节详情</h2><span>点击环节查看关联标的</span></div>'
+      + '<table class="data-table"><thead><tr><th>环节</th><th>资金流</th><th>仓位</th><th>动量</th><th>State</th><th>操作</th></tr></thead><tbody>';
     nodes.forEach(n => {
       const mom = n.momentum_score || 0;
       const dotColor = mom > 60 ? 'var(--c-leading)' : mom > 45 ? 'var(--c-improving)' : mom < 35 ? 'var(--c-lagging)' : 'var(--c-weakening)';
-      html += `<tr onclick="showNodeDetail('${chainId}','${n.node_id}')" title="点击查看关联标的">
-        <td><strong>${n.node_name || n.node_id}</strong></td>
-        <td><span class="score-dot" style="background:${(n.fund_flow_score||0)>50?'var(--c-leading)':'var(--c-weakening)'}"></span>${(n.fund_flow_score||0).toFixed(1)}</td>
-        <td>${(n.position_score||0).toFixed(1)}</td>
-        <td style="color:${dotColor};font-weight:600;">${(n.momentum_score||0).toFixed(1)}</td>
-        <td><code style="font-size:0.75rem;">${n.state_hex||'--'}</code></td>
-        <td><span style="font-size:0.75rem;color:var(--c-improving);cursor:pointer;">查看标的 →</span></td>
-      </tr>`;
+      html += '<tr onclick="showNodeDetail(\'' + chainId + '\',\'' + n.node_id + '\')" title="点击查看关联标的">'
+        + '<td><strong>' + (n.node_name || n.node_id) + '</strong></td>'
+        + '<td><span class="score-dot" style="background:' + ((n.fund_flow_score||0) > 50 ? 'var(--c-leading)' : 'var(--c-weakening)') + '"></span>' + (n.fund_flow_score||0).toFixed(1) + '</td>'
+        + '<td>' + (n.position_score||0).toFixed(1) + '</td>'
+        + '<td style="color:' + dotColor + ';font-weight:600;">' + (n.momentum_score||0).toFixed(1) + '</td>'
+        + '<td><code style="font-size:0.75rem;">' + (n.state_hex||'--') + '</code></td>'
+        + '<td><span style="font-size:0.75rem;color:var(--c-improving);cursor:pointer;">查看标的 →</span></td>'
+        + '</tr>';
       if (expandedNode && expandedNode.chain === chainId && expandedNode.node === n.node_id) {
-        html += `<tr class="detail-row open"><td colspan="6">
-          <div id="node-detail-${n.node_id}" style="padding:0.5rem 0;">加载中...</div>
-        </td></tr>`;
+        html += '<tr class="detail-row open"><td colspan="6"><div id="node-detail-' + n.node_id + '" style="padding:0.5rem 0;">加载中...</div></td></tr>';
       }
     });
-    html += `</tbody></table></div>`;
+    html += '</tbody></table></div>';
   }
 
   // ── Events ──
   if (events.length > 0) {
-    html += `<div class="panel">
-      <div class="panel-hd"><h2>近期事件</h2><span>按影响强度排序</span></div>
-      <table class="data-table" id="events-table">
-        <thead><tr><th data-sort="event_type">类型</th><th data-sort="event_source">来源</th><th data-sort="impact_score" class="sorted">影响强度 ▾</th><th>描述</th></tr></thead>
-        <tbody>`;
+    html += '<div class="panel">'
+      + '<div class="panel-hd"><h2>近期事件</h2><span>按影响强度排序</span></div>'
+      + '<table class="data-table" id="events-table"><thead><tr><th data-sort="event_type">类型</th><th data-sort="event_source">来源</th><th data-sort="impact_score" class="sorted">影响强度 ▾</th><th>描述</th></tr></thead><tbody>';
     events.forEach(e => {
       const impColor = (e.impact_score||0) >= 60 ? 'var(--c-lagging)' : 'var(--c-weakening)';
-      html += `<tr>
-        <td data-sort-value="${e.event_type || ''}"><span style="font-weight:600;">${e.event_type}</span></td>
-        <td>${e.event_source}</td>
-        <td data-sort-value="${e.impact_score || 0}"><span style="color:${impColor};font-weight:600;">${e.impact_score}</span></td>
-        <td style="max-width:300px;">${e.description}</td>
-      </tr>`;
+      html += '<tr>'
+        + '<td data-sort-value="' + (e.event_type || '') + '"><span style="font-weight:600;">' + e.event_type + '</span></td>'
+        + '<td>' + e.event_source + '</td>'
+        + '<td data-sort-value="' + (e.impact_score || 0) + '"><span style="color:' + impColor + ';font-weight:600;">' + e.impact_score + '</span></td>'
+        + '<td style="max-width:300px;">' + e.description + '</td>'
+        + '</tr>';
     });
-    html += `</tbody></table></div>`;
+    html += '</tbody></table></div>';
   }
 
   // ── Candidates ──
   if (chainCands.length > 0) {
-    html += `<div class="panel">
-      <div class="panel-hd"><h2>候选标的</h2><span>Top ${chainCands.length}</span></div>
-      <table class="data-table" id="cand-table">
-        <thead><tr><th data-sort="stock_code">代码</th><th>名称</th><th data-sort="node_name">环节</th><th data-sort="assistant_score" class="sorted">评分 ▾</th><th>State</th><th>EF</th><th>闸门</th></tr></thead>
-        <tbody>`;
+    html += '<div class="panel">'
+      + '<div class="panel-hd"><h2>候选标的</h2><span>前 ' + chainCands.length + ' 只</span></div>'
+      + '<table class="data-table" id="cand-table"><thead><tr><th data-sort="stock_code">代码</th><th>名称</th><th data-sort="node_name">环节</th><th data-sort="assistant_score" class="sorted">评分 ▾</th><th>State</th><th>EF</th><th>闸门</th></tr></thead><tbody>';
     chainCands.forEach(c => {
-      html += `<tr>
-        <td data-sort-value="${c.stock_code || ''}"><code style="font-size:0.8rem;">${c.stock_code}</code></td>
-        <td><strong>${c.stock_name}</strong></td>
-        <td data-sort-value="${c.node_name || ''}">${c.node_name||'-'}</td>
-        <td data-sort-value="${c.assistant_score || 0}" style="font-weight:700;">${c.assistant_score||0}</td>
-        <td><code style="font-size:0.7rem;">${c.state_hex||'--'}</code></td>
-        <td>${c.ef_count||0}</td>
-        <td>${c.review_gate||'-'}</td>
-      </tr>`;
+      html += '<tr>'
+        + '<td data-sort-value="' + (c.stock_code || '') + '"><code style="font-size:0.8rem;">' + c.stock_code + '</code></td>'
+        + '<td><strong>' + c.stock_name + '</strong></td>'
+        + '<td data-sort-value="' + (c.node_name || '') + '">' + (c.node_name||'-') + '</td>'
+        + '<td data-sort-value="' + (c.assistant_score || 0) + '" style="font-weight:700;">' + (c.assistant_score||0) + '</td>'
+        + '<td><code style="font-size:0.7rem;">' + (c.state_hex||'--') + '</code></td>'
+        + '<td>' + (c.ef_count||0) + '</td>'
+        + '<td>' + (c.review_gate||'-') + '</td>'
+        + '</tr>';
     });
-    html += `</tbody></table></div>`;
+    html += '</tbody></table></div>';
   }
 
   document.getElementById('main-panel').innerHTML = html;
-
-  // Bind sort to event table
   bindTableSort('events-table');
   bindTableSort('cand-table');
 }
 
-// ── Node detail (fetch stocks) ──
+// ── Node detail ──
 async function showNodeDetail(chainId, nodeId) {
   expandedNode = { chain: chainId, node: nodeId };
-  const detailEl = document.getElementById(`node-detail-${nodeId}`);
+  const detailEl = document.getElementById('node-detail-' + nodeId);
   if (detailEl) {
     detailEl.innerHTML = '<span style="color:var(--c-muted);">加载中...</span>';
     try {
-      const res = await sf(`/api/chain/${chainId}/node/${nodeId}`);
+      const res = await sf('/api/chain/' + chainId + '/node/' + nodeId);
       const data = await res.json();
       if (data.ok && data.stocks && data.stocks.length > 0) {
         const stocksHtml = data.stocks.map(s =>
-          `<span style="display:inline-block;margin:2px 4px;padding:2px 8px;background:#fff;border:1px solid #e5e7eb;border-radius:6px;font-size:0.78rem;">
-            <code>${s.stock_code}</code> ${s.stock_name}
-          </span>`
+          '<span style="display:inline-block;margin:2px 4px;padding:2px 8px;background:#fff;border:1px solid #e5e7eb;border-radius:6px;font-size:0.78rem;"><code>' + s.stock_code + '</code> ' + s.stock_name + '</span>'
         ).join('');
-        detailEl.innerHTML = `<div style="font-size:0.78rem;color:var(--c-muted);margin-bottom:4px;">关联标的 (${data.stocks.length})：</div>${stocksHtml}`;
+        detailEl.innerHTML = '<div style="font-size:0.78rem;color:var(--c-muted);margin-bottom:4px;">关联标的 (' + data.stocks.length + ')：</div>' + stocksHtml;
       } else {
         detailEl.innerHTML = '<span style="color:var(--c-muted);font-size:0.8rem;">暂无关联标的</span>';
       }
     } catch(e) {
-      detailEl.innerHTML = `<span style="color:var(--c-lagging);">加载失败: ${e.message}</span>`;
+      detailEl.innerHTML = '<span style="color:var(--c-lagging);">加载失败: ' + e.message + '</span>';
     }
   } else {
-    // Re-render to show the expanded row
     try {
       const [detailRes, propRes] = await Promise.all([
-        sf(`/api/chain/${chainId}`),
-        sf(`/api/chain/${chainId}/propagation`)
+        sf('/api/chain/' + chainId), sf('/api/chain/' + chainId + '/propagation')
       ]);
       renderDetail(chainId, await detailRes.json(), await propRes.json());
-      // Async load node detail
       setTimeout(async () => {
-        const el = document.getElementById(`node-detail-${nodeId}`);
+        const el = document.getElementById('node-detail-' + nodeId);
         if (!el) return;
         try {
-          const res = await sf(`/api/chain/${chainId}/node/${nodeId}`);
+          const res = await sf('/api/chain/' + chainId + '/node/' + nodeId);
           const data = await res.json();
           if (data.ok && data.stocks && data.stocks.length > 0) {
             const stocksHtml = data.stocks.map(s =>
-              `<span style="display:inline-block;margin:2px 4px;padding:2px 8px;background:#fff;border:1px solid #e5e7eb;border-radius:6px;font-size:0.78rem;">
-                <code>${s.stock_code}</code> ${s.stock_name}
-              </span>`
+              '<span style="display:inline-block;margin:2px 4px;padding:2px 8px;background:#fff;border:1px solid #e5e7eb;border-radius:6px;font-size:0.78rem;"><code>' + s.stock_code + '</code> ' + s.stock_name + '</span>'
             ).join('');
-            el.innerHTML = `<div style="font-size:0.78rem;color:var(--c-muted);margin-bottom:4px;">关联标的 (${data.stocks.length})：</div>${stocksHtml}`;
+            el.innerHTML = '<div style="font-size:0.78rem;color:var(--c-muted);margin-bottom:4px;">关联标的 (' + data.stocks.length + ')：</div>' + stocksHtml;
           } else {
             el.innerHTML = '<span style="color:var(--c-muted);font-size:0.8rem;">暂无关联标的</span>';
           }
@@ -543,10 +700,8 @@ function bindTableSort(tableId) {
       const tbody = table.querySelector('tbody');
       const rows = Array.from(tbody.querySelectorAll('tr'));
       const isAsc = th.classList.contains('sorted') && th.textContent.includes('▴');
-      
       headers.forEach(h => h.classList.remove('sorted'));
       th.classList.add('sorted');
-      
       rows.sort((a, b) => {
         const aVal = getCellValue(a, field);
         const bVal = getCellValue(b, field);
@@ -554,14 +709,8 @@ function bindTableSort(tableId) {
         if (!isNaN(aNum) && !isNaN(bNum)) return isAsc ? aNum - bNum : bNum - aNum;
         return isAsc ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal));
       });
-      
-      th.innerHTML = th.dataset.sort === 'stock_code' ? (isAsc ? '代码 ▴' : '代码 ▾') :
-                     th.dataset.sort === 'assistant_score' ? (isAsc ? '评分 ▴' : '评分 ▾') :
-                     th.dataset.sort === 'impact_score' ? (isAsc ? '影响强度 ▴' : '影响强度 ▾') :
-                     th.dataset.sort === 'event_type' ? (isAsc ? '类型 ▴' : '类型 ▾') :
-                     th.dataset.sort === 'event_source' ? (isAsc ? '来源 ▴' : '来源 ▾') :
-                     th.dataset.sort === 'node_name' ? (isAsc ? '环节 ▴' : '环节 ▾') : th.textContent;
-      
+      var sortMap = { stock_code: '代码', assistant_score: '评分', impact_score: '影响强度', event_type: '类型', event_source: '来源', node_name: '环节' };
+      th.innerHTML = (sortMap[field] || '') + ' ' + (isAsc ? '▴' : '▾');
       rows.forEach(r => tbody.appendChild(r));
     });
   });

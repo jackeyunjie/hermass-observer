@@ -29,8 +29,17 @@ CHAIN_DB = PROJECT_ROOT / "outputs" / "industry_chain" / "industry_chain_evidenc
 STATE_CUBE_DB = PROJECT_ROOT / "outputs" / "state_cube" / "state_cube.duckdb"
 CHAIN_JSON = PROJECT_ROOT / "outputs" / "industry_chain" / "chain_fund_manager_assistant_latest.json"
 
-# P0 三条链
-P0_CHAINS = {"ai_compute", "semiconductor", "nev"}
+# P0 产业链（逐步扩展）
+P0_CHAINS = {
+    "ai_compute",
+    "semiconductor",
+    "nev",
+    # 2026-06-18 新增产业链（数据待入库）
+    "optical_communication",  # 光通信/光模块
+    "memory_chips",           # 存储芯片
+    "dc_transformer",         # 直流变压器
+    "power_equipment",        # 电力设备
+}
 
 
 def _load_chain_json() -> dict[str, Any]:
