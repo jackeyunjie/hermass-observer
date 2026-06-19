@@ -411,8 +411,12 @@ def _build_events(payload: dict, state_date: date) -> list[dict]:
     return list(best.values())
 
 
-def _write_tables(overview: list[dict], nodes: list[dict], events: list[dict], state_date: date) -> None:
-    """写入 DuckDB，表不存在则创建"""
+def _write_tables(overview: list[dict], nodes: list[dict], events: list[dict], state_date: date, merged_rows: list[dict]) -> None:
+    """写入 DuckDB，表不存在则创建
+
+    merged_rows 必须由调用方预先合并好（_merged_rows），避免在写连接打开后
+    再用 read_only 打开同一文件触发 DuckDB reentrancy 冲突。
+    """
     os.makedirs(CHAIN_DB.parent, exist_ok=True)
     con = duckdb.connect(str(CHAIN_DB))
 
@@ -540,8 +544,7 @@ def _write_tables(overview: list[dict], nodes: list[dict], events: list[dict], s
     con.execute("CREATE INDEX IF NOT EXISTS idx_cns_chain ON chain_node_stocks(chain_id)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_cns_node ON chain_node_stocks(node_id)")
 
-    # 从合并数据填充 stock_records
-    merged_rows = _merged_rows(state_date)
+    # 从合并数据填充 stock_records（merged_rows 由调用方传入，避免 DuckDB reentrancy）
     stock_records = []
     for r in merged_rows:
         cid = r.get("chain_id")
@@ -655,7 +658,7 @@ def main() -> int:
     events = _build_events(payload, state_date)
     print(f"[build_chain_studio] events: {len(events)}")
 
-    _write_tables(overview, nodes, events, state_date)
+    _write_tables(overview, nodes, events, state_date, rows)
     print(f"[build_chain_studio] 已写入: {CHAIN_DB}")
 
     # 快速验证
