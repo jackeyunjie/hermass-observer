@@ -3067,6 +3067,43 @@ def chain_studio_api() -> JSONResponse:
     return JSONResponse(content=_chain_studio_data())
 
 
+@app.get("/api/recommend")
+def recommend_api() -> JSONResponse:
+    """推荐工作台 API，返回 P116 推荐工作台最新结果。"""
+    from pathlib import Path as _Path
+    import json as _json
+    rec_path = _Path("recommendation/outputs/p116_recommendation_20260618.json")
+    if not rec_path.exists():
+        # 尝试最新
+        rec_dir = _Path("recommendation/outputs")
+        candidates = sorted(rec_dir.glob("p116_recommendation_*.json"), reverse=True)
+        if candidates:
+            rec_path = candidates[0]
+        else:
+            return JSONResponse(content={"ok": False, "error": "推荐数据未生成，请先运行 recommendation/run_recommendation_workflow.py"})
+    try:
+        data = _json.loads(rec_path.read_text(encoding="utf-8"))
+        data["ok"] = True
+        return JSONResponse(content=data)
+    except Exception as exc:
+        return JSONResponse(content={"ok": False, "error": str(exc)})
+
+
+@app.get("/recommend", response_class=HTMLResponse)
+def recommend_page(request: Request) -> HTMLResponse:
+    """推荐工作台页面"""
+    profile = get_current_profile(request)
+    return templates.TemplateResponse(
+        request,
+        "recommend.html",
+        {
+            "request": request,
+            "today": str(date.today()),
+            "current_user": profile,
+        },
+    )
+
+
 @app.get("/market", response_class=HTMLResponse)
 def market_page(request: Request) -> HTMLResponse:
     profile = get_current_profile(request)

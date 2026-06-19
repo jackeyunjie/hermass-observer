@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>P116 推荐工作台</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <style>
+      .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+      .kpi-card {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 14px 16px;
+        background: #fff;
+        text-align: center;
+      }
+      .kpi-card .kpi-val {
+        font-size: 26px;
+        font-weight: 800;
+        color: var(--ink);
+      }
+      .kpi-card .kpi-val.highlight { color: var(--good); }
+      .kpi-card .kpi-val.warn { color: var(--accent); }
+      .kpi-card .kpi-label {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+      .notice-bar {
+        padding: 10px 16px;
+        border: 1px solid #fed7aa;
+        border-radius: 8px;
+        background: #fff7ed;
+        color: #8a4b12;
+        font-size: 13px;
+        margin-bottom: 16px;
+      }
+      .section-title {
+        font-size: 16px;
+        font-weight: 700;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .section-title .badge {
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 999px;
+      }
+      .badge-green { background: rgba(14,124,102,0.1); color: var(--good); }
+      .badge-purple { background: rgba(124,58,237,0.1); color: #7c3aed; }
+      .badge-amber { background: rgba(217,138,26,0.1); color: var(--accent); }
+      .table-wrap {
+        overflow: auto;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        max-height: 60vh;
+        margin-bottom: 20px;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        min-width: 1100px;
+        font-size: 12px;
+        background: #fff;
+      }
+      th, td {
+        border-bottom: 1px solid var(--line);
+        padding: 7px 8px;
+        text-align: left;
+        white-space: nowrap;
+      }
+      th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: #f0f4f2;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      th:hover { background: #e8efea; }
+      tbody tr:hover { background: #f8fbf9; }
+      td.score { font-weight: 700; color: #0f766e; }
+      td.rank { font-weight: 700; text-align: center; }
+      td.entered { color: #0f766e; font-weight: 600; }
+      td.left { color: #b84a3a; }
+      td.stock-code a { color: var(--ink); font-weight: 600; text-decoration: none; }
+      td.stock-code a:hover { color: var(--good); }
+      .reason-cell { max-width: 280px; white-space: normal; font-size: 11px; line-height: 1.4; }
+      .state-badge {
+        display: inline-block;
+        padding: 1px 6px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .state-ef { background: rgba(14,124,102,0.12); color: #0f6b4b; }
+      .industry-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 6px;
+      }
+      .industry-tag {
+        padding: 4px 10px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        font-size: 12px;
+        background: #f8fbf9;
+      }
+      .industry-tag strong { color: var(--ink); }
+      .sort-asc::after { content: " ▲"; font-size: 10px; }
+      .sort-desc::after { content: " ▼"; font-size: 10px; }
+      @media (max-width: 860px) {
+        .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+      }
+      @media (max-width: 520px) {
+        .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Hermass 多周期观察</p>
+        <h1>P116 推荐工作台</h1>
+      </div>
+      <div class="date">
+        <a href="/">首页</a>
+        <a href="/market">市场</a>
+        <a href="/industry">行业</a>
+        <a href="/chain-studio">产业链工作台</a>
+        <a href="/recommend" class="active">推荐工作台</a>
+        <a href="/research">研究</a>
+        <a href="/watchlist">模拟跟踪</a>
+        <a href="/backtest">回测</a>
+        <a href="/agent-debate">Agent 辩论</a>
+        <a href="javascript:void(0)" class="nav-ai" onclick="aiToggle()">观象</a>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel span-2">
+        <div class="notice-bar" id="notice"></div>
+        <div class="kpi-grid" id="kpis"></div>
+      </section>
+
+      <section class="panel span-2">
+        <div class="section-title">
+          <span class="badge badge-green">组合候选</span>
+          组合 Top 10（行业分散）
+        </div>
+        <div class="table-wrap" id="portfolio-wrap"></div>
+      </section>
+
+      <section class="panel span-2">
+        <div class="section-title">
+          <span class="badge badge-purple">观察名单</span>
+          观察名单 Top 30
+        </div>
+        <div class="table-wrap" id="watchlist-wrap"></div>
+      </section>
+
+      <section class="panel span-2">
+        <div class="section-title">
+          <span class="badge badge-amber">离开复核</span>
+          已退出三周期正向 E/F 池
+        </div>
+        <div class="table-wrap" id="left-wrap"></div>
+      </section>
+    </main>
+
+    <script>
+      const sf = (p, o) => fetch(new URL(p, location.origin).toString(), o);
+
+      async function init() {
+        try {
+          const r = await sf('/api/recommend');
+          const d = await r.json();
+          if (!d.ok) { document.getElementById('notice').innerText = d.error || '数据加载失败'; return; }
+          document.getElementById('notice').innerHTML = d.notice
+            ? '⚠️ <strong>' + d.notice + '</strong>'
+            : '数据日期：' + d.date;
+          renderKPIs(d);
+          renderPortfolio(d.portfolio || []);
+          renderWatchlist(d.watchlist || []);
+          renderLeft(d.left || []);
+          renderIndustryTags(d.industry_summary || []);
+        } catch (e) {
+          document.getElementById('notice').innerText = '加载失败：' + e.message;
+        }
+      }
+
+      function renderKPIs(d) {
+        document.getElementById('kpis').innerHTML = [
+          { v: d.pool_total, l: '基础池', cls: '' },
+          { v: d.candidate_total, l: '有效候选', cls: 'highlight' },
+          { v: d.portfolio_size, l: '组合候选', cls: 'highlight' },
+          { v: d.watchlist_size, l: '观察名单', cls: '' },
+          { v: d.left_count, l: '离开复核', cls: 'warn' },
+        ].map(k => `<div class="kpi-card"><div class="kpi-val ${k.cls}">${k.v}</div><div class="kpi-label">${k.l}</div></div>`).join('');
+      }
+
+      function renderPortfolio(rows) {
+        const fields = ['portfolio_rank','rank','stock_code','stock_name','sw_l1','sw_l2','change_type','recommendation_score','portfolio_weight','state','d1_close','d1_adx14','macro_etf_name','macro_etf_state','observation_reason'];
+        document.getElementById('portfolio-wrap').innerHTML = renderTable(rows, fields, ['No','排名','代码','名称','行业','子行业','类型','推荐分','权重','状态','收盘','ADX','行业ETF','ETF状态','推荐理由']);
+      }
+
+      function renderWatchlist(rows) {
+        const fields = ['rank','stock_code','stock_name','sw_l1','sw_l2','change_type','recommendation_score','state','d1_close','d1_adx14','strategy_score','best_selection_signal','observation_reason'];
+        document.getElementById('watchlist-wrap').innerHTML = renderTable(rows, fields, ['排名','代码','名称','行业','子行业','类型','推荐分','状态','收盘','ADX','策略分','策略信号','推荐理由']);
+      }
+
+      function renderLeft(rows) {
+        const fields = ['stock_code','stock_name','sw_l1','state','risk_note'];
+        document.getElementById('left-wrap').innerHTML = renderTable(rows, fields, ['代码','名称','行业','离场前状态','风险提示']);
+      }
+
+      function renderTable(rows, fields, headers) {
+        let h = '<thead><tr>' + headers.map((h,i) => `<th data-col="${fields[i]}">${h}</th>`).join('') + '</tr></thead>';
+        let b = '<tbody>';
+        for (const row of rows) {
+          b += '<tr>';
+          for (const f of fields) {
+            let v = row[f] != null ? String(row[f]) : '';
+            let cls = '';
+            if (f === 'recommendation_score' || f === 'portfolio_weight') cls = ' score';
+            if (f === 'portfolio_rank' || f === 'rank') cls = ' rank';
+            if (f === 'change_type' && v === 'entered') cls = ' entered';
+            if (f === 'change_type' && v === 'left') cls = ' left';
+            if (f === 'observation_reason') cls = ' reason-cell';
+            if (f === 'stock_code') v = `<a href="/research?stock_code=${v}">${v}</a>`;
+            if (f === 'state') v = `<span class="state-badge state-ef">${v}</span>`;
+            b += `<td class="${cls}">${v || '-'}</td>`;
+          }
+          b += '</tr>';
+        }
+        b += '</tbody>';
+        return `<table>${h}${b}</table>`;
+      }
+
+      function renderIndustryTags(rows) {
+        if (!rows.length) return;
+        const tags = rows.map(r => `<span class="industry-tag">${r.industry} <strong>${r.count}</strong></span>`).join('');
+        const el = document.querySelector('.section-title');
+        if (el) el.insertAdjacentHTML('afterend', `<div class="industry-tags">${tags}</div>`);
+      }
+
+      init();
+    </script>
+  </body>
+</html>
