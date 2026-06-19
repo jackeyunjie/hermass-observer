@@ -626,7 +626,322 @@ def _industry_rotation_data() -> dict[str, Any]:
     }
 
 
+CHAIN_ASSISTANT_SNAPSHOT = ROOT / "outputs/industry_chain/chain_fund_manager_assistant_latest.json"
 CHAIN_EVIDENCE_DB = ROOT / "outputs/industry_chain/industry_chain_evidence.duckdb"
+
+CHAIN_RISK_FLAG_LABELS = {
+    "ifind_ttm_metrics_missing": "iFinD TTM缺口",
+    "manual_not_verified": "未人工核验",
+    "single_source_rule_inference": "单一规则来源",
+    "mcp_not_covered_for_node": "MCP未覆盖节点",
+    "d1_bearish_di": "D1空头DI",
+    "d1_overheated": "D1过热",
+    "low_fundamental_score": "基本面低分",
+    "state_cube_missing": "State Cube缺失",
+}
+
+CHAIN_TREND_LABELS = {
+    "turning_up": "拐头向上",
+    "up": "上行",
+    "flat": "横盘",
+    "down": "下行",
+    "turning_down": "拐头向下",
+}
+
+
+def _json_list_value(value: Any) -> list[Any]:
+    if isinstance(value, list):
+        return value
+    if not value:
+        return []
+    try:
+        parsed = json.loads(str(value))
+    except Exception:
+        return []
+    return parsed if isinstance(parsed, list) else []
+
+
+def _round_float(value: Any, digits: int = 1) -> float | None:
+    if value in (None, ""):
+        return None
+    try:
+        return round(float(value), digits)
+    except (TypeError, ValueError):
+        return None
+
+
+def _short_text(value: Any, limit: int = 80) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return "-"
+    return text if len(text) <= limit else text[:limit] + "..."
+
+
+def _chain_source_text(value: Any) -> str:
+    parts = [part.strip() for part in str(value or "").split(",") if part.strip()]
+    return " / ".join(parts) if parts else "-"
+
+
+def _chain_dynamic_text(value: Any) -> str:
+    items = [item for item in _json_list_value(value) if isinstance(item, dict)]
+    if not items:
+        return "-"
+    item = items[0]
+    name = str(item.get("indicator_name") or "").strip()
+    trend = CHAIN_TREND_LABELS.get(str(item.get("trend") or "").strip(), str(item.get("trend") or "").strip())
+    percentile = _round_float(item.get("percentile_1y"), 1)
+    pieces = [part for part in (name, trend) if part]
+    if percentile is not None:
+        pieces.append(f"{percentile}%分位")
+    return " / ".join(pieces) if pieces else "-"
+
+
+def _chain_assistant_row(row: dict[str, Any]) -> dict[str, Any]:
+    risk_keys = [str(item).strip() for item in _json_list_value(row.get("risk_flags_json")) if str(item).strip()]
+    risk_flags = [
+        {"key": key, "label": CHAIN_RISK_FLAG_LABELS.get(key, key)}
+        for key in risk_keys
+    ]
+    score = _round_float(row.get("assistant_score"), 1)
+    return {
+        "chain_id": str(row.get("chain_id") or "").strip(),
+        "chain_name": str(row.get("chain_name") or "").strip() or "-",
+        "node_id": str(row.get("node_id") or "").strip(),
+        "node_name": str(row.get("node_name") or "").strip() or "-",
+        "node_position": str(row.get("node_position") or "").strip() or "-",
+        "stock_code": str(row.get("stock_code") or "").strip(),
+        "stock_name": str(row.get("stock_name") or "").strip() or "-",
+        "roles": str(row.get("roles") or "").strip() or "-",
+        "source_text": _chain_source_text(row.get("source_types")),
+        "evidence_text": _chain_source_text(row.get("evidence_levels")),
+        "match_text": _chain_source_text(row.get("node_match_methods")),
+        "manual_verified": bool(row.get("manual_verified_any")),
+        "review_gate": str(row.get("review_gate") or "").strip(),
+        "candidate_bucket": str(row.get("candidate_bucket") or "").strip() or "-",
+        "assistant_score": score,
+        "evidence_score": _round_float(row.get("evidence_score"), 1),
+        "fundamental_score": _round_float(row.get("fundamental_score"), 1),
+        "technical_score": _round_float(row.get("technical_score"), 1),
+        "dynamic_score": _round_float(row.get("dynamic_score"), 1),
+        "risk_penalty": _round_float(row.get("risk_penalty"), 1),
+        "risk_flags": risk_flags,
+        "risk_text": " / ".join(item["label"] for item in risk_flags) if risk_flags else "-",
+        "state_triplet": "/".join(
+            str(row.get(key) or "-").strip()
+            for key in ("mn1_state_hex", "w1_state_hex", "d1_state_hex")
+        ),
+        "d1_close": _round_float(row.get("d1_close"), 2),
+        "state_date": str(row.get("state_date") or "").strip() or "-",
+        "panel_latest_date": str(row.get("panel_latest_date") or "").strip() or "-",
+        "sw_l3": str(row.get("sw_l3") or "").strip() or "-",
+        "business": _short_text(row.get("main_business"), 96),
+        "dynamic_text": _chain_dynamic_text(row.get("chain_dynamic_summary_json")),
+        "stock_link": f"/research?stock_code={str(row.get('stock_code') or '').strip()}",
+    }
+
+
+def _chain_counter_rows(mapping: Any, label_map: dict[str, str] | None = None) -> list[dict[str, Any]]:
+    if not isinstance(mapping, dict):
+        return []
+    rows = []
+    for key, value in sorted(mapping.items(), key=lambda item: (-int(item[1] or 0), str(item[0]))):
+        rows.append({
+            "key": str(key),
+            "label": (label_map or {}).get(str(key), str(key)),
+            "count": int(value or 0),
+        })
+    return rows
+
+
+def _chain_assistant_coverage() -> dict[str, Any]:
+    coverage = {
+        "ok": False,
+        "panel_total": 0,
+        "source_dist": [],
+        "node_total": 0,
+        "mcp_node_total": 0,
+        "rule_fill_node_total": 0,
+        "chains": [],
+        "nodes": [],
+    }
+    if not CHAIN_EVIDENCE_DB.exists():
+        return coverage
+    try:
+        con = duckdb.connect(str(CHAIN_EVIDENCE_DB), read_only=True)
+        try:
+            panel_total = con.execute("SELECT COUNT(*) FROM ifind_chain_panel").fetchone()[0]
+            source_rows = con.execute(
+                """
+                SELECT source_type, COUNT(*) AS cnt
+                FROM ifind_chain_panel
+                GROUP BY source_type
+                ORDER BY cnt DESC, source_type
+                """
+            ).fetchall()
+            node_rows = con.execute(
+                """
+                SELECT
+                    chain_id,
+                    MIN(chain_name) AS chain_name,
+                    node_id,
+                    MIN(node_name) AS node_name,
+                    COUNT(*) AS total_count,
+                    SUM(CASE WHEN source_type = 'ifind_mcp' THEN 1 ELSE 0 END) AS mcp_count,
+                    SUM(CASE WHEN manual_verified THEN 1 ELSE 0 END) AS verified_count
+                FROM ifind_chain_panel
+                GROUP BY chain_id, node_id
+                ORDER BY chain_id, node_id
+                """
+            ).fetchall()
+        finally:
+            con.close()
+    except Exception:
+        return coverage
+
+    chains: dict[str, dict[str, Any]] = {}
+    nodes = []
+    for chain_id, chain_name, node_id, node_name, total_count, mcp_count, verified_count in node_rows:
+        chain_key = str(chain_id)
+        chain = chains.setdefault(
+            chain_key,
+            {
+                "chain_id": chain_key,
+                "chain_name": str(chain_name or chain_id),
+                "node_count": 0,
+                "mcp_node_count": 0,
+                "rule_fill_node_count": 0,
+                "panel_total": 0,
+                "verified_count": 0,
+            },
+        )
+        total_int = int(total_count or 0)
+        mcp_int = int(mcp_count or 0)
+        verified_int = int(verified_count or 0)
+        chain["node_count"] += 1
+        chain["panel_total"] += total_int
+        chain["verified_count"] += verified_int
+        if mcp_int > 0:
+            chain["mcp_node_count"] += 1
+        else:
+            chain["rule_fill_node_count"] += 1
+        nodes.append({
+            "chain_id": chain_key,
+            "chain_name": str(chain_name or chain_id),
+            "node_id": str(node_id),
+            "node_name": str(node_name or node_id),
+            "total_count": total_int,
+            "mcp_count": mcp_int,
+            "verified_count": verified_int,
+            "coverage_label": "MCP直连" if mcp_int > 0 else "规则补足",
+            "coverage_class": "ok" if mcp_int > 0 else "missing",
+        })
+
+    return {
+        "ok": True,
+        "panel_total": int(panel_total or 0),
+        "source_dist": [{"source_type": str(row[0]), "count": int(row[1] or 0)} for row in source_rows],
+        "node_total": len(nodes),
+        "mcp_node_total": sum(1 for row in nodes if row["mcp_count"] > 0),
+        "rule_fill_node_total": sum(1 for row in nodes if row["mcp_count"] <= 0),
+        "chains": sorted(chains.values(), key=lambda row: row["chain_name"]),
+        "nodes": nodes,
+    }
+
+
+def _chain_assistant_data() -> dict[str, Any]:
+    payload = _read_json(CHAIN_ASSISTANT_SNAPSHOT)
+    if not isinstance(payload, dict):
+        return {
+            "ok": False,
+            "error": f"未找到产业链助手快照：{_rel(CHAIN_ASSISTANT_SNAPSHOT)}",
+            "summary": {},
+            "coverage": _chain_assistant_coverage(),
+            "production_rows": [],
+            "priority_review_rows": [],
+            "chain_cards": [],
+            "risk_flag_rows": [],
+            "bucket_rows": [],
+        }
+
+    raw_summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
+    raw_rows = payload.get("rows") if isinstance(payload.get("rows"), list) else []
+    rows = [_chain_assistant_row(row) for row in raw_rows if isinstance(row, dict)]
+    production_rows = [row for row in rows if row["review_gate"] == "production_eligible_after_human_review"]
+    priority_review_rows = [row for row in rows if row["candidate_bucket"] == "优先人工核验"]
+    unverified_rows = [row for row in rows if row["review_gate"] == "research_only_unverified"]
+
+    chain_cards: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        card = chain_cards.setdefault(
+            row["chain_id"],
+            {
+                "chain_id": row["chain_id"],
+                "chain_name": row["chain_name"],
+                "total": 0,
+                "production_count": 0,
+                "verified_count": 0,
+                "top_score": None,
+                "top_stock_code": "",
+                "top_stock_name": "-",
+                "top_stock_link": "#",
+            },
+        )
+        card["total"] += 1
+        if row["review_gate"] == "production_eligible_after_human_review":
+            card["production_count"] += 1
+        if row["manual_verified"]:
+            card["verified_count"] += 1
+        score = row["assistant_score"]
+        if score is not None and (card["top_score"] is None or score > card["top_score"]):
+            card["top_score"] = score
+            card["top_stock_code"] = row["stock_code"]
+            card["top_stock_name"] = row["stock_name"]
+            card["top_stock_link"] = row["stock_link"]
+
+    risk_counter: Counter[str] = Counter()
+    for row in rows:
+        risk_counter.update(flag["key"] for flag in row["risk_flags"])
+    risk_flag_rows = [
+        {"key": key, "label": CHAIN_RISK_FLAG_LABELS.get(key, key), "count": count}
+        for key, count in risk_counter.most_common(10)
+    ]
+
+    review_gate_dist = raw_summary.get("review_gate_dist") if isinstance(raw_summary.get("review_gate_dist"), dict) else {}
+    production_count = int(review_gate_dist.get("production_eligible_after_human_review") or len(production_rows))
+    unverified_count = int(review_gate_dist.get("research_only_unverified") or len(unverified_rows))
+    summary = {
+        "ok": bool(raw_summary.get("ok", True)),
+        "purpose": str(raw_summary.get("purpose") or "chain_fund_manager_assistant"),
+        "run_as_of_date": str(raw_summary.get("run_as_of_date") or "-"),
+        "state_date": str(raw_summary.get("state_date") or "-"),
+        "generated_at": str(raw_summary.get("generated_at") or "-"),
+        "total_input_records": int(raw_summary.get("total_input_records") or 0),
+        "candidate_count": int(raw_summary.get("selected_records") or len(rows)),
+        "production_count": production_count,
+        "unverified_count": unverified_count,
+        "manual_verified_selected": int(raw_summary.get("manual_verified_selected") or production_count),
+        "source_path": _rel(CHAIN_ASSISTANT_SNAPSHOT),
+        "db_path": _rel(CHAIN_EVIDENCE_DB),
+    }
+
+    return {
+        "ok": True,
+        "summary": summary,
+        "coverage": _chain_assistant_coverage(),
+        "production_rows": production_rows[:40],
+        "priority_review_rows": priority_review_rows[:40],
+        "research_rows": unverified_rows[:40],
+        "chain_cards": sorted(chain_cards.values(), key=lambda row: (-row["production_count"], row["chain_name"])),
+        "risk_flag_rows": risk_flag_rows,
+        "bucket_rows": _chain_counter_rows(raw_summary.get("bucket_dist")),
+        "gate_rows": _chain_counter_rows(
+            review_gate_dist,
+            {
+                "production_eligible_after_human_review": "已过生产闸门",
+                "research_only_unverified": "研究层待核验",
+            },
+        ),
+    }
 
 
 def _chain_studio_data() -> dict[str, Any]:
@@ -2618,6 +2933,21 @@ def industry_page(request: Request) -> HTMLResponse:
     )
 
 
+@app.get("/chain-assistant", response_class=HTMLResponse)
+def chain_assistant_page(request: Request) -> HTMLResponse:
+    profile = get_current_profile(request)
+    return templates.TemplateResponse(
+        request,
+        "chain-assistant.html",
+        {
+            "request": request,
+            "today": str(date.today()),
+            "chain": _chain_assistant_data(),
+            "current_user": profile,
+        },
+    )
+
+
 @app.get("/chain-studio", response_class=HTMLResponse)
 def chain_studio_page(request: Request) -> HTMLResponse:
     """产业链工作台（新）— Phase 1 MVP"""
@@ -3060,6 +3390,11 @@ def chain_serenity_analysis(request: Request, chain_id: str, state_date: str | N
         return JSONResponse(content=result)
     except Exception as exc:
         return JSONResponse(content={"ok": False, "error": str(exc)})
+
+
+@app.get("/api/chain-assistant")
+def chain_assistant_api() -> JSONResponse:
+    return JSONResponse(content=_chain_assistant_data())
 
 
 @app.get("/api/chain-studio")
