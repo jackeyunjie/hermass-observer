@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Hermass Observer 五方深度辩论仪表盘</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#060a12;--surface:#0c1220;--card:#111a2e;--card-hover:#152040;--border:#1a2744;--border-glow:#2a4080;--text:#c8d6e5;--text-bright:#edf2f7;--text-dim:#5a6f8a;--accent:#4f8cff;--accent2:#7c5cfc;--green:#0f6b4b;--yellow:#ca8a04;--red:#dc2626;--ok:var(--green);--warn:var(--yellow);--danger:var(--red);--gold:#ffd700}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans SC',sans-serif;line-height:1.7;overflow-x:hidden}
+.mono{font-family:'JetBrains Mono',monospace}
+body::before{content:'';position:fixed;inset:0;background:linear-gradient(rgba(79,140,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(79,140,255,.03) 1px,transparent 1px);background-size:60px 60px;pointer-events:none;z-index:0}
+.wrap{max-width:1320px;margin:0 auto;padding:0 24px;position:relative;z-index:1}
+.hero{padding:64px 0 48px;text-align:center;position:relative}
+.hero::after{content:'';position:absolute;bottom:0;left:10%;right:10%;height:1px;background:linear-gradient(90deg,transparent,var(--border-glow),transparent)}
+.hero-badge{display:inline-block;padding:6px 18px;border:1px solid var(--accent);border-radius:24px;color:var(--accent);font-size:.78em;letter-spacing:2px;margin-bottom:20px;text-transform:uppercase}
+.hero h1{font-size:clamp(1.8em,4vw,2.8em);font-weight:900;background:linear-gradient(135deg,#4f8cff 0%,#7c5cfc 40%,#c084fc 70%,#f472b6 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.3;margin-bottom:12px}
+.hero .sub{color:var(--text-dim);font-size:.92em;letter-spacing:1px}
+.verdict{margin:32px auto 0;max-width:860px;padding:24px 32px;background:linear-gradient(135deg,rgba(220,38,38,.06),rgba(124,92,252,.06));border:1px solid rgba(220,38,38,.2);border-radius:16px;text-align:left;font-size:.92em;line-height:2;color:#e8a0a8;position:relative;overflow:hidden}
+.verdict::before{content:'评估';position:absolute;top:12px;right:16px;padding:3px 12px;background:rgba(220,38,38,.15);border-radius:12px;font-size:.72em;color:var(--red);font-weight:700;letter-spacing:2px}
+.verdict strong{color:#ff6b7a}
+.section{padding:48px 0}
+.section-head{display:flex;align-items:center;gap:14px;margin-bottom:28px}
+.section-num{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:.85em;flex-shrink:0}
+.section-title{font-size:1.35em;font-weight:700;color:var(--text-bright)}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:28px;position:relative;overflow:hidden;transition:all .3s}
+.card:hover{border-color:var(--border-glow);background:var(--card-hover)}
+.card-title{font-size:1.05em;font-weight:700;color:var(--text-bright);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.grid-5{display:grid;grid-template-columns:repeat(5,1fr);gap:16px}
+@media(max-width:1024px){.grid-5{grid-template-columns:repeat(3,1fr)}.grid-3,.grid-2{grid-template-columns:1fr}}
+@media(max-width:640px){.grid-5{grid-template-columns:repeat(2,1fr)}}
+.persona{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:24px 20px 20px;position:relative;transition:all .3s}
+.persona:hover{border-color:var(--border-glow);background:var(--card-hover)}
+.persona .icon{font-size:1.6em;display:block;margin-bottom:8px}
+.persona .name{font-size:.95em;font-weight:700;color:var(--text-bright);margin-bottom:2px}
+.persona .role{font-size:.72em;color:var(--text-dim);margin-bottom:10px}
+.persona .concern{font-size:.82em;color:var(--text);line-height:1.65;padding:10px 14px;background:rgba(0,0,0,.15);border:1px solid var(--border);border-radius:10px;margin-top:12px}
+.card-verdict{margin:10px 0 6px}
+.card-tag{display:inline-block;padding:2px 10px;border-radius:12px;font-size:.78em;font-weight:700}
+.card-evidence{font-size:.78em;color:#94a3b8;line-height:1.55;margin-bottom:4px}
+.card-risk{font-size:.76em;font-weight:600;line-height:1.4}
+.pri{display:flex;gap:14px;padding:16px 0;border-bottom:1px solid var(--border);align-items:flex-start}
+.pri:last-child{border-bottom:none}
+.pri-badge{padding:3px 10px;border-radius:8px;font-size:.7em;font-weight:800;flex-shrink:0;min-width:32px;text-align:center}
+.pri-body{flex:1}
+.pri-body h4{font-size:.9em;color:var(--text-bright);margin-bottom:4px}
+.pri-body p{font-size:.78em;color:var(--text-dim)}
+.vote-bar{display:flex;align-items:center;gap:3px;margin-top:6px}
+.vote-dot{width:8px;height:8px;border-radius:50%}
+.metric{text-align:center}
+.metric .big{font-size:clamp(1.6em,3vw,2em);font-weight:900}
+.metric .label{font-size:.8em;color:var(--text-dim);margin-top:4px}
+.score-item{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.score-label{width:120px;font-size:.82em;color:var(--text);flex-shrink:0;text-align:right}
+.score-track{flex:1;height:8px;background:rgba(26,39,68,.5);border-radius:4px;overflow:hidden}
+.score-fill{height:100%;border-radius:4px;transition:width 1.2s ease}
+.score-num{width:32px;font-size:.78em;font-weight:700;text-align:left}
+.tbl{width:100%;border-collapse:collapse;font-size:.82em}
+.tbl th{text-align:left;padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-dim);font-weight:600;font-size:.76em;letter-spacing:.5px}
+.tbl td{padding:10px 12px;border-bottom:1px solid rgba(26,39,68,.4);color:var(--text)}
+.tbl .r{text-align:right}
+.impact-high{color:var(--red);font-weight:700}
+.impact-mid{color:var(--yellow);font-weight:600}
+.contra{background:var(--card);border:1px solid rgba(220,38,38,.2);border-radius:16px;padding:28px;color:var(--text)}
+.contra h4{font-size:1em;margin-bottom:20px;color:var(--red)}
+.contra-vals{display:flex;gap:20px}
+.contra-box{flex:1;text-align:center;padding:20px;background:rgba(0,0,0,.2);border:1px solid var(--border);border-radius:12px}
+.contra-box .src{font-size:.72em;color:var(--text-dim);margin-bottom:10px;font-weight:600}
+.contra-box .val{font-size:2.2em;font-weight:900}
+.redline{display:flex;align-items:center;gap:16px;padding:14px 0;border-bottom:1px solid var(--border)}
+.redline:last-child{border-bottom:none}
+.rl-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1em;flex-shrink:0}
+.rl-body{flex:1}
+.rl-body h4{font-size:.9em;color:var(--text-bright)}
+.rl-body p{font-size:.78em;color:var(--text-dim)}
+.rl-status{padding:4px 12px;border-radius:20px;font-size:.75em;font-weight:700;flex-shrink:0}
+.chart-box{position:relative;height:300px}
+.reveal{opacity:0;transform:translateY(24px);transition:all .7s cubic-bezier(.4,0,.2,1)}
+.reveal.visible{opacity:1;transform:translateY(0)}
+.footer{text-align:center;padding:48px 0;color:var(--text-dim);font-size:.78em;border-top:1px solid var(--border);margin-top:32px}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.7}}
+.pulse{animation:pulse 2s infinite}
+</style>
+
+
+
+
+
+
+<style id="mobile-responsive">
+/* MOBILE_RESPONSIVE_INJECTED */
+@media (max-width:640px) {
+  .wrap { padding: 0 12px; }
+  .section { padding: 28px 0; }
+  .section-head { align-items:flex-start; }
+  .section-title { font-size: 1.08em; }
+  .grid-2 { grid-template-columns: 1fr; gap: 14px; }
+  .persona-grid { grid-template-columns: 1fr; }
+  .metric-grid { grid-template-columns: 1fr 1fr; }
+  .conclusion-grid { grid-template-columns: 1fr; gap: 14px; }
+  .contra-vals { flex-direction: column; gap: 12px; }
+  .chart-box { height: 220px; }
+  .chart-box canvas { max-height: 220px; }
+  .verdict { padding: 16px 18px; font-size: 0.88em; line-height: 1.8; }
+  .persona, .card { padding: 16px; }
+  .metric .big { font-size: 1.5em; }
+  body { font-size: 14px; }
+  .cta-group { flex-direction: column; align-items: stretch; }
+  .cta-group a { width: 100%; justify-content: center; }
+  .tbl { display: block; overflow-x: auto; white-space: nowrap; }
+}
+</style>
+</head>
+<body>
+
+<div class="hero">
+<div class="wrap">
+  <div class="hero-badge mono">STRATEGIC ASSESSMENT</div>
+  <h1>Hermass Observer 五方深度辩论仪表盘</h1>
+  <div class="sub">基于 P116 多周期状态体系 · 五方协同辩论 · 代码级审阅 · 2026-06-19</div>
+  <div class="verdict">
+    <strong>一句话总评：</strong>认知架构极其出色，但执行纪律尚未闭环。P116 多周期状态体系是真正的创新，但三大策略的信号实现过于简化，回测存在 T+1 和涨跌停等系统性偏差，仓位管理参数自相矛盾。作为<strong>认知增强工具</strong>已很有价值；作为<strong>可执行的交易建议系统</strong>，在信号精度和风控闭环完成之前，不宜让系统输出直接驱动交易执行。
+  </div>
+</div>
+
+<!-- P1-2: CTA 交易路径跳转 -->
+<div class="cta-group" style="display:flex;gap:14px;max-width:860px;margin:24px auto 0;flex-wrap:wrap;justify-content:center">
+  <a href="/recommend" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:rgba(15,107,75,0.1);border:1px solid rgba(15,107,75,0.3);border-radius:10px;color:var(--green);font-weight:700;font-size:.88em;text-decoration:none;transition:all .2s">📊 看今日推荐 →</a>
+  <a href="/watchlist" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:rgba(37,99,235,0.1);border:1px solid rgba(37,99,235,0.3);border-radius:10px;color:#2563eb;font-weight:700;font-size:.88em;text-decoration:none;transition:all .2s">📋 查执行清单 →</a>
+  <a href="/chain-studio" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.3);border-radius:10px;color:#7c3aed;font-weight:700;font-size:.88em;text-decoration:none;transition:all .2s">🔗 看产业链 →</a>
+</div>
+</div>
+
+<div class="wrap">
+
+<!-- 1. COMPOSITE SCORE -->
+<div class="section reveal">
+  <div class="section-head">
+    <div class="section-num" style="background:rgba(79,140,255,.12);color:var(--accent)">01</div>
+    <div class="section-title">五维综合评分</div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">📊 五维评分对比</div>
+      <div class="chart-box"><canvas id="bar5d"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">📊 评分明细</div>
+      <!-- P0-1: 口径说明 -->
+      <div style="margin-bottom:20px;padding:10px 14px;background:rgba(79,140,255,.06);border:1px solid rgba(79,140,255,.2);border-radius:8px;font-size:.78em;color:#94a3b8;line-height:1.7">
+        口径：五方加权平均 · 权重各20% · 区间0-100 · 基准70 · 生成 {{ today }} · 非统计评估
+      </div>
+      <div style="margin-bottom:24px">
+        <div class="metric" style="display:inline-block;width:100%">
+          <div class="big pulse" style="color:var(--yellow)">50.4</div>
+          <div class="label">综合评分 / 100</div>
+        </div>
+      </div>
+      <div class="score-item"><span class="score-label">策略可行性</span><div class="score-track"><div class="score-fill" style="width:45%;background:linear-gradient(90deg,#dc2626,#ef4444)" data-w="45"></div></div><span class="score-num" style="color:#ef4444">45</span></div>
+      <div class="score-item"><span class="score-label">市场分析准确性</span><div class="score-track"><div class="score-fill" style="width:62%;background:linear-gradient(90deg,#ca8a04,#eab308)" data-w="62"></div></div><span class="score-num" style="color:#eab308">62</span></div>
+      <div class="score-item"><span class="score-label">决策逻辑性</span><div class="score-track"><div class="score-fill" style="width:55%;background:linear-gradient(90deg,#ca8a04,#eab308)" data-w="55"></div></div><span class="score-num" style="color:#eab308">55</span></div>
+      <div class="score-item"><span class="score-label">风险管理有效性</span><div class="score-track"><div class="score-fill" style="width:50%;background:linear-gradient(90deg,#ca8a04,#eab308)" data-w="50"></div></div><span class="score-num" style="color:#eab308">50</span></div>
+      <div class="score-item"><span class="score-label">建议可操作性</span><div class="score-track"><div class="score-fill" style="width:40%;background:linear-gradient(90deg,#dc2626,#ef4444)" data-w="40"></div></div><span class="score-num" style="color:#ef4444">40</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- 2. FIVE PERSONAS (P1-1: 卡片化) -->
+<div class="section reveal">
+  <div class="section-head">
+    <div class="section-num" style="background:rgba(124,92,252,.12);color:var(--accent2)">02</div>
+    <div class="section-title">五方观点对比</div>
+  </div>
+  <div class="grid-5 persona-grid">
+    <div class="persona" style="--c:var(--red)"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--red);border-radius:16px 16px 0 0"></div><span class="icon">📊</span><div class="name">交易员老陈</div><div class="role">30年实战 · 管理5000万资金</div>
+      <div class="card-verdict"><span class="card-tag" style="background:rgba(220,38,38,.12);color:var(--red)">信号不可信，执行层断裂</span></div>
+      <div class="card-evidence">VCP 非真正 VCP，0.95 置信度实际胜率可能不足 40%</div>
+      <div class="card-risk" style="color:var(--red)">⚠ 按当前信号操作存在系统性高估风险</div>
+    </div>
+    <div class="persona" style="--c:#2563eb"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#2563eb;border-radius:16px 16px 0 0"></div><span class="icon">⚙️</span><div class="name">技术架构师小周</div><div class="role">后端8年 · 核心引擎负责人</div>
+      <div class="card-verdict"><span class="card-tag" style="background:rgba(37,99,235,.12);color:#2563eb">代码膨胀，无测试覆盖</span></div>
+      <div class="card-evidence">web/main.py 6042 行，DuckDB 单进程瓶颈，daily pipeline 脆弱</div>
+      <div class="card-risk" style="color:var(--yellow)">⚠ 任一环节故障会导致数据中断</div>
+    </div>
+    <div class="persona" style="--c:#7c3aed"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#7c3aed;border-radius:16px 16px 0 0"></div><span class="icon">🎯</span><div class="name">产品经理小林</div><div class="role">ToB SaaS · 5年经验</div>
+      <div class="card-verdict"><span class="card-tag" style="background:rgba(124,58,237,.12);color:#7c3aed">用户、使用、留存三维未知</span></div>
+      <div class="card-evidence">12 页面信息密度过高，缺乏用户引导与反馈闭环</div>
+      <div class="card-risk" style="color:var(--yellow)">⚠ 功能堆砌而不解决核心需求</div>
+    </div>
+    <div class="persona" style="--c:var(--yellow)"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--yellow);border-radius:16px 16px 0 0"></div><span class="icon">🛡️</span><div class="name">风控合规老张</div><div class="role">券商风控 · 15年经验</div>
+      <div class="card-verdict"><span class="card-tag" style="background:rgba(202,138,4,.12);color:var(--yellow)">红线好但执行有漏洞</span></div>
+      <div class="card-evidence">仓位参数三处矛盾（5%/20%/25%），组合级风控缺失</div>
+      <div class="card-risk" style="color:var(--red)">⚠ AI 输出无风控校验，可能突破仓位上限</div>
+    </div>
+    <div class="persona" style="--c:var(--green)"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--green);border-radius:16px 16px 0 0"></div><span class="icon">📈</span><div class="name">业务发展赵总</div><div class="role">投资背景 · 关注商业化</div>
+      <div class="card-verdict"><span class="card-tag" style="background:rgba(15,107,75,.12);color:var(--green)">P116 护城河，商业化未动</span></div>
+      <div class="card-evidence">时间窗口收窄，三条路径未启动，3 月免费试用是折中</div>
+      <div class="card-risk" style="color:var(--yellow)">⚠ 窗口期有限，竞争者在加速</div>
+    </div>
+  </div>
+</div>
+
+<!-- 3. STRATEGY SIGNALS -->
+<div class="section reveal">
+  <div class="section-head">
+    <div class="section-num" style="background:rgba(220,38,38,.12);color:var(--red)">03</div>
+    <div class="section-title">策略信号质量评估</div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">🎯 置信度 vs 估计胜率</div>
+      <div class="chart-box"><canvas id="signalChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">📋 策略缺陷清单</div>
+      <table class="tbl">
+        <thead><tr><th>策略</th><th class="r">代码行数</th><th class="r">系统置信度</th><th class="r">估计胜率</th><th>核心缺陷</th></tr></thead>
+        <tbody>
+          <tr><td><strong>VCP</strong></td><td class="r mono">77</td><td class="r impact-high">0.95</td><td class="r impact-mid">~40%</td><td>无基底结构检测，非真正VCP</td></tr>
+          <tr><td><strong>MA2560</strong></td><td class="r mono">~80</td><td class="r impact-high">0.85</td><td class="r impact-mid">~50%</td><td>无斜率/ADX过滤</td></tr>
+          <tr><td><strong>布林强盗</strong></td><td class="r mono">~60</td><td class="r impact-mid">0.80</td><td class="r impact-mid">~45%</td><td>出场机械递减，缺带宽收缩</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- 4. POSITION CONTRADICTION -->
+<div class="section reveal">
+  <div class="section-head">
+    <div class="section-num" style="background:rgba(220,38,38,.12);color:var(--red)">04</div>
+    <div class="section-title">仓位参数矛盾警报</div>
+  </div>
+  <div class="contra">
+    <h4>🚨 严重参数冲突 — 单票最大仓位三处定义不一致（差距达 5 倍）</h4>
+    <div class="contra-vals">
+      <div class="contra-box"><div class="src">backtest/config.py</div><div class="val" style="color:var(--green)">5%</div><div style="font-size:.78em;color:var(--text-dim);margin-top:4px">max_single_pct = 0.05</div></div>
+      <div class="contra-box"><div class="src">redlines.yaml</div><div class="val" style="color:var(--red)">25%</div><div style="font-size:.78em;color:var(--text-dim);margin-top:4px">max_position_pct = 0.25</div></div>
+      <div class="contra-box"><div class="src">coach.py 文档</div><div class="val" style="color:var(--yellow)">20%</div><div style="font-size:.78em;color:var(--text-dim);margin-top:4px">"不超过总资金的 20%"</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- 5. BACKTEST GAP -->
+<div class="section reveal">
+  <div class="section-head">
+    <div class="section-num" style="background:rgba(202,138,4,.12);color:var(--yellow)">05</div>
+    <div class="section-title">回测与实盘差距分析</div>
+  </div>
+  <div class="card">
+    <table class="tbl">
+      <thead><tr><th>维度</th><th>回测假设</th><th>实盘现实</th><th style="text-align:center">影响</th></tr></thead>
+      <tbody>
+        <tr><td><strong>入场价</strong></td><td>当日收盘价</td><td>次日开盘价（T+1 限制）</td><td style="text-align:center" class="impact-high">🔴 高</td></tr>
+        <tr><td><strong>涨跌停</strong></td><td>忽略，假设可自由成交</td><td>涨停买不到、跌停卖不出</td><td style="text-align:center" class="impact-high">🔴 高</td></tr>
+        <tr><td><strong>停牌</strong></td><td>忽略</td><td>停牌期间无法退出</td><td style="text-align:center" class="impact-mid">🟡 中</td></tr>
+        <tr><td><strong>成交量</strong></td><td>可任意成交</td><td>实盘可能无法在突破价成交</td><td style="text-align:center" class="impact-mid">🟡 中</td></tr>
+        <tr><td><strong>市场冲击</strong></td><td>0.1% 滑点</td><td>小盘股可能 1-3%</td><td style="text-align:center" class="impact-mid">🟡 中</td></tr>
+        <tr><td><strong>心理因素</strong></td><td>无</td><td>连续亏损后执行力下降</td><td style="text-align:center" class="impact-high">🔴 极高</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 6. PRIORITY ACTIONS -->
+<div class="section reveal">
+  <div class="section-head">
+    <div class="section-num" style="background:rgba(15,107,75,.12);color:var(--green)">06</div>
+    <div class="section-title">优先级行动排序</div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">🔥 行动清单</div>
+      <div style="font-size:.78em;color:var(--red);font-weight:700;letter-spacing:2px;margin:8px 0 4px">P0 — 必须立即执行</div>
+      <div class="pri"><div class="pri-badge" style="background:rgba(220,38,38,.12);color:var(--red);border:1px solid rgba(220,38,38,.3)">P0</div><div class="pri-body"><h4>VCP 策略重写 + 回测 T+1 修正</h4><p>加入基底结构识别、收缩次数计数、幅度递减验证</p><div class="vote-bar"><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span style="font-size:.72em;color:var(--text-dim);margin-left:4px">全票 5/5</span></div></div></div>
+      <div class="pri"><div class="pri-badge" style="background:rgba(220,38,38,.12);color:var(--red);border:1px solid rgba(220,38,38,.3)">P0</div><div class="pri-body"><h4>仓位参数统一</h4><p>redlines.yaml 25%→5%，coach.py 20%→5%，全项目 grep 确认一致</p><div class="vote-bar"><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span style="font-size:.72em;color:var(--text-dim);margin-left:4px">全票 5/5</span></div></div></div>
+      <div style="font-size:.78em;color:var(--yellow);font-weight:700;letter-spacing:2px;margin:20px 0 4px">P1 — 本周内完成</div>
+      <div class="pri"><div class="pri-badge" style="background:rgba(202,138,4,.12);color:var(--yellow);border:1px solid rgba(202,138,4,.3)">P1</div><div class="pri-body"><h4>产品定位决策</h4><p>信息工具 vs 建议工具，影响合规成本和风控策略</p><div class="vote-bar"><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--text-dim)"></span><span style="font-size:.72em;color:var(--text-dim);margin-left:4px">4:1</span></div></div></div>
+      <div class="pri"><div class="pri-badge" style="background:rgba(202,138,4,.12);color:var(--yellow);border:1px solid rgba(202,138,4,.3)">P1</div><div class="pri-body"><h4>web/main.py 拆分</h4><p>信号生成与 UI 渲染物理隔离，目标降到 1500 行以下</p><div class="vote-bar"><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span style="font-size:.72em;color:var(--text-dim);margin-left:4px">全票 5/5</span></div></div></div>
+      <div class="pri"><div class="pri-badge" style="background:rgba(202,138,4,.12);color:var(--yellow);border:1px solid rgba(202,138,4,.3)">P1</div><div class="pri-body"><h4>Agent 辩论系统校准</h4><p>每个 Agent 必须有历史准确率追踪，动态权重基于准确率调整</p><div class="vote-bar"><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span style="font-size:.72em;color:var(--text-dim);margin-left:4px">全票 5/5</span></div></div></div>
+      <div style="font-size:.78em;color:var(--accent);font-weight:700;letter-spacing:2px;margin:20px 0 4px">P2 — 持续改进</div>
+      <div class="pri"><div class="pri-badge" style="background:rgba(79,140,255,.12);color:var(--accent);border:1px solid rgba(79,140,255,.3)">P2</div><div class="pri-body"><h4>回测引擎补全（涨跌停/停牌/T+1）</h4><p>模拟 A 股真实交易限制</p><div class="vote-bar"><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--text-dim)"></span><span style="font-size:.72em;color:var(--text-dim);margin-left:4px">4:1</span></div></div></div>
+      <div class="pri"><div class="pri-badge" style="background:rgba(79,140,255,.12);color:var(--accent);border:1px solid rgba(79,140,255,.3)">P2</div><div class="pri-body"><h4>自动化测试覆盖</h4><p>策略信号 5+ 单元测试、回测回归测试、红线拦截测试</p><div class="vote-bar"><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span style="font-size:.72em;color:var(--text-dim);margin-left:4px">全票 5/5</span></div></div></div>
+      <div class="pri"><div class="pri-badge" style="background:rgba(79,140,255,.12);color:var(--accent);border:1px solid rgba(79,140,255,.3)">P2</div><div class="pri-body"><h4>组合级风控熔断</h4><p>月度回撤 >5% 暂停 3 天，周度回撤 >3% 仓位降至 70%</p><div class="vote-bar"><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--green)"></span><span class="vote-dot" style="background:var(--text-dim)"></span><span style="font-size:.72em;color:var(--text-dim);margin-left:4px">4:1</span></div></div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">📊 共识投票热力图</div>
+      <div class="chart-box"><canvas id="consensusChart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- 7. RED LINES -->
+<div class="section reveal">
+  <div class="section-head">
+    <div class="section-num" style="background:rgba(220,38,38,.12);color:var(--red)">07</div>
+    <div class="section-title">五条红线风控状态</div>
+  </div>
+  <div class="card">
+    <div class="redline">
+      <div class="rl-icon" style="background:rgba(15,107,75,.12);color:var(--green)">1</div>
+      <div class="rl-body"><h4>止损/止盈需人类确认</h4><p>API 层拦截无确认的执行请求</p></div>
+      <span class="rl-status" style="background:rgba(15,107,75,.12);color:var(--green);border:1px solid rgba(15,107,75,.3)">✅ 已实现</span>
+    </div>
+    <div class="redline">
+      <div class="rl-icon" style="background:rgba(15,107,75,.12);color:var(--green)">2</div>
+      <div class="rl-body"><h4>策略结构不可变</h4><p>VCP/2560/Bollinger 信号定义受 admin token 保护</p></div>
+      <span class="rl-status" style="background:rgba(15,107,75,.12);color:var(--green);border:1px solid rgba(15,107,75,.3)">✅ 已实现</span>
+    </div>
+    <div class="redline">
+      <div class="rl-icon" style="background:rgba(202,138,4,.12);color:var(--yellow)">3</div>
+      <div class="rl-body"><h4>数据异常必报人类</h4><p>AgentBus 自动广播 review_needed — 但告警消息无人消费</p></div>
+      <span class="rl-status" style="background:rgba(202,138,4,.12);color:var(--yellow);border:1px solid rgba(202,138,4,.3)">⚠️ 告警无人响应</span>
+    </div>
+    <div class="redline">
+      <div class="rl-icon" style="background:rgba(220,38,38,.12);color:var(--red)">4</div>
+      <div class="rl-body"><h4>仓位上限硬编码</h4><p>三处配置互相矛盾：5% vs 20% vs 25%</p></div>
+      <span class="rl-status" style="background:rgba(220,38,38,.12);color:var(--red);border:1px solid rgba(220,38,38,.3)">❌ 参数矛盾</span>
+    </div>
+    <div class="redline">
+      <div class="rl-icon" style="background:rgba(15,107,75,.12);color:var(--green)">5</div>
+      <div class="rl-body"><h4>Admin Kill-Switch</h4><p>POST /api/admin/kill-switch 一键暂停所有自进化</p></div>
+      <span class="rl-status" style="background:rgba(15,107,75,.12);color:var(--green);border:1px solid rgba(15,107,75,.3)">✅ 已实现</span>
+    </div>
+  </div>
+</div>
+
+<!-- 8. SYSTEM METRICS (P0-3: 替换为上线质量指标) -->
+<div class="section reveal">
+  <div class="section-head">
+    <div class="section-num" style="background:rgba(79,140,255,.12);color:var(--accent)">08</div>
+    <div class="section-title">系统关键指标</div>
+  </div>
+  <div class="grid-5 metric-grid">
+    <div class="card metric"><div class="big mono" style="color:var({{ metrics.fresh_color }})">{{ metrics.fresh_text }}</div><div class="label">数据新鲜度<br><span style="font-size:.85em">{{ metrics.fresh_sub }}</span></div></div>
+    <div class="card metric"><div class="big mono" style="color:var({{ metrics.cron_color }})">{{ metrics.cron_icon }}</div><div class="label">定时任务状态<br><span style="font-size:.85em">{{ metrics.cron_sub }}</span></div></div>
+    <div class="card metric"><div class="big mono" style="color:var(--yellow)">6</div><div class="label">Agent 辩论参与者<br><span style="color:var(--red);font-size:.85em">均未校准</span></div></div>
+    <div class="card metric"><div class="big mono" style="color:var({{ metrics.test_color }})">{{ metrics.test_count }}</div><div class="label">测试文件数<br><span style="color:var(--yellow);font-size:.85em">策略信号无覆盖</span></div></div>
+    <div class="card metric"><div class="big mono" style="color:var({{ metrics.main_color }})">{{ metrics.main_lines }}</div><div class="label">web/main.py 行数<br><span style="color:var(--red);font-size:.85em">需拆分至 1500</span></div></div>
+  </div>
+</div>
+
+<!-- 9. CONCLUSION -->
+<div class="section reveal">
+  <div class="section-head">
+    <div class="section-num" style="background:rgba(124,92,252,.12);color:var(--accent2)">09</div>
+    <div class="section-title">五方联署结论</div>
+  </div>
+  <div class="card" style="border-color:rgba(124,92,252,.3)">
+    <div class="conclusion-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:24px">
+      <div style="padding:20px;background:rgba(15,107,75,.06);border:1px solid rgba(15,107,75,.2);border-radius:12px">
+        <div style="color:var(--green);font-weight:700;font-size:.88em;margin-bottom:8px">✅ 共识底线</div>
+        <div style="font-size:.84em;line-height:1.8">在策略信号经至少 6 个月实盘验证、Agent 校准完成、组合级熔断上线前，严格定位为<strong>认知辅助工具</strong>，不构成投资建议。</div>
+      </div>
+      <div style="padding:20px;background:rgba(79,140,255,.06);border:1px solid rgba(79,140,255,.2);border-radius:12px">
+        <div style="color:var(--accent);font-weight:700;font-size:.88em;margin-bottom:8px">🎯 共识方向</div>
+        <div style="font-size:.84em;line-height:1.8">P116 多周期状态体系是真正的创新护城河，但价值需通过<strong>信号精度、系统稳定性和风控闭环</strong>来兑现。先做好、再做广、最后做大。</div>
+      </div>
+      <div style="padding:20px;background:rgba(202,138,4,.06);border:1px solid rgba(202,138,4,.2);border-radius:12px">
+        <div style="color:var(--yellow);font-weight:700;font-size:.88em;margin-bottom:8px">⚡ 最大分歧</div>
+        <div style="font-size:.84em;line-height:1.8">商业化时机。交易员要求 6 个月实盘验证，业务认为 3 个月 MVP 足够。折中方案：<strong>3 个月实盘 + 免费试用验证需求</strong>。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<div class="footer">
+  <div class="wrap">Hermass Observer 深度批判分析仪表盘 · 五方协同治理 · 2026-06-19 · <span class="mono">v1.1</span></div>
+</div>
+
+<script>
+const io = new IntersectionObserver(es => {
+  es.forEach(e => { if(e.isIntersecting){e.target.classList.add('visible');io.unobserve(e.target)}})
+},{threshold:0.08});
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+Chart.defaults.color = '#5a6f8a';
+Chart.defaults.borderColor = 'rgba(26,39,68,0.5)';
+Chart.defaults.font.family = "'Noto Sans SC','JetBrains Mono',sans-serif";
+
+// P1-3: 五维评分横向条形图 (ex-radar)
+new Chart(document.getElementById('bar5d'), {
+  type: 'bar', indexAxis: 'y',
+  data: {
+    labels: ['建议可操作性','策略可行性','风险管理','决策逻辑性','市场分析准确性'],
+    datasets: [{
+      label: '当前', data: [40,45,50,55,62],
+      backgroundColor: ['#dc2626','#dc2626','#ca8a04','#ca8a04','#0f6b4b'],
+      borderWidth:0, borderRadius:6
+    },{
+      label: '基线', data: [70,70,70,70,70],
+      backgroundColor: 'rgba(90,111,138,0.2)',
+      borderColor: 'rgba(90,111,138,0.4)', borderWidth:1, borderDash:[4,4], borderRadius:6
+    }]
+  },
+  options: {
+    responsive:true, maintainAspectRatio:false,
+    scales:{
+      x:{max:100,grid:{color:'rgba(26,39,68,0.4)'},ticks:{stepSize:20}},
+      y:{grid:{display:false},ticks:{font:{size:12}}}
+    },
+    plugins:{
+      legend:{position:'bottom',labels:{padding:16,usePointStyle:true,pointStyle:'circle'}},
+      tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+ctx.raw+'/100'}}
+    }
+  }
+});
+
+// Signal chart
+new Chart(document.getElementById('signalChart'),{
+  type:'bar',
+  data:{
+    labels:['VCP','MA2560','布林强盗'],
+    datasets:[{
+      label:'系统标注置信度',data:[0.95,0.85,0.80],
+      backgroundColor:'rgba(79,140,255,0.7)',borderColor:'#4f8cff',borderWidth:1,borderRadius:6
+    },{
+      label:'估计实际胜率',data:[0.40,0.50,0.45],
+      backgroundColor:'rgba(220,38,38,0.7)',borderColor:'var(--red)',borderWidth:1,borderRadius:6
+    }]
+  },
+  options:{
+    indexAxis:'y',responsive:true,maintainAspectRatio:false,
+    scales:{
+      x:{max:1,grid:{color:'rgba(26,39,68,0.4)'},ticks:{callback:v=>(v*100)+'%'}},
+      y:{grid:{display:false}}
+    },
+    plugins:{legend:{position:'bottom',labels:{padding:16,usePointStyle:true,pointStyle:'circle'}}}
+  }
+});
+
+// Consensus chart
+new Chart(document.getElementById('consensusChart'),{
+  type:'bar',
+  data:{
+    labels:['VCP重写+T+1','仓位统一','web/main拆分','Agent校准','自动化测试','产品定位','回测补全','组合熔断','新手引导','商业化MVP'],
+    datasets:[{
+      label:'共识率',data:[100,100,100,100,100,80,80,80,60,60],
+      backgroundColor:ctx=>{const v=ctx.raw;if(v===100)return'rgba(15,107,75,0.75)';if(v>=80)return'rgba(202,138,4,0.75)';return'rgba(90,111,138,0.65)'},
+      borderColor:ctx=>{const v=ctx.raw;if(v===100)return'var(--green)';if(v>=80)return'var(--yellow)';return'#5a6f8a'},
+      borderWidth:1,borderRadius:6
+    }]
+  },
+  options:{
+    indexAxis:'y',responsive:true,maintainAspectRatio:false,
+    scales:{
+      x:{max:110,grid:{color:'rgba(26,39,68,0.3)'},ticks:{callback:v=>v+'%'}},
+      y:{grid:{display:false},ticks:{font:{size:11}}}
+    },
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>'共识率: '+ctx.raw+'%'}}}
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,99 @@
+import json
+import subprocess
+from pathlib import Path
+from datetime import date
+from typing import Dict, Tuple, Any
+
+ROOT = Path(__file__).resolve().parents[2]
+SELF_REVIEW = ROOT / "outputs" / "reviews" / "self_review_latest.json"
+TESTS_DIR = ROOT / "tests" / "unit"
+MAIN_PY = ROOT / "web" / "main.py"
+LAUNCHD_LABEL = "com.hermass.hermes-cron"
+
+def _read_self_review() -> dict:
+    if not SELF_REVIEW.exists():
+        return {}
+    try:
+        return json.loads(SELF_REVIEW.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+def _launchd_status() -> tuple[bool, str]:
+    try:
+        out = subprocess.run(
+            ["launchctl", "list"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        ).stdout
+    except Exception as exc:
+        return False, f"launchctl 不可用: {exc}"
+    for line in out.splitlines():
+        if LAUNCHD_LABEL in line:
+            parts = line.split()
+            if len(parts) >= 3 and parts[0].isdigit() and int(parts[0]) > 0:
+                return True, f"PID {parts[0]} 运行中"
+            last_exit = parts[1] if len(parts) >= 2 and parts[1].lstrip("-").isdigit() else "?"
+            return False, f"未运行（last exit {last_exit}）"
+    return False, "未注册"
+
+def _data_freshness() -> tuple[str, str, str]:
+    sr = _read_self_review()
+    df = (sr.get("checks") or {}).get("data_freshness") or {}
+    if not df:
+        return "—", "--yellow", "无数据"
+    hours_ago = float(df.get("hours_ago") or 0)
+    latest = str(df.get("latest_date") or "?")
+    stale = bool(df.get("stale"))
+    if hours_ago <= 24:
+        text = f"{max(1, int(round(hours_ago / 24)))}天"
+        color = "--green" if not stale else "--yellow"
+    elif hours_ago <= 48:
+        text = f"{int(hours_ago)}h"
+        color = "--yellow" if not stale else "--red"
+    else:
+        text = f"{int(hours_ago)}h"
+        color = "--red"
+    return text, color, latest
+
+def _count_test_files() -> int:
+    if not TESTS_DIR.exists():
+        return 0
+    return sum(1 for p in TESTS_DIR.glob("test_*.py"))
+
+def _count_main_py_lines() -> int:
+    if not MAIN_PY.exists():
+        return 0
+    return sum(1 for _ in MAIN_PY.read_text(encoding="utf-8").splitlines())
+
+def get_dashboard_metrics() -> Dict[str, Any]:
+    # 1) 数据新鲜度
+    fresh_text, fresh_color, fresh_sub = _data_freshness()
+    
+    # 2) cron
+    cron_ok, cron_detail = _launchd_status()
+    cron_color = "--green" if cron_ok else "--red"
+    cron_icon = "✅" if cron_ok else "❌"
+    cron_sub = "hermes_cron 正常运行" if cron_ok else f"hermes_cron 异常（{cron_detail}）"
+
+    # 3) tests
+    test_count = _count_test_files()
+    test_color = "--green" if test_count >= 30 else "--yellow"
+
+    # 4) main.py lines
+    main_lines = _count_main_py_lines()
+    main_color = "--red" if main_lines > 4500 else ("--yellow" if main_lines > 2000 else "--green")
+
+    return {
+        "fresh_text": fresh_text,
+        "fresh_color": fresh_color,
+        "fresh_sub": fresh_sub,
+        "cron_icon": cron_icon,
+        "cron_color": cron_color,
+        "cron_sub": cron_sub,
+        "test_count": test_count,
+        "test_color": test_color,
+        "main_lines": main_lines,
+        "main_color": main_color,
+    }

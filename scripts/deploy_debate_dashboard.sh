@@ -1,42 +1,18 @@
 #!/usr/bin/env bash
-# 重建 + 上传 + 冒烟 /debate-dashboard 部署脚本。
-#
-# 解决的问题（Codex 2026-06-19 审计风险1）：
-#   outputs/debate_dashboard.html 被 .gitignore 整体忽略，标准 git pull 不会带上
-#   这个文件，导致 /debate-dashboard 出现 404。
-# 解决方式：把 "build -> upload -> smoke" 收成一条命令，每一步失败立即退出。
-#
-# 用法：
-#   bash scripts/deploy_debate_dashboard.sh
-#
-# 流程：
-#   1. 跑 scripts/build_debate_dashboard.py 重新生成 outputs/debate_dashboard.html
-#      （把"系统关键指标"区从硬编码换成运行时真相源）
-#   2. 跑 scripts/upload_output_to_server.py --type debate_dashboard
-#      通过 /api/admin/upload-data 上传到服务器
-#   3. curl 冒烟 /debate-dashboard 确认 200 + 关键标记
+# /debate-dashboard 已经重构为动态模板，不再需要本地构建 HTML 和上传静态文件。
+# 这个脚本现在只做公网的冒烟测试。
+# 
+# 部署 SOP: 
+#   git commit -am "..."
+#   git push
+#   在服务器上 git pull 并重启服务
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$ROOT"
-
-VENV_PY="$ROOT/.venv/bin/python"
 SERVER_HOST="console.supertrader.world"
-SERVER_LOCAL="http://localhost:8020"
-SERVER_PUBLIC="https://$SERVER_HOST"
 AUTH="-u hermass-test:Hermass2026!Lab"
 
-echo "==> [1/3] build_debate_dashboard.py"
-"$VENV_PY" "$ROOT/scripts/build_debate_dashboard.py"
-
-echo
-echo "==> [2/3] upload via /api/admin/upload-data (type=debate_dashboard)"
-TODAY="$(date +%Y-%m-%d)"
-"$VENV_PY" "$ROOT/scripts/upload_output_to_server.py" --date "$TODAY" --type debate_dashboard
-
-echo
-echo "==> [3/3] smoke /debate-dashboard (公网 HTTP，Nginx 80 入口)"
+echo "==> smoke /debate-dashboard (公网 HTTP，Nginx 80 入口)"
 SMOKE_URL="http://$SERVER_HOST/debate-dashboard"
 HTTP_CODE=$(curl -s -o /tmp/dd_smoke.html -w "%{http_code}" $AUTH "$SMOKE_URL")
 echo "  $SMOKE_URL  http=$HTTP_CODE"
@@ -60,4 +36,4 @@ if [ "$HTTP_CODE" != "200" ]; then
 fi
 
 echo
-echo "[OK] /debate-dashboard 部署 + 冒烟全通"
+echo "[OK] /debate-dashboard 冒烟全通"
