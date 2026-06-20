@@ -36,8 +36,8 @@ TODAY="$(date +%Y-%m-%d)"
 "$VENV_PY" "$ROOT/scripts/upload_output_to_server.py" --date "$TODAY" --type debate_dashboard
 
 echo
-echo "==> [3/3] smoke /debate-dashboard (公网)"
-SMOKE_URL="https://$SERVER_HOST/debate-dashboard"
+echo "==> [3/3] smoke /debate-dashboard (公网 HTTP，Nginx 80 入口)"
+SMOKE_URL="http://$SERVER_HOST/debate-dashboard"
 HTTP_CODE=$(curl -s -o /tmp/dd_smoke.html -w "%{http_code}" $AUTH "$SMOKE_URL")
 echo "  $SMOKE_URL  http=$HTTP_CODE"
 
