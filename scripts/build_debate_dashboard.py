@@ -30,6 +30,30 @@ SELF_REVIEW = ROOT / "outputs" / "reviews" / "self_review_latest.json"
 TESTS_DIR = ROOT / "tests" / "unit"
 MAIN_PY = ROOT / "web" / "main.py"
 LAUNCHD_LABEL = "com.hermass.hermes-cron"
+MOBILE_STYLE_ID = "mobile-responsive"
+MOBILE_CSS = f"""<style id="{MOBILE_STYLE_ID}">
+/* MOBILE_RESPONSIVE_INJECTED */
+@media (max-width:640px) {{
+  .wrap {{ padding: 0 12px; }}
+  .section {{ padding: 28px 0; }}
+  .section-head {{ align-items:flex-start; }}
+  .section-title {{ font-size: 1.08em; }}
+  .grid-2 {{ grid-template-columns: 1fr; gap: 14px; }}
+  .persona-grid {{ grid-template-columns: 1fr; }}
+  .metric-grid {{ grid-template-columns: 1fr 1fr; }}
+  .conclusion-grid {{ grid-template-columns: 1fr; gap: 14px; }}
+  .contra-vals {{ flex-direction: column; gap: 12px; }}
+  .chart-box {{ height: 220px; }}
+  .chart-box canvas {{ max-height: 220px; }}
+  .verdict {{ padding: 16px 18px; font-size: 0.88em; line-height: 1.8; }}
+  .persona, .card {{ padding: 16px; }}
+  .metric .big {{ font-size: 1.5em; }}
+  body {{ font-size: 14px; }}
+  .cta-group {{ flex-direction: column; align-items: stretch; }}
+  .cta-group a {{ width: 100%; justify-content: center; }}
+  .tbl {{ display: block; overflow-x: auto; white-space: nowrap; }}
+}}
+</style>"""
 
 
 def _read_self_review() -> dict:
@@ -113,12 +137,73 @@ def _replace(html: str, pattern: str, repl: str, *, count: int = 1) -> tuple[str
     return new_html, n
 
 
+def _inject_semantic_classes(html: str) -> str:
+    """为移动端覆盖注入稳定语义类，保持幂等。"""
+    replacements = [
+        (
+            '<div class="cta-group cta-group" style="display:flex;gap:14px;max-width:860px;margin:24px auto 0;flex-wrap:wrap;justify-content:center">',
+            '<div class="cta-group" style="display:flex;gap:14px;max-width:860px;margin:24px auto 0;flex-wrap:wrap;justify-content:center">',
+        ),
+        (
+            '<div class="cta-group" style="display:flex;gap:14px;max-width:860px;margin:24px auto 0;flex-wrap:wrap;justify-content:center">',
+            '<div class="cta-group" style="display:flex;gap:14px;max-width:860px;margin:24px auto 0;flex-wrap:wrap;justify-content:center">',
+        ),
+        (
+            '<div style="display:flex;gap:14px;max-width:860px;margin:24px auto 0;flex-wrap:wrap;justify-content:center">',
+            '<div class="cta-group" style="display:flex;gap:14px;max-width:860px;margin:24px auto 0;flex-wrap:wrap;justify-content:center">',
+        ),
+        (
+            '<div class="grid-5 persona-grid persona-grid">\n    <div class="persona"',
+            '<div class="grid-5 persona-grid">\n    <div class="persona"',
+        ),
+        (
+            '<div class="grid-5">\n    <div class="persona"',
+            '<div class="grid-5 persona-grid">\n    <div class="persona"',
+        ),
+        (
+            '<div class="grid-5 metric-grid metric-grid">\n    <div class="card metric">',
+            '<div class="grid-5 metric-grid">\n    <div class="card metric">',
+        ),
+        (
+            '<div class="grid-5">\n    <div class="card metric">',
+            '<div class="grid-5 metric-grid">\n    <div class="card metric">',
+        ),
+        (
+            '<div class="conclusion-grid conclusion-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:24px">',
+            '<div class="conclusion-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:24px">',
+        ),
+        (
+            '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:24px">',
+            '<div class="conclusion-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:24px">',
+        ),
+    ]
+    for old, new in replacements:
+        html = html.replace(old, new, 1)
+    return html
+
+
+def _inject_mobile_css(html: str) -> str:
+    """注入移动端样式，重复执行时用新块覆盖旧块。"""
+    html = re.sub(
+        rf'<style id="{MOBILE_STYLE_ID}">.*?</style>',
+        "",
+        html,
+        count=1,
+        flags=re.DOTALL,
+    )
+    if "</head>" in html:
+        return html.replace("</head>", MOBILE_CSS + "\n</head>", 1)
+    return MOBILE_CSS + "\n" + html
+
+
 def main() -> int:
     if not TEMPLATE.exists():
         print(f"[ERROR] 模板不存在: {TEMPLATE}")
         return 1
 
     html = TEMPLATE.read_text(encoding="utf-8")
+    html = _inject_semantic_classes(html)
+    html = _inject_mobile_css(html)
     today = date.today().isoformat()
 
     # 1) 口径说明里的"生成 2026-06-19" → 今天
@@ -132,7 +217,7 @@ def main() -> int:
     fresh_text, fresh_color, fresh_sub = _data_freshness()
     html, _ = _replace(
         html,
-        r'(<div class="card metric"><div class="big mono" style="color:var\()--green(\)">)1天(</div><div class="label">数据新鲜度<br><span style="font-size:\.85em">最新 state_date: )2026-06-18(</span></div></div>)',
+        r'(<div class="card metric"><div class="big mono" style="color:var\()[^)]+(\)">)[^<]+(</div><div class="label">数据新鲜度<br><span style="font-size:\.85em">最新 state_date: )[^<]+(</span></div></div>)',
         rf"\g<1>{fresh_color}\g<2>{fresh_text}\g<3>{fresh_sub}\g<4>",
     )
 
@@ -143,7 +228,7 @@ def main() -> int:
     cron_sub = "hermes_cron 正常运行" if cron_ok else f"hermes_cron 异常（{cron_detail}）"
     html, _ = _replace(
         html,
-        r'(<div class="card metric"><div class="big mono" style="color:var\()--green(\)">)✅(</div><div class="label">定时任务状态<br><span style="font-size:\.85em">)hermes_cron 正常运行(</span></div></div>)',
+        r'(<div class="card metric"><div class="big mono" style="color:var\()[^)]+(\)">)[^<]+(</div><div class="label">定时任务状态<br><span style="font-size:\.85em">)[^<]+(</span></div></div>)',
         rf"\g<1>{cron_color}\g<2>{cron_icon}\g<3>{cron_sub}\g<4>",
     )
 
@@ -151,7 +236,7 @@ def main() -> int:
     test_count = _count_test_files()
     html, _ = _replace(
         html,
-        r'(<div class="card metric"><div class="big mono" style="color:var\()--green(\)">)48(</div><div class="label">测试文件数)',
+        r'(<div class="card metric"><div class="big mono" style="color:var\()[^)]+(\)">)\d+(</div><div class="label">测试文件数)',
         rf"\g<1>{'--green' if test_count >= 30 else '--yellow'}\g<2>{test_count}\g<3>",
     )
 
@@ -160,7 +245,7 @@ def main() -> int:
     main_color = "--red" if main_lines > 4500 else ("--yellow" if main_lines > 2000 else "--green")
     html, _ = _replace(
         html,
-        r'(<div class="card metric"><div class="big mono" style="color:var\()--red(\)">)6042(</div><div class="label">web/main\.py 行数)',
+        r'(<div class="card metric"><div class="big mono" style="color:var\()[^)]+(\)">)\d+(</div><div class="label">web/main\.py 行数)',
         rf"\g<1>{main_color}\g<2>{main_lines}\g<3>",
     )
 
