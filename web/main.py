@@ -3104,6 +3104,16 @@ def recommend_page(request: Request) -> HTMLResponse:
     )
 
 
+@app.get("/debate-dashboard", response_class=HTMLResponse)
+def debate_dashboard_page() -> HTMLResponse:
+    """五方辩论审计仪表盘 — 读取静态生成 HTML"""
+    from pathlib import Path as _Path
+    path = _Path("outputs/debate_dashboard.html")
+    if not path.exists():
+        return HTMLResponse(content="<h1>仪表盘未生成</h1>", status_code=404)
+    return HTMLResponse(content=path.read_text(encoding="utf-8"))
+
+
 @app.get("/market", response_class=HTMLResponse)
 def market_page(request: Request) -> HTMLResponse:
     profile = get_current_profile(request)
