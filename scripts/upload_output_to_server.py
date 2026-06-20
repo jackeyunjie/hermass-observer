@@ -39,6 +39,8 @@ WEBSITE_UPLOAD_SOURCES = {
     "forward_observation": (ROOT / "outputs" / "forward_observation", "forward_observation_{ymd}.json", "application/json"),
     "macro_chain_prior": (ROOT / "outputs" / "macro_chain_prior", "macro_chain_prior_{ymd}.json", "application/json"),
     "industry_rotation": (ROOT / "outputs" / "industry_rotation", "industry_rotation_{ymd}.json", "application/json"),
+    "industry_chain": (ROOT / "outputs" / "industry_chain", "industry_chain_evidence.duckdb", "application/octet-stream"),
+    "debate_dashboard": (ROOT / "outputs", "debate_dashboard.html", "text/html"),
 }
 
 

@@ -3106,11 +3106,18 @@ def recommend_page(request: Request) -> HTMLResponse:
 
 @app.get("/debate-dashboard", response_class=HTMLResponse)
 def debate_dashboard_page() -> HTMLResponse:
-    """五方辩论审计仪表盘 — 读取静态生成 HTML"""
-    from pathlib import Path as _Path
-    path = _Path("outputs/debate_dashboard.html")
+    """五方辩论审计仪表盘 — 读取静态生成 HTML
+
+    文件路径以 ROOT 锚定，避免依赖 systemd/uvicorn 当前工作目录。
+    部署 SOP：scripts/deploy_debate_dashboard.sh (build + upload + smoke)
+    """
+    path = ROOT / "outputs" / "debate_dashboard.html"
     if not path.exists():
-        return HTMLResponse(content="<h1>仪表盘未生成</h1>", status_code=404)
+        return HTMLResponse(
+            content="<h1>仪表盘未生成</h1>"
+            "<p>请在本地执行：<code>bash scripts/deploy_debate_dashboard.sh</code></p>",
+            status_code=404,
+        )
     return HTMLResponse(content=path.read_text(encoding="utf-8"))
 
 
@@ -5665,6 +5672,7 @@ WEBSITE_UPLOAD_TARGETS = {
     "forward_observation": ("forward_observation", "forward_observation_{ymd}.json", None),
     "macro_chain_prior": ("macro_chain_prior", "macro_chain_prior_{ymd}.json", "macro_chain_prior_latest.json"),
     "industry_rotation": ("industry_rotation", "industry_rotation_{ymd}.json", None),
+    "debate_dashboard": ("", "debate_dashboard.html", None),  # 落到 outputs/ 根（与 build_debate_dashboard.py 写入路径一致）
 }
 
 
@@ -5971,14 +5979,19 @@ async def admin_upload_data(
         shutil.rmtree(chunk_dir, ignore_errors=True)
         return JSONResponse(content={"ok": True, "type": "foundation", "path": str(dest_path), "size": len(raw)})
     elif type in WEBSITE_UPLOAD_TARGETS:
-        if not date:
-            return JSONResponse(content={"ok": False, "error": "missing date"}, status_code=400)
-        normalized_date = _normalize_upload_date(date)
-        compact_date = normalized_date.replace("-", "")
-        subdir, filename_template, _latest_name = WEBSITE_UPLOAD_TARGETS[type]
-        dest_dir = dest_dir / subdir
-        dest_dir.mkdir(parents=True, exist_ok=True)
-        dest_path = dest_dir / filename_template.format(date=normalized_date, ymd=compact_date)
+        if type == "debate_dashboard":
+            # 静态 dashboard 直接落到 outputs/ 根，文件名固定不带日期模板
+            dest_dir = ROOT / "outputs"
+            dest_path = dest_dir / "debate_dashboard.html"
+        else:
+            if not date:
+                return JSONResponse(content={"ok": False, "error": "missing date"}, status_code=400)
+            normalized_date = _normalize_upload_date(date)
+            compact_date = normalized_date.replace("-", "")
+            subdir, filename_template, _latest_name = WEBSITE_UPLOAD_TARGETS[type]
+            dest_dir = dest_dir / subdir
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            dest_path = dest_dir / filename_template.format(date=normalized_date, ymd=compact_date)
     else:
         return JSONResponse(content={"ok": False, "error": f"unknown type: {type}"}, status_code=400)
 
