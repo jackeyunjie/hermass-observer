@@ -26,9 +26,16 @@ def _read_self_review() -> dict:
         return {}
 
 def _launchd_status() -> tuple[bool, str]:
+    uid = subprocess.run(
+        ["id", "-u"],
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    ).stdout.strip() or "0"
     try:
         out = subprocess.run(
-            ["launchctl", "list"],
+            ["launchctl", "print", f"gui/{uid}/{LAUNCHD_LABEL}"],
             capture_output=True,
             text=True,
             timeout=5,
@@ -36,14 +43,21 @@ def _launchd_status() -> tuple[bool, str]:
         ).stdout
     except Exception as exc:
         return False, f"launchctl 不可用: {exc}"
+    if "could not find service" in out.lower() or not out.strip():
+        return False, "未注册"
+    state_match = None
+    pid_match = None
     for line in out.splitlines():
-        if LAUNCHD_LABEL in line:
-            parts = line.split()
-            if len(parts) >= 3 and parts[0].isdigit() and int(parts[0]) > 0:
-                return True, f"PID {parts[0]} 运行中"
-            last_exit = parts[1] if len(parts) >= 2 and parts[1].lstrip("-").isdigit() else "?"
-            return False, f"未运行（last exit {last_exit}）"
-    return False, "未注册"
+        stripped = line.strip()
+        if stripped.startswith("state = ") and state_match is None:
+            state_match = stripped.split("=", 1)[1].strip()
+        elif stripped.startswith("pid = ") and pid_match is None:
+            pid_match = stripped.split("=", 1)[1].strip()
+    if state_match == "running" and pid_match and pid_match.isdigit():
+        return True, f"PID {pid_match} 运行中"
+    if state_match:
+        return False, f"状态 {state_match}"
+    return False, "状态未知"
 
 def _data_freshness() -> tuple[str, str, str]:
     sr = _read_self_review()

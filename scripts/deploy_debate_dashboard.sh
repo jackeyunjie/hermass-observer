@@ -36,7 +36,7 @@ echo "  $SMOKE_URL  http=$HTTP_CODE"
 # 关键标记验证（公网页面）
 echo
 echo "==> 关键标记验证（公网返回 /tmp/dd_smoke.html）"
-for k in "口径：五方加权平均" "数据新鲜度" "hermes_cron" "web/main.py" "看今日推荐" "/chain-studio" "bar5d"; do
+for k in "口径：五方加权平均" "数据新鲜度" "hermes_cron 正常运行" "web/main.py" "看今日推荐" "/chain-studio" "bar5d"; do
   if grep -q "$k" /tmp/dd_smoke.html; then
     printf "  %-25s : OK\n" "$k"
   else
