@@ -56,7 +56,7 @@ def _load_redlines_config() -> dict:
     # 硬编码默认值
     return {
         "redlines": {
-            "max_position_enforcement": {"max_position_pct": 0.25},
+            "max_position_enforcement": {"max_position_pct": 0.05},
         },
         "audit": {
             "log_file": "outputs/red_line_audit_log.jsonl",

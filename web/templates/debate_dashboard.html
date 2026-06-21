@@ -275,15 +275,15 @@ body::before{content:'';position:fixed;inset:0;background:linear-gradient(rgba(7
 <!-- 4. POSITION CONTRADICTION -->
 <div class="section reveal">
   <div class="section-head">
-    <div class="section-num" style="background:rgba(220,38,38,.12);color:var(--red)">04</div>
-    <div class="section-title">仓位参数矛盾警报</div>
+    <div class="section-num" style="background:rgba(15,107,75,.12);color:var(--green)">04</div>
+    <div class="section-title">仓位参数一致性已修复</div>
   </div>
-  <div class="contra">
-    <h4>🚨 严重参数冲突 — 单票最大仓位三处定义不一致（差距达 5 倍）</h4>
+  <div class="contra" style="border-color: rgba(15,107,75,0.3)">
+    <h4 style="color: var(--green)">✅ 参数冲突已解决 — 单票最大仓位全项目统一收敛至 5%</h4>
     <div class="contra-vals">
       <div class="contra-box"><div class="src">backtest/config.py</div><div class="val" style="color:var(--green)">5%</div><div style="font-size:.78em;color:var(--text-dim);margin-top:4px">max_single_pct = 0.05</div></div>
-      <div class="contra-box"><div class="src">redlines.yaml</div><div class="val" style="color:var(--red)">25%</div><div style="font-size:.78em;color:var(--text-dim);margin-top:4px">max_position_pct = 0.25</div></div>
-      <div class="contra-box"><div class="src">coach.py 文档</div><div class="val" style="color:var(--yellow)">20%</div><div style="font-size:.78em;color:var(--text-dim);margin-top:4px">"不超过总资金的 20%"</div></div>
+      <div class="contra-box"><div class="src">redlines.yaml</div><div class="val" style="color:var(--green)">5%</div><div style="font-size:.78em;color:var(--text-dim);margin-top:4px">max_position_pct = 0.05</div></div>
+      <div class="contra-box"><div class="src">coach.py 文档</div><div class="val" style="color:var(--green)">5%</div><div style="font-size:.78em;color:var(--text-dim);margin-top:4px">"不超过总资金的 5%"</div></div>
     </div>
   </div>
 </div>
@@ -367,9 +367,9 @@ body::before{content:'';position:fixed;inset:0;background:linear-gradient(rgba(7
       <span class="rl-status" style="background:rgba(202,138,4,.12);color:var(--yellow);border:1px solid rgba(202,138,4,.3)">⚠️ 告警无人响应</span>
     </div>
     <div class="redline">
-      <div class="rl-icon" style="background:rgba(220,38,38,.12);color:var(--red)">4</div>
-      <div class="rl-body"><h4>仓位上限硬编码</h4><p>三处配置互相矛盾：5% vs 20% vs 25%</p></div>
-      <span class="rl-status" style="background:rgba(220,38,38,.12);color:var(--red);border:1px solid rgba(220,38,38,.3)">❌ 参数矛盾</span>
+      <div class="rl-icon" style="background:rgba(15,107,75,.12);color:var(--green)">4</div>
+      <div class="rl-body"><h4>仓位上限硬编码</h4><p>全项目已统一：单票最大仓位 5% (max_position_pct)</p></div>
+      <span class="rl-status" style="background:rgba(15,107,75,.12);color:var(--green);border:1px solid rgba(15,107,75,.3)">✅ 全局 5%</span>
     </div>
     <div class="redline">
       <div class="rl-icon" style="background:rgba(15,107,75,.12);color:var(--green)">5</div>
