@@ -160,9 +160,15 @@ log "Step 2/5: 语法校验（py_compile）..."
 
 COMPILE_ERRORS=""
 # 编译关键入口文件
+VENV_PY="$DEPLOY_DIR/.venv/bin/python"
+PY_CMD="python3"
+if [ -x "$VENV_PY" ]; then
+    PY_CMD="$VENV_PY"
+fi
+
 for pyfile in web/main.py agently_adapter/qa_entry.py; do
     if [ -f "$pyfile" ]; then
-        if ! python3 -m py_compile "$pyfile" 2>&1; then
+        if ! "$PY_CMD" -m py_compile "$pyfile" 2>&1; then
             COMPILE_ERRORS="${COMPILE_ERRORS}\n  - $pyfile"
         fi
     fi
