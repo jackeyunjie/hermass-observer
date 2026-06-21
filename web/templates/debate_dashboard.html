@@ -190,6 +190,58 @@ body::before{content:'';position:fixed;inset:0;background:linear-gradient(rgba(7
     <div class="persona" style="--c:var(--text-dim)"><div class="name">Agent 辩论数据未生成</div><div class="role">请执行 bash scripts/deploy_debate_dashboard.sh</div></div>
 {% endif %}
   </div>
+  {% if metrics.agent_router %}
+  <!-- Router 结论面板 -->
+  <div style="margin-top: 24px; padding: 24px; background: rgba(0,0,0,0.2); border: 1px solid var(--border-glow); border-radius: 16px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+      <h4 style="font-size: 1.1em; color: var(--text-bright); display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 1.2em;">⚖️</span> Router 动态权重与综合结论
+      </h4>
+      <div style="padding: 4px 12px; background: var(--{{ metrics.agent_router.verdict.final_color }}-bg); color: var(--{{ metrics.agent_router.verdict.final_color }}); border-radius: 20px; font-weight: 700; font-size: 0.85em;">
+        加权得分：{{ "%.2f"|format(metrics.agent_router.verdict.adjusted_score) }}
+      </div>
+    </div>
+    <div class="grid-3" style="margin-bottom: 20px;">
+      <div style="padding: 16px; background: rgba(255,255,255,0.03); border-radius: 12px;">
+        <div style="font-size: 0.8em; color: var(--text-dim); margin-bottom: 8px;">最终判定</div>
+        <div style="font-size: 1.4em; font-weight: 900; color: var(--{{ metrics.agent_router.verdict.final_color }});">{{ metrics.agent_router.verdict.final_verdict }}</div>
+        <div style="font-size: 0.8em; color: var(--text-dim); margin-top: 8px; line-height: 1.5;">{{ metrics.agent_router.verdict.decision }}</div>
+      </div>
+      <div style="padding: 16px; background: rgba(255,255,255,0.03); border-radius: 12px;">
+        <div style="font-size: 0.8em; color: var(--text-dim); margin-bottom: 8px;">冲突与共振 ({{ metrics.agent_router.conflicts|length }} 组 / {{ metrics.agent_router.resonances|length }} 组)</div>
+        <div style="font-size: 0.85em; color: var(--text); line-height: 1.6;">
+          {% if metrics.agent_router.conflicts %}
+            <div style="color: var(--red);">⚠️ 发现高等级冲突，已执行惩罚</div>
+          {% endif %}
+          {% if metrics.agent_router.resonances %}
+            <div style="color: var(--green);">✨ 发现多方共振，已执行奖励</div>
+          {% endif %}
+          <div style="margin-top: 4px; color: var(--text-dim); font-size: 0.9em;">{{ metrics.agent_router.verdict.summary }}</div>
+        </div>
+      </div>
+      <div style="padding: 16px; background: rgba(255,255,255,0.03); border-radius: 12px;">
+        <div style="font-size: 0.8em; color: var(--text-dim); margin-bottom: 8px;">动态权重分布</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+          {% for agent, weight in metrics.agent_router.weights.items() %}
+          <div style="font-size: 0.75em; padding: 2px 8px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 8px;">
+            <span style="color: var(--text-bright);">{{ agent|replace(' Agent', '') }}</span>: <span style="color: var(--accent);">{{ weight }}%</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% if metrics.agent_router.verdict.top_risks %}
+    <div style="padding: 12px 16px; background: rgba(220,38,38,0.05); border-left: 3px solid var(--red); border-radius: 0 8px 8px 0; font-size: 0.85em;">
+      <strong style="color: var(--red);">系统级风险提示：</strong>
+      <ul style="margin-top: 4px; margin-left: 20px; color: var(--text-dim);">
+        {% for risk in metrics.agent_router.verdict.top_risks %}
+        <li>{{ risk }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
   {% if metrics.agent_debate %}
   <div style="text-align:right;font-size:.72em;color:var(--text-dim);margin-top:8px">数据源：State Cube {{ metrics.agent_debate.state_date }} · 样本 {{ metrics.agent_debate.sample_stocks }} 只高 ADX 标的</div>
   {% endif %}

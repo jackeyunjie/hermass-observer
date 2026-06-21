@@ -127,6 +127,11 @@ def main() -> int:
     debate = run_agent_debate()
     metrics["agent_debate"] = debate
 
+    # Agent 动态权重路由与综合结论（Phase 2 MOE Router）
+    from scripts.dynamic_weight_router import main as run_router
+    router_result = run_router(debate)
+    metrics["agent_router"] = router_result
+
     DATA_FILE.write_text(json.dumps(metrics, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[OK] {DATA_FILE} 生成完成")
     return 0
