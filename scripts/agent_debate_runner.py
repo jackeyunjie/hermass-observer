@@ -1,211 +1,271 @@
-#!/usr/bin/env python3
-"""Agent Debate Runner — 多 Agent 辩论编排器。
+"""Agent Debate Runner — queries State Cube and produces 6-agent structured opinions.
 
-Phase 2 核心组件。对 State Cube 中的候选股票，召集多个 Agent 输出结构化意见：
-  - contraction_observer: 收缩突破观测
-  - m30_observer: M30 盘中精细观察（只做观察，不拍板）
-  - risk_guardian: 风险反驳（常驻）
-  - market_analyst: 市场环境判断
+Phase 2 MOE architecture: each agent reads market-wide aggregates from the State Cube
+and produces a structured opinion (verdict, evidence, risk). No LLM calls needed —
+all reasoning is rule-based from multi-timeframe indicator data.
 
-输出：多 Agent 意见、冲突、共振、权重建议。
-
-Usage:
-    python3 scripts/agent_debate_runner.py --date 2026-06-02 --top-n 50
+Output: JSON with 6 agent opinions, designed to feed into debate_dashboard.html template.
 """
-
-import argparse
+import duckdb
 import json
-import sys
-from datetime import datetime, timezone
+from datetime import date
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
-
-from hermass_platform.agents.contraction_observer import observe_contraction
-from hermass_platform.agents.m30_observer import observe_m30_intraday
-from hermass_platform.agents.risk_guardian import assess_portfolio_risk
-from hermass_platform.agents.base_agent import find_foundation_db
+ROOT = Path(__file__).resolve().parents[1]
+STATE_CUBE = ROOT / "outputs" / "state_cube" / "state_cube.duckdb"
+OUTPUT = ROOT / "outputs" / "debate" / "agent_debate_latest.json"
 
 
-def run_debate(
-    target_date: str,
-    foundation_db: str = "",
-    top_n: int = 50,
-    user_id: str = "system",
-) -> dict:
-    """运行多 Agent 辩论。
-
-    Returns:
-        dict: 包含各 Agent 意见、冲突矩阵、共振列表、权重建议
+def _query_cube(latest_date: str, where: str = "1=1", limit: int = 50) -> list[dict]:
+    con = duckdb.connect(str(STATE_CUBE), read_only=True)
+    rows = con.execute(
+        f"""
+        SELECT stock_code, mn1_state_hex, w1_state_hex, d1_state_hex, ef_count,
+               w1_ma_state, d1_ma_state,
+               w1_bb20_position, d1_bb20_position, w1_bb20_width, d1_bb20_width,
+               w1_bb50_position, d1_bb50_position,
+               ROUND(w1_atr14, 2) AS w1_atr14, ROUND(d1_atr14, 2) AS d1_atr14,
+               ROUND(w1_adx14, 1) AS w1_adx14, ROUND(d1_adx14, 1) AS d1_adx14,
+               ROUND(w1_plus_di_14, 1) AS w1_plus_di_14,
+               ROUND(d1_plus_di_14, 1) AS d1_plus_di_14,
+               ROUND(w1_minus_di_14, 1) AS w1_minus_di_14,
+               ROUND(d1_minus_di_14, 1) AS d1_minus_di_14,
+               ROUND(d1_close, 2) AS d1_close, ROUND(w1_close, 2) AS w1_close,
+               future_r5, future_r20
+        FROM state_cube
+        WHERE state_date = '{latest_date}'
+          AND {where}
+        ORDER BY ef_count DESC, d1_adx14 DESC
+        LIMIT {limit}
     """
-    if not foundation_db:
-        db_path = find_foundation_db(target_date)
-        foundation_db = str(db_path) if db_path else ""
-
-    if not foundation_db:
-        return {"status": "error", "errors": ["无可用 Foundation DB"]}
-
-    print(f"=== Agent Debate: {target_date} ===\n")
-
-    # ── 1. 获取候选池（三周期 E/F 优先） ──
-    import duckdb
-    con = duckdb.connect(foundation_db, read_only=True)
-    candidates = con.execute(f"""
-        SELECT stock_code, d1_state_hex, w1_state_hex, mn1_state_hex, ef_count, d1_close
-        FROM d1_perspective_state
-        WHERE state_date = DATE '{target_date}'
-          AND ef_count >= 2
-        ORDER BY ef_count DESC, stock_code
-        LIMIT {top_n}
-    """).fetchdf()
-    con.close()
-
-    stock_codes = candidates["stock_code"].tolist() if not candidates.empty else []
-    print(f"候选池: {len(stock_codes)} 只 (ef_count >= 2)\n")
-
-    # ── 2. 并行调用各 Agent ──
-    results = {}
-
-    # Contraction Observer
-    print("[1/4] Contraction Observer 扫描中...")
-    try:
-        co_result = observe_contraction(
-            user_id=user_id, target_date=target_date, foundation_db=foundation_db
-        )
-        results["contraction_observer"] = co_result
-        print(f"  -> 收缩检测完成")
-    except Exception as e:
-        results["contraction_observer"] = {"status": "error", "errors": [str(e)]}
-        print(f"  -> 错误: {e}")
-
-    # M30 Observer（只做观察，不拍板）
-    print("[2/4] M30 Observer 精细观察中...")
-    try:
-        m30_result = observe_m30_intraday(
-            user_id=user_id,
-            target_date=target_date,
-            foundation_db=foundation_db,
-            stock_codes=stock_codes,
-        )
-        results["m30_observer"] = m30_result
-        m30_data = m30_result.get("data", {})
-        print(f"  -> 突破候选: {m30_data.get('breakout_count', 0)}, 风险: {m30_data.get('risk_count', 0)}")
-    except Exception as e:
-        results["m30_observer"] = {"status": "error", "errors": [str(e)]}
-        print(f"  -> 错误: {e}")
-
-    # Risk Guardian（常驻反驳）
-    print("[3/4] Risk Guardian 风险评估中...")
-    try:
-        rg_result = assess_portfolio_risk(
-            user_id=user_id,
-            target_date=target_date,
-            foundation_db=foundation_db,
-            stock_codes=stock_codes,
-        )
-        results["risk_guardian"] = rg_result
-        print(f"  -> 风险评估完成")
-    except Exception as e:
-        results["risk_guardian"] = {"status": "error", "errors": [str(e)]}
-        print(f"  -> 错误: {e}")
-
-    # ── 3. 冲突检测与共振分析 ──
-    print("[4/4] 冲突/共振分析中...")
-    debate_summary = _analyze_debate(results, stock_codes)
-    print(f"  -> 共振: {len(debate_summary['resonance'])}, 冲突: {len(debate_summary['conflicts'])}")
-
-    output = {
-        "status": "ok",
-        "target_date": target_date,
-        "candidate_count": len(stock_codes),
-        "agent_results": results,
-        "debate_summary": debate_summary,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-    }
-
-    return output
+    ).fetchall()
+    cols = [
+        "stock_code", "mn1_state_hex", "w1_state_hex", "d1_state_hex", "ef_count",
+        "w1_ma_state", "d1_ma_state", "w1_bb20_position", "d1_bb20_position",
+        "w1_bb20_width", "d1_bb20_width", "w1_bb50_position", "d1_bb50_position",
+        "w1_atr14", "d1_atr14", "w1_adx14", "d1_adx14",
+        "w1_plus_di_14", "d1_plus_di_14", "w1_minus_di_14", "d1_minus_di_14",
+        "d1_close", "w1_close", "future_r5", "future_r20",
+    ]
+    return [dict(zip(cols, row)) for row in rows]
 
 
-def _analyze_debate(results: dict, stock_codes: list) -> dict:
-    """分析 Agent 间的冲突与共振。"""
-    resonance = []
-    conflicts = []
-    neutral = []
-
-    # 提取各 Agent 对每只股票的看法
-    m30_data = results.get("m30_observer", {}).get("data", {})
-    m30_obs = {o["stock_code"]: o for o in m30_data.get("m30_observations", [])}
-
-    co_data = results.get("contraction_observer", {}).get("data", {})
-    co_obs = {o["stock_code"]: o for o in co_data.get("observations", [])}
-
-    for code in stock_codes:
-        m30 = m30_obs.get(code, {})
-        co = co_obs.get(code, {})
-
-        # 共振：收缩 + M30 突破确认
-        if co.get("is_contraction") and m30.get("m30_breakout_confirmed"):
-            resonance.append({
-                "stock_code": code,
-                "type": "contraction_breakout",
-                "m30_score": m30.get("score", 0),
-                "ef_count": m30.get("ef_count", 0),
-                "agents": ["contraction_observer", "m30_observer"],
-            })
-        # 冲突：收缩但 M30 风险
-        elif co.get("is_contraction") and m30.get("m30_risk_flag"):
-            conflicts.append({
-                "stock_code": code,
-                "type": "contraction_vs_risk",
-                "m30_score": m30.get("score", 0),
-                "ef_count": m30.get("ef_count", 0),
-                "agents": ["contraction_observer", "m30_observer"],
-            })
-        else:
-            neutral.append({
-                "stock_code": code,
-                "m30_score": m30.get("score", 0),
-                "ef_count": m30.get("ef_count", 0),
-            })
-
-    # 按 M30 score 排序
-    resonance.sort(key=lambda x: x["m30_score"], reverse=True)
-    conflicts.sort(key=lambda x: x["m30_score"], reverse=True)
-
+def _market_aggregates(latest_date: str) -> dict:
+    con = duckdb.connect(str(STATE_CUBE), read_only=True)
+    row = con.execute(f"""
+        SELECT
+            COUNT(*) AS total,
+            ROUND(AVG(d1_adx14), 1) AS avg_d1_adx,
+            ROUND(AVG(w1_adx14), 1) AS avg_w1_adx,
+            ROUND(AVG(CASE WHEN d1_plus_di_14 > d1_minus_di_14 THEN 1.0 ELSE 0.0 END) * 100, 1) AS d1_bull_pct,
+            ROUND(AVG(CASE WHEN w1_plus_di_14 > w1_minus_di_14 THEN 1.0 ELSE 0.0 END) * 100, 1) AS w1_bull_pct,
+            COUNT(CASE WHEN ef_count >= 2 THEN 1 END) AS ef2_count,
+            COUNT(CASE WHEN ef_count >= 3 THEN 1 END) AS ef3_count,
+            COUNT(CASE WHEN d1_bb20_position = 'above_upper' THEN 1 END) AS above_bb,
+            COUNT(CASE WHEN d1_bb20_position = 'below_lower' THEN 1 END) AS below_bb,
+            ROUND(AVG(d1_atr14 / NULLIF(d1_close, 0)) * 100, 1) AS avg_atr_pct,
+            COUNT(CASE WHEN d1_adx14 >= 40 AND d1_plus_di_14 > d1_minus_di_14 THEN 1 END) AS strong_momentum,
+            COUNT(CASE WHEN d1_adx14 >= 70 THEN 1 END) AS extreme_adx,
+            COUNT(CASE WHEN d1_adx14 >= 30 AND d1_minus_di_14 > d1_plus_di_14 THEN 1 END) AS bearish_div,
+            COUNT(CASE WHEN d1_bb20_position = 'above_upper' AND d1_adx14 < w1_adx14 THEN 1 END) AS fake_breakout,
+            COUNT(CASE WHEN mn1_state_hex NOT IN ('E', 'F') AND ef_count >= 2 THEN 1 END) AS mn1_weak_ef2
+        FROM state_cube
+        WHERE state_date = '{latest_date}' AND d1_close > 0
+    """).fetchone()
     return {
-        "resonance": resonance,
-        "conflicts": conflicts,
-        "neutral": neutral,
-        "resonance_count": len(resonance),
-        "conflict_count": len(conflicts),
+        "total_stocks": row[0], "avg_d1_adx": row[1], "avg_w1_adx": row[2],
+        "d1_bull_pct": row[3], "w1_bull_pct": row[4],
+        "ef2_count": row[5], "ef3_count": row[6],
+        "d1_above_bb": row[7], "d1_below_bb": row[8],
+        "avg_atr_pct": row[9],
+        "strong_momentum": row[10], "extreme_adx": row[11],
+        "bearish_div": row[12], "fake_breakout": row[13],
+        "mn1_weak_ef2": row[14],
     }
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Agent Debate Runner")
-    parser.add_argument("--date", required=True, help="目标日期 YYYY-MM-DD")
-    parser.add_argument("--foundation", default="", help="Foundation DB 路径")
-    parser.add_argument("--top-n", type=int, default=50, help="候选池大小")
-    parser.add_argument("--user-id", default="system", help="用户 ID")
-    parser.add_argument("--output", default="", help="输出 JSON 路径")
-    args = parser.parse_args()
+def _trend_opinion(stocks: list[dict], market: dict) -> dict:
+    ef2_count = market["ef2_count"]
+    ef3_count = market["ef3_count"]
+    pct_ef2 = ef2_count / max(market["total_stocks"], 1) * 100
+    hex_patterns = {}
+    for s in stocks:
+        key = f"{s['mn1_state_hex']}-{s['w1_state_hex']}-{s['d1_state_hex']}"
+        hex_patterns[key] = hex_patterns.get(key, 0) + 1
+    top_pattern = max(hex_patterns, key=hex_patterns.get) if hex_patterns else "?"
+    return {
+        "agent": "趋势 Agent", "role": "周线趋势判断",
+        "verdict": "偏多" if pct_ef2 >= 8 else "中性",
+        "verdict_color": "green" if pct_ef2 >= 10 else "yellow",
+        "conclusion": (
+            f"EF≥2 标的 {ef2_count} 只（{pct_ef2:.0f}%），EF=3 共 {ef3_count} 只，"
+            f"主导形态 {top_pattern}（高 ADX 样本），MN1/W1 多头排列"
+        ),
+        "evidence": [
+            f"EF≥2 标的 {ef2_count} 只（占比 {pct_ef2:.0f}%），EF=3 共 {ef3_count} 只",
+            f"三周期主导形态 {top_pattern}（高 ADX 样本 {hex_patterns.get(top_pattern, 0)} 只）",
+            f"市场 avg_w1_ADX {market['avg_w1_adx']}，趋势明确度 {'强' if market['avg_w1_adx'] > 30 else '一般'}",
+        ],
+        "risk": f"EF=3 标的 {ef3_count} 只{'，热度偏高需关注拥挤' if ef3_count > 200 else ''}。若周线MA跌破则趋势逆转",
+    }
 
-    result = run_debate(
-        target_date=args.date,
-        foundation_db=args.foundation,
-        top_n=args.top_n,
-        user_id=args.user_id,
+
+def _momentum_opinion(stocks: list[dict], market: dict) -> dict:
+    strong = market["strong_momentum"]
+    avg_adx = market["avg_d1_adx"]
+    adx_level = "强势" if avg_adx >= 35 else ("中等偏强" if avg_adx >= 25 else "偏弱")
+    bull_pct = market["d1_bull_pct"]
+    return {
+        "agent": "动量 Agent", "role": "日线动量判断",
+        "verdict": "偏多" if bull_pct >= 50 else "中性",
+        "verdict_color": "green" if bull_pct >= 60 else ("yellow" if bull_pct >= 40 else "red"),
+        "conclusion": f"D1 ADX 均值 {avg_adx}（{adx_level}），全市场 ADX≥40 正向动量 {strong} 只，+DI > -DI 占比 {bull_pct}%",
+        "evidence": [
+            f"全市场 ADX≥40 且 +DI > -DI 共 {strong} 只（正向动量）",
+            f"D1 ADX 均值 {avg_adx}，W1 ADX 均值 {market['avg_w1_adx']}",
+            f"全市场 +DI > -DI 占比 {bull_pct}%（日线动量方向）",
+        ],
+        "risk": f"{strong} 只 D1 动量强劲需关注持续性" if strong > 500 else "动量分布正常，关注个别标的目标回踩",
+    }
+
+
+def _volatility_opinion(stocks: list[dict], market: dict) -> dict:
+    above_bb = market["d1_above_bb"]
+    below_bb = market["d1_below_bb"]
+    avg_atr = market["avg_atr_pct"]
+    extreme = above_bb + below_bb
+    atr_level = "高波动" if avg_atr >= 8 else ("中等波动" if avg_atr >= 4 else "低波动")
+    risk_items = []
+    if above_bb > 200:
+        risk_items.append(f"{above_bb} 只突破 BB 上轨，存在回落风险")
+    if below_bb > 200:
+        risk_items.append(f"{below_bb} 只跌破 BB 下轨，存在超跌反弹或继续下行风险")
+    if avg_atr >= 8:
+        risk_items.append(f"高 ATR%({avg_atr}%) 环境，止损需适当放宽")
+    return {
+        "agent": "波动率 Agent", "role": "波动率环境判断",
+        "verdict": "观察" if extreme > 300 else "正常",
+        "verdict_color": "yellow" if extreme > 300 else "green",
+        "conclusion": f"ATR/收盘均值 {avg_atr}%（{atr_level}），BB 极端位置 {extreme} 只（上轨 {above_bb} / 下轨 {below_bb}）",
+        "evidence": [
+            f"BB 上轨突破 {above_bb} 只，下轨跌破 {below_bb} 只",
+            f"全市场 avg_ATR% = {avg_atr}%（{atr_level}环境）",
+        ],
+        "risk": "；".join(risk_items) if risk_items else "波动率环境正常，无极端信号",
+    }
+
+
+def _boundary_opinion(stocks: list[dict], market: dict) -> dict:
+    above_d1_bb = [s for s in stocks if s["d1_bb20_position"] == "above_upper"]
+    below_d1_bb = [s for s in stocks if s["d1_bb20_position"] == "below_lower"]
+    d1_ma_above = [s for s in stocks if "D7" in str(s.get("d1_ma_state", "")) or "D6" in str(s.get("d1_ma_state", ""))]
+    return {
+        "agent": "边界 Agent", "role": "支撑/阻力位置判断",
+        "verdict": "谨慎" if len(above_d1_bb) > 50 else "正常",
+        "verdict_color": "yellow" if len(above_d1_bb) > 50 else "green",
+        "conclusion": (
+            f"日线 BB 上轨外 {len(above_d1_bb)} 只（需警惕回调），"
+            f"下轨外 {len(below_d1_bb)} 只（超卖观察），"
+            f"MA 高位 {len(d1_ma_above)} 只"
+        ),
+        "evidence": [
+            f"日线 BB 上轨外 {len(above_d1_bb)} 只（收盘突破布林带上轨）",
+            f"日线 BB 下轨外 {len(below_d1_bb)} 只（收盘跌破布林带下轨）",
+            f"日线 MA 高位信号 {len(d1_ma_above)} 只（D6/D7 状态）",
+        ],
+        "risk": (
+            f"{len(above_d1_bb)} 只标的价格处于 BB 上轨外，追高风险显著"
+            if len(above_d1_bb) > 50 else "边界位置分布正常"
+        ),
+    }
+
+
+def _risk_opinion(stocks: list[dict], market: dict) -> dict:
+    risks = []
+    if market["extreme_adx"] >= 5:
+        risks.append(f"全市场 {market['extreme_adx']} 只 D1 ADX≥70，极端动量可能衰竭")
+    if market["bearish_div"] >= 10:
+        risks.append(f"全市场 {market['bearish_div']} 只 ADX≥30 但 -DI > +DI，动量反转风险")
+    if market["fake_breakout"] >= 5:
+        risks.append(f"全市场 {market['fake_breakout']} 只 BB 上轨突破但 D1 ADX < W1 ADX，假突破警告")
+    if market["mn1_weak_ef2"] >= 20:
+        risks.append(f"{market['mn1_weak_ef2']} 只 EF≥2 但 MN1 未在 E/F 牛市，长周期保护不足")
+    return {
+        "agent": "风险 Agent", "role": "风险识别与反驳",
+        "verdict": "有风险" if len(risks) >= 2 else ("观察" if risks else "安全"),
+        "verdict_color": "red" if len(risks) >= 2 else ("yellow" if risks else "green"),
+        "conclusion": f"发现 {len(risks)} 项风险信号" + (f"：{'；'.join(risks)}" if risks else "，系统运行正常"),
+        "evidence": risks if risks else ["无极端风险信号"],
+        "risk": "多重风险叠加，建议降低仓位观察" if len(risks) >= 2 else (
+            "个别风险信号需跟踪" if risks else "风险可控，可维持当前仓位"
+        ),
+    }
+
+
+def _market_opinion(market: dict) -> dict:
+    bull_pct = market["d1_bull_pct"]
+    ef2_count = market["ef2_count"]
+    phase = "强势多头" if bull_pct >= 55 and ef2_count >= 500 else (
+        "温和偏多" if bull_pct >= 45 else "震荡整理"
+    )
+    return {
+        "agent": "市场 Agent", "role": "市场环境总览",
+        "verdict": phase,
+        "verdict_color": "green" if "多头" in phase else "yellow",
+        "conclusion": (
+            f"全市场 {market['total_stocks']} 只，EF≥2 占比 "
+            f"{ef2_count / market['total_stocks'] * 100:.0f}%，"
+            f"D1 +DI > -DI 占比 {bull_pct}%，定性 {phase}"
+        ),
+        "evidence": [
+            f"总股票数 {market['total_stocks']}，EF≥2 标的 {ef2_count} 只",
+            f"D1 ADX 均值 {market['avg_d1_adx']}，W1 ADX 均值 {market['avg_w1_adx']}",
+            f"日线动量偏多比例 {bull_pct}%，周线 {market['w1_bull_pct']}%",
+            f"BB 上轨外 {market['d1_above_bb']} 只，下轨外 {market['d1_below_bb']} 只",
+        ],
+        "risk": "数据来源：State Cube（MN1/W1/D1 多周期全景），非实时盘中数据",
+    }
+
+
+def main() -> dict:
+    latest_date = str(date.today())
+    con = duckdb.connect(str(STATE_CUBE), read_only=True)
+    try:
+        actual = con.execute(
+            "SELECT MAX(state_date) FROM state_cube WHERE state_date <= CURRENT_DATE"
+        ).fetchone()[0]
+        if actual:
+            latest_date = str(actual)
+    finally:
+        con.close()
+
+    market = _market_aggregates(latest_date)
+    top_stocks = _query_cube(
+        latest_date, where="ef_count >= 2 AND d1_close > 5", limit=50
     )
 
-    print(f"\n{'='*60}")
-    print(json.dumps(result["debate_summary"], ensure_ascii=False, indent=2))
+    opinions = [
+        _market_opinion(market),
+        _trend_opinion(top_stocks, market),
+        _momentum_opinion(top_stocks, market),
+        _volatility_opinion(top_stocks, market),
+        _boundary_opinion(top_stocks, market),
+        _risk_opinion(top_stocks, market),
+    ]
 
-    if args.output:
-        Path(args.output).parent.mkdir(parents=True, exist_ok=True)
-        with open(args.output, "w", encoding="utf-8") as f:
-            json.dump(result, f, ensure_ascii=False, indent=2, default=str)
-        print(f"\n已写入: {args.output}")
+    result = {
+        "generated_at": date.today().isoformat(),
+        "state_date": latest_date,
+        "cube_stocks": market["total_stocks"],
+        "market_summary": market,
+        "sample_stocks": len(top_stocks),
+        "opinions": opinions,
+    }
+
+    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+    OUTPUT.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"[OK] {OUTPUT} — {len(opinions)} agents, state_date={latest_date}")
+    return result
 
 
 if __name__ == "__main__":

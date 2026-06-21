@@ -122,6 +122,11 @@ def main() -> int:
     gap = build_backtest_gap_annotation()
     metrics["backtest_gap"] = gap
 
+    # Agent 辩论数据（Phase 2 MOE）
+    from scripts.agent_debate_runner import main as run_agent_debate
+    debate = run_agent_debate()
+    metrics["agent_debate"] = debate
+
     DATA_FILE.write_text(json.dumps(metrics, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[OK] {DATA_FILE} 生成完成")
     return 0

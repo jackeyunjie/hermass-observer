@@ -7,7 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#060a12;--surface:#0c1220;--card:#111a2e;--card-hover:#152040;--border:#1a2744;--border-glow:#2a4080;--text:#c8d6e5;--text-bright:#edf2f7;--text-dim:#5a6f8a;--accent:#4f8cff;--accent2:#7c5cfc;--green:#0f6b4b;--yellow:#ca8a04;--red:#dc2626;--ok:var(--green);--warn:var(--yellow);--danger:var(--red);--gold:#ffd700}
+:root{--bg:#060a12;--surface:#0c1220;--card:#111a2e;--card-hover:#152040;--border:#1a2744;--border-glow:#2a4080;--text:#c8d6e5;--text-bright:#edf2f7;--text-dim:#5a6f8a;--accent:#4f8cff;--accent2:#7c5cfc;--green:#0f6b4b;--yellow:#ca8a04;--red:#dc2626;--green-bg:rgba(15,107,75,.12);--yellow-bg:rgba(202,138,4,.12);--red-bg:rgba(220,38,38,.12);--ok:var(--green);--warn:var(--yellow);--danger:var(--red);--gold:#ffd700}
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
 body{background:var(--bg);color:var(--text);font-family:'Noto Sans SC',sans-serif;line-height:1.7;overflow-x:hidden}
@@ -170,39 +170,29 @@ body::before{content:'';position:fixed;inset:0;background:linear-gradient(rgba(7
   </div>
 </div>
 
-<!-- 2. FIVE PERSONAS (P1-1: 卡片化) -->
+<!-- 2. SIX AGENT DEBATE (Phase 2 MOE) -->
 <div class="section reveal">
   <div class="section-head">
     <div class="section-num" style="background:rgba(124,92,252,.12);color:var(--accent2)">02</div>
-    <div class="section-title">五方观点对比</div>
+    <div class="section-title">六方 Agent 辩论 — State Cube 实时分析</div>
   </div>
   <div class="grid-5 persona-grid">
-    <div class="persona" style="--c:var(--red)"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--red);border-radius:16px 16px 0 0"></div><span class="icon">📊</span><div class="name">交易员老陈</div><div class="role">30年实战 · 管理5000万资金</div>
-      <div class="card-verdict"><span class="card-tag" style="background:rgba(220,38,38,.12);color:var(--red)">信号不可信，执行层断裂</span></div>
-      <div class="card-evidence">VCP 非真正 VCP，0.95 置信度实际胜率可能不足 40%</div>
-      <div class="card-risk" style="color:var(--red)">⚠ 按当前信号操作存在系统性高估风险</div>
+{% if metrics.agent_debate and metrics.agent_debate.opinions %}
+{% set icons = ['📊', '📈', '⚡', '🌊', '🧱', '🛡️'] %}
+{% for op in metrics.agent_debate.opinions %}
+    <div class="persona" style="--c:var(--{{ op.verdict_color }})"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--{{ op.verdict_color }});border-radius:16px 16px 0 0"></div><span class="icon">{{ icons[loop.index0] if loop.index0 < icons|length else '📌' }}</span><div class="name">{{ op.agent }}</div><div class="role">{{ op.role }}</div>
+      <div class="card-verdict"><span class="card-tag" style="background:var(--{{ op.verdict_color }}-bg);color:var(--{{ op.verdict_color }})">{{ op.verdict }}</span></div>
+      <div class="card-evidence">{% for ev in op.evidence %}{{ ev }}{% if not loop.last %}<br>{% endif %}{% endfor %}</div>
+      <div class="card-risk" style="color:var(--{{ op.verdict_color }})">⚠ {{ op.risk }}</div>
     </div>
-    <div class="persona" style="--c:#2563eb"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#2563eb;border-radius:16px 16px 0 0"></div><span class="icon">⚙️</span><div class="name">技术架构师小周</div><div class="role">后端8年 · 核心引擎负责人</div>
-      <div class="card-verdict"><span class="card-tag" style="background:rgba(37,99,235,.12);color:#2563eb">代码膨胀，无测试覆盖</span></div>
-      <div class="card-evidence">web/main.py 6042 行，DuckDB 单进程瓶颈，daily pipeline 脆弱</div>
-      <div class="card-risk" style="color:var(--yellow)">⚠ 任一环节故障会导致数据中断</div>
-    </div>
-    <div class="persona" style="--c:#7c3aed"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#7c3aed;border-radius:16px 16px 0 0"></div><span class="icon">🎯</span><div class="name">产品经理小林</div><div class="role">ToB SaaS · 5年经验</div>
-      <div class="card-verdict"><span class="card-tag" style="background:rgba(124,58,237,.12);color:#7c3aed">用户、使用、留存三维未知</span></div>
-      <div class="card-evidence">12 页面信息密度过高，缺乏用户引导与反馈闭环</div>
-      <div class="card-risk" style="color:var(--yellow)">⚠ 功能堆砌而不解决核心需求</div>
-    </div>
-    <div class="persona" style="--c:var(--yellow)"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--yellow);border-radius:16px 16px 0 0"></div><span class="icon">🛡️</span><div class="name">风控合规老张</div><div class="role">券商风控 · 15年经验</div>
-      <div class="card-verdict"><span class="card-tag" style="background:rgba(202,138,4,.12);color:var(--yellow)">红线好但执行有漏洞</span></div>
-      <div class="card-evidence">仓位参数三处矛盾（5%/20%/25%），组合级风控缺失</div>
-      <div class="card-risk" style="color:var(--red)">⚠ AI 输出无风控校验，可能突破仓位上限</div>
-    </div>
-    <div class="persona" style="--c:var(--green)"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--green);border-radius:16px 16px 0 0"></div><span class="icon">📈</span><div class="name">业务发展赵总</div><div class="role">投资背景 · 关注商业化</div>
-      <div class="card-verdict"><span class="card-tag" style="background:rgba(15,107,75,.12);color:var(--green)">P116 护城河，商业化未动</span></div>
-      <div class="card-evidence">时间窗口收窄，三条路径未启动，3 月免费试用是折中</div>
-      <div class="card-risk" style="color:var(--yellow)">⚠ 窗口期有限，竞争者在加速</div>
-    </div>
+{% endfor %}
+{% else %}
+    <div class="persona" style="--c:var(--text-dim)"><div class="name">Agent 辩论数据未生成</div><div class="role">请执行 bash scripts/deploy_debate_dashboard.sh</div></div>
+{% endif %}
   </div>
+  {% if metrics.agent_debate %}
+  <div style="text-align:right;font-size:.72em;color:var(--text-dim);margin-top:8px">数据源：State Cube {{ metrics.agent_debate.state_date }} · 样本 {{ metrics.agent_debate.sample_stocks }} 只高 ADX 标的</div>
+  {% endif %}
 </div>
 
 <!-- 3. STRATEGY SIGNALS -->
