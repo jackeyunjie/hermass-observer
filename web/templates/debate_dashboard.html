@@ -306,11 +306,37 @@ body::before{content:'';position:fixed;inset:0;background:linear-gradient(rgba(7
         <tr><td><strong>心理因素</strong></td><td>无</td><td>连续亏损后执行力下降</td><td style="text-align:center" class="impact-high">🔴 极高</td></tr>
       </tbody>
     </table>
-{% if metrics.backtest_gap %}
-    <div style="margin-top:16px;padding:12px 16px;background:rgba(202,138,4,.06);border-left:3px solid var(--yellow);border-radius:0 6px 6px 0;font-size:.82em;color:var(--text-dim);line-height:1.7">
-      <strong style="color:var(--yellow)">⚠️ 当前推荐池回测偏差：</strong>
-      今日 VCP entry {{ metrics.backtest_gap.vcp_entry_count }} 只 + Bollinger 突破 {{ metrics.backtest_gap.bollinger_entry_count }} 只，共 {{ metrics.backtest_gap.total_entry_count }} 只信号标的均受 T+1 / 涨跌停 / 停牌等实盘偏差影响。<br>
-      <span style="font-size:.78em">ATR/收盘中位 {{ metrics.backtest_gap.median_atr_pct }}%（信号级回撤中位参考），{{ metrics.backtest_gap.gap_note }}</span>
+{% if metrics.backtest_gap and not metrics.backtest_gap.error %}
+    <div style="margin-top:20px;padding:16px 20px;background:rgba(202,138,4,.06);border-left:3px solid var(--yellow);border-radius:0 6px 6px 0;font-size:.82em;color:var(--text-dim);line-height:1.7">
+      <strong style="color:var(--yellow)">⚠️ T+1 回测偏差量化（{{ metrics.backtest_gap.data_source }}）：</strong>
+      今日 VCP {{ metrics.backtest_gap.vcp_entry_count }} 只 + Bollinger {{ metrics.backtest_gap.bollinger_entry_count }} 只，共 {{ metrics.backtest_gap.total_entry_count }} 只信号标的均需次日开盘价执行。
+    </div>
+    {% if metrics.backtest_gap.risk_buckets %}
+    <div class="grid-3" style="margin-top:12px;gap:12px">
+      <div style="padding:12px;background:rgba(15,107,75,.06);border:1px solid rgba(15,107,75,.2);border-radius:10px;text-align:center">
+        <div style="font-size:.78em;color:var(--text-dim)">低风险 <3%</div>
+        <div style="font-size:1.4em;font-weight:900;color:var(--green)">{{ metrics.backtest_gap.risk_buckets.low_risk.count }}</div>
+        <div style="font-size:.72em;color:var(--green)">只</div>
+      </div>
+      <div style="padding:12px;background:rgba(202,138,4,.06);border:1px solid rgba(202,138,4,.2);border-radius:10px;text-align:center">
+        <div style="font-size:.78em;color:var(--text-dim)">中风险 3-6%</div>
+        <div style="font-size:1.4em;font-weight:900;color:var(--yellow)">{{ metrics.backtest_gap.risk_buckets.mid_risk.count }}</div>
+        <div style="font-size:.72em;color:var(--yellow)">只</div>
+      </div>
+      <div style="padding:12px;background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.2);border-radius:10px;text-align:center">
+        <div style="font-size:.78em;color:var(--text-dim)">高风险 >6%</div>
+        <div style="font-size:1.4em;font-weight:900;color:var(--red)">{{ metrics.backtest_gap.risk_buckets.high_risk.count }}</div>
+        <div style="font-size:.72em;color:var(--red)">只</div>
+      </div>
+    </div>
+    {% endif %}
+    {% if metrics.backtest_gap.halt_note %}
+    <div style="margin-top:12px;padding:8px 12px;background:rgba(220,38,38,.06);border-radius:6px;font-size:.78em;color:var(--red)">
+      {{ metrics.backtest_gap.halt_note }}
+    </div>
+    {% endif %}
+    <div style="margin-top:12px;font-size:.76em;color:var(--text-dim)">
+      <strong style="color:var(--text)">T+1 入场偏差参考：</strong>中位 ATR% {{ metrics.backtest_gap.median_atr_pct }}% · 均值 {{ metrics.backtest_gap.mean_atr_pct }}% · 最大 {{ metrics.backtest_gap.max_atr_pct }}%。{{ metrics.backtest_gap.gap_note }}
     </div>
 {% endif %}
   </div>
