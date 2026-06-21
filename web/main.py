@@ -5676,6 +5676,7 @@ WEBSITE_UPLOAD_TARGETS = {
     "forward_observation": ("forward_observation", "forward_observation_{ymd}.json", None),
     "macro_chain_prior": ("macro_chain_prior", "macro_chain_prior_{ymd}.json", "macro_chain_prior_latest.json"),
     "industry_rotation": ("industry_rotation", "industry_rotation_{ymd}.json", None),
+    "debate_dashboard": ("debate", "debate_dashboard_data.json", None),
 }
 
 
