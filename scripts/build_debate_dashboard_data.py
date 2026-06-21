@@ -116,6 +116,12 @@ def main() -> int:
         "main_color": main_color,
     }
 
+    # 回测偏差标注（P2-1）
+    sys.path.insert(0, str(ROOT))
+    from scripts.build_backtest_gap_annotation import build_backtest_gap_annotation
+    gap = build_backtest_gap_annotation()
+    metrics["backtest_gap"] = gap
+
     DATA_FILE.write_text(json.dumps(metrics, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[OK] {DATA_FILE} 生成完成")
     return 0

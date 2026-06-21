@@ -264,6 +264,13 @@ body::before{content:'';position:fixed;inset:0;background:linear-gradient(rgba(7
         <tr><td><strong>心理因素</strong></td><td>无</td><td>连续亏损后执行力下降</td><td style="text-align:center" class="impact-high">🔴 极高</td></tr>
       </tbody>
     </table>
+{% if metrics.backtest_gap %}
+    <div style="margin-top:16px;padding:12px 16px;background:rgba(202,138,4,.06);border-left:3px solid var(--yellow);border-radius:0 6px 6px 0;font-size:.82em;color:var(--text-dim);line-height:1.7">
+      <strong style="color:var(--yellow)">⚠️ 当前推荐池回测偏差：</strong>
+      今日 VCP entry {{ metrics.backtest_gap.vcp_entry_count }} 只 + Bollinger 突破 {{ metrics.backtest_gap.bollinger_entry_count }} 只，共 {{ metrics.backtest_gap.total_entry_count }} 只信号标的均受 T+1 / 涨跌停 / 停牌等实盘偏差影响。<br>
+      <span style="font-size:.78em">ATR/收盘中位 {{ metrics.backtest_gap.median_atr_pct }}%（信号级回撤中位参考），{{ metrics.backtest_gap.gap_note }}</span>
+    </div>
+{% endif %}
   </div>
 </div>
 
