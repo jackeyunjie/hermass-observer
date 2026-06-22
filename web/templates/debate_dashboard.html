@@ -31,9 +31,10 @@ body::before{content:'';position:fixed;inset:0;background:linear-gradient(rgba(7
 .card-title{font-size:1.05em;font-weight:700;color:var(--text-bright);margin-bottom:16px;display:flex;align-items:center;gap:8px}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
 .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
 .grid-5{display:grid;grid-template-columns:repeat(5,1fr);gap:16px}
-@media(max-width:1024px){.grid-5{grid-template-columns:repeat(3,1fr)}.grid-3,.grid-2{grid-template-columns:1fr}}
-@media(max-width:640px){.grid-5{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:1024px){.grid-5{grid-template-columns:repeat(3,1fr)}.grid-4{grid-template-columns:repeat(2,1fr)}.grid-3,.grid-2{grid-template-columns:1fr}}
+@media(max-width:640px){.grid-5{grid-template-columns:repeat(2,1fr)}.grid-4{grid-template-columns:1fr}}
 .persona{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:24px 20px 20px;position:relative;transition:all .3s}
 .persona:hover{border-color:var(--border-glow);background:var(--card-hover)}
 .persona .icon{font-size:1.6em;display:block;margin-bottom:8px}
@@ -347,23 +348,28 @@ body::before{content:'';position:fixed;inset:0;background:linear-gradient(rgba(7
     </div>
     {% if psr.history and psr.history.ok %}
     {% set hist = psr.history %}
-    <div class="grid-3" style="margin-bottom: 16px; gap: 14px;">
+    <div class="grid-4" style="margin-bottom: 16px; gap: 14px;">
       <div style="padding: 14px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 10px; text-align: center;">
         <div style="font-size: 0.76em; color: var(--text-dim); margin-bottom: 4px;">历史评估样本</div>
         <div style="font-size: 1.4em; font-weight: 900; color: var(--text-bright);">{{ hist.total_evaluated }}</div>
         <div style="font-size: 0.72em; color: var(--text-dim); margin-top: 4px;">个信号 · 近 90 天</div>
       </div>
       <div style="padding: 14px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 10px; text-align: center;">
-        <div style="font-size: 0.76em; color: var(--text-dim); margin-bottom: 4px;">偏多信号正收益比例</div>
+        <div style="font-size: 0.76em; color: var(--text-dim); margin-bottom: 4px;">偏多信号 5日胜率</div>
         {% set obs = hist.label_stats.observe or {} %}
         <div style="font-size: 1.4em; font-weight: 900; color: var(--green);">{{ "%.1f"|format((obs.positive_pct or 0) * 100) }}%</div>
-        <div style="font-size: 0.72em; color: var(--text-dim); margin-top: 4px;">{{ obs.count or 0 }} 个信号 · 5日平均 {{ "%.2f"|format((obs.avg_r5 or 0) * 100) }}%</div>
+        <div style="font-size: 0.72em; color: var(--text-dim); margin-top: 4px;">{{ obs.count or 0 }} 个信号 · 平均 {{ "%.2f"|format((obs.avg_r5 or 0) * 100) }}%</div>
       </div>
       <div style="padding: 14px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 10px; text-align: center;">
-        <div style="font-size: 0.76em; color: var(--text-dim); margin-bottom: 4px;">中分档(0.4-0.7) 5日胜率</div>
-        {% set mid = hist.score_bin_stats.mid or {} %}
-        <div style="font-size: 1.4em; font-weight: 900; color: var(--yellow);">{{ "%.1f"|format((mid.positive_pct or 0) * 100) }}%</div>
-        <div style="font-size: 0.72em; color: var(--text-dim); margin-top: 4px;">样本 {{ mid.count }} · 平均 {{ "%.2f"|format((mid.avg_future_r5 or 0) * 100) }}%</div>
+        <div style="font-size: 0.76em; color: var(--text-dim); margin-bottom: 4px;">偏多信号 20日胜率</div>
+        <div style="font-size: 1.4em; font-weight: 900; color: var(--green);">{{ "%.1f"|format((obs.positive_pct_r20 or 0) * 100) }}%</div>
+        <div style="font-size: 0.72em; color: var(--text-dim); margin-top: 4px;">{{ obs.count or 0 }} 个信号 · 平均 {{ "%.2f"|format((obs.avg_r20 or 0) * 100) }}%</div>
+      </div>
+      <div style="padding: 14px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 10px; text-align: center;">
+        <div style="font-size: 0.76em; color: var(--text-dim); margin-bottom: 4px;">高分档(≥0.7) 20日胜率</div>
+        {% set high = hist.score_bin_stats.high or {} %}
+        <div style="font-size: 1.4em; font-weight: 900; color: var(--yellow);">{{ "%.1f"|format((high.positive_pct_r20 or 0) * 100) }}%</div>
+        <div style="font-size: 0.72em; color: var(--text-dim); margin-top: 4px;">样本 {{ high.count }} · 平均 {{ "%.2f"|format((high.avg_future_r20 or 0) * 100) }}%</div>
       </div>
     </div>
     {% endif %}
@@ -398,7 +404,7 @@ body::before{content:'';position:fixed;inset:0;background:linear-gradient(rgba(7
       </tbody>
     </table>
     <div style="font-size: 0.72em; color: var(--text-dim); margin-top: 10px; line-height: 1.6;">
-      说明：个股评分由趋势(20%)、动量(18%)、波动率(15%)、边界(12%)、风险(20%)、市场相对(15%) 六维度加权得出，基于 State Cube 当日数据。历史记录持存在 decision_observation.duckdb 中，支持单只标的时序复盘。
+      说明：个股评分以周线布林带突破（weekly_momentum）为主导因子，辅以 EF 趋势强度、日线动量、风险扣除和边界位置六维度，标签按当日 cross-sectional 排名取前 10% 为偏多（observe）。历史记录保存在 decision_observation.duckdb，支持 5 日 / 20 日双 horizon 复盘。
     </div>
   </div>
   {% endif %}

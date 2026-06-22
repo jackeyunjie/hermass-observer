@@ -17,6 +17,8 @@ import duckdb
 
 from scripts import decision_observation_ledger as ledger
 from scripts.agent_debate_runner import (
+    _assign_rank_labels,
+    _compute_day_stats,
     _market_aggregates,
     _per_stock_score,
     _query_cube,
@@ -58,9 +60,11 @@ def backfill(start_date: str | None = None, end_date: str | None = None, recent_
             stocks = _query_cube(
                 state_date, where="ef_count >= 2 AND d1_close > 5", limit=50
             )
+            day_stats = _compute_day_stats(stocks)
             as_of = date.fromisoformat(state_date)
-            for stock in stocks:
-                score = _per_stock_score(stock, market)
+            scored = [_per_stock_score(stock, market, day_stats) for stock in stocks]
+            scored = _assign_rank_labels(scored)
+            for score, stock in zip(scored, stocks):
                 record = ledger._build_per_stock_observation_record(
                     score,
                     as_of,

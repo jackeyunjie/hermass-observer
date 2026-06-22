@@ -792,6 +792,7 @@ def generate_market_observation_report() -> dict[str, Any]:
         s["avg_r5"] = round(sum(s["r5_list"]) / len(s["r5_list"]), 4) if s["r5_list"] else None
         s["avg_r20"] = round(sum(s["r20_list"]) / len(s["r20_list"]), 4) if s["r20_list"] else None
         s["positive_pct"] = round(sum(1 for v in s["r5_list"] if v > 0) / len(s["r5_list"]), 4) if s["r5_list"] else 0
+        s["positive_pct_r20"] = round(sum(1 for v in s["r20_list"] if v > 0) / len(s["r20_list"]), 4) if s["r20_list"] else 0
         s["hit_rate"] = round(s["hit"] / s["count"], 4) if s["count"] else 0
         s.pop("r5_list", None)
         s.pop("r20_list", None)
@@ -799,24 +800,27 @@ def generate_market_observation_report() -> dict[str, Any]:
     overall_hit_rate = round(total_hit / total_seen, 4) if total_seen else 0
 
     # 按 score 分三档统计未来收益（即使官方 label 都是 watch，也能给出趋势强度）
-    score_bins = {"high": [], "mid": [], "low": []}
+    score_bins = {
+        "high": {"r5": [], "r20": []},
+        "mid": {"r5": [], "r20": []},
+        "low": {"r5": [], "r20": []},
+    }
     for r in records:
-        if r["future_r5"] is None:
-            continue
         s = r["final_score"] or 0.5
-        if s >= 0.55:
-            score_bins["high"].append(r["future_r5"])
-        elif s >= 0.35:
-            score_bins["mid"].append(r["future_r5"])
-        else:
-            score_bins["low"].append(r["future_r5"])
+        bin_key = "high" if s >= 0.55 else ("mid" if s >= 0.35 else "low")
+        if r["future_r5"] is not None:
+            score_bins[bin_key]["r5"].append(r["future_r5"])
+        if r["future_r20"] is not None:
+            score_bins[bin_key]["r20"].append(r["future_r20"])
 
     score_bin_stats = {}
-    for key, vals in score_bins.items():
+    for key, bins in score_bins.items():
         score_bin_stats[key] = {
-            "count": len(vals),
-            "avg_future_r5": round(sum(vals) / len(vals), 4) if vals else None,
-            "positive_pct": round(sum(1 for v in vals if v > 0) / len(vals), 4) if vals else None,
+            "count": len(bins["r5"]),
+            "avg_future_r5": round(sum(bins["r5"]) / len(bins["r5"]), 4) if bins["r5"] else None,
+            "positive_pct": round(sum(1 for v in bins["r5"] if v > 0) / len(bins["r5"]), 4) if bins["r5"] else None,
+            "avg_future_r20": round(sum(bins["r20"]) / len(bins["r20"]), 4) if bins["r20"] else None,
+            "positive_pct_r20": round(sum(1 for v in bins["r20"] if v > 0) / len(bins["r20"]), 4) if bins["r20"] else None,
         }
 
     return {
@@ -1188,7 +1192,11 @@ def _compute_per_stock_history_stats() -> dict[str, Any]:
 
     label_stats: dict[str, dict[str, Any]] = {}
     total_hit = total_seen = 0
-    score_bins = {"high": [], "mid": [], "low": []}
+    score_bins = {
+        "high": {"r5": [], "r20": []},
+        "mid": {"r5": [], "r20": []},
+        "low": {"r5": [], "r20": []},
+    }
 
     for final_label, final_score, future_r5, future_r20, outcome_label in rows:
         label = final_label or "unknown"
@@ -1209,28 +1217,29 @@ def _compute_per_stock_history_stats() -> dict[str, Any]:
                 total_hit += 1
 
         s = final_score or 0.5
+        bin_key = "high" if s >= 0.7 else ("mid" if s >= 0.4 else "low")
         if future_r5 is not None:
-            if s >= 0.7:
-                score_bins["high"].append(future_r5)
-            elif s >= 0.4:
-                score_bins["mid"].append(future_r5)
-            else:
-                score_bins["low"].append(future_r5)
+            score_bins[bin_key]["r5"].append(future_r5)
+        if future_r20 is not None:
+            score_bins[bin_key]["r20"].append(future_r20)
 
     for label, s in label_stats.items():
         s["avg_r5"] = round(sum(s["r5_list"]) / len(s["r5_list"]), 4) if s["r5_list"] else None
         s["avg_r20"] = round(sum(s["r20_list"]) / len(s["r20_list"]), 4) if s["r20_list"] else None
         s["positive_pct"] = round(sum(1 for v in s["r5_list"] if v > 0) / len(s["r5_list"]), 4) if s["r5_list"] else 0
+        s["positive_pct_r20"] = round(sum(1 for v in s["r20_list"] if v > 0) / len(s["r20_list"]), 4) if s["r20_list"] else 0
         s["hit_rate"] = round(s["hit"] / s["count"], 4) if s["count"] else 0
         s.pop("r5_list", None)
         s.pop("r20_list", None)
 
     score_bin_stats = {}
-    for key, vals in score_bins.items():
+    for key, bins in score_bins.items():
         score_bin_stats[key] = {
-            "count": len(vals),
-            "avg_future_r5": round(sum(vals) / len(vals), 4) if vals else None,
-            "positive_pct": round(sum(1 for v in vals if v > 0) / len(vals), 4) if vals else None,
+            "count": len(bins["r5"]),
+            "avg_future_r5": round(sum(bins["r5"]) / len(bins["r5"]), 4) if bins["r5"] else None,
+            "positive_pct": round(sum(1 for v in bins["r5"] if v > 0) / len(bins["r5"]), 4) if bins["r5"] else None,
+            "avg_future_r20": round(sum(bins["r20"]) / len(bins["r20"]), 4) if bins["r20"] else None,
+            "positive_pct_r20": round(sum(1 for v in bins["r20"] if v > 0) / len(bins["r20"]), 4) if bins["r20"] else None,
         }
 
     return {

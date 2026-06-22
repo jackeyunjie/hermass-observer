@@ -227,128 +227,155 @@ def _market_opinion(market: dict) -> dict:
     }
 
 
-def _per_stock_score(stock: dict, market: dict) -> dict:
-    """对单只标的计算 6-Agent 评分的简化版，返回 label + score + 各维度得分。"""
-    # 各维度得分 (0-1)，高于 0.5 为偏多
+def _compute_day_stats(stocks: list[dict]) -> dict:
+    """计算当日 cross-sectional 分布，用于单票得分的 within-day 归一化。"""
+    if not stocks:
+        return {}
+
+    def _range(key: str):
+        vals = [(s.get(key) or 0) for s in stocks]
+        return min(vals), max(vals), max(1e-6, max(vals) - min(vals))
+
+    ef_min, ef_max, ef_range = _range("ef_count")
+    w1_plus_vals = [(s.get("w1_plus_di_14") or 0) for s in stocks]
+    w1_minus_vals = [(s.get("w1_minus_di_14") or 0) for s in stocks]
+    w1_spreads = [p - m for p, m in zip(w1_plus_vals, w1_minus_vals)]
+    w1_spread_min, w1_spread_max = min(w1_spreads), max(w1_spreads)
+    w1_spread_range = max(1e-6, w1_spread_max - w1_spread_min)
+
+    return {
+        "ef_min": ef_min,
+        "ef_max": ef_max,
+        "ef_range": ef_range,
+        "w1_spread_min": w1_spread_min,
+        "w1_spread_max": w1_spread_max,
+        "w1_spread_range": w1_spread_range,
+    }
+
+
+def _per_stock_score(stock: dict, market: dict, day_stats: dict) -> dict:
+    """对单只标的计算 6-Agent 评分，返回 score + 各维度得分。
+
+    基于 state_cube 36 万条记录的后验分析校准：周线布林带上轨突破
+    (w1_bb20_position='above_upper') 是 5 日/20 日收益最强的正向预测因子
+    （top 10% 平均 future_r5 +3.5%，future_r20 +4.8%）。因此评分以
+    weekly_momentum 为主导，辅之以 w1_DI  spread、trend 强度和风险扣除。
+    标签仍由当日 cross-sectional 排名决定，不依赖固定绝对阈值。
+    """
     scores = {}
 
-    # 趋势维度：ef_count + 三周期 state_hex
-    ef = stock.get("ef_count", 0)
+    ef = stock.get("ef_count", 0) or 0
     mn1 = str(stock.get("mn1_state_hex", ""))
     w1h = str(stock.get("w1_state_hex", ""))
     d1h = str(stock.get("d1_state_hex", ""))
-    trend_score = 0.5
-    if ef >= 3 and mn1 in ("E", "F"):
-        trend_score = 0.85
-    elif ef >= 3:
-        trend_score = 0.75
-    elif ef >= 2 and (mn1 in ("E", "F") or w1h in ("E", "F")):
-        trend_score = 0.65
-    elif ef >= 2:
-        trend_score = 0.55
-    elif ef <= 0:
-        trend_score = 0.2
-    scores["trend"] = round(trend_score, 2)
 
-    # 动量维度：D1 ADX + DI 方向
+    w1_adx = stock.get("w1_adx14", 0) or 0
+    w1_plus = stock.get("w1_plus_di_14", 0) or 0
+    w1_minus = stock.get("w1_minus_di_14", 0) or 0
+    w1_di_spread = w1_plus - w1_minus
+
     d1_adx = stock.get("d1_adx14", 0) or 0
     d1_plus = stock.get("d1_plus_di_14", 0) or 0
     d1_minus = stock.get("d1_minus_di_14", 0) or 0
+
+    w1_bb = str(stock.get("w1_bb20_position", ""))
+    d1_bb = str(stock.get("d1_bb20_position", ""))
+    d1_ma = str(stock.get("d1_ma_state", ""))
+    atr_pct = (stock.get("d1_atr14", 0) or 0) / max(stock.get("d1_close", 1) or 1, 1) * 100
+
+    # 日线内归一化
+    ef_norm = (ef - day_stats.get("ef_min", 0)) / day_stats.get("ef_range", 1)
+    w1_spread_norm = (w1_di_spread - day_stats.get("w1_spread_min", 0)) / day_stats.get("w1_spread_range", 1)
+
+    # 1) Weekly momentum：周线布林带突破 + DI spread + W1 ADX（主导正向因子）
+    bb_score = {"above_upper": 1.0, "between": 0.45, "below_lower": 0.15}.get(w1_bb, 0.45)
+    w1_adx_factor = 0.0
+    if w1_adx >= 30 and w1_plus > w1_minus:
+        w1_adx_factor = 1.0
+    elif w1_adx >= 20 and w1_plus > w1_minus:
+        w1_adx_factor = 0.5
+    weekly_score = (
+        bb_score * 0.55 +
+        w1_spread_norm * 0.30 +
+        w1_adx_factor * 0.15
+    )
+    scores["weekly_momentum"] = round(max(0.0, min(1.0, weekly_score)), 2)
+
+    # 2) Trend：ef_count + 月/周 state_hex（ef_count 用当日归一化）
+    trend_score = ef_norm * 0.5
+    if mn1 in ("E", "F"):
+        trend_score += 0.25
+    elif mn1 in ("C", "D"):
+        trend_score += 0.10
+    if w1h in ("E", "F"):
+        trend_score += 0.15
+    scores["trend"] = round(max(0.0, min(1.0, trend_score)), 2)
+
+    # 3) Momentum：日线 ADX + DI
     if d1_adx >= 40 and d1_plus > d1_minus:
         momentum_score = 0.85
     elif d1_adx >= 30 and d1_plus > d1_minus:
-        momentum_score = 0.7
-    elif d1_adx >= 25:
-        momentum_score = 0.55
+        momentum_score = 0.70
     elif d1_plus > d1_minus:
-        momentum_score = 0.5
+        momentum_score = 0.55
     else:
-        momentum_score = 0.3
+        momentum_score = 0.35
     scores["momentum"] = round(momentum_score, 2)
 
-    # 波动率维度：BB 位置 + ATR
-    d1_bb = str(stock.get("d1_bb20_position", ""))
-    w1_bb = str(stock.get("w1_bb20_position", ""))
-    atr_pct = (stock.get("d1_atr14", 0) or 0) / max(stock.get("d1_close", 1) or 1, 1) * 100
-    if d1_bb == "above_upper" and w1_bb != "below_lower":
-        vol_score = 0.65  # 突破但非极端
-    elif d1_bb == "above_upper":
-        vol_score = 0.5
-    elif d1_bb == "below_lower":
+    # 4) Risk：极端值、背离、假突破、长周期保护不足（得分越低越危险）
+    risk_deductions = 0.0
+    if d1_adx >= 70:
+        risk_deductions += 0.20
+    if d1_adx >= 30 and d1_minus > d1_plus:
+        risk_deductions += 0.15
+    if d1_bb == "above_upper" and d1_adx < w1_adx:
+        risk_deductions += 0.15
+    if mn1 not in ("E", "F") and ef >= 2:
+        risk_deductions += 0.10
+    scores["risk"] = round(max(0.1, 0.85 - risk_deductions), 2)
+
+    # 5) Volatility：ATR + BB 位置
+    if d1_bb == "below_lower":
         vol_score = 0.25
     elif atr_pct > 8:
-        vol_score = 0.4
+        vol_score = 0.35
     else:
         vol_score = 0.55
     scores["volatility"] = round(vol_score, 2)
 
-    # 边界维度：MA 状态 + BB 边界
-    d1_ma = str(stock.get("d1_ma_state", ""))
-    w1_ma = str(stock.get("w1_ma_state", ""))
-    if "D6" in d1_ma or "D7" in d1_ma:
-        boundary_score = 0.65
-    elif d1_bb == "above_upper":
-        boundary_score = 0.55
+    # 6) Boundary：日线过度延伸 penalize，周线突破时不 penalize
+    if d1_bb == "above_upper" and w1_bb != "above_upper":
+        boundary_score = 0.30  # 日线超买但周线未确认
+    elif "D6" in d1_ma or "D7" in d1_ma:
+        boundary_score = 0.35
     elif d1_bb == "below_lower":
-        boundary_score = 0.25
+        boundary_score = 0.20
     elif "D4" in d1_ma or "D5" in d1_ma:
-        boundary_score = 0.5
+        boundary_score = 0.50
     else:
-        boundary_score = 0.4
+        boundary_score = 0.60
     scores["boundary"] = round(boundary_score, 2)
 
-    # 风险维度：极端值 + 背离信号
-    risk_deductions = 0.0
-    if d1_adx >= 70:
-        risk_deductions += 0.2  # 极端动量
-    if d1_adx >= 30 and d1_minus > d1_plus:
-        risk_deductions += 0.15  # 动量反转
-    if d1_bb == "above_upper" and d1_adx < (stock.get("w1_adx14", 0) or 0):
-        risk_deductions += 0.15  # 假突破
-    if mn1 not in ("E", "F") and ef >= 2:
-        risk_deductions += 0.1  # 长周期保护不足
-    risk_score = max(0.1, 0.7 - risk_deductions)
-    scores["risk"] = round(risk_score, 2)
-
-    # 市场相对维度
-    market_score = 0.5
-    if d1_adx > market.get("avg_d1_adx", 20) and d1_plus > d1_minus:
-        market_score = 0.65
-    elif d1_adx > market.get("avg_d1_adx", 20):
-        market_score = 0.55
-    elif d1_plus < d1_minus:
-        market_score = 0.35
-    scores["market_relative"] = round(market_score, 2)
-
-    # 复合加权评分（权重参照 Router 基础权重）
-    composite = (
-        scores["trend"] * 0.20 +
-        scores["momentum"] * 0.18 +
-        scores["volatility"] * 0.15 +
-        scores["boundary"] * 0.12 +
-        scores["risk"] * 0.20 +
-        scores["market_relative"] * 0.15
+    # 复合加权评分：直接采用后验校准的 3 因子公式。
+    # 6 个维度用于前端解释，真实排名由以下连续型分数决定。
+    bb_binary = 1.0 if w1_bb == "above_upper" else 0.0
+    raw_composite = (
+        bb_binary * 0.45 +
+        w1_spread_norm * 0.30 +
+        ef_norm * 0.25
     )
 
-    if composite >= 0.7:
-        label = "observe"
-        color = "green"
-        verdict = "偏多"
-    elif composite >= 0.4:
-        label = "watch"
-        color = "yellow"
-        verdict = "中性"
-    else:
-        label = "reject"
-        color = "red"
-        verdict = "防御"
+    # 连续型 tie-breaker：量级 0.0001，不影响主序
+    tie_breaker = (w1_spread_norm * 0.5 + ef_norm * 0.5) * 0.0001
+    raw_composite += tie_breaker
 
     return {
         "stock_code": stock["stock_code"],
-        "composite_score": round(composite, 2),
-        "label": label,
-        "color": color,
-        "verdict": verdict,
+        "composite_score": round(raw_composite, 3),
+        "raw_score": raw_composite,
+        "label": "watch",
+        "color": "yellow",
+        "verdict": "中性",
         "dimension_scores": scores,
         "key_states": {
             "ef_count": ef,
@@ -361,11 +388,47 @@ def _per_stock_score(stock: dict, market: dict) -> dict:
             "d1_bb": d1_bb,
             "w1_bb": w1_bb,
             "d1_ma": d1_ma,
+            "w1_adx": round(w1_adx, 1),
             "atr_pct": round(atr_pct, 1),
         },
         "bullish_signals": sum(1 for v in scores.values() if v >= 0.6),
         "bearish_signals": sum(1 for v in scores.values() if v <= 0.35),
     }
+
+
+def _assign_rank_labels(per_stock_records: list[dict]) -> list[dict]:
+    """基于当日 cross-sectional 排名分配标签并归一化显示分数。
+
+    历史后验表明：固定绝对阈值会选中过度延伸的标的；按排名取前 10%
+    能获得更稳定的超额收益。
+    composite_score 在当日 min-max 归一化到 0-1，
+    既保留排名，又便于跨日阅读。
+    """
+    if not per_stock_records:
+        return per_stock_records
+
+    # Sort by raw score descending, then stock_code ascending for deterministic tie-breaking
+    sorted_records = sorted(per_stock_records, key=lambda r: (-r["raw_score"], r["stock_code"]))
+    n = len(sorted_records)
+
+    for idx, rec in enumerate(sorted_records):
+        rank_pct = idx / n  # 0 = highest score
+        rec["rank_pct"] = round(rank_pct, 3)
+        # Use raw score as display score to avoid normalization tie-breaking drift
+        rec["composite_score"] = round(rec["raw_score"], 5)
+        if rank_pct < 0.10:
+            rec["label"] = "observe"
+            rec["color"] = "green"
+            rec["verdict"] = "偏多"
+        elif rank_pct < 0.60:
+            rec["label"] = "watch"
+            rec["color"] = "yellow"
+            rec["verdict"] = "中性"
+        else:
+            rec["label"] = "reject"
+            rec["color"] = "red"
+            rec["verdict"] = "防御"
+    return sorted_records
 
 
 def main() -> dict:
@@ -395,8 +458,9 @@ def main() -> dict:
     ]
 
     # Per-stock decision records
-    per_stock_records = [_per_stock_score(s, market) for s in top_stocks]
-    per_stock_records.sort(key=lambda r: r["composite_score"], reverse=True)
+    day_stats = _compute_day_stats(top_stocks)
+    per_stock_records = [_per_stock_score(s, market, day_stats) for s in top_stocks]
+    per_stock_records = _assign_rank_labels(per_stock_records)
 
     result = {
         "generated_at": date.today().isoformat(),
