@@ -345,6 +345,28 @@ body::before{content:'';position:fixed;inset:0;background:linear-gradient(rgba(7
         今日 {{ psr.record_count }} 只标的 · 偏多 {{ psr.observe_count }} · 中性 {{ psr.watch_count }} · 防御 {{ psr.reject_count }}
       </span>
     </div>
+    {% if psr.history and psr.history.ok %}
+    {% set hist = psr.history %}
+    <div class="grid-3" style="margin-bottom: 16px; gap: 14px;">
+      <div style="padding: 14px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 10px; text-align: center;">
+        <div style="font-size: 0.76em; color: var(--text-dim); margin-bottom: 4px;">历史评估样本</div>
+        <div style="font-size: 1.4em; font-weight: 900; color: var(--text-bright);">{{ hist.total_evaluated }}</div>
+        <div style="font-size: 0.72em; color: var(--text-dim); margin-top: 4px;">个信号 · 近 90 天</div>
+      </div>
+      <div style="padding: 14px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 10px; text-align: center;">
+        <div style="font-size: 0.76em; color: var(--text-dim); margin-bottom: 4px;">偏多信号命中率</div>
+        {% set obs = hist.label_stats.observe or {} %}
+        <div style="font-size: 1.4em; font-weight: 900; color: var(--green);">{{ "%.1f"|format((obs.hit_rate or 0) * 100) }}%</div>
+        <div style="font-size: 0.72em; color: var(--text-dim); margin-top: 4px;">5日收益>{{ "%.1f"|format(((obs.avg_r5 or 0) * 100)) }}% 平均</div>
+      </div>
+      <div style="padding: 14px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 10px; text-align: center;">
+        <div style="font-size: 0.76em; color: var(--text-dim); margin-bottom: 4px;">中分档(0.4-0.7) 5日胜率</div>
+        {% set mid = hist.score_bin_stats.mid or {} %}
+        <div style="font-size: 1.4em; font-weight: 900; color: var(--yellow);">{{ "%.1f"|format((mid.positive_pct or 0) * 100) }}%</div>
+        <div style="font-size: 0.72em; color: var(--text-dim); margin-top: 4px;">样本 {{ mid.count }} · 平均 {{ "%.2f"|format((mid.avg_future_r5 or 0) * 100) }}%</div>
+      </div>
+    </div>
+    {% endif %}
     <table class="tbl" style="font-size: 0.78em;">
       <thead>
         <tr>

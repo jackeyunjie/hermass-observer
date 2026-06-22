@@ -1003,6 +1003,89 @@ def write_per_stock_observation_ledger(
     }
 
 
+def _build_per_stock_observation_record(
+    rec: dict[str, Any],
+    as_of_date: date,
+    future_r5: float | None,
+    future_r20: float | None,
+) -> dict[str, Any]:
+    """构造单条 per-stock 观察记录（不写入 DB）。"""
+    stock_code = rec.get("stock_code", "")
+    final_label = rec.get("label", "watch")
+    final_score = float(rec.get("composite_score", 0.5))
+    risk_veto = final_label == "reject" and final_score < 0.3
+    observation_id = str(uuid5(NAMESPACE_URL, f"PER_STOCK_OBSERVATION:{stock_code}:{as_of_date}"))
+
+    dim_scores = rec.get("dimension_scores", {})
+    router_json = json.dumps({
+        "stock_code": stock_code,
+        "final_label": final_label,
+        "final_score": final_score,
+        "risk_veto": risk_veto,
+        "dimension_scores": dim_scores,
+        "bullish_signals": rec.get("bullish_signals", 0),
+        "bearish_signals": rec.get("bearish_signals", 0),
+        "verdict": rec.get("verdict", "中性"),
+    }, ensure_ascii=False, default=str)
+
+    agent_debate_json = json.dumps(rec.get("key_states", {}), ensure_ascii=False, default=str)
+    outcome_label = _compute_outcome_label(future_r5)
+
+    return {
+        "observation_id": observation_id,
+        "hypothesis_id": "PER_STOCK_OBSERVATION",
+        "stock_code": stock_code,
+        "state_date": as_of_date,
+        "agent_debate_json": agent_debate_json,
+        "router_json": router_json,
+        "final_label": final_label,
+        "final_score": final_score,
+        "risk_veto": risk_veto,
+        "future_r5": future_r5,
+        "future_r20": future_r20,
+        "outcome_label": outcome_label,
+    }
+
+
+def batch_write_per_stock_observations(
+    records: list[dict[str, Any]],
+    replace_hypothesis: bool = True,
+) -> dict[str, Any]:
+    """批量写入 per-stock 观察记录，使用单一 DB 连接避免并发锁。"""
+    if not records:
+        return {"ok": True, "record_count": 0}
+
+    os.makedirs(DECISION_OBSERVATION_DB.parent, exist_ok=True)
+    con = duckdb.connect(str(DECISION_OBSERVATION_DB))
+    _ensure_decision_observation_schema(con)
+
+    if replace_hypothesis:
+        con.execute(
+            "DELETE FROM decision_observation WHERE hypothesis_id = 'PER_STOCK_OBSERVATION'"
+        )
+
+    for record in records:
+        con.execute("""
+            INSERT OR REPLACE INTO decision_observation (
+                observation_id, hypothesis_id, stock_code, state_date,
+                agent_debate_json, router_json, final_label, final_score,
+                risk_veto, future_r5, future_r20, outcome_label,
+                review_status, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        """, (
+            record["observation_id"], record["hypothesis_id"], record["stock_code"], record["state_date"],
+            record["agent_debate_json"], record["router_json"], record["final_label"], record["final_score"],
+            record["risk_veto"], record["future_r5"], record["future_r20"], record["outcome_label"],
+            "pending",
+        ))
+
+    con.commit()
+    con.close()
+
+    print(f"[ledger] 批量写入 {len(records)} 条 per-stock 观察记录")
+    return {"ok": True, "record_count": len(records)}
+
+
 def generate_per_stock_observation_report(
     stock_code: str = "",
     limit: int = 20,
@@ -1069,13 +1152,87 @@ def generate_per_stock_observation_report(
     reject_count = sum(1 for r in records if r["final_label"] == "reject")
     watch_count = len(records) - observe_count - reject_count
 
-    return {
+    result: dict[str, Any] = {
         "ok": True,
         "record_count": len(records),
         "observe_count": observe_count,
         "watch_count": watch_count,
         "reject_count": reject_count,
         "records": records,
+    }
+
+    # Historical aggregate stats (only when no specific stock_code)
+    if not stock_code:
+        result["history"] = _compute_per_stock_history_stats()
+
+    return result
+
+
+def _compute_per_stock_history_stats() -> dict[str, Any]:
+    """计算 per-stock 历史复盘统计（所有有 future_r5 的记录）。"""
+    if not DECISION_OBSERVATION_DB.exists():
+        return {"ok": False, "error": "decision_observation.duckdb 不存在"}
+
+    con = duckdb.connect(str(DECISION_OBSERVATION_DB), read_only=True)
+    rows = con.execute(
+        """
+        SELECT final_label, final_score, future_r5, future_r20, outcome_label
+        FROM decision_observation
+        WHERE hypothesis_id = 'PER_STOCK_OBSERVATION' AND future_r5 IS NOT NULL
+        """
+    ).fetchall()
+    con.close()
+
+    label_stats: dict[str, dict[str, Any]] = {}
+    total_hit = total_seen = 0
+    score_bins = {"high": [], "mid": [], "low": []}
+
+    for final_label, final_score, future_r5, future_r20, outcome_label in rows:
+        label = final_label or "unknown"
+        if label not in label_stats:
+            label_stats[label] = {"count": 0, "hit": 0, "avg_r5": [], "avg_r20": []}
+        label_stats[label]["count"] += 1
+        if future_r5 is not None:
+            label_stats[label]["avg_r5"].append(future_r5)
+        if future_r20 is not None:
+            label_stats[label]["avg_r20"].append(future_r20)
+        if outcome_label:
+            total_seen += 1
+            if label == "observe" and outcome_label == "positive":
+                label_stats[label]["hit"] += 1
+                total_hit += 1
+            elif label == "reject" and outcome_label == "negative":
+                label_stats[label]["hit"] += 1
+                total_hit += 1
+
+        s = final_score or 0.5
+        if future_r5 is not None:
+            if s >= 0.7:
+                score_bins["high"].append(future_r5)
+            elif s >= 0.4:
+                score_bins["mid"].append(future_r5)
+            else:
+                score_bins["low"].append(future_r5)
+
+    for label, s in label_stats.items():
+        s["avg_r5"] = round(sum(s["avg_r5"]) / len(s["avg_r5"]), 4) if s["avg_r5"] else None
+        s["avg_r20"] = round(sum(s["avg_r20"]) / len(s["avg_r20"]), 4) if s["avg_r20"] else None
+        s["hit_rate"] = round(s["hit"] / s["count"], 4) if s["count"] else 0
+
+    score_bin_stats = {}
+    for key, vals in score_bins.items():
+        score_bin_stats[key] = {
+            "count": len(vals),
+            "avg_future_r5": round(sum(vals) / len(vals), 4) if vals else None,
+            "positive_pct": round(sum(1 for v in vals if v > 0) / len(vals), 4) if vals else None,
+        }
+
+    return {
+        "ok": True,
+        "total_evaluated": total_seen,
+        "overall_hit_rate": round(total_hit / total_seen, 4) if total_seen else 0,
+        "label_stats": label_stats,
+        "score_bin_stats": score_bin_stats,
     }
 
 
