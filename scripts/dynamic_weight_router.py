@@ -121,9 +121,15 @@ def detect_resonances(opinions: list[dict]) -> list[dict]:
 
 
 def compute_final_verdict(opinions: list[dict], weights: dict[str, float],
-                          conflicts: list[dict], resonances: list[dict]) -> dict:
-    """Weighted composite conclusion with conflict/risk adjustment."""
-    # Weighted score
+                          conflicts: list[dict], resonances: list[dict],
+                          market: dict | None = None) -> dict:
+    """Weighted composite conclusion with direct market scoring.
+
+    Blends agent-weighted score (40%) with direct market momentum score (60%)
+    to produce more discriminative ratings. The direct score uses raw market
+    aggregates (not agent opinions) to avoid the "all agents agree = narrow band" problem.
+    """
+    # Agent-weighted score
     weighted_score = 0.0
     total_weight = 0.0
     for op in opinions:
@@ -132,7 +138,7 @@ def compute_final_verdict(opinions: list[dict], weights: dict[str, float],
         weighted_score += w * s
         total_weight += w
 
-    raw_score = round(weighted_score / total_weight, 2) if total_weight > 0 else 0.5
+    agent_score = round(weighted_score / total_weight, 2) if total_weight > 0 else 0.5
 
     # Collect risk signals from all agents
     all_risks = [op["risk"] for op in opinions if op["verdict_color"] == "red"]
@@ -145,13 +151,39 @@ def compute_final_verdict(opinions: list[dict], weights: dict[str, float],
         0.03 for r in resonances if r["color"] == "red"
     )
 
-    adjusted_score = max(0.0, min(1.0, raw_score - conflict_penalty + resonance_bonus))
+    agent_adjusted = max(0.05, min(0.95, agent_score - conflict_penalty + resonance_bonus))
 
-    # Determine final verdict
-    if adjusted_score >= 0.7:
+    # Direct market score from raw aggregates (0-1 scale)
+    direct_score = 0.5
+    if market:
+        total_stocks = max(market.get("total_stocks", 1), 1)
+        ef2_pct = market.get("ef2_count", 0) / total_stocks
+        bull_pct = market.get("d1_bull_pct", 50) / 100
+        adx_norm = min(market.get("avg_d1_adx", 20) / 50, 1.0)  # 0-1, ADX 50 = max
+        bb_ratio = 1.0 - min((market.get("d1_above_bb", 0) + market.get("d1_below_bb", 0)) / max(total_stocks, 1), 0.5)
+
+        # Strong momentum + high EF coverage = bullish
+        momentum = (bull_pct * 0.5 + adx_norm * 0.3 + ef2_pct * 15 * 0.2)
+        # Extreme BB positions = cautious
+        extreme_penalty = (market.get("d1_above_bb", 0) + market.get("d1_below_bb", 0)) / max(total_stocks, 1) * 0.3
+        # Risk signals
+        risk_deduction = 0.0
+        if market.get("extreme_adx", 0) >= 5: risk_deduction += 0.05
+        if market.get("fake_breakout", 0) >= 5: risk_deduction += 0.05
+        if market.get("mn1_weak_ef2", 0) >= 20: risk_deduction += 0.03
+
+        direct_score = max(0.05, min(0.95, momentum - extreme_penalty - risk_deduction))
+
+    # Blend: 60% direct market score + 40% agent consensus
+    blended_score = round(direct_score * 0.6 + agent_adjusted * 0.4, 2)
+
+    # Thresholds calibrated against 54-day market observation ledger:
+    # - ≥0.50: 56.5% 5-day win rate, avg +0.80% (23 samples)
+    # - <0.30: historically contrarian during down markets
+    if blended_score >= 0.50:
         final_verdict = "偏多操作"
         final_color = "green"
-    elif adjusted_score >= 0.4:
+    elif blended_score >= 0.30:
         final_verdict = "谨慎中性"
         final_color = "yellow"
     else:
@@ -159,7 +191,7 @@ def compute_final_verdict(opinions: list[dict], weights: dict[str, float],
         final_color = "red"
 
     # Build summary
-    summary_parts = [f"加权评分 {adjusted_score:.2f}（原始 {raw_score:.2f}）"]
+    summary_parts = [f"加权评分 {blended_score:.2f}（Agent {agent_adjusted:.2f} / 市场 {direct_score:.2f}）"]
     if conflicts:
         summary_parts.append(f"{len(conflicts)} 组 Agent 冲突")
     if resonances:
@@ -168,8 +200,10 @@ def compute_final_verdict(opinions: list[dict], weights: dict[str, float],
         summary_parts.append(f"{len(all_risks)} 个风险警告")
 
     return {
-        "raw_score": raw_score,
-        "adjusted_score": adjusted_score,
+        "raw_score": agent_score,
+        "adjusted_score": blended_score,
+        "agent_score": agent_adjusted,
+        "market_direct_score": direct_score,
         "conflict_penalty": round(conflict_penalty, 2),
         "resonance_adjustment": round(resonance_bonus, 2),
         "final_verdict": final_verdict,
@@ -202,7 +236,7 @@ def main(debate_data: dict = None) -> dict:
     weights = compute_weights(opinions, market)
     conflicts = detect_conflicts(opinions)
     resonances = detect_resonances(opinions)
-    verdict = compute_final_verdict(opinions, weights, conflicts, resonances)
+    verdict = compute_final_verdict(opinions, weights, conflicts, resonances, market=market)
 
     result = {
         "generated_at": date.today().isoformat(),

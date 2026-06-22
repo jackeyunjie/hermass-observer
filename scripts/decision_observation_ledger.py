@@ -343,11 +343,11 @@ def _extract_per_stock_debate(debate_output: dict[str, Any], stock_code: str) ->
 def _map_conclusion_to_label(conclusion: str) -> str:
     """将 router conclusion 映射为 final_label"""
     c = str(conclusion).lower()
-    if "strong" in c or "observe" in c:
+    if "strong" in c or "observe" in c or "偏多" in c or "操作" in conclusion:
         return "observe"
-    if "moderate" in c or "watch" in c:
+    if "moderate" in c or "watch" in c or "中性" in c or "谨慎" in conclusion:
         return "watch"
-    if "reject" in c or "avoid" in c or "pass" in c:
+    if "reject" in c or "avoid" in c or "pass" in c or "防御" in c or "观望" in conclusion:
         return "reject"
     return "watch"
 
