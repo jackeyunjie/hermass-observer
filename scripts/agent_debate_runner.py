@@ -227,6 +227,147 @@ def _market_opinion(market: dict) -> dict:
     }
 
 
+def _per_stock_score(stock: dict, market: dict) -> dict:
+    """对单只标的计算 6-Agent 评分的简化版，返回 label + score + 各维度得分。"""
+    # 各维度得分 (0-1)，高于 0.5 为偏多
+    scores = {}
+
+    # 趋势维度：ef_count + 三周期 state_hex
+    ef = stock.get("ef_count", 0)
+    mn1 = str(stock.get("mn1_state_hex", ""))
+    w1h = str(stock.get("w1_state_hex", ""))
+    d1h = str(stock.get("d1_state_hex", ""))
+    trend_score = 0.5
+    if ef >= 3 and mn1 in ("E", "F"):
+        trend_score = 0.85
+    elif ef >= 3:
+        trend_score = 0.75
+    elif ef >= 2 and (mn1 in ("E", "F") or w1h in ("E", "F")):
+        trend_score = 0.65
+    elif ef >= 2:
+        trend_score = 0.55
+    elif ef <= 0:
+        trend_score = 0.2
+    scores["trend"] = round(trend_score, 2)
+
+    # 动量维度：D1 ADX + DI 方向
+    d1_adx = stock.get("d1_adx14", 0) or 0
+    d1_plus = stock.get("d1_plus_di_14", 0) or 0
+    d1_minus = stock.get("d1_minus_di_14", 0) or 0
+    if d1_adx >= 40 and d1_plus > d1_minus:
+        momentum_score = 0.85
+    elif d1_adx >= 30 and d1_plus > d1_minus:
+        momentum_score = 0.7
+    elif d1_adx >= 25:
+        momentum_score = 0.55
+    elif d1_plus > d1_minus:
+        momentum_score = 0.5
+    else:
+        momentum_score = 0.3
+    scores["momentum"] = round(momentum_score, 2)
+
+    # 波动率维度：BB 位置 + ATR
+    d1_bb = str(stock.get("d1_bb20_position", ""))
+    w1_bb = str(stock.get("w1_bb20_position", ""))
+    atr_pct = (stock.get("d1_atr14", 0) or 0) / max(stock.get("d1_close", 1) or 1, 1) * 100
+    if d1_bb == "above_upper" and w1_bb != "below_lower":
+        vol_score = 0.65  # 突破但非极端
+    elif d1_bb == "above_upper":
+        vol_score = 0.5
+    elif d1_bb == "below_lower":
+        vol_score = 0.25
+    elif atr_pct > 8:
+        vol_score = 0.4
+    else:
+        vol_score = 0.55
+    scores["volatility"] = round(vol_score, 2)
+
+    # 边界维度：MA 状态 + BB 边界
+    d1_ma = str(stock.get("d1_ma_state", ""))
+    w1_ma = str(stock.get("w1_ma_state", ""))
+    if "D6" in d1_ma or "D7" in d1_ma:
+        boundary_score = 0.65
+    elif d1_bb == "above_upper":
+        boundary_score = 0.55
+    elif d1_bb == "below_lower":
+        boundary_score = 0.25
+    elif "D4" in d1_ma or "D5" in d1_ma:
+        boundary_score = 0.5
+    else:
+        boundary_score = 0.4
+    scores["boundary"] = round(boundary_score, 2)
+
+    # 风险维度：极端值 + 背离信号
+    risk_deductions = 0.0
+    if d1_adx >= 70:
+        risk_deductions += 0.2  # 极端动量
+    if d1_adx >= 30 and d1_minus > d1_plus:
+        risk_deductions += 0.15  # 动量反转
+    if d1_bb == "above_upper" and d1_adx < (stock.get("w1_adx14", 0) or 0):
+        risk_deductions += 0.15  # 假突破
+    if mn1 not in ("E", "F") and ef >= 2:
+        risk_deductions += 0.1  # 长周期保护不足
+    risk_score = max(0.1, 0.7 - risk_deductions)
+    scores["risk"] = round(risk_score, 2)
+
+    # 市场相对维度
+    market_score = 0.5
+    if d1_adx > market.get("avg_d1_adx", 20) and d1_plus > d1_minus:
+        market_score = 0.65
+    elif d1_adx > market.get("avg_d1_adx", 20):
+        market_score = 0.55
+    elif d1_plus < d1_minus:
+        market_score = 0.35
+    scores["market_relative"] = round(market_score, 2)
+
+    # 复合加权评分（权重参照 Router 基础权重）
+    composite = (
+        scores["trend"] * 0.20 +
+        scores["momentum"] * 0.18 +
+        scores["volatility"] * 0.15 +
+        scores["boundary"] * 0.12 +
+        scores["risk"] * 0.20 +
+        scores["market_relative"] * 0.15
+    )
+
+    if composite >= 0.7:
+        label = "observe"
+        color = "green"
+        verdict = "偏多"
+    elif composite >= 0.4:
+        label = "watch"
+        color = "yellow"
+        verdict = "中性"
+    else:
+        label = "reject"
+        color = "red"
+        verdict = "防御"
+
+    return {
+        "stock_code": stock["stock_code"],
+        "composite_score": round(composite, 2),
+        "label": label,
+        "color": color,
+        "verdict": verdict,
+        "dimension_scores": scores,
+        "key_states": {
+            "ef_count": ef,
+            "mn1_state": mn1,
+            "w1_state": w1h,
+            "d1_state": d1h,
+            "d1_adx": round(d1_adx, 1),
+            "d1_plus_di": round(d1_plus, 1),
+            "d1_minus_di": round(d1_minus, 1),
+            "d1_bb": d1_bb,
+            "w1_bb": w1_bb,
+            "d1_ma": d1_ma,
+            "atr_pct": round(atr_pct, 1),
+        },
+        "bullish_signals": sum(1 for v in scores.values() if v >= 0.6),
+        "bearish_signals": sum(1 for v in scores.values() if v <= 0.35),
+    }
+
+
 def main() -> dict:
     latest_date = str(date.today())
     con = duckdb.connect(str(STATE_CUBE), read_only=True)
@@ -253,6 +394,10 @@ def main() -> dict:
         _risk_opinion(top_stocks, market),
     ]
 
+    # Per-stock decision records
+    per_stock_records = [_per_stock_score(s, market) for s in top_stocks]
+    per_stock_records.sort(key=lambda r: r["composite_score"], reverse=True)
+
     result = {
         "generated_at": date.today().isoformat(),
         "state_date": latest_date,
@@ -260,11 +405,12 @@ def main() -> dict:
         "market_summary": market,
         "sample_stocks": len(top_stocks),
         "opinions": opinions,
+        "per_stock_records": per_stock_records,
     }
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"[OK] {OUTPUT} — {len(opinions)} agents, state_date={latest_date}")
+    print(f"[OK] {OUTPUT} — {len(opinions)} agents, {len(per_stock_records)} per-stock records, state_date={latest_date}")
     return result
 
 

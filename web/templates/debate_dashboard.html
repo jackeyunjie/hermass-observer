@@ -335,6 +335,51 @@ body::before{content:'';position:fixed;inset:0;background:linear-gradient(rgba(7
     </div>
   </div>
   {% endif %}
+  {% if metrics.per_stock_observation and metrics.per_stock_observation.report and metrics.per_stock_observation.report.ok %}
+  <!-- per-stock 个股决策账本 -->
+  <div style="margin-top: 20px; padding: 20px; background: rgba(255,159,64,.04); border: 1px solid rgba(255,159,64,.15); border-radius: 12px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
+      <h5 style="font-size: 0.95em; color: var(--text-bright); margin: 0;">📊 个股决策账本（per-stock 6-Agent 评分）</h5>
+      <span style="font-size: 0.78em; color: var(--text-dim);">
+        {% set psr = metrics.per_stock_observation.report %}
+        今日 {{ psr.record_count }} 只标的 · 偏多 {{ psr.observe_count }} · 中性 {{ psr.watch_count }} · 防御 {{ psr.reject_count }}
+      </span>
+    </div>
+    <table class="tbl" style="font-size: 0.78em;">
+      <thead>
+        <tr>
+          <th>标的</th>
+          <th>信号</th>
+          <th class="r">综合评分</th>
+          <th class="r">未来5日</th>
+          <th class="r">未来20日</th>
+          <th class="r">风险否决</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in metrics.per_stock_observation.report.records %}
+        {% set row_color = 'green' if r.final_label == 'observe' else 'red' if r.final_label == 'reject' else 'yellow' %}
+        {% set row_text = {'observe':'偏多','watch':'中性','reject':'防御'}.get(r.final_label, '中性') %}
+        <tr>
+          <td><strong class="mono">{{ r.stock_code }}</strong></td>
+          <td><span class="card-tag" style="background: var(--{{ row_color }}-bg); color: var(--{{ row_color }});">{{ row_text }}</span></td>
+          <td class="r mono">{{ "%.2f"|format(r.final_score) }}</td>
+          <td class="r mono" style="color: {% if r.future_r5 is not none %}{% if r.future_r5 > 0 %}var(--green){% else %}var(--red){% endif %}{% else %}var(--text-dim){% endif %}">
+            {% if r.future_r5 is not none %}{{ "%.2f"|format(r.future_r5 * 100) }}%{% else %}—{% endif %}
+          </td>
+          <td class="r mono" style="color: {% if r.future_r20 is not none %}{% if r.future_r20 > 0 %}var(--green){% else %}var(--red){% endif %}{% else %}var(--text-dim){% endif %}">
+            {% if r.future_r20 is not none %}{{ "%.2f"|format(r.future_r20 * 100) }}%{% else %}—{% endif %}
+          </td>
+          <td class="r" style="color: {% if r.risk_veto %}var(--red){% else %}var(--text-dim){% endif %};">{% if r.risk_veto %}⚠ 否决{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div style="font-size: 0.72em; color: var(--text-dim); margin-top: 10px; line-height: 1.6;">
+      说明：个股评分由趋势(20%)、动量(18%)、波动率(15%)、边界(12%)、风险(20%)、市场相对(15%) 六维度加权得出，基于 State Cube 当日数据。历史记录持存在 decision_observation.duckdb 中，支持单只标的时序复盘。
+    </div>
+  </div>
+  {% endif %}
   {% if metrics.agent_debate %}
   <div style="text-align:right;font-size:.72em;color:var(--text-dim);margin-top:8px">数据源：State Cube {{ metrics.agent_debate.state_date }} · 样本 {{ metrics.agent_debate.sample_stocks }} 只高 ADX 标的</div>
   {% endif %}

@@ -139,6 +139,14 @@ def main() -> int:
     market_report = ledger.generate_market_observation_report()
     metrics["market_observation"] = market_report
 
+    # Per-stock 决策观察账本：每只标的的 6-Agent 评分写入 decision_observation.duckdb
+    per_stock_result = ledger.write_per_stock_observation_ledger(as_of, debate, replace_date=True)
+    per_stock_report = ledger.generate_per_stock_observation_report()
+    metrics["per_stock_observation"] = {
+        "ledger_result": per_stock_result,
+        "report": per_stock_report,
+    }
+
     # Agent 历史准确率校准（Phase 2 MOE Calibration）
     from scripts.build_agent_accuracy import main as run_accuracy
     accuracy_result = run_accuracy()

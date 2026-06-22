@@ -904,6 +904,181 @@ def write_current_router_ledger(
     return {"ok": True, "source": source, **result}
 
 
+def write_per_stock_observation_ledger(
+    as_of_date: date,
+    debate_data: dict[str, Any],
+    replace_date: bool = False,
+) -> dict[str, Any]:
+    """将 per-stock 决策记录写入 decision_observation.duckdb。
+
+    从 debate 输出的 per_stock_records 中读取每只标的的评分和标签，
+    写入 decision_observation 表，支持个股历史时序复盘。
+    """
+    per_stock = debate_data.get("per_stock_records", [])
+    if not per_stock:
+        return {"ok": False, "error": "debate 输出无 per_stock_records", "record_count": 0}
+
+    os.makedirs(DECISION_OBSERVATION_DB.parent, exist_ok=True)
+    con = duckdb.connect(str(DECISION_OBSERVATION_DB))
+    _ensure_decision_observation_schema(con)
+
+    if replace_date:
+        con.execute(
+            """
+            DELETE FROM decision_observation
+            WHERE hypothesis_id = 'PER_STOCK_OBSERVATION' AND state_date = ?
+            """,
+            [as_of_date],
+        )
+
+    written = 0
+    for rec in per_stock:
+        stock_code = rec.get("stock_code", "")
+        if not stock_code:
+            continue
+
+        observation_id = str(uuid5(NAMESPACE_URL, f"PER_STOCK_OBSERVATION:{stock_code}:{as_of_date}"))
+        final_label = rec.get("label", "watch")
+        final_score = float(rec.get("composite_score", 0.5))
+        risk_veto = final_label == "reject" and final_score < 0.3
+
+        # Build router_json from per-stock scores
+        dim_scores = rec.get("dimension_scores", {})
+        router_json = json.dumps({
+            "stock_code": stock_code,
+            "final_label": final_label,
+            "final_score": final_score,
+            "risk_veto": risk_veto,
+            "dimension_scores": dim_scores,
+            "bullish_signals": rec.get("bullish_signals", 0),
+            "bearish_signals": rec.get("bearish_signals", 0),
+            "verdict": rec.get("verdict", "中性"),
+        }, ensure_ascii=False, default=str)
+
+        # Build agent_debate_json from key_states
+        agent_debate_json = json.dumps(rec.get("key_states", {}), ensure_ascii=False, default=str)
+
+        # Read future_r5/future_r20 from state_cube
+        future_r5, future_r20 = _get_state_cube_futures(stock_code, as_of_date)
+        outcome_label = _compute_outcome_label(future_r5)
+
+        # Preserve existing review_status
+        existing = con.execute(
+            "SELECT review_status FROM decision_observation WHERE observation_id = ?",
+            [observation_id],
+        ).fetchone()
+        review_status = existing[0] if existing else "pending"
+
+        con.execute("""
+            INSERT OR REPLACE INTO decision_observation (
+                observation_id, hypothesis_id, stock_code, state_date,
+                agent_debate_json, router_json, final_label, final_score,
+                risk_veto, future_r5, future_r20, outcome_label,
+                review_status, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(
+                (SELECT created_at FROM decision_observation WHERE observation_id = ?),
+                CURRENT_TIMESTAMP
+            ), CURRENT_TIMESTAMP)
+        """, (
+            observation_id, "PER_STOCK_OBSERVATION", stock_code, as_of_date,
+            agent_debate_json, router_json, final_label, final_score,
+            risk_veto, future_r5, future_r20, outcome_label,
+            review_status, observation_id,
+        ))
+        written += 1
+
+    con.commit()
+    con.close()
+
+    observe_count = sum(1 for r in per_stock if r.get("label") == "observe")
+    reject_count = sum(1 for r in per_stock if r.get("label") == "reject")
+    print(f"[ledger] per-stock date={as_of_date} 写入 {written} 条 "
+          f"(observe={observe_count}, watch={written - observe_count - reject_count}, reject={reject_count})")
+    return {
+        "ok": True,
+        "record_count": written,
+        "observe_count": observe_count,
+        "reject_count": reject_count,
+        "db_path": str(DECISION_OBSERVATION_DB),
+    }
+
+
+def generate_per_stock_observation_report(
+    stock_code: str = "",
+    limit: int = 20,
+) -> dict[str, Any]:
+    """生成 per-stock 观察记录报告，支持单只标的时序复盘。
+
+    如果指定 stock_code，返回该标的的历史信号和结果；
+    如果不指定，返回今日所有标的的快照。
+    """
+    if not DECISION_OBSERVATION_DB.exists():
+        return {"ok": False, "error": "decision_observation.duckdb 不存在", "records": []}
+
+    con = duckdb.connect(str(DECISION_OBSERVATION_DB), read_only=True)
+
+    if stock_code:
+        rows = con.execute(
+            """
+            SELECT stock_code, state_date, final_label, final_score,
+                   future_r5, future_r20, outcome_label, risk_veto
+            FROM decision_observation
+            WHERE hypothesis_id = 'PER_STOCK_OBSERVATION' AND stock_code = ?
+            ORDER BY state_date DESC
+            LIMIT ?
+            """,
+            [stock_code, limit],
+        ).fetchall()
+    else:
+        # Return today's snapshot (latest state_date)
+        latest = con.execute(
+            "SELECT MAX(state_date) FROM decision_observation WHERE hypothesis_id = 'PER_STOCK_OBSERVATION'"
+        ).fetchone()
+        if not latest or not latest[0]:
+            con.close()
+            return {"ok": False, "error": "无 per-stock 记录", "records": []}
+        latest_date = latest[0]
+        rows = con.execute(
+            """
+            SELECT stock_code, state_date, final_label, final_score,
+                   future_r5, future_r20, outcome_label, risk_veto
+            FROM decision_observation
+            WHERE hypothesis_id = 'PER_STOCK_OBSERVATION' AND state_date = ?
+            ORDER BY final_score DESC
+            """,
+            [latest_date],
+        ).fetchall()
+
+    con.close()
+
+    records = []
+    for stock_code_val, state_date, final_label, final_score, future_r5, future_r20, outcome_label, risk_veto in rows:
+        records.append({
+            "stock_code": stock_code_val,
+            "state_date": str(state_date),
+            "final_label": final_label,
+            "final_score": round(final_score, 2) if final_score is not None else None,
+            "future_r5": round(future_r5, 4) if future_r5 is not None else None,
+            "future_r20": round(future_r20, 4) if future_r20 is not None else None,
+            "outcome_label": outcome_label,
+            "risk_veto": bool(risk_veto),
+        })
+
+    # Category stats
+    observe_count = sum(1 for r in records if r["final_label"] == "observe")
+    reject_count = sum(1 for r in records if r["final_label"] == "reject")
+    watch_count = len(records) - observe_count - reject_count
+
+    return {
+        "ok": True,
+        "record_count": len(records),
+        "observe_count": observe_count,
+        "watch_count": watch_count,
+        "reject_count": reject_count,
+        "records": records,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="决策观察账本写入")
     subparsers = parser.add_subparsers(dest="command", help="子命令")
