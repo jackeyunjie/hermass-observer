@@ -313,7 +313,7 @@ future_r5, future_r20
    - 基于 Ledger 后验持续校准 Router 阈值；
    - 将 Risk Agent 命中率从 46.2% 提升至基线以上；
    - ~~为 per-stock Ledger 增加历史回填~~（2026-06-22 已完成：回填 90 天、2650 条记录、前端展示正收益比例与分档统计）；
-   - 增加单标的复盘详情页/曲线。
+   - ~~增加单标的复盘详情页/曲线~~（2026-06-22 已完成：点击个股账本行弹出历史轨迹面板，含评分折线图、胜率统计、30 日信号表）。
 5. 前端优先展示多 Agent 意见、冲突、共振、权重和风险反驳；不要优先做单指标红绿灯。
 6. Router 权重必须来自同一时刻状态全景、冲突/共振、周期层级和历史 outcome；不要写死 `ef_count_min` 作为入口。
 7. M30 Agent 只做盘中观察和精确位置判断，不单独拍板。
@@ -412,6 +412,7 @@ future_r5, future_r20
    - build_stock_percentiles.py --date YYYY-MM-DD
    - rebuild_bb_pivot_atr.py --date YYYY-MM-DD
    - build_daily_snapshot.py --date YYYY-MM-DD
+   - send_daily_hermass_digest_to_lark.py --date YYYY-MM-DD（推送群消息 + 同步决策观察账本到飞书 Base）
 4. Kimi 只上传产物 JSON/CSV 到服务器 outputs/ 对应目录
 5. 人 SSH 重启服务 + 冒烟
 ```
@@ -428,6 +429,12 @@ future_r5, future_r20
   4. 上传：`scripts/upload_output_to_server.py --date YYYYMMDD --type market_assets_state`
   5. 验收：`scripts/validate_website_data_sync.py --date YYYYMMDD`
 - 不要通过改验收脚本或把旧 `state_date` 当成今天来绕过。
+
+### 飞书每日复盘推送
+
+- 群消息依赖 `config/platform/lark_app.yaml` 中的 `push.chat_id`，使用 Bot 身份发送（`lark-cli im +messages-send`）。
+- Base 同步依赖 `config/platform/lark_digest.yaml` 中的 `base_token` 与 `table_id`；首次使用需运行 `scripts/setup_lark_base_digest_table.py --base-token <base_token>` 建表。
+- 已加入 `config/hermes_cron.json`：交易日 15:46 自动执行 `send_daily_hermass_digest_to_lark.py`。
 
 ### 为什么不在服务器跑
 
