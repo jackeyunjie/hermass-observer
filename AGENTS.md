@@ -307,10 +307,12 @@ future_r5, future_r20
 1. **不要再把 Phase 2 主线带回单指标前端卡片。**
 2. 单指标 `priors` 只作为状态解释词典，不作为最终交易决策层。
 3. 单指标 empirical 统计只能作为证据特征，不能直接给交易方向染色。
-4. ~~下一步优先做：agent_debate_runner / dynamic_weight_router / decision_observation_ledger / 前端面板~~（2026-06-22 已完成并接入每日管线）。当前重点是：
+4. ~~下一步优先做：agent_debate_runner / dynamic_weight_router / decision_observation_ledger / 前端面板~~（2026-06-22 已完成并接入每日管线）。
+5. ~~把 per-stock 决策记录接入 Ledger~~（2026-06-22 已完成）：`scripts/agent_debate_runner.py` 对 EF≥2 的 Top 50 标的逐只产出 6-Agent 评分，`decision_observation.duckdb` 按 `PER_STOCK_OBSERVATION` hypothesis 写入个股判断，前端 debate_dashboard 展示「个股决策账本」。
+6. 当前重点是：
    - 基于 Ledger 后验持续校准 Router 阈值；
    - 将 Risk Agent 命中率从 46.2% 提升至基线以上；
-   - 把 per-stock 决策记录接入 Ledger，支持单标的时间序列复盘。
+   - 为 per-stock Ledger 增加历史回填与单标的复盘曲线。
 5. 前端优先展示多 Agent 意见、冲突、共振、权重和风险反驳；不要优先做单指标红绿灯。
 6. Router 权重必须来自同一时刻状态全景、冲突/共振、周期层级和历史 outcome；不要写死 `ef_count_min` 作为入口。
 7. M30 Agent 只做盘中观察和精确位置判断，不单独拍板。
