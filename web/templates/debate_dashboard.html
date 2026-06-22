@@ -388,7 +388,7 @@ body::before{content:'';position:fixed;inset:0;background:linear-gradient(rgba(7
         {% for r in metrics.per_stock_observation.report.records %}
         {% set row_color = 'green' if r.final_label == 'observe' else 'red' if r.final_label == 'reject' else 'yellow' %}
         {% set row_text = {'observe':'偏多','watch':'中性','reject':'防御'}.get(r.final_label, '中性') %}
-        <tr>
+        <tr class="per-stock-row" data-stock="{{ r.stock_code }}" style="cursor: pointer;">
           <td><strong class="mono">{{ r.stock_code }}</strong></td>
           <td><span class="card-tag" style="background: var(--{{ row_color }}-bg); color: var(--{{ row_color }});">{{ row_text }}</span></td>
           <td class="r mono">{{ "%.2f"|format(r.final_score) }}</td>
@@ -404,7 +404,34 @@ body::before{content:'';position:fixed;inset:0;background:linear-gradient(rgba(7
       </tbody>
     </table>
     <div style="font-size: 0.72em; color: var(--text-dim); margin-top: 10px; line-height: 1.6;">
-      说明：个股评分以周线布林带突破（weekly_momentum）为主导因子，辅以 EF 趋势强度、日线动量、风险扣除和边界位置六维度，标签按当日 cross-sectional 排名取前 10% 为偏多（observe）。历史记录保存在 decision_observation.duckdb，支持 5 日 / 20 日双 horizon 复盘。
+      说明：个股评分以周线布林带突破（weekly_momentum）为主导因子，辅以 EF 趋势强度、日线动量、风险扣除和边界位置六维度，标签按当日 cross-sectional 排名取前 10% 为偏多（observe）。点击任意标的行查看历史信号时间线。
+    </div>
+    <!-- 个股历史详情弹出面板 -->
+    <div id="per-stock-detail" style="display: none; margin-top: 16px; padding: 18px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,159,64,.25); border-radius: 10px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <h6 id="detail-title" style="font-size: 1em; color: var(--text-bright); margin: 0;">📈 加载中...</h6>
+        <button onclick="document.getElementById('per-stock-detail').style.display='none'" style="background: none; border: 1px solid var(--border); color: var(--text-dim); padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 0.78em;">✕ 关闭</button>
+      </div>
+      <div id="detail-stats" class="grid-4" style="margin-bottom: 14px; gap: 10px;"></div>
+      <div style="position: relative; width: 100%; height: 200px; margin-bottom: 14px;">
+        <canvas id="scoreChart" style="width: 100%; height: 200px;"></canvas>
+      </div>
+      <div id="detail-table-wrapper" style="max-height: 300px; overflow-y: auto;">
+        <table class="tbl" style="font-size: 0.74em;">
+          <thead>
+            <tr>
+              <th>日期</th>
+              <th>信号</th>
+              <th class="r">评分</th>
+              <th class="r">5日收益</th>
+              <th class="r">20日收益</th>
+              <th>结果</th>
+            </tr>
+          </thead>
+          <tbody id="detail-rows"></tbody>
+        </table>
+      </div>
+      <div style="font-size: 0.72em; color: var(--text-dim); margin-top: 8px; line-height: 1.5;">显示最近 30 个交易日的系统评分轨迹。绿色背景 = 5日正收益命中。</div>
     </div>
   </div>
   {% endif %}
@@ -698,6 +725,176 @@ new Chart(document.getElementById('consensusChart'),{
     plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>'共识率: '+ctx.raw+'%'}}}
   }
 });
+</script>
+<script>
+// ======== Per-stock 历史详情 ========
+let scoreChartInstance = null;
+
+// 行点击 & hover 样式
+(function() {
+  const styleTag = document.createElement('style');
+  styleTag.textContent = '.per-stock-row:hover { background: rgba(255,159,64,0.12) !important; }';
+  document.head.appendChild(styleTag);
+
+  document.querySelectorAll('.per-stock-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const stockCode = row.getAttribute('data-stock');
+      loadStockHistory(stockCode);
+    });
+  });
+})();
+
+async function loadStockHistory(stockCode) {
+  const panel = document.getElementById('per-stock-detail');
+  const title = document.getElementById('detail-title');
+  const statsDiv = document.getElementById('detail-stats');
+  const tbody = document.getElementById('detail-rows');
+
+  title.textContent = '📈 ' + stockCode + ' — 加载中...';
+  statsDiv.innerHTML = '';
+  tbody.innerHTML = '';
+  panel.style.display = 'block';
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  try {
+    const resp = await fetch('/api/per-stock-history?stock_code=' + encodeURIComponent(stockCode) + '&limit=30');
+    const data = await resp.json();
+
+    if (!data.ok) {
+      title.textContent = '📈 ' + stockCode + ' — 无历史数据';
+      statsDiv.innerHTML = '<div style="color: var(--text-dim); padding: 10px; text-align: center;">该标的暂无 per-stock 历史记录</div>';
+      return;
+    }
+
+    const records = data.records || [];
+    if (!records.length) {
+      title.textContent = '📈 ' + stockCode + ' — 无历史数据';
+      statsDiv.innerHTML = '<div style="color: var(--text-dim); padding: 10px; text-align: center;">该标的暂无 per-stock 历史记录</div>';
+      return;
+    }
+
+    // Stats
+    const total = records.length;
+    const hits5 = records.filter(r => r.future_r5 != null && r.future_r5 > 0).length;
+    const hits20 = records.filter(r => r.future_r20 != null && r.future_r20 > 0).length;
+    const withR5 = records.filter(r => r.future_r5 != null);
+    const withR20 = records.filter(r => r.future_r20 != null);
+    const avgR5 = withR5.length ? (withR5.reduce((s, r) => s + r.future_r5, 0) / withR5.length * 100) : 0;
+    const avgR20 = withR20.length ? (withR20.reduce((s, r) => s + r.future_r20, 0) / withR20.length * 100) : 0;
+    const hitRate5 = withR5.length ? (hits5 / withR5.length * 100) : 0;
+    const hitRate20 = withR20.length ? (hits20 / withR20.length * 100) : 0;
+    const observeCount = records.filter(r => r.final_label === 'observe').length;
+    const latestScore = records[0]?.final_score ?? '-';
+
+    title.textContent = '📈 ' + stockCode + ' 历史信号轨迹';
+    statsDiv.innerHTML =
+      '<div style="padding:10px;background:rgba(0,0,0,0.2);border:1px solid var(--border);border-radius:8px;text-align:center;">' +
+        '<div style="font-size:0.7em;color:var(--text-dim);">样本数</div>' +
+        '<div style="font-size:1.2em;font-weight:900;color:var(--text-bright);">' + total + '</div>' +
+      '</div>' +
+      '<div style="padding:10px;background:rgba(0,0,0,0.2);border:1px solid var(--border);border-radius:8px;text-align:center;">' +
+        '<div style="font-size:0.7em;color:var(--text-dim);">偏多信号</div>' +
+        '<div style="font-size:1.2em;font-weight:900;color:var(--green);">' + observeCount + '</div>' +
+      '</div>' +
+      '<div style="padding:10px;background:rgba(0,0,0,0.2);border:1px solid var(--border);border-radius:8px;text-align:center;">' +
+        '<div style="font-size:0.7em;color:var(--text-dim);">5日胜率 / 均值</div>' +
+        '<div style="font-size:1.2em;font-weight:900;color:' + (hitRate5 >= 50 ? 'var(--green)' : 'var(--yellow)') + ';">' + hitRate5.toFixed(0) + '% / ' + avgR5.toFixed(2) + '%</div>' +
+      '</div>' +
+      '<div style="padding:10px;background:rgba(0,0,0,0.2);border:1px solid var(--border);border-radius:8px;text-align:center;">' +
+        '<div style="font-size:0.7em;color:var(--text-dim);">20日胜率 / 均值</div>' +
+        '<div style="font-size:1.2em;font-weight:900;color:' + (hitRate20 >= 50 ? 'var(--green)' : 'var(--yellow)') + ';">' + hitRate20.toFixed(0) + '% / ' + avgR20.toFixed(2) + '%</div>' +
+      '</div>';
+
+    // Score chart
+    if (scoreChartInstance) { scoreChartInstance.destroy(); }
+    const ctx = document.getElementById('scoreChart').getContext('2d');
+    const labels = records.slice().reverse().map(r => r.state_date);
+    const scores = records.slice().reverse().map(r => r.final_score);
+    const r5Data = records.slice().reverse().map(r => r.future_r5 != null ? r.future_r5 * 100 : null);
+
+    scoreChartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: '综合评分',
+          data: scores,
+          borderColor: '#4f8cff',
+          backgroundColor: 'rgba(79,140,255,0.1)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.2,
+          pointRadius: 3,
+          pointBackgroundColor: scores.map(s => s >= 0.7 ? '#0f6b4b' : s >= 0.5 ? '#ca8a04' : '#dc2626'),
+          yAxisID: 'y'
+        }, {
+          label: '5日收益 (%)',
+          data: r5Data,
+          borderColor: 'rgba(16,185,129,0.6)',
+          backgroundColor: 'rgba(16,185,129,0.05)',
+          borderWidth: 1.5,
+          borderDash: [4, 3],
+          fill: false,
+          tension: 0.3,
+          pointRadius: 2,
+          pointBackgroundColor: r5Data.map(v => v != null ? (v > 0 ? '#0f6b4b' : '#dc2626') : '#555'),
+          yAxisID: 'y1'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+          y: {
+            type: 'linear',
+            position: 'left',
+            min: 0,
+            max: 1,
+            grid: { color: 'rgba(26,39,68,0.3)' },
+            ticks: { callback: v => v.toFixed(2), font: { size: 10 } }
+          },
+          y1: {
+            type: 'linear',
+            position: 'right',
+            grid: { display: false },
+            ticks: { callback: v => v.toFixed(1) + '%', font: { size: 10 } }
+          },
+          x: {
+            grid: { color: 'rgba(26,39,68,0.2)' },
+            ticks: { font: { size: 9 }, maxTicksLimit: 15 }
+          }
+        },
+        plugins: {
+          legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true, font: { size: 10 } } },
+          tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + (ctx.dataset.yAxisID === 'y' ? ctx.raw.toFixed(2) : (ctx.raw != null ? ctx.raw.toFixed(2) + '%' : '-')) } }
+        }
+      }
+    });
+
+    // History table
+    tbody.innerHTML = records.map(r => {
+      const color = r.final_label === 'observe' ? 'green' : r.final_label === 'reject' ? 'red' : 'yellow';
+      const text = { 'observe': '偏多', 'watch': '中性', 'reject': '防御' }[r.final_label] || '中性';
+      const r5Color = r.future_r5 != null ? (r.future_r5 > 0 ? 'var(--green)' : 'var(--red)') : 'var(--text-dim)';
+      const r20Color = r.future_r20 != null ? (r.future_r20 > 0 ? 'var(--green)' : 'var(--red)') : 'var(--text-dim)';
+      const outcomeIcon = r.outcome_label === 'positive' ? '<span style="color:var(--green);">▲ 正</span>' : r.outcome_label === 'negative' ? '<span style="color:var(--red);">▼ 负</span>' : '<span style="color:var(--text-dim);">—</span>';
+      const hitBg = r.future_r5 != null && r.future_r5 > 0 ? 'rgba(15,107,75,0.08)' : 'transparent';
+      return '<tr style="background:' + hitBg + '">' +
+        '<td>' + r.state_date + '</td>' +
+        '<td><span class="card-tag" style="background:var(--' + color + '-bg);color:var(--' + color + ');">' + text + '</span></td>' +
+        '<td class="r mono">' + (r.final_score != null ? r.final_score.toFixed(2) : '—') + '</td>' +
+        '<td class="r mono" style="color:' + r5Color + '">' + (r.future_r5 != null ? (r.future_r5 * 100).toFixed(2) + '%' : '—') + '</td>' +
+        '<td class="r mono" style="color:' + r20Color + '">' + (r.future_r20 != null ? (r.future_r20 * 100).toFixed(2) + '%' : '—') + '</td>' +
+        '<td>' + outcomeIcon + '</td>' +
+        '</tr>';
+    }).join('');
+
+  } catch (e) {
+    title.textContent = '📈 ' + stockCode + ' — 加载失败';
+    statsDiv.innerHTML = '<div style="color: var(--red); padding: 10px; text-align: center;">API 请求失败: ' + e.message + '</div>';
+  }
+}
 </script>
 </body>
 </html>

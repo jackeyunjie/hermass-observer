@@ -3408,6 +3408,23 @@ def api_agent_debate_ledger(body: dict | None = Body(default=None)) -> JSONRespo
         return JSONResponse(content={"ok": False, "error": str(exc)}, status_code=500)
 
 
+@app.get("/api/per-stock-history")
+def api_per_stock_history(stock_code: str = "", limit: int = 30) -> JSONResponse:
+    """查询单只标的的 per-stock 历史决策记录，支持前端时序复盘。
+
+    返回该标的的历史信号时间序列，包含评分、标签、future_r5/r20 和结果评估。
+    """
+    if not stock_code:
+        return JSONResponse(content={"ok": False, "error": "请提供 stock_code"}, status_code=400)
+    try:
+        from scripts.decision_observation_ledger import generate_per_stock_observation_report
+
+        report = generate_per_stock_observation_report(stock_code=stock_code.strip(), limit=limit)
+        return JSONResponse(content=report)
+    except Exception as exc:
+        return JSONResponse(content={"ok": False, "error": str(exc)}, status_code=500)
+
+
 @app.get("/watchlist", response_class=HTMLResponse)
 def watchlist_page(request: Request) -> HTMLResponse:
     profile = get_current_profile(request)
