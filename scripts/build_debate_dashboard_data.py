@@ -132,6 +132,11 @@ def main() -> int:
     router_result = run_router(debate)
     metrics["agent_router"] = router_result
 
+    # Agent 历史准确率校准（Phase 2 MOE Calibration）
+    from scripts.build_agent_accuracy import main as run_accuracy
+    accuracy_result = run_accuracy()
+    metrics["agent_accuracy"] = accuracy_result
+
     DATA_FILE.write_text(json.dumps(metrics, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[OK] {DATA_FILE} 生成完成")
     return 0

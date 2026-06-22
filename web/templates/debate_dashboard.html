@@ -242,6 +242,35 @@ body::before{content:'';position:fixed;inset:0;background:linear-gradient(rgba(7
     {% endif %}
   </div>
   {% endif %}
+  {% if metrics.agent_accuracy and not metrics.agent_accuracy.error %}
+  <!-- Agent 准确率校准摘要 -->
+  <div style="margin-top: 20px; padding: 16px 20px; background: rgba(15,107,75,.04); border: 1px solid rgba(15,107,75,.15); border-radius: 12px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+      <h5 style="font-size: 0.9em; color: var(--text-bright); margin: 0;">📈 6 Agent 历史准确率（{{ metrics.agent_accuracy.total_trading_days }} 天回填 · 基准: future_r5）</h5>
+      <span style="font-size: 0.78em; color: var(--text-dim);">全局命中率 {{ metrics.agent_accuracy.overall_hit_rate_pct }}%</span>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px;">
+      {% for ag in metrics.agent_accuracy.agents %}
+      <div style="flex: 1; min-width: 140px; padding: 10px 12px; background: rgba(0,0,0,0.2); border-radius: 8px; font-size: 0.78em;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+          <span style="font-weight: 600; color: var(--text-bright);">{{ ag.agent|replace(' Agent', '') }}</span>
+          <span style="font-weight: 700; color: var({{ '--green' if ag.hit_rate_pct >= 52 else '--yellow' if ag.hit_rate_pct >= 48 else '--red' }})">{{ ag.hit_rate_pct }}%</span>
+        </div>
+        <div style="height: 4px; background: rgba(26,39,68,0.5); border-radius: 2px; overflow: hidden;">
+          <div style="height: 100%; width: {{ ag.hit_rate_pct }}%; background: {{ '#0f6b4b' if ag.hit_rate_pct >= 52 else '#ca8a04' if ag.hit_rate_pct >= 48 else '#dc2626' }}; border-radius: 2px;"></div>
+        </div>
+        <div style="margin-top: 4px; color: var(--text-dim); font-size: 0.9em;">
+          {{ ag.calibration_note }}
+          {% if ag.green_hit_rate is not none %}<span style="color: var(--green);">🟢 {{ ag.green_hit_rate }}%</span>{% endif %}
+          {% if ag.yellow_hit_rate is not none %}<span style="color: var(--yellow);">🟡 {{ ag.yellow_hit_rate }}%</span>{% endif %}
+          {% if ag.red_hit_rate is not none %}<span style="color: var(--red);">🔴 {{ ag.red_hit_rate }}%</span>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <div style="font-size: 0.72em; color: var(--text-dim); margin-top: 8px;">数据源：{{ metrics.agent_accuracy.data_source }} · 范围 {{ metrics.agent_accuracy.date_range }}</div>
+  </div>
+  {% endif %}
   {% if metrics.agent_debate %}
   <div style="text-align:right;font-size:.72em;color:var(--text-dim);margin-top:8px">数据源：State Cube {{ metrics.agent_debate.state_date }} · 样本 {{ metrics.agent_debate.sample_stocks }} 只高 ADX 标的</div>
   {% endif %}
@@ -414,7 +443,7 @@ body::before{content:'';position:fixed;inset:0;background:linear-gradient(rgba(7
   <div class="grid-5 metric-grid">
     <div class="card metric"><div class="big mono" style="color:var({{ metrics.fresh_color }})">{{ metrics.fresh_text }}</div><div class="label">数据新鲜度<br><span style="font-size:.85em">{{ metrics.fresh_sub }}</span></div></div>
     <div class="card metric"><div class="big mono" style="color:var({{ metrics.cron_color }})">{{ metrics.cron_icon }}</div><div class="label">定时任务状态<br><span style="font-size:.85em">{{ metrics.cron_sub }}</span></div></div>
-    <div class="card metric"><div class="big mono" style="color:var(--yellow)">6</div><div class="label">Agent 辩论参与者<br><span style="color:var(--red);font-size:.85em">均未校准</span></div></div>
+    <div class="card metric"><div class="big mono" style="color:{% if metrics.agent_accuracy and metrics.agent_accuracy.overall_hit_rate_pct >= 52 %}var(--green){% else %}var(--yellow){% endif %}">{% if metrics.agent_accuracy %}{{ metrics.agent_accuracy.overall_hit_rate_pct }}%{% else %}6{% endif %}</div><div class="label">Agent 准确率<br><span style="color:{% if metrics.agent_accuracy %}var(--green){% else %}var(--red){% endif %};font-size:.85em">{% if metrics.agent_accuracy %}{{ metrics.agent_accuracy.total_trading_days }} 天回填{% else %}均未校准{% endif %}</span></div></div>
     <div class="card metric"><div class="big mono" style="color:var({{ metrics.test_color }})">{{ metrics.test_count }}</div><div class="label">测试文件数<br><span style="color:var(--yellow);font-size:.85em">策略信号无覆盖</span></div></div>
     <div class="card metric"><div class="big mono" style="color:var({{ metrics.main_color }})">{{ metrics.main_lines }}</div><div class="label">web/main.py 行数<br><span style="color:var(--red);font-size:.85em">需拆分至 1500</span></div></div>
   </div>
