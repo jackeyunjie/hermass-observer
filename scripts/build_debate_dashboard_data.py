@@ -5,7 +5,7 @@
 import json
 import subprocess
 import sys
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -131,6 +131,13 @@ def main() -> int:
     from scripts.dynamic_weight_router import main as run_router
     router_result = run_router(debate)
     metrics["agent_router"] = router_result
+
+    # 决策观察账本：把每日市场级判断写入 decision_observation.duckdb（P0）
+    from scripts import decision_observation_ledger as ledger
+    as_of = datetime.strptime(debate.get("state_date", date.today().isoformat()), "%Y-%m-%d").date()
+    ledger.write_market_observation_ledger(as_of, debate, router_result, replace_date=True)
+    market_report = ledger.generate_market_observation_report()
+    metrics["market_observation"] = market_report
 
     # Agent 历史准确率校准（Phase 2 MOE Calibration）
     from scripts.build_agent_accuracy import main as run_accuracy

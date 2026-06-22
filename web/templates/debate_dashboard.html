@@ -271,6 +271,70 @@ body::before{content:'';position:fixed;inset:0;background:linear-gradient(rgba(7
     <div style="font-size: 0.72em; color: var(--text-dim); margin-top: 8px;">数据源：{{ metrics.agent_accuracy.data_source }} · 范围 {{ metrics.agent_accuracy.date_range }}</div>
   </div>
   {% endif %}
+  {% if metrics.market_observation and metrics.market_observation.ok %}
+  <!-- P0 决策观察账本：市场择时信号 -->
+  <div style="margin-top: 20px; padding: 20px; background: rgba(79,140,255,.04); border: 1px solid rgba(79,140,255,.15); border-radius: 12px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
+      <h5 style="font-size: 0.95em; color: var(--text-bright); margin: 0;">📒 市场择时信号账本（P0 决策观察）</h5>
+      <span style="font-size: 0.78em; color: var(--text-dim);">{{ metrics.market_observation.record_count }} 天历史记录 · 已回填 future_r5 评估</span>
+    </div>
+    {% set latest = metrics.market_observation.latest %}
+    {% set sig_color = 'green' if latest.final_label == 'observe' else 'red' if latest.final_label == 'reject' else 'yellow' %}
+    {% set sig_text = {'observe':'偏多操作','watch':'谨慎中性','reject':'观望/防御'}.get(latest.final_label, '谨慎中性') %}
+    <div class="grid-3" style="margin-bottom: 16px; gap: 14px;">
+      <div style="padding: 16px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 10px; text-align: center;">
+        <div style="font-size: 0.78em; color: var(--text-dim); margin-bottom: 6px;">最新信号 {{ latest.state_date }}</div>
+        <div style="font-size: 1.5em; font-weight: 900; color: var(--{{ sig_color }});">{{ sig_text }}</div>
+        <div style="font-size: 0.85em; color: var(--text-dim); margin-top: 6px;">Router 加权得分 {{ "%.2f"|format(latest.final_score) }}</div>
+      </div>
+      <div style="padding: 16px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 10px; text-align: center;">
+        <div style="font-size: 0.78em; color: var(--text-dim); margin-bottom: 6px;">高分档（≥0.55）5日胜率</div>
+        {% set high = metrics.market_observation.score_bin_stats.high %}
+        <div style="font-size: 1.5em; font-weight: 900; color: var(--green);">{{ "%.0f"|format((high.positive_pct or 0) * 100) }}%</div>
+        <div style="font-size: 0.78em; color: var(--text-dim); margin-top: 6px;">样本 {{ high.count }} 天 · 平均收益 {{ "%.2f"|format((high.avg_future_r5 or 0) * 100) }}%</div>
+      </div>
+      <div style="padding: 16px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 10px; text-align: center;">
+        <div style="font-size: 0.78em; color: var(--text-dim); margin-bottom: 6px;">低分档（<0.35）5日胜率</div>
+        {% set low = metrics.market_observation.score_bin_stats.low %}
+        <div style="font-size: 1.5em; font-weight: 900; color: var(--yellow);">{{ "%.0f"|format((low.positive_pct or 0) * 100) }}%</div>
+        <div style="font-size: 0.78em; color: var(--text-dim); margin-top: 6px;">样本 {{ low.count }} 天 · 平均收益 {{ "%.2f"|format((low.avg_future_r5 or 0) * 100) }}%</div>
+      </div>
+    </div>
+    <table class="tbl" style="font-size: 0.78em;">
+      <thead>
+        <tr>
+          <th>日期</th>
+          <th>信号</th>
+          <th class="r">得分</th>
+          <th class="r">未来5日收益</th>
+          <th class="r">未来20日收益</th>
+          <th>结果</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in metrics.market_observation.records[:15] %}
+        {% set row_color = 'green' if r.final_label == 'observe' else 'red' if r.final_label == 'reject' else 'yellow' %}
+        {% set row_text = {'observe':'偏多','watch':'中性','reject':'防御'}.get(r.final_label, '中性') %}
+        <tr>
+          <td>{{ r.state_date }}</td>
+          <td><span class="card-tag" style="background: var(--{{ row_color }}-bg); color: var(--{{ row_color }});">{{ row_text }}</span></td>
+          <td class="r mono">{{ "%.2f"|format(r.final_score) }}</td>
+          <td class="r mono" style="color: {% if r.future_r5 is not none %}{% if r.future_r5 > 0 %}var(--green){% else %}var(--red){% endif %}{% else %}var(--text-dim){% endif %}">
+            {% if r.future_r5 is not none %}{{ "%.2f"|format(r.future_r5 * 100) }}%{% else %}—{% endif %}
+          </td>
+          <td class="r mono" style="color: {% if r.future_r20 is not none %}{% if r.future_r20 > 0 %}var(--green){% else %}var(--red){% endif %}{% else %}var(--text-dim){% endif %}">
+            {% if r.future_r20 is not none %}{{ "%.2f"|format(r.future_r20 * 100) }}%{% else %}—{% endif %}
+          </td>
+          <td style="color: var(--text-dim);">{% if r.outcome_label == 'positive' %}🟢 正向{% elif r.outcome_label == 'negative' %}🔴 负向{% else %}⚪ 中性{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div style="font-size: 0.72em; color: var(--text-dim); margin-top: 10px; line-height: 1.6;">
+      说明：市场级信号由 6-Agent 辩论 + Dynamic Weight Router 生成，以 state_cube 全市场平均 future_r5 作为 5 日结果基准。score≥0.55 的交易日历史上 5 日正收益比例更高，可作为仓位参考。
+    </div>
+  </div>
+  {% endif %}
   {% if metrics.agent_debate %}
   <div style="text-align:right;font-size:.72em;color:var(--text-dim);margin-top:8px">数据源：State Cube {{ metrics.agent_debate.state_date }} · 样本 {{ metrics.agent_debate.sample_stocks }} 只高 ADX 标的</div>
   {% endif %}
