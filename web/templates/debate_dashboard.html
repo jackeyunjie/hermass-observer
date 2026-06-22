@@ -354,10 +354,10 @@ body::before{content:'';position:fixed;inset:0;background:linear-gradient(rgba(7
         <div style="font-size: 0.72em; color: var(--text-dim); margin-top: 4px;">个信号 · 近 90 天</div>
       </div>
       <div style="padding: 14px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 10px; text-align: center;">
-        <div style="font-size: 0.76em; color: var(--text-dim); margin-bottom: 4px;">偏多信号命中率</div>
+        <div style="font-size: 0.76em; color: var(--text-dim); margin-bottom: 4px;">偏多信号正收益比例</div>
         {% set obs = hist.label_stats.observe or {} %}
-        <div style="font-size: 1.4em; font-weight: 900; color: var(--green);">{{ "%.1f"|format((obs.hit_rate or 0) * 100) }}%</div>
-        <div style="font-size: 0.72em; color: var(--text-dim); margin-top: 4px;">5日收益>{{ "%.1f"|format(((obs.avg_r5 or 0) * 100)) }}% 平均</div>
+        <div style="font-size: 1.4em; font-weight: 900; color: var(--green);">{{ "%.1f"|format((obs.positive_pct or 0) * 100) }}%</div>
+        <div style="font-size: 0.72em; color: var(--text-dim); margin-top: 4px;">{{ obs.count or 0 }} 个信号 · 5日平均 {{ "%.2f"|format((obs.avg_r5 or 0) * 100) }}%</div>
       </div>
       <div style="padding: 14px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 10px; text-align: center;">
         <div style="font-size: 0.76em; color: var(--text-dim); margin-bottom: 4px;">中分档(0.4-0.7) 5日胜率</div>

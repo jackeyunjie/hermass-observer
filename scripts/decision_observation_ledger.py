@@ -769,12 +769,12 @@ def generate_market_observation_report() -> dict[str, Any]:
     for r in records:
         label = r["final_label"] or "unknown"
         if label not in label_stats:
-            label_stats[label] = {"count": 0, "hit": 0, "avg_r5": [], "avg_r20": []}
+            label_stats[label] = {"count": 0, "hit": 0, "r5_list": [], "r20_list": []}
         label_stats[label]["count"] += 1
         if r["future_r5"] is not None:
-            label_stats[label]["avg_r5"].append(r["future_r5"])
+            label_stats[label]["r5_list"].append(r["future_r5"])
         if r["future_r20"] is not None:
-            label_stats[label]["avg_r20"].append(r["future_r20"])
+            label_stats[label]["r20_list"].append(r["future_r20"])
         if r["outcome_label"]:
             total_seen += 1
             # 看涨信号（observe）命中 positive，看跌信号（reject）命中 negative，均为正确
@@ -789,9 +789,12 @@ def generate_market_observation_report() -> dict[str, Any]:
                 pass
 
     for label, s in label_stats.items():
-        s["avg_r5"] = round(sum(s["avg_r5"]) / len(s["avg_r5"]), 4) if s["avg_r5"] else None
-        s["avg_r20"] = round(sum(s["avg_r20"]) / len(s["avg_r20"]), 4) if s["avg_r20"] else None
+        s["avg_r5"] = round(sum(s["r5_list"]) / len(s["r5_list"]), 4) if s["r5_list"] else None
+        s["avg_r20"] = round(sum(s["r20_list"]) / len(s["r20_list"]), 4) if s["r20_list"] else None
+        s["positive_pct"] = round(sum(1 for v in s["r5_list"] if v > 0) / len(s["r5_list"]), 4) if s["r5_list"] else 0
         s["hit_rate"] = round(s["hit"] / s["count"], 4) if s["count"] else 0
+        s.pop("r5_list", None)
+        s.pop("r20_list", None)
 
     overall_hit_rate = round(total_hit / total_seen, 4) if total_seen else 0
 
@@ -1190,12 +1193,12 @@ def _compute_per_stock_history_stats() -> dict[str, Any]:
     for final_label, final_score, future_r5, future_r20, outcome_label in rows:
         label = final_label or "unknown"
         if label not in label_stats:
-            label_stats[label] = {"count": 0, "hit": 0, "avg_r5": [], "avg_r20": []}
+            label_stats[label] = {"count": 0, "hit": 0, "r5_list": [], "r20_list": []}
         label_stats[label]["count"] += 1
         if future_r5 is not None:
-            label_stats[label]["avg_r5"].append(future_r5)
+            label_stats[label]["r5_list"].append(future_r5)
         if future_r20 is not None:
-            label_stats[label]["avg_r20"].append(future_r20)
+            label_stats[label]["r20_list"].append(future_r20)
         if outcome_label:
             total_seen += 1
             if label == "observe" and outcome_label == "positive":
@@ -1215,9 +1218,12 @@ def _compute_per_stock_history_stats() -> dict[str, Any]:
                 score_bins["low"].append(future_r5)
 
     for label, s in label_stats.items():
-        s["avg_r5"] = round(sum(s["avg_r5"]) / len(s["avg_r5"]), 4) if s["avg_r5"] else None
-        s["avg_r20"] = round(sum(s["avg_r20"]) / len(s["avg_r20"]), 4) if s["avg_r20"] else None
+        s["avg_r5"] = round(sum(s["r5_list"]) / len(s["r5_list"]), 4) if s["r5_list"] else None
+        s["avg_r20"] = round(sum(s["r20_list"]) / len(s["r20_list"]), 4) if s["r20_list"] else None
+        s["positive_pct"] = round(sum(1 for v in s["r5_list"] if v > 0) / len(s["r5_list"]), 4) if s["r5_list"] else 0
         s["hit_rate"] = round(s["hit"] / s["count"], 4) if s["count"] else 0
+        s.pop("r5_list", None)
+        s.pop("r20_list", None)
 
     score_bin_stats = {}
     for key, vals in score_bins.items():
