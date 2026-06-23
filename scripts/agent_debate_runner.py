@@ -181,22 +181,72 @@ def _boundary_opinion(stocks: list[dict], market: dict) -> dict:
 
 
 def _risk_opinion(stocks: list[dict], market: dict) -> dict:
+    """风险识别与反驳——校准版。
+
+    问题：旧版用绝对阈值（如 extreme_adx≥5）在 5500+ 只股票中几乎天天触发。
+    修复：改为比例阈值（占总股票数的 %），并结合市场环境判断。
+    """
+    total = max(market.get("total_stocks", 1), 1)
     risks = []
-    if market["extreme_adx"] >= 5:
-        risks.append(f"全市场 {market['extreme_adx']} 只 D1 ADX≥70，极端动量可能衰竭")
-    if market["bearish_div"] >= 10:
-        risks.append(f"全市场 {market['bearish_div']} 只 ADX≥30 但 -DI > +DI，动量反转风险")
-    if market["fake_breakout"] >= 5:
-        risks.append(f"全市场 {market['fake_breakout']} 只 BB 上轨突破但 D1 ADX < W1 ADX，假突破警告")
-    if market["mn1_weak_ef2"] >= 20:
-        risks.append(f"{market['mn1_weak_ef2']} 只 EF≥2 但 MN1 未在 E/F 牛市，长周期保护不足")
+    risk_level = 0  # 0=安全, 1=观察, 2=有风险, 3=严重
+
+    # 1. 极端动量衰竭风险：ADX≥70 占比 > 2%
+    extreme_adx_pct = market.get("extreme_adx", 0) / total * 100
+    if extreme_adx_pct > 5:
+        risks.append(f"全市场 {extreme_adx_pct:.1f}% 标的 D1 ADX≥70，极端动量衰竭风险高")
+        risk_level += 1
+    elif extreme_adx_pct > 2:
+        risks.append(f"全市场 {extreme_adx_pct:.1f}% 标的 D1 ADX≥70，关注极端动量")
+        if risk_level < 1: risk_level = 1
+
+    # 2. 动量反转风险：ADX≥30 但 -DI>+DI 占比 > 15%，且 +DI>-DI 占比 < 40%
+    bearish_pct = market.get("bearish_div", 0) / total * 100
+    bull_pct = market.get("d1_bull_pct", 50)
+    if bearish_pct > 25 and bull_pct < 35:
+        risks.append(f"全市场反向动量 {bearish_pct:.1f}%，主动量偏多仅 {bull_pct}%，动量反转风险")
+        risk_level += 1
+    elif bearish_pct > 15:
+        risks.append(f"全市场反向动量 {bearish_pct:.1f}%，关注动量分化")
+        if risk_level < 1: risk_level = 1
+
+    # 3. 假突破风险：BB 上轨外但 D1 ADX < W1 ADX 占比 > 1%
+    fake_pct = market.get("fake_breakout", 0) / total * 100
+    if fake_pct > 3:
+        risks.append(f"全市场 {fake_pct:.1f}% 标的疑似假突破（D1 ADX < W1 ADX 但已破 BB 上轨）")
+        risk_level += 1
+    elif fake_pct > 1.5:
+        if risk_level < 1: risk_level = 1
+
+    # 4. 长周期保护不足：EF≥2 但 MN1 不在 E/F 占比 > 30%
+    mn1_weak_pct = market.get("mn1_weak_ef2", 0) / max(market.get("ef2_count", 1), 1) * 100 if market.get("ef2_count", 0) > 0 else 0
+    if mn1_weak_pct > 50 and market.get("ef2_count", 0) > 100:
+        risks.append(f"EF≥2 标的中 {mn1_weak_pct:.0f}% 缺乏 MN1 牛市确认，长周期保护不足")
+        if risk_level < 1: risk_level = 1
+
+    # 市场环境调节：动量偏多 > 55% + ef2 > 300 → 降级风险
+    if bull_pct > 55 and market.get("ef2_count", 0) > 300 and risk_level >= 2:
+        risk_level -= 1
+
+    if risk_level >= 3:
+        verdict = "严重风险"
+        color = "red"
+    elif risk_level >= 2:
+        verdict = "有风险"
+        color = "red"
+    elif risk_level >= 1:
+        verdict = "观察"
+        color = "yellow"
+    else:
+        verdict = "安全"
+        color = "green"
+
     return {
         "agent": "风险 Agent", "role": "风险识别与反驳",
-        "verdict": "有风险" if len(risks) >= 2 else ("观察" if risks else "安全"),
-        "verdict_color": "red" if len(risks) >= 2 else ("yellow" if risks else "green"),
-        "conclusion": f"发现 {len(risks)} 项风险信号" + (f"：{'；'.join(risks)}" if risks else "，系统运行正常"),
+        "verdict": verdict,
+        "verdict_color": color,
+        "conclusion": f"发现 {len(risks)} 项风险信号（风险等级 {risk_level}）" + (f"：{'；'.join(risks)}" if risks else "，系统运行正常"),
         "evidence": risks if risks else ["无极端风险信号"],
-        "risk": "多重风险叠加，建议降低仓位观察" if len(risks) >= 2 else (
+        "risk": "多重风险叠加，建议降低仓位观察" if risk_level >= 2 else (
             "个别风险信号需跟踪" if risks else "风险可控，可维持当前仓位"
         ),
     }

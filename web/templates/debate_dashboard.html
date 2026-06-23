@@ -289,13 +289,13 @@ body::before{content:'';position:fixed;inset:0;background:linear-gradient(rgba(7
         <div style="font-size: 0.85em; color: var(--text-dim); margin-top: 6px;">Router 加权得分 {{ "%.2f"|format(latest.final_score) }}</div>
       </div>
       <div style="padding: 16px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 10px; text-align: center;">
-        <div style="font-size: 0.78em; color: var(--text-dim); margin-bottom: 6px;">高分档（≥0.55）5日胜率</div>
+        <div style="font-size: 0.78em; color: var(--text-dim); margin-bottom: 6px;">高分档（≥0.50）5日胜率</div>
         {% set high = metrics.market_observation.score_bin_stats.high %}
         <div style="font-size: 1.5em; font-weight: 900; color: var(--green);">{{ "%.0f"|format((high.positive_pct or 0) * 100) }}%</div>
         <div style="font-size: 0.78em; color: var(--text-dim); margin-top: 6px;">样本 {{ high.count }} 天 · 平均收益 {{ "%.2f"|format((high.avg_future_r5 or 0) * 100) }}%</div>
       </div>
       <div style="padding: 16px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 10px; text-align: center;">
-        <div style="font-size: 0.78em; color: var(--text-dim); margin-bottom: 6px;">低分档（<0.35）5日胜率</div>
+        <div style="font-size: 0.78em; color: var(--text-dim); margin-bottom: 6px;">低分档（<0.30）5日胜率</div>
         {% set low = metrics.market_observation.score_bin_stats.low %}
         <div style="font-size: 1.5em; font-weight: 900; color: var(--yellow);">{{ "%.0f"|format((low.positive_pct or 0) * 100) }}%</div>
         <div style="font-size: 0.78em; color: var(--text-dim); margin-top: 6px;">样本 {{ low.count }} 天 · 平均收益 {{ "%.2f"|format((low.avg_future_r5 or 0) * 100) }}%</div>
@@ -332,7 +332,7 @@ body::before{content:'';position:fixed;inset:0;background:linear-gradient(rgba(7
       </tbody>
     </table>
     <div style="font-size: 0.72em; color: var(--text-dim); margin-top: 10px; line-height: 1.6;">
-      说明：市场级信号由 6-Agent 辩论 + Dynamic Weight Router 生成，以 state_cube 全市场平均 future_r5 作为 5 日结果基准。score≥0.55 的交易日历史上 5 日正收益比例更高，可作为仓位参考。
+      说明：市场级信号由 6-Agent 辩论 + Dynamic Weight Router 生成，以 state_cube 全市场平均 future_r5 作为 5 日结果基准。score≥0.50 的交易日历史上 5 日胜率更高；<0.30 为防御信号，可作为仓位参考。
     </div>
   </div>
   {% endif %}

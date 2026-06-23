@@ -807,7 +807,7 @@ def generate_market_observation_report() -> dict[str, Any]:
     }
     for r in records:
         s = r["final_score"] or 0.5
-        bin_key = "high" if s >= 0.55 else ("mid" if s >= 0.35 else "low")
+        bin_key = "high" if s >= 0.50 else ("mid" if s >= 0.30 else "low")
         if r["future_r5"] is not None:
             score_bins[bin_key]["r5"].append(r["future_r5"])
         if r["future_r20"] is not None:
