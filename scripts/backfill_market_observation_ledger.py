@@ -63,7 +63,7 @@ def build_router_for_date(debate: dict) -> dict:
     weights = compute_weights(opinions, market)
     conflicts = detect_conflicts(opinions)
     resonances = detect_resonances(opinions)
-    verdict = compute_final_verdict(opinions, weights, conflicts, resonances)
+    verdict = compute_final_verdict(opinions, weights, conflicts, resonances, market=market)
     return {
         "generated_at": debate["state_date"],
         "weights": weights,

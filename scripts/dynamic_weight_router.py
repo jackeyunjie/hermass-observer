@@ -153,37 +153,55 @@ def compute_final_verdict(opinions: list[dict], weights: dict[str, float],
 
     agent_adjusted = max(0.05, min(0.95, agent_score - conflict_penalty + resonance_bonus))
 
-    # Direct market score from raw aggregates (0-1 scale)
-    direct_score = 0.5
+    # Direct market score: risk-compensation oriented, non-linear calibration.
+    # 1559-day state_cube history shows future_r5 is highest at extremes:
+    # - below_bb_pct >= ~12.6 (historical P90): 63.1% 5-day win rate
+    # - above_bb_pct <= ~1.8 (historical P10): 68.3% 5-day win rate
+    # Mid-range values (e.g. below 3.3-7.2%) are actually the worst performers.
+    # Therefore we use a step/slope function that only rewards clear extremes.
+    direct_score = 0.45
     if market:
         total_stocks = max(market.get("total_stocks", 1), 1)
-        ef2_pct = market.get("ef2_count", 0) / total_stocks
-        bull_pct = market.get("d1_bull_pct", 50) / 100
-        adx_norm = min(market.get("avg_d1_adx", 20) / 50, 1.0)  # 0-1, ADX 50 = max
-        bb_ratio = 1.0 - min((market.get("d1_above_bb", 0) + market.get("d1_below_bb", 0)) / max(total_stocks, 1), 0.5)
+        below_bb_pct = market.get("d1_below_bb", 0) / total_stocks * 100
+        above_bb_pct = market.get("d1_above_bb", 0) / total_stocks * 100
 
-        # Strong momentum + high EF coverage = bullish
-        momentum = (bull_pct * 0.5 + adx_norm * 0.3 + ef2_pct * 15 * 0.2)
-        # Extreme BB positions = cautious
-        extreme_penalty = (market.get("d1_above_bb", 0) + market.get("d1_below_bb", 0)) / max(total_stocks, 1) * 0.3
-        # Risk signals
-        risk_deduction = 0.0
-        if market.get("extreme_adx", 0) >= 5: risk_deduction += 0.05
-        if market.get("fake_breakout", 0) >= 5: risk_deduction += 0.05
-        if market.get("mn1_weak_ef2", 0) >= 20: risk_deduction += 0.03
+        # Oversold reward: kicks in above historical P75 (~4.6), full reward at P90 (~12.6)
+        if below_bb_pct >= 12.6:
+            oversold_signal = 0.35
+        elif below_bb_pct >= 4.6:
+            oversold_signal = 0.30 * (below_bb_pct - 4.6) / 8.0
+        else:
+            oversold_signal = 0.0
 
-        direct_score = max(0.05, min(0.95, momentum - extreme_penalty - risk_deduction))
+        # No-overheating reward: full below historical P10 (~1.8), fades to median (~4.7)
+        if above_bb_pct <= 1.8:
+            no_heat_signal = 0.45
+        elif above_bb_pct <= 4.7:
+            no_heat_signal = 0.20 * (4.7 - above_bb_pct) / 2.9
+        else:
+            no_heat_signal = 0.0
 
-    # Blend: 60% direct market score + 40% agent consensus
-    blended_score = round(direct_score * 0.6 + agent_adjusted * 0.4, 2)
+        # Mild penalty when market is overheated without being oversold
+        overheated_penalty = 0.10 if (above_bb_pct > 10.7 and below_bb_pct < 4.6) else 0.0
 
-    # Thresholds calibrated against 54-day market observation ledger:
-    # - ≥0.50: 56.5% 5-day win rate, avg +0.80% (23 samples)
-    # - <0.30: historically contrarian during down markets
-    if blended_score >= 0.50:
+        direct_score = max(0.10, min(0.90,
+            0.45 + oversold_signal + no_heat_signal - overheated_penalty))
+
+    # Blend: 85% direct market score + 15% agent consensus.
+    # Agent consensus is kept small to avoid the previous "all agents agree = green" bias.
+    # The market signal is the strongest calibrated predictor; agent views provide a small nudge.
+    blended_score = round(direct_score * 0.85 + agent_adjusted * 0.15, 2)
+
+    # Thresholds calibrated against 1559-day market observation ledger (new risk-comp model):
+    # - blended>=0.75 AND direct>=0.80: ~65.3% 5-day win rate (259 samples)
+    # - 0.45-0.75 (or blended>=0.75 with weak direct): watch zone
+    # - <0.45: defensive zone
+    # The extra direct>=0.80 guard filters cases where agent optimism alone pushes the
+    # blended score into the observe zone despite a mediocre market signal.
+    if blended_score >= 0.75 and direct_score >= 0.80:
         final_verdict = "偏多操作"
         final_color = "green"
-    elif blended_score >= 0.30:
+    elif blended_score >= 0.45:
         final_verdict = "谨慎中性"
         final_color = "yellow"
     else:
