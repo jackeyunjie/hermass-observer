@@ -4,14 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Hermass Observer 五方深度辩论仪表盘</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.bootcdn.net/ajax/libs/Chart.js/4.4.7/chart.umd.min.js"></script>
 <style>
 :root{--bg:#060a12;--surface:#0c1220;--card:#111a2e;--card-hover:#152040;--border:#1a2744;--border-glow:#2a4080;--text:#c8d6e5;--text-bright:#edf2f7;--text-dim:#5a6f8a;--accent:#4f8cff;--accent2:#7c5cfc;--green:#0f6b4b;--yellow:#ca8a04;--red:#dc2626;--green-bg:rgba(15,107,75,.12);--yellow-bg:rgba(202,138,4,.12);--red-bg:rgba(220,38,38,.12);--ok:var(--green);--warn:var(--yellow);--danger:var(--red);--gold:#ffd700}
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{background:var(--bg);color:var(--text);font-family:'Noto Sans SC',sans-serif;line-height:1.7;overflow-x:hidden}
-.mono{font-family:'JetBrains Mono',monospace}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;line-height:1.7;overflow-x:hidden}
+.mono{font-family:'SF Mono',Menlo,Monaco,'Courier New',monospace}
 body::before{content:'';position:fixed;inset:0;background:linear-gradient(rgba(79,140,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(79,140,255,.03) 1px,transparent 1px);background-size:60px 60px;pointer-events:none;z-index:0}
 .wrap{max-width:1320px;margin:0 auto;padding:0 24px;position:relative;z-index:1}
 .hero{padding:64px 0 48px;text-align:center;position:relative}
@@ -651,7 +650,7 @@ document.querySelectorAll('.reveal').forEach(el => io.observe(el));
 
 Chart.defaults.color = '#5a6f8a';
 Chart.defaults.borderColor = 'rgba(26,39,68,0.5)';
-Chart.defaults.font.family = "'Noto Sans SC','JetBrains Mono',sans-serif";
+Chart.defaults.font.family = "-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif";
 
 // P1-3: 五维评分横向条形图 (ex-radar)
 new Chart(document.getElementById('bar5d'), {
