@@ -221,8 +221,18 @@ HEREDOC
 ### 6. 部署与运行约束
 
 - 服务器部署后必须确认：
-  - `agently` 包已安装在 `.venv`；
-  - `DEEPSEEK_API_KEY` / `HERMASS_DEEPSEEK_API_KEY` 等变量已配置；
+  - `agently` 包已安装在 `.venv`（当前版本 `4.1.2.4`）；如缺失，运行 `source .venv/bin/activate && pip install agently==4.1.2.4`；
+  - `DEEPSEEK_API_KEY` / `HERMASS_DEEPSEEK_API_KEY` 等变量已配置；推荐通过 systemd drop-in 配置：
+    ```bash
+    mkdir -p /etc/systemd/system/hermass-console.service.d
+    cat > /etc/systemd/system/hermass-console.service.d/override.conf << 'EOF'
+    [Service]
+    Environment=DEEPSEEK_API_KEY=sk-...
+    EOF
+    chmod 600 /etc/systemd/system/hermass-console.service.d/override.conf
+    systemctl daemon-reload
+    sudo systemctl restart hermass-console
+    ```
   - `outputs/agent_bus/outbox/` 目录存在且可写；
 - 禁止在服务器上直接新增 Agent 行为到 `web/main.py`；
 - 新增脚本只能放 `scripts/`，由 `config/hermes_cron.json` 调用；
