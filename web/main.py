@@ -5568,6 +5568,8 @@ def journal_delete(request: Request, trade_id: int) -> JSONResponse:
 def chat_query(request: Request, query: ChatQuery) -> JSONResponse:
     profile = get_current_profile(request)
     user_id = profile.get("username", "web_user")
+    if not user_id or user_id == "anonymous":
+        return JSONResponse(content={"ok": False, "error": "unauthorized"}, status_code=401)
 
     # Phase 1：session 管理（创建/复用 + 持久化用户输入）
     try:

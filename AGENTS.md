@@ -67,31 +67,38 @@
 - `company-pager-nginx` 虽然名字像另一个项目，但它代理了 `console.supertrader.world -> http://172.17.0.1:8020`
 - 改完宿主机配置后，优先 `docker restart company-pager-nginx`，再用 `docker exec company-pager-nginx nginx -T` 验证是否真实生效
 
-### 网站公网 Basic Auth 与 chain-studio 验收（2026-06-06 固化）
+### 网站公网访问与 AI 对话认证验收（2026-06-24 固化）
 
-- `console.supertrader.world` 当前由外层 Nginx Basic Auth 保护；公网 `401 Authorization Required` 默认不是故障。
+- `console.supertrader.world` 当前浏览全站免登录；公网首页、`/chain-studio`、`/api/chain-studio` 不应再返回 Basic Auth `401`。
+- 仅 AI 对话运行入口 `/api/chat/query` 需要 Basic Auth。
 - 真实入口容器仍是 `company-pager-nginx`，配置位置：
   - 宿主机：`/opt/company-pager/nginx-backend.conf`
   - 容器内：`/etc/nginx/conf.d/default.conf`
-- 当前已确认 Nginx 配置包含：
+- 当前 Nginx 配置应满足：
   - `server_name console.supertrader.world;`
+  - server 块顶层不启用 `auth_basic`
+  - 仅 `location /api/chat/query` 启用：
   - `auth_basic "Hermass Console";`
   - `auth_basic_user_file /etc/nginx/.htpasswd_hermass;`
 - 当前公网验收账号：
   - 用户名：`hermass-test`
   - 密码：`Hermass2026!Lab`
 - 验收规则：
-  1. 先用 Basic Auth 访问 `http://console.supertrader.world/chain-studio`
-  2. 若未带凭证返回 `401`，视为鉴权生效，不视为站点故障
-  3. 带凭证后 `/chain-studio` 应返回 `200`
-  4. 带凭证后 `/api/chain-studio` 应返回 JSON，且包含 `"ok": true`
+  1. 未带凭证访问 `http://console.supertrader.world/` 应返回 `200`
+  2. 未带凭证访问 `http://console.supertrader.world/chain-studio` 应返回 `200`
+  3. 未带凭证访问 `http://console.supertrader.world/api/chain-studio` 应返回 JSON，且包含 `"ok": true`
+  4. 未带凭证 POST `/api/chat/query` 应返回 `401`
+  5. 带凭证 POST `/api/chat/query` 应返回 `200`
 - 标准命令：
-  - `curl -s -u 'hermass-test:Hermass2026!Lab' -o /dev/null -w "%{http_code}" http://console.supertrader.world/chain-studio`
-  - `curl -s -u 'hermass-test:Hermass2026!Lab' http://console.supertrader.world/api/chain-studio | head -c 400`
+  - `curl -s -o /dev/null -w "%{http_code}" http://console.supertrader.world/`
+  - `curl -s -o /dev/null -w "%{http_code}" http://console.supertrader.world/chain-studio`
+  - `curl -s http://console.supertrader.world/api/chain-studio | head -c 400`
+  - `curl -s -o /dev/null -w "%{http_code}" -X POST http://console.supertrader.world/api/chat/query -H 'Content-Type: application/json' -d '{"message":"ping","mode":"chat","use_llm":false}'`
+  - `curl -s -u 'hermass-test:Hermass2026!Lab' -o /dev/null -w "%{http_code}" -X POST http://console.supertrader.world/api/chat/query -H 'Content-Type: application/json' -d '{"message":"ping","mode":"chat","use_llm":false}'`
 - 2026-06-06 这次 `chain-studio` 恢复的真实根因不是登录限制，而是：
   - `web/templates/chain-studio.html` 曾漏提交
   - 服务器 `outputs/industry_chain/industry_chain_evidence.duckdb` 需要包含 `chain_studio_overview`、`chain_studio_nodes`、`chain_studio_events`、`chain_studio_candidates`
-- 若本地 `localhost:8020/api/chain-studio` 已 `ok:true`，但公网仍 `401`，优先判断为 Nginx Basic Auth 正常，不要误判为应用回退。
+- 若本地 `localhost:8020/api/chain-studio` 已 `ok:true`，但公网 `/chain-studio` 或 `/api/chain-studio` 仍 `401`，优先检查 Nginx 是否残留 server 块级 `auth_basic`。
 
 ### 网站 public 静态文件入口与 AppleDouble（2026-06-04 固化）
 

@@ -1,8 +1,31 @@
+import base64
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
 from web.main import app
+
+
+def _basic_auth_header(username: str = "hermass-test", password: str = "Hermass2026!Lab") -> dict[str, str]:
+    token = base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
+    return {"Authorization": f"Basic {token}"}
+
+
+def test_chat_query_rejects_anonymous_request():
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/chat/query",
+        json={
+            "message": "现在能不能做",
+            "page_context": "/",
+            "mode": "chat",
+            "use_llm": False,
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json() == {"ok": False, "error": "unauthorized"}
 
 
 def test_chat_query_internal_error_returns_readable_fallback():
@@ -11,6 +34,7 @@ def test_chat_query_internal_error_returns_readable_fallback():
     with patch("web.main._chat_answer", side_effect=RuntimeError("forced chat failure")):
         response = client.post(
             "/api/chat/query",
+            headers=_basic_auth_header(),
             json={
                 "message": "现在能不能做",
                 "page_context": "/",
@@ -50,6 +74,7 @@ def test_chat_query_llm_failure_payload_uses_rule_answer():
     with patch("web.main._llm_chat_answer", return_value=failure_payload):
         response = client.post(
             "/api/chat/query",
+            headers=_basic_auth_header(),
             json={
                 "message": "现在能不能做",
                 "page_context": "/",
@@ -87,6 +112,7 @@ def test_chat_query_workflow_answer_discloses_no_local_support():
     with patch("web.main._llm_chat_answer", return_value=workflow_payload):
         response = client.post(
             "/api/chat/query",
+            headers=_basic_auth_header(),
             json={
                 "message": "解释一个本地没有覆盖的问题",
                 "page_context": "/",
@@ -122,6 +148,7 @@ def test_chat_query_workflow_answer_with_local_sources_keeps_origin_workflow():
     with patch("web.main._llm_chat_answer", return_value=workflow_payload):
         response = client.post(
             "/api/chat/query",
+            headers=_basic_auth_header(),
             json={
                 "message": "解释一个本地有支持的问题",
                 "page_context": "/",
