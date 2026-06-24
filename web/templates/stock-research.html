@@ -414,6 +414,11 @@
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4">
 
     {% for stock in stocks %}
+    {% set risk = stock.risk | default({}) %}
+    {% set moneyflow = stock.moneyflow | default({}) %}
+    {% set raw_data = stock.raw_data | default({}) %}
+    {% set state_history = stock.state_history | default([]) %}
+    {% set strategy_signals = stock.strategy_signals | default([]) %}
     <article class="bg-h-card border border-h-border rounded-xl overflow-hidden shadow-sm" data-stock="{{ stock.code }}">
 
       {# ═══════════ Layer 1: 收束层 ═══════════ #}
@@ -516,21 +521,21 @@
                 <p class="text-h-muted text-xs font-semibold uppercase tracking-wider mb-1">风险等级</p>
                 <p class="leading-relaxed">
                   <span class="inline-flex items-center gap-1.5">
-                    <span class="conf-dot {% if stock.risk.level == '较低' %}bg-h-green
-                                          {% elif stock.risk.level == '中等' %}bg-h-amber
+                    <span class="conf-dot {% if (risk.level | default('-')) == '较低' %}bg-h-green
+                                          {% elif (risk.level | default('-')) == '中等' %}bg-h-amber
                                           {% else %}bg-h-red{% endif %}"></span>
                     <span class="font-semibold
-                                 {% if stock.risk.level == '较低' %}text-h-green
-                                 {% elif stock.risk.level == '中等' %}text-h-amber
-                                 {% else %}text-h-red{% endif %}">{{ stock.risk.level }}</span>
+                                 {% if (risk.level | default('-')) == '较低' %}text-h-green
+                                 {% elif (risk.level | default('-')) == '中等' %}text-h-amber
+                                 {% else %}text-h-red{% endif %}">{{ risk.level | default('-') }}</span>
                   </span>
-                  <span class="text-h-muted text-xs ml-2">RR {{ stock.risk.rr_ratio }}:1</span>
+                  <span class="text-h-muted text-xs ml-2">RR {{ risk.rr_ratio | default('-') }}:1</span>
                 </p>
               </div>
               <div>
                 <p class="text-h-muted text-xs font-semibold uppercase tracking-wider mb-1">资金面</p>
-                <p class="text-h-ink leading-relaxed text-xs">{{ stock.moneyflow.confirmation }}</p>
-                <p class="text-h-muted text-xs mt-1">置信度 {{ (stock.moneyflow.confidence * 100) | round(0) | int }}%</p>
+                <p class="text-h-ink leading-relaxed text-xs">{{ moneyflow.confirmation | default('-') }}</p>
+                <p class="text-h-muted text-xs mt-1">置信度 {{ ((moneyflow.confidence | default(0)) * 100) | round(0) | int }}%</p>
               </div>
             </div>
 
@@ -555,7 +560,7 @@
           <div>
             <h3 class="text-xs font-bold text-h-muted uppercase tracking-wider mb-3">策略信号</h3>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {% for sig in stock.strategy_signals %}
+              {% for sig in strategy_signals %}
               <div class="border rounded-lg p-3 {% if sig.active %}border-h-green/20 bg-emerald-50/40{% else %}border-h-border bg-h-surface{% endif %}">
                 <div class="flex items-center justify-between mb-1.5">
                   <span class="text-sm font-bold {% if sig.active %}text-h-green{% else %}text-h-muted{% endif %}">{{ sig.name }}</span>
@@ -622,27 +627,27 @@
                 <tbody>
                   <tr class="border-b border-h-border/50">
                     <td class="py-2.5 px-3 font-semibold text-h-ink w-[140px]">资金确认</td>
-                    <td class="py-2.5 px-3 text-h-ink">{{ stock.moneyflow.confirmation }}</td>
+                    <td class="py-2.5 px-3 text-h-ink">{{ moneyflow.confirmation | default('-') }}</td>
                   </tr>
                   <tr class="border-b border-h-border/50">
                     <td class="py-2.5 px-3 font-semibold text-h-ink">资金背离</td>
-                    <td class="py-2.5 px-3 text-h-ink">{{ stock.moneyflow.divergence }}</td>
+                    <td class="py-2.5 px-3 text-h-ink">{{ moneyflow.divergence | default('-') }}</td>
                   </tr>
                   <tr class="border-b border-h-border/50">
                     <td class="py-2.5 px-3 font-semibold text-h-ink">板块承接</td>
-                    <td class="py-2.5 px-3 text-h-ink">{{ stock.moneyflow.sector_follow }}</td>
+                    <td class="py-2.5 px-3 text-h-ink">{{ moneyflow.sector_follow | default('-') }}</td>
                   </tr>
                   <tr>
                     <td class="py-2.5 px-3 font-semibold text-h-ink">综合置信度</td>
                     <td class="py-2.5 px-3">
                       <span class="inline-flex items-center gap-1.5">
-                        <span class="conf-dot {% if stock.moneyflow.confidence >= 0.7 %}bg-h-green
-                                              {% elif stock.moneyflow.confidence >= 0.5 %}bg-h-amber
+                        <span class="conf-dot {% if (moneyflow.confidence | default(0)) >= 0.7 %}bg-h-green
+                                              {% elif (moneyflow.confidence | default(0)) >= 0.5 %}bg-h-amber
                                               {% else %}bg-h-red{% endif %}"></span>
                         <span class="font-mono font-bold text-sm
-                                     {% if stock.moneyflow.confidence >= 0.7 %}text-h-green
-                                     {% elif stock.moneyflow.confidence >= 0.5 %}text-h-amber
-                                     {% else %}text-h-red{% endif %}">{{ (stock.moneyflow.confidence * 100) | round(0) | int }}%</span>
+                                     {% if (moneyflow.confidence | default(0)) >= 0.7 %}text-h-green
+                                     {% elif (moneyflow.confidence | default(0)) >= 0.5 %}text-h-amber
+                                     {% else %}text-h-red{% endif %}">{{ ((moneyflow.confidence | default(0)) * 100) | round(0) | int }}%</span>
                       </span>
                     </td>
                   </tr>
@@ -655,24 +660,24 @@
           <div>
             <h3 class="text-xs font-bold text-h-muted uppercase tracking-wider mb-3">风险评估 (risk_guardian)</h3>
             <div class="border rounded-lg p-4
-                        {% if stock.risk.level == '较低' %}border-emerald-200 bg-emerald-50/50
-                        {% elif stock.risk.level == '中等' %}border-amber-200 bg-amber-50/50
+                        {% if (risk.level | default('-')) == '较低' %}border-emerald-200 bg-emerald-50/50
+                        {% elif (risk.level | default('-')) == '中等' %}border-amber-200 bg-amber-50/50
                         {% else %}border-red-200 bg-red-50/50{% endif %}">
               <div class="flex items-center gap-4 mb-3 flex-wrap">
                 <span class="inline-flex items-center gap-1.5">
-                  <span class="conf-dot {% if stock.risk.level == '较低' %}bg-h-green
-                                        {% elif stock.risk.level == '中等' %}bg-h-amber
+                  <span class="conf-dot {% if (risk.level | default('-')) == '较低' %}bg-h-green
+                                        {% elif (risk.level | default('-')) == '中等' %}bg-h-amber
                                         {% else %}bg-h-red{% endif %}"></span>
                   <span class="text-sm font-bold
-                               {% if stock.risk.level == '较低' %}text-h-green
-                               {% elif stock.risk.level == '中等' %}text-h-amber
-                               {% else %}text-h-red{% endif %}">{{ stock.risk.level }}风险</span>
+                               {% if (risk.level | default('-')) == '较低' %}text-h-green
+                               {% elif (risk.level | default('-')) == '中等' %}text-h-amber
+                               {% else %}text-h-red{% endif %}">{{ risk.level | default('-') }}风险</span>
                 </span>
-                <span class="text-xs font-mono font-semibold text-h-muted">RR {{ stock.risk.rr_ratio }}:1</span>
-                <span class="text-xs text-h-muted">置信度 {{ (stock.risk.confidence * 100) | round(0) | int }}%</span>
+                <span class="text-xs font-mono font-semibold text-h-muted">RR {{ risk.rr_ratio | default('-') }}:1</span>
+                <span class="text-xs text-h-muted">置信度 {{ ((risk.confidence | default(0)) * 100) | round(0) | int }}%</span>
               </div>
               <ul class="space-y-1.5">
-                {% for factor in stock.risk.factors %}
+                {% for factor in risk.factors | default([]) %}
                 <li class="flex items-start gap-2 text-xs text-h-ink leading-relaxed">
                   <span class="text-h-muted mt-0.5 flex-shrink-0">&#8226;</span>
                   {{ factor }}
@@ -692,16 +697,16 @@
           <!-- Raw Data (JSON-like structured display) -->
           <div>
             <h3 class="text-xs font-bold text-h-muted uppercase tracking-wider mb-3">研究卡原始数据</h3>
-            <div class="json-block"><span class="json-key">"last_close"</span>:  <span class="json-num">{{ stock.raw_data.last_close }}</span>,
-<span class="json-key">"ma25"</span>:      <span class="json-num">{{ stock.raw_data.ma25 }}</span>,
-<span class="json-key">"ma60"</span>:      <span class="json-num">{{ stock.raw_data.ma60 }}</span>,
-<span class="json-key">"bb_upper"</span>:  <span class="json-num">{{ stock.raw_data.bb_upper }}</span>,
-<span class="json-key">"bb_lower"</span>:  <span class="json-num">{{ stock.raw_data.bb_lower }}</span>,
-<span class="json-key">"bb_width"</span>:  <span class="json-num">{{ stock.raw_data.bb_width }}</span>,
-<span class="json-key">"atr_14"</span>:    <span class="json-num">{{ stock.raw_data.atr_14 }}</span>,
-<span class="json-key">"volume_ratio"</span>:<span class="json-num">{{ stock.raw_data.volume_ratio }}</span>,
-<span class="json-key">"rsi_14"</span>:    <span class="json-num">{{ stock.raw_data.rsi_14 }}</span>,
-<span class="json-key">"macd_hist"</span>: <span class="json-num">{{ stock.raw_data.macd_hist }}</span>,
+            <div class="json-block"><span class="json-key">"last_close"</span>:  <span class="json-num">{{ raw_data.last_close | default(0) }}</span>,
+<span class="json-key">"ma25"</span>:      <span class="json-num">{{ raw_data.ma25 | default(0) }}</span>,
+<span class="json-key">"ma60"</span>:      <span class="json-num">{{ raw_data.ma60 | default(0) }}</span>,
+<span class="json-key">"bb_upper"</span>:  <span class="json-num">{{ raw_data.bb_upper | default(0) }}</span>,
+<span class="json-key">"bb_lower"</span>:  <span class="json-num">{{ raw_data.bb_lower | default(0) }}</span>,
+<span class="json-key">"bb_width"</span>:  <span class="json-num">{{ raw_data.bb_width | default(0) }}</span>,
+<span class="json-key">"atr_14"</span>:    <span class="json-num">{{ raw_data.atr_14 | default(0) }}</span>,
+<span class="json-key">"volume_ratio"</span>:<span class="json-num">{{ raw_data.volume_ratio | default(0) }}</span>,
+<span class="json-key">"rsi_14"</span>:    <span class="json-num">{{ raw_data.rsi_14 | default(0) }}</span>,
+<span class="json-key">"macd_hist"</span>: <span class="json-num">{{ raw_data.macd_hist | default(0) }}</span>,
 <span class="json-key">"state_hex"</span>: {
   <span class="json-key">"mn1"</span>: <span class="json-str">"{{ stock.hex_mn1 }}"</span>,
   <span class="json-key">"w1"</span>:  <span class="json-str">"{{ stock.hex_w1 }}"</span>,
@@ -713,7 +718,7 @@
           <div>
             <h3 class="text-xs font-bold text-h-muted uppercase tracking-wider mb-3">状态变迁时间线</h3>
             <div class="relative pl-6 space-y-0">
-              {% for entry in stock.state_history %}
+              {% for entry in state_history %}
               <div class="relative pb-4 last:pb-0">
                 {% if not loop.last %}
                 <div class="absolute left-[-17px] top-[20px] bottom-0 w-[2px] bg-h-border"></div>
