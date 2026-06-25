@@ -25,6 +25,7 @@ from pydantic import BaseModel
 
 ROOT = Path(__file__).resolve().parents[1]
 log = logging.getLogger("hermass.web")
+DESIGN_FEEDBACK_PATH = ROOT / "outputs" / "feedback" / "design_feedback.jsonl"
 
 import contextlib
 import io
@@ -2698,6 +2699,18 @@ def _render_cards(stock_code: str, render_profile: str) -> dict[str, Any]:
         }
 
 
+def _safe_feedback_text(value: Any, limit: int = 1200) -> str:
+    text = str(value or "").replace("\x00", "").strip()
+    return text[:limit]
+
+
+def _save_design_feedback(record: dict[str, Any], path: Path | None = None) -> None:
+    target = path or DESIGN_FEEDBACK_PATH
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "service": "hermass-internal-console"}
@@ -2730,6 +2743,20 @@ def index(request: Request, mode: str = "") -> HTMLResponse:
             "render_profile": "full",
             "daily_brief": _daily_brief(),
             "observation_brief": _daily_observation_brief(profile.get("username", "")),
+            "current_user": profile,
+        },
+    )
+
+
+@app.get("/feedback", response_class=HTMLResponse)
+def design_feedback_page(request: Request) -> HTMLResponse:
+    profile = get_current_profile(request)
+    return templates.TemplateResponse(
+        request,
+        "feedback.html",
+        {
+            "request": request,
+            "today": str(date.today()),
             "current_user": profile,
         },
     )
@@ -3270,6 +3297,44 @@ def api_daily_observation_brief(request: Request) -> JSONResponse:
     profile = get_current_profile(request)
     username = profile.get("username") or ""
     return JSONResponse(content=_daily_observation_brief(username))
+
+
+@app.post("/api/design-feedback")
+def api_design_feedback(request: Request, body: dict | None = Body(default=None)) -> JSONResponse:
+    body = body or {}
+    profile = get_current_profile(request)
+    username = profile.get("username") or "anonymous"
+
+    role = _safe_feedback_text(body.get("role"), 80)
+    page = _safe_feedback_text(body.get("page"), 120)
+    rating = _safe_feedback_text(body.get("rating"), 20)
+    biggest_blocker = _safe_feedback_text(body.get("biggest_blocker"), 1200)
+    most_useful = _safe_feedback_text(body.get("most_useful"), 1200)
+    missing = _safe_feedback_text(body.get("missing"), 1200)
+    contact = _safe_feedback_text(body.get("contact"), 120)
+
+    if not role:
+        return JSONResponse(content={"ok": False, "error": "请选择你的使用角色"}, status_code=400)
+    if rating not in {"1", "2", "3", "4", "5"}:
+        return JSONResponse(content={"ok": False, "error": "请选择整体评分"}, status_code=400)
+    if not biggest_blocker and not most_useful and not missing:
+        return JSONResponse(content={"ok": False, "error": "请至少填写一条具体反馈"}, status_code=400)
+
+    record = {
+        "submitted_at": datetime.now().isoformat(timespec="seconds"),
+        "username": username,
+        "role": role,
+        "page": page,
+        "rating": int(rating),
+        "biggest_blocker": biggest_blocker,
+        "most_useful": most_useful,
+        "missing": missing,
+        "contact": contact,
+        "user_agent": request.headers.get("user-agent", "")[:240],
+        "client_host": request.client.host if request.client else "",
+    }
+    _save_design_feedback(record)
+    return JSONResponse(content={"ok": True, "message": "已收到反馈，谢谢。"})
 
 
 @app.get("/api/user-tasks")

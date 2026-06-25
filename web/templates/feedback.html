@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hermass 设计反馈</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <style>
+      .feedback-form {
+        display: grid;
+        gap: 14px;
+      }
+      .feedback-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+      .feedback-field {
+        display: grid;
+        gap: 6px;
+      }
+      .feedback-field label {
+        color: var(--ink);
+        font-size: 13px;
+        font-weight: 700;
+      }
+      .feedback-field select,
+      .feedback-field input,
+      .feedback-field textarea {
+        width: 100%;
+        padding: 9px 10px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #fff;
+        color: var(--ink);
+        font: inherit;
+        font-size: 14px;
+      }
+      .feedback-field textarea {
+        min-height: 92px;
+        resize: vertical;
+        line-height: 1.5;
+      }
+      .feedback-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .feedback-result {
+        font-size: 13px;
+        font-weight: 700;
+      }
+      .feedback-result.ok { color: var(--good); }
+      .feedback-result.bad { color: var(--bad); }
+      @media (max-width: 860px) {
+        .feedback-grid { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Hermass 多周期观察</p>
+        <h1>设计反馈</h1>
+      </div>
+      <div class="date">
+        {% set nav_active = 'feedback' %}{% include '_top_nav.html' %}
+        <span>{{ today }}</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel span-2 hero-panel">
+        <div class="panel-head">
+          <h2>请用 2 分钟告诉我们哪里不顺手</h2>
+          <span>首页、观察任务、研究页、观象助手都可以反馈</span>
+        </div>
+        <p class="hero-copy">重点写真实使用中卡住的地方：看不懂、找不到、点不动、信息太多或缺关键结论。</p>
+      </section>
+
+      <section class="panel span-2">
+        <form id="feedbackForm" class="feedback-form">
+          <div class="feedback-grid">
+            <div class="feedback-field">
+              <label for="role">你的使用角色</label>
+              <select id="role" name="role" required>
+                <option value="">请选择</option>
+                <option value="投资研究">投资研究</option>
+                <option value="交易执行">交易执行</option>
+                <option value="产品体验">产品体验</option>
+                <option value="技术/数据">技术/数据</option>
+                <option value="其他">其他</option>
+              </select>
+            </div>
+            <div class="feedback-field">
+              <label for="rating">整体好用程度</label>
+              <select id="rating" name="rating" required>
+                <option value="">请选择</option>
+                <option value="5">5 - 很顺手</option>
+                <option value="4">4 - 基本顺手</option>
+                <option value="3">3 - 能用但有阻力</option>
+                <option value="2">2 - 经常卡住</option>
+                <option value="1">1 - 很难使用</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="feedback-field">
+            <label for="page">你主要反馈哪个页面或流程</label>
+            <input id="page" name="page" placeholder="例如：首页观察候选 / 创建观察 / 研究页 / 观象助手" />
+          </div>
+
+          <div class="feedback-field">
+            <label for="biggest_blocker">最大阻碍是什么</label>
+            <textarea id="biggest_blocker" name="biggest_blocker" placeholder="例如：不知道下一步该点哪里，或者看不懂某个结论为什么成立"></textarea>
+          </div>
+
+          <div class="feedback-field">
+            <label for="most_useful">最有用的地方是什么</label>
+            <textarea id="most_useful" name="most_useful" placeholder="例如：今日判断、观察候选、外部线索、线索验证体检"></textarea>
+          </div>
+
+          <div class="feedback-field">
+            <label for="missing">还缺什么</label>
+            <textarea id="missing" name="missing" placeholder="例如：希望增加某个指标解释、导出、提醒方式、复盘维度"></textarea>
+          </div>
+
+          <div class="feedback-field">
+            <label for="contact">联系方式，可选</label>
+            <input id="contact" name="contact" placeholder="邮箱或微信，方便追问细节" />
+          </div>
+
+          <div class="feedback-actions">
+            <button type="submit" class="btn btn-primary">提交反馈</button>
+            <span id="feedbackResult" class="feedback-result"></span>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <script>
+      document.getElementById('feedbackForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        var result = document.getElementById('feedbackResult');
+        var button = this.querySelector('button[type="submit"]');
+        var payload = {};
+        new FormData(this).forEach(function(value, key) { payload[key] = String(value || '').trim(); });
+        result.className = 'feedback-result';
+        result.textContent = '提交中...';
+        button.disabled = true;
+        fetch('/api/design-feedback', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload)
+        })
+        .then(function(resp) {
+          return resp.json().then(function(data) {
+            data.__status = resp.status;
+            return data;
+          });
+        })
+        .then(function(data) {
+          button.disabled = false;
+          if (data.ok) {
+            result.className = 'feedback-result ok';
+            result.textContent = data.message || '已收到反馈。';
+            document.getElementById('feedbackForm').reset();
+          } else {
+            result.className = 'feedback-result bad';
+            result.textContent = data.error || '提交失败，请稍后重试。';
+          }
+        })
+        .catch(function() {
+          button.disabled = false;
+          result.className = 'feedback-result bad';
+          result.textContent = '网络异常，请稍后重试。';
+        });
+      });
+    </script>
+
+    {% set ai_page_context = '/feedback' %}
+    {% include '_ai_assistant.html' %}
+  </body>
+</html>
