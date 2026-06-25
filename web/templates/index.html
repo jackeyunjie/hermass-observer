@@ -142,9 +142,177 @@
         font-size: 13px;
         line-height: 1.5;
       }
+      .route-grid {
+        display: grid;
+        grid-template-columns: 0.9fr 1.1fr;
+        gap: 14px;
+      }
+      .route-main {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: linear-gradient(135deg, #f8fcfa 0%, #fff 72%);
+        padding: 16px;
+      }
+      .route-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: rgba(14,124,102,0.1);
+        color: var(--good);
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .route-title {
+        margin-top: 12px;
+        font-size: 22px;
+        font-weight: 800;
+        line-height: 1.35;
+      }
+      .route-copy {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.6;
+      }
+      .route-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 14px;
+      }
+      .route-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 10px 14px;
+        border-radius: 8px;
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 700;
+        border: 1px solid var(--line);
+        color: var(--ink);
+        background: #fff;
+      }
+      .route-action.primary {
+        border-color: var(--good);
+        background: var(--good);
+        color: #fff;
+      }
+      .route-side {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .route-note {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        padding: 14px;
+      }
+      .route-note-label {
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      .route-note-value {
+        font-size: 15px;
+        font-weight: 700;
+        line-height: 1.5;
+      }
+      .route-note-copy {
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.55;
+      }
+      .candidate-groups {
+        display: grid;
+        gap: 14px;
+      }
+      .candidate-group {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        padding: 14px;
+      }
+      .candidate-group-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+        margin-bottom: 10px;
+      }
+      .candidate-group-title {
+        font-size: 16px;
+        font-weight: 700;
+      }
+      .candidate-group-desc {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.55;
+      }
+      .candidate-group-summary {
+        margin: 10px 0 12px;
+        padding: 10px 12px;
+        border-radius: 8px;
+        background: #f8fbf9;
+        color: var(--ink);
+        font-size: 13px;
+        line-height: 1.6;
+      }
+      .candidate-list {
+        display: grid;
+        gap: 10px;
+      }
+      .candidate-item {
+        border: 1px solid #edf1ef;
+        border-radius: 8px;
+        padding: 12px;
+        background: #fbfcfb;
+      }
+      .candidate-item-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .candidate-name {
+        font-size: 15px;
+        font-weight: 700;
+        text-decoration: none;
+        color: var(--ink);
+      }
+      .candidate-meta {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .candidate-why {
+        margin-top: 8px;
+        font-size: 13px;
+        line-height: 1.55;
+      }
+      .candidate-risk {
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      .candidate-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+      }
       @media (max-width: 860px) {
         .health-grid { grid-template-columns: repeat(2, 1fr); }
         .brief-grid { grid-template-columns: 1fr; }
+        .route-grid { grid-template-columns: 1fr; }
+        .route-side { grid-template-columns: 1fr; }
       }
     </style>
   </head>
@@ -176,116 +344,140 @@
           </div>
         </div>
         <div class="hero-ai-chips">
-          <button class="btn btn-sm" onclick="heroAskChip('现在能不能做')">现在能做吗</button>
-          <button class="btn btn-sm" onclick="heroAskChip('今天先看什么方向')">今天看什么</button>
-          <button class="btn btn-sm" onclick="heroAskChip('我先去哪一页')">新手引导</button>
+          <button class="btn btn-sm" onclick="heroAskChip('今天更适合先缩圈还是先追局部？只给结论')">走哪条路</button>
+          <button class="btn btn-sm" onclick="aiToggle()">问个股</button>
+          <button class="btn btn-sm" onclick="aiAsk('带我走一遍赚钱六步法')">赚钱秘籍</button>
         </div>
       </section>
 
-      {# ── 1. 顶部一句话状态栏 ── #}
+      {# ── 1. 顶部行动路由 ── #}
       <section class="panel span-2">
-        <div class="brief-grid">
-          <div class="brief-card">
-            <span class="brief-label">今日判断</span>
-            <div class="brief-main">{{ observation_brief.decision.summary or daily_brief.conclusion }}</div>
-            <div class="brief-next">{{ observation_brief.decision.next_step }}</div>
+        <div class="route-grid">
+          <div class="route-main">
+            <span class="route-kicker">今天从哪条路进 ← 赚钱秘籍第一步：先走对路</span>
+            <div class="route-title">{{ observation_brief.decision.routing_label }}</div>
+            <div class="route-copy">{{ observation_brief.decision.next_step }}</div>
+            <div class="route-actions">
+              {% if observation_brief.decision.routing_mode == 'top_down' %}
+              <a class="route-action primary" href="/market">先看市场，再缩圈选个股</a>
+              <a class="route-action" href="/recommend">直跳机会池</a>
+              {% elif observation_brief.decision.routing_mode == 'bottom_up' %}
+              <a class="route-action primary" href="/recommend">先看局部机会，再反查市场</a>
+              <a class="route-action" href="/market">查看市场环境</a>
+              {% else %}
+              <a class="route-action primary" href="/market">先看市场页</a>
+              <a class="route-action" href="/research">直接查个股</a>
+              {% endif %}
+            </div>
           </div>
-          <div class="brief-card">
-            <span class="brief-label">当前姿态</span>
-            <div class="brief-main">{{ observation_brief.decision.label }}</div>
-            <div class="brief-next">
-              候选观察 {{ observation_brief.watch_candidates | length }} 个
+          <div class="route-side">
+            <div class="route-note">
+              <div class="route-note-label">当前姿态</div>
+              <div class="route-note-value">{{ observation_brief.decision.label }}</div>
+              <div class="route-note-copy">市场不是开关，是地图。决定了从哪条路进。</div>
+            </div>
+            <div class="route-note">
+              <div class="route-note-label">今天的关注池</div>
+              <div class="route-note-value">
+                候选观察 {{ observation_brief.watch_candidates | length }} 个
+              </div>
+              <div class="route-note-copy">
               {% if observation_brief.external_clue_count %}
-                ，外部线索 {{ observation_brief.external_clue_count }} 条
+                外部线索 {{ observation_brief.external_clue_count }} 条
               {% endif %}
               {% if current_user and current_user.username != 'anonymous' %}
                 ，我的观察任务 <span id="userTaskCounter">{{ observation_brief.active_user_tasks | length }}</span> 个
               {% else %}
-                ，<a href="javascript:void(0)" id="userTaskLoginHint" onclick="aiAsk('现在能不能做？只给结论')" style="color:var(--muted);text-decoration:underline;">登录后可查看我的观察任务</a>
+                ，<a href="javascript:void(0)" id="userTaskLoginHint" onclick="aiAsk('今天更适合自上而下还是自下而上？只给结论')" style="color:var(--muted);text-decoration:underline;">登录后可查看我的观察任务</a>
               {% endif %}
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {# ── 2. 主任务区：3 个入口 ── #}
+      {# ── 2. 主任务区：路径入口 ── #}
       <section class="panel span-2">
         <div class="panel-head">
-          <h2>决策路径</h2>
-          <span>能不能动、动谁、为什么</span>
+          <h2>从哪条路径进入</h2>
+          <span>先选路线，再看对象</span>
         </div>
         <div class="entry-bar">
           <a class="entry-item" href="/market">
             <div class="entry-icon strategy">🌐</div>
             <div>
-              <div class="entry-label">看市场环境</div>
-              <div class="entry-desc">确认今天能不能出手</div>
+              <div class="entry-label">顺风日先缩圈</div>
+              <div class="entry-desc">市场与方向共振强时，先看环境再往下钻</div>
             </div>
           </a>
           <a class="entry-item" href="/recommend">
             <div class="entry-icon backtest">🎯</div>
             <div>
-              <div class="entry-label">看机会池</div>
-              <div class="entry-desc">筛选今天值得观察的标的</div>
+              <div class="entry-label">逆风日抓局部</div>
+              <div class="entry-desc">大盘一般时，先看局部强结构和集中机会</div>
             </div>
           </a>
           <a class="entry-item" href="javascript:void(0)" onclick="aiToggle()">
             <div class="entry-icon debate">💬</div>
             <div>
               <div class="entry-label">问观象</div>
-              <div class="entry-desc">问问 AI 助手今天怎么判断</div>
+              <div class="entry-desc">让观象直接告诉你今天该走哪条路</div>
             </div>
           </a>
-          <a class="entry-item" href="/feedback">
+          <a class="entry-item" href="/playbook">
             <div class="entry-icon track">✍</div>
             <div>
-              <div class="entry-label">填写反馈</div>
-              <div class="entry-desc">告诉我们哪里不顺手</div>
+              <div class="entry-label">赚钱秘籍</div>
+              <div class="entry-desc">把系统玩法压成一张可执行决策图</div>
             </div>
           </a>
         </div>
       </section>
 
-      {# ── 3. 今日待处理队列 ── #}
+      {# ── 3. 今日关注池 ── #}
       <section class="panel span-2">
         <div class="panel-head">
-          <h2>今日观察候选</h2>
-          <span>先确认证据，再决定是否创建个人观察任务</span>
+          <h2>今天先看这几组</h2>
+          <span>不是只看一只，也不是平铺几十只，而是先分清哪类该先处理</span>
         </div>
-        {% if observation_brief.watch_candidates %}
-        <table class="compact-table">
-          <thead>
-            <tr>
-              <th>标的</th>
-              <th>当前阶段</th>
-              <th>为什么看它</th>
-              <th>风险状态</th>
-              <th>下一步动作</th>
-              <th style="width:72px;">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in observation_brief.watch_candidates[:8] %}
-            <tr class="candidate-row" id="candidate-{{ loop.index }}">
-              <td>
-                <a href="{{ row.research_url }}">{{ row.stock_code }}</a>
-                <span style="color:var(--muted);font-size:12px;">{{ row.stock_name }}</span>
-              </td>
-              <td>
-                <span class="tag {% if row.bucket == 'priority' %}tag-green{% else %}tag-amber{% endif %}">{{ row.resonance_label or row.current_state or '观察' }}</span>
-              </td>
-              <td>{{ row.reason or '-' }}</td>
-              <td>
-                {% if row.rr_ratio %}
-                  <span class="tag tag-amber">RR {{ row.rr_ratio }}</span>
-                {% else %}
-                  <span class="tag tag-gray">待评估</span>
-                {% endif %}
-                <div style="margin-top:4px;color:var(--muted);font-size:12px;">{{ row.risk }}</div>
-              </td>
-              <td>{{ row.next_action or '持续观察' }}</td>
-              <td>
-                <div style="display:flex;gap:6px;align-items:center;">
+        {% if observation_brief.watch_groups %}
+        <div class="candidate-groups">
+          {% for group in observation_brief.watch_groups %}
+          <div class="candidate-group">
+            <div class="candidate-group-head">
+              <div>
+                <div class="candidate-group-title">{{ group.title }}</div>
+                <div class="candidate-group-desc">{{ group.desc }}</div>
+              </div>
+              <span class="tag {{ group.tag_class }}">{{ group.tag_label }} {{ group.count }} 个</span>
+            </div>
+            <div class="candidate-group-summary">{{ group.summary }}</div>
+            <div class="candidate-list">
+              {% for row in group.rows %}
+              {% set row_id = (group.key ~ '-' ~ row.stock_code|replace('.', '-')|replace(' ', '-') ) %}
+              <div class="candidate-item candidate-row" id="candidate-{{ row_id }}">
+                <div class="candidate-item-top">
+                  <div>
+                    <a class="candidate-name" href="{{ row.research_url }}">{{ row.stock_code }} {{ row.stock_name }}</a>
+                    <div class="candidate-meta">
+                      <span class="tag {% if row.bucket == 'priority' %}tag-green{% else %}tag-amber{% endif %}">{{ row.resonance_label or row.current_state or '观察' }}</span>
+                      {% if row.strategy_label %}
+                      <span style="margin-left:6px;">{{ row.strategy_label }}</span>
+                      {% endif %}
+                    </div>
+                  </div>
+                  <div>
+                    {% if row.rr_ratio %}
+                    <span class="tag tag-amber">RR {{ row.rr_ratio }}</span>
+                    {% else %}
+                    <span class="tag tag-gray">待评估</span>
+                    {% endif %}
+                  </div>
+                </div>
+                <div class="candidate-why">{{ row.reason or '-' }}</div>
+                <div class="candidate-risk">{{ row.risk }}</div>
+                <div class="candidate-actions">
+                  <span style="color:var(--muted);font-size:12px;">{{ row.next_action or '持续观察' }}</span>
                   {% set stock_upper = row.stock_code.upper() %}
                   {% if observation_brief.tracked_stock_codes and stock_upper in observation_brief.tracked_stock_codes %}
                     <span class="tag tag-green" style="font-size:12px;cursor:default;">已在追踪</span>
@@ -296,98 +488,91 @@
                     data-trigger="{{ row.task_suggestion.trigger_type }}"
                     data-note="{{ row.task_suggestion.note }}"
                     data-valid-days="{{ row.task_suggestion.valid_days }}"
-                    data-row-id="candidate-{{ loop.index }}"
+                    data-row-id="candidate-{{ row_id }}"
                   >创建观察</button>
                   {% endif %}
                   <button class="ask-ai-chip" data-stock="{{ row.stock_code }}" data-name="{{ row.stock_name or '' }}">
                     <span class="dot"></span>问观象
                   </button>
                 </div>
-              </td>
-            </tr>
-            <tr class="task-form-row" id="task-form-{{ loop.index }}" style="display:none;">
-              <td colspan="6" style="padding:10px 12px;background:#f8fbf9;border-top:1px dashed var(--line);">
-                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px;">
-                  <span style="font-weight:700;white-space:nowrap;">创建观察任务</span>
-                  <span style="color:var(--muted);white-space:nowrap;">{{ row.stock_code }} {{ row.stock_name }}</span>
-                  <span class="tag tag-amber" style="white-space:nowrap;">{{ row.task_suggestion.trigger_type }}</span>
-                  <span style="color:var(--muted);font-size:12px;flex:1;min-width:160px;">{{ row.task_suggestion.note[:60] }}{% if row.task_suggestion.note|length > 60 %}...{% endif %}</span>
-                  <input type="email" class="task-email-input" placeholder="你的邮箱" style="width:180px;padding:4px 8px;font-size:13px;border:1px solid var(--line);border-radius:4px;" />
-                  <button class="btn btn-sm btn-primary task-confirm-btn" data-row-id="{{ loop.index }}">确认创建</button>
-                  <button class="btn btn-sm task-cancel-btn" data-row-id="{{ loop.index }}" style="background:#fff;color:var(--ink);border:1px solid var(--line);">取消</button>
+              </div>
+              <div class="task-form-row" id="task-form-{{ row_id }}" style="display:none;">
+                <div style="padding:10px 12px;background:#f8fbf9;border:1px dashed var(--line);border-radius:8px;">
+                  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px;">
+                    <span style="font-weight:700;white-space:nowrap;">创建观察任务</span>
+                    <span style="color:var(--muted);white-space:nowrap;">{{ row.stock_code }} {{ row.stock_name }}</span>
+                    <span class="tag tag-amber" style="white-space:nowrap;">{{ row.task_suggestion.trigger_type }}</span>
+                    <span style="color:var(--muted);font-size:12px;flex:1;min-width:160px;">{{ row.task_suggestion.note[:60] }}{% if row.task_suggestion.note|length > 60 %}...{% endif %}</span>
+                    <input type="email" class="task-email-input" placeholder="你的邮箱" style="width:180px;padding:4px 8px;font-size:13px;border:1px solid var(--line);border-radius:4px;" />
+                    <button class="btn btn-sm btn-primary task-confirm-btn" data-row-id="{{ row_id }}">确认创建</button>
+                    <button class="btn btn-sm task-cancel-btn" data-row-id="{{ row_id }}" style="background:#fff;color:var(--ink);border:1px solid var(--line);">取消</button>
+                  </div>
+                  <div class="task-result-msg" id="task-result-{{ row_id }}" style="margin-top:6px;font-size:13px;"></div>
                 </div>
-                <div class="task-result-msg" id="task-result-{{ loop.index }}" style="margin-top:6px;font-size:13px;"></div>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
         <p class="hero-note" style="margin-top:8px;">需要持续提醒时，用观象创建个人观察任务；已有任务可去 <a href="/watchlist">观察账本</a> 管理。</p>
         {% else %}
-        <p class="muted">当前没有强优先对象。建议先 <a href="/market" style="color:var(--accent);text-decoration:underline;">看市场环境</a> 确认方向，再去 <a href="/recommend" style="color:var(--accent);text-decoration:underline;">机会池</a> 寻找值得观察的标的。</p>
+        <p class="muted">当前没有强优先对象。建议先 <a href="/market" style="color:var(--accent);text-decoration:underline;">看市场环境</a> 判断今天是顺风还是逆风，再去 <a href="/recommend" style="color:var(--accent);text-decoration:underline;">机会池</a> 看局部机会是否集中。</p>
         {% endif %}
       </section>
 
       {# ── 4. 系统健康与数据新鲜度 ── #}
-      <section class="panel span-2">
-        <div class="panel-head">
-          <h2>系统健康与数据新鲜度</h2>
-          <span>只展示关键异常</span>
-        </div>
-        <div class="health-grid">
-          <div class="health-item">
-            <span class="health-label">数据日期</span>
-            <span class="health-value">{{ daily_brief.date or today }}</span>
-          </div>
-          <div class="health-item">
-            <span class="health-label">State Cube</span>
-            <span class="health-value">
-              {% if outputs and outputs.state_cube %}
-                <span class="status-dot dot-ok"></span>正常
-              {% else %}
-                <span class="status-dot dot-warn"></span>待检查
-              {% endif %}
-            </span>
-          </div>
-          <div class="health-item">
-            <span class="health-label">Agent 复盘</span>
-            <span class="health-value">
-              {% if cron_rows %}
-                <span class="status-dot dot-ok"></span>运行中
-              {% else %}
-                <span class="status-dot dot-warn"></span>未启动
-              {% endif %}
-            </span>
-          </div>
-          <div class="health-item">
-            <span class="health-label">最近一次同步</span>
-            <span class="health-value">
-              {% if alert_rows %}
-                <span class="status-dot dot-ok"></span>正常
-              {% else %}
-                <span class="status-dot dot-warn"></span>暂无告警
-              {% endif %}
-            </span>
-          </div>
-        </div>
-        {% if alert_rows %}
-        <div style="margin-top:12px;">
-          {% for alert in alert_rows[:3] %}
-          <div style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;border-bottom:1px solid var(--line);">
-            <span class="status-dot {% if alert.severity == 'high' %}dot-risk{% else %}dot-warn{% endif %}"></span>
-            <span style="flex:1;">{{ alert.message or alert.name or '告警' }}</span>
-            <span style="color:var(--muted);font-size:12px;">{{ alert.time or '' }}</span>
-          </div>
-          {% endfor %}
-        </div>
-        {% endif %}
-      </section>
-
-      {# ── 5. 术语说明（折叠） ── #}
       <section class="panel span-2" style="padding:12px 18px;">
         <details>
-          <summary style="font-size:13px;">术语说明</summary>
-          <table style="margin-top:8px;font-size:13px;">
+          <summary style="font-size:13px;">数据与术语说明</summary>
+          <div class="health-grid" style="margin-top:12px;">
+            <div class="health-item">
+              <span class="health-label">数据日期</span>
+              <span class="health-value">{{ daily_brief.date or today }}</span>
+            </div>
+            <div class="health-item">
+              <span class="health-label">State Cube</span>
+              <span class="health-value">
+                {% if outputs and outputs.state_cube %}
+                  <span class="status-dot dot-ok"></span>正常
+                {% else %}
+                  <span class="status-dot dot-warn"></span>待检查
+                {% endif %}
+              </span>
+            </div>
+            <div class="health-item">
+              <span class="health-label">Agent 复盘</span>
+              <span class="health-value">
+                {% if cron_rows %}
+                  <span class="status-dot dot-ok"></span>运行中
+                {% else %}
+                  <span class="status-dot dot-warn"></span>未启动
+                {% endif %}
+              </span>
+            </div>
+            <div class="health-item">
+              <span class="health-label">最近一次同步</span>
+              <span class="health-value">
+                {% if alert_rows %}
+                  <span class="status-dot dot-ok"></span>正常
+                {% else %}
+                  <span class="status-dot dot-warn"></span>暂无告警
+                {% endif %}
+              </span>
+            </div>
+          </div>
+          {% if alert_rows %}
+          <div style="margin-top:12px;">
+            {% for alert in alert_rows[:3] %}
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;border-bottom:1px solid var(--line);">
+              <span class="status-dot {% if alert.severity == 'high' %}dot-risk{% else %}dot-warn{% endif %}"></span>
+              <span style="flex:1;">{{ alert.message or alert.name or '告警' }}</span>
+              <span style="color:var(--muted);font-size:12px;">{{ alert.time or '' }}</span>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+          <table style="margin-top:12px;font-size:13px;">
             <tbody>
               <tr><td>State</td><td>结构状态，表示多周期结构环境，不等于直接买卖点。</td></tr>
               <tr><td>EF</td><td>E/F 共振，表示多周期达到较强结构状态的数量，不等于盈利保证。</td></tr>

@@ -6,128 +6,199 @@
     <title>Hermass 观察账本</title>
     <link rel="stylesheet" href="/static/style.css" />
     <style>
-      .toolbar {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        flex-wrap: wrap;
-        margin-bottom: 12px;
-        padding-bottom: 12px;
-        border-bottom: 1px solid var(--line);
+      .hero-grid {
+        display: grid;
+        grid-template-columns: 0.95fr 1.05fr;
+        gap: 16px;
       }
-      .toolbar select, .toolbar button {
-        width: auto;
-        min-width: 100px;
-        padding: 8px 12px;
-        font-size: 13px;
-      }
-      .toolbar button.secondary {
-        background: #fff;
-        color: var(--ink);
+      .hero-card {
         border: 1px solid var(--line);
+        border-radius: 10px;
+        background: linear-gradient(135deg, #f8fcfa 0%, #fff 74%);
+        padding: 18px;
+      }
+      .hero-kicker {
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
+      .hero-main {
+        font-size: 26px;
+        font-weight: 800;
+        line-height: 1.25;
+      }
+      .hero-copy {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.6;
+      }
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 14px;
+      }
+      .hero-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 10px 14px;
+        border-radius: 8px;
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 700;
+        border: 1px solid var(--line);
+        color: var(--ink);
+        background: #fff;
+      }
+      .hero-action.primary {
+        border-color: var(--good);
+        background: var(--good);
+        color: #fff;
+      }
+      .hero-side {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .hero-mini {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #fff;
+        padding: 14px;
+      }
+      .hero-mini-label {
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      .hero-mini-value {
+        font-size: 15px;
+        font-weight: 700;
+        line-height: 1.5;
+      }
+      .hero-mini-copy {
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.55;
+      }
+      .watch-grid {
+        display: grid;
+        gap: 14px;
+      }
+      .focus-strip {
+        display: grid;
+        gap: 10px;
+      }
+      .focus-item {
+        display: grid;
+        grid-template-columns: minmax(120px, 160px) 1fr minmax(80px, 100px);
+        gap: 12px;
+        align-items: center;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        padding: 12px;
+      }
+      .watch-card {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #fff;
+        padding: 16px;
+      }
+      .watch-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .watch-name {
+        font-size: 18px;
+        font-weight: 800;
+        color: var(--ink);
+        text-decoration: none;
+      }
+      .watch-meta {
+        margin-top: 6px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .watch-grid-3 {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 14px;
+      }
+      .watch-field {
+        border: 1px solid #edf1ef;
+        border-radius: 8px;
+        background: #fbfcfb;
+        padding: 12px;
+      }
+      .watch-field-label {
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      .watch-field-value {
+        font-size: 14px;
+        line-height: 1.6;
+      }
+      .watch-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 14px;
+      }
+      .watch-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 9px 12px;
+        border-radius: 8px;
+        text-decoration: none;
+        font-size: 12px;
+        font-weight: 700;
+        border: 1px solid var(--line);
+        color: var(--ink);
+        background: #fff;
+      }
+      .watch-action.danger {
+        color: var(--bad);
+        border-color: rgba(184,74,58,0.24);
       }
       .ledger-table th, .ledger-table td {
         padding: 8px 10px;
         font-size: 13px;
         vertical-align: middle;
       }
-      .ledger-table th {
-        cursor: pointer;
-        user-select: none;
-      }
-      .ledger-table th:hover {
-        background: #f8fbf9;
-      }
-      .ledger-table tbody tr:hover {
-        background: #f8fbf9;
-        cursor: pointer;
-      }
-      .ledger-table .row-select {
-        width: 32px;
-        text-align: center;
-      }
-      .ledger-table .row-select input {
-        width: auto;
-        margin: 0;
-      }
-      .tag {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 2px 8px;
-        border-radius: 999px;
-        font-size: 11px;
-        font-weight: 700;
-        white-space: nowrap;
-      }
-      .tag-green { background: rgba(14,124,102,0.1); color: var(--good); }
-      .tag-amber { background: rgba(217,138,26,0.1); color: var(--accent); }
-      .tag-red   { background: rgba(184,74,58,0.1); color: var(--bad); }
-      .tag-gray  { background: #f1f5f9; color: var(--muted); }
-      .tag-blue  { background: rgba(37,99,235,0.1); color: #2563eb; }
-      .sort-arrow { font-size: 10px; color: var(--muted); margin-left: 4px; }
-      .detail-drawer {
-        display: none;
-        padding: 16px;
-        border-top: 1px solid var(--line);
-        background: #f8fbf9;
-      }
-      .detail-drawer.open {
-        display: block;
-      }
-      .detail-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 16px;
-      }
-      .detail-col h4 {
-        font-size: 12px;
-        color: var(--muted);
-        margin: 0 0 8px;
-        text-transform: uppercase;
-      }
-      .detail-col p, .detail-col ul {
-        font-size: 13px;
-        margin: 0;
-        padding-left: 16px;
-        line-height: 1.6;
-      }
-      .task-strip {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 8px;
-        margin-bottom: 16px;
-      }
-      .task-row {
-        display: grid;
-        grid-template-columns: minmax(110px, 150px) 1fr minmax(90px, 120px) minmax(96px, 120px) 72px;
-        align-items: center;
-        gap: 12px;
-        padding: 10px 12px;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        background: #fff;
-        font-size: 13px;
-      }
-      .task-row button {
-        width: auto;
-        padding: 6px 10px;
-        font-size: 12px;
-        background: #fff;
-        color: var(--bad);
-        border: 1px solid rgba(184,74,58,0.24);
-      }
       .task-empty {
-        padding: 12px;
+        padding: 14px;
         border: 1px dashed var(--line);
         border-radius: 8px;
         color: var(--muted);
         font-size: 13px;
       }
+      .empty-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 12px;
+      }
       @media (max-width: 860px) {
-        .detail-grid { grid-template-columns: 1fr; }
-        .task-row { grid-template-columns: 1fr; align-items: start; }
-        .toolbar { flex-direction: column; align-items: stretch; }
+        .hero-grid,
+        .watch-grid-3 {
+          grid-template-columns: 1fr;
+        }
+        .hero-side {
+          grid-template-columns: 1fr;
+        }
+        .focus-item {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>
@@ -144,255 +215,214 @@
     </header>
 
     <main class="layout">
-      {# ── 主体：高密度表格账本 ── #}
+      <section class="panel span-2">
+        <div class="hero-grid">
+          <div class="hero-card">
+            <div class="hero-kicker">赚钱秘籍第三步：追踪，不是收藏</div>
+            <div class="hero-main">每一个观察对象都要带着：结论、等待条件、失效条件、下次回看的理由。</div>
+            <div class="hero-copy">观察账本的作用不是存放资料，是驱动复访。状态一变，你就该回来。</div>
+            <div class="hero-actions">
+              <a class="hero-action primary" href="/recommend">从机会池补充对象</a>
+              <a class="hero-action" href="javascript:void(0)" onclick="aiAsk('帮我梳理我的观察账本，先看哪几个对象')">让观象排序</a>
+            </div>
+          </div>
+          <div class="hero-side">
+            <div class="hero-mini">
+              <div class="hero-mini-label">当前观察对象</div>
+              <div class="hero-mini-value">{{ watch_object_count }} 个</div>
+              <div class="hero-mini-copy">只保留真正需要持续跟踪的对象，不把候选池直接搬进账本。</div>
+            </div>
+            <div class="hero-mini">
+              <div class="hero-mini-label">优先队列</div>
+              <div class="hero-mini-value">{{ execution.priority_queue | length }} 个</div>
+              <div class="hero-mini-copy">优先队列是系统参考，不等于用户一定要盯；进入账本必须是用户确认过的对象。</div>
+            </div>
+            <div class="hero-mini">
+              <div class="hero-mini-label">观察队列</div>
+              <div class="hero-mini-value">{{ execution.observe_queue | length }} 个</div>
+              <div class="hero-mini-copy">这些对象更适合“等条件”，不是立刻深挖。</div>
+            </div>
+            <div class="hero-mini">
+              <div class="hero-mini-label">账本目标</div>
+              <div class="hero-mini-value">驱动复访</div>
+              <div class="hero-mini-copy">次日回来应该先看状态变化，而不是从头理解系统。</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="panel span-2">
         <div class="panel-head">
-          <h2>我的观察任务</h2>
-          <span id="userTaskCount">加载中</span>
+          <h2>今天先看</h2>
+          <span>返回账本先处理最值得复看的对象</span>
         </div>
-        <div class="task-strip" id="userTaskList">
-          <div class="task-empty">正在读取你的观察任务。</div>
+        {% if watch_focus_summary %}
+        <div class="focus-strip" style="margin-bottom:18px;">
+          {% for item in watch_focus_summary %}
+          <div class="focus-item">
+            <div>
+              <a class="watch-name" style="font-size:16px;" href="{{ item.research_url }}">{{ item.stock_code }}</a>
+            </div>
+            <div style="font-size:13px; color:var(--muted); line-height:1.55;">{{ item.reason }}</div>
+            <div><span class="tag {% if item.urgency_label in ['今天先看','刚触发'] %}tag-green{% elif item.urgency_label == '这两天看' %}tag-amber{% else %}tag-gray{% endif %}">{{ item.urgency_label }}</span></div>
+          </div>
+          {% endfor %}
         </div>
+        {% endif %}
 
         <div class="panel-head">
-          <h2>跟踪账本</h2>
-          <span>共 {{ execution.total }} 条记录</span>
+          <h2>我的观察对象</h2>
+          <span>{{ watch_object_count }} 个持续跟踪对象</span>
         </div>
-
-        {# 工具栏 #}
-        <div class="toolbar">
-          <select id="filterStage" onchange="filterTable()">
-            <option value="">全部阶段</option>
-            <option value="priority">优先</option>
-            <option value="observe">观察</option>
-            <option value="queue">常规</option>
-          </select>
-          <select id="filterRisk" onchange="filterTable()">
-            <option value="">全部风险</option>
-            <option value="high">高风险</option>
-            <option value="medium">中风险</option>
-            <option value="low">低风险</option>
-          </select>
-          <button class="secondary" onclick="batchAction('archive')">批量归档</button>
-          <button class="secondary" onclick="batchAction('review')">批量复盘</button>
-          <button class="secondary" onclick="exportTable()">导出</button>
-        </div>
-
-        {# 统一表格：合并 priority + observe + recent + high_rr #}
-        <div style="overflow:auto;">
-          <table class="ledger-table" id="ledgerTable">
-            <thead>
-              <tr>
-                <th class="row-select"><input type="checkbox" id="selectAll" onclick="toggleSelectAll()"></th>
-                <th onclick="sortTable(1)">标的 <span class="sort-arrow">↕</span></th>
-                <th onclick="sortTable(2)">策略 <span class="sort-arrow">↕</span></th>
-                <th onclick="sortTable(3)">入选日期 <span class="sort-arrow">↕</span></th>
-                <th onclick="sortTable(4)">当前阶段 <span class="sort-arrow">↕</span></th>
-                <th onclick="sortTable(5)">当前收益 <span class="sort-arrow">↕</span></th>
-                <th onclick="sortTable(6)">最大回撤 <span class="sort-arrow">↕</span></th>
-                <th onclick="sortTable(7)">持续天数 <span class="sort-arrow">↕</span></th>
-                <th>Agent 结论</th>
-                <th>风险状态</th>
-                <th>下一步动作</th>
-                <th>复盘状态</th>
-                <th style="width:72px;">问观象</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% set all_rows = execution.priority_queue + execution.observe_queue + execution.recent_queue %}
-              {% for row in all_rows %}
-              {% set is_priority = row in execution.priority_queue %}
-              {% set is_observe = row in execution.observe_queue %}
-              {% set stage_label = '优先' if is_priority else ('观察' if is_observe else '常规') %}
-              {% set stage_tag = 'tag-green' if is_priority else ('tag-amber' if is_observe else 'tag-gray') %}
-              <tr data-stage="{{ 'priority' if is_priority else ('observe' if is_observe else 'queue') }}" data-risk="{{ 'high' if row.rr_ratio and row.rr_ratio < 1.5 else 'medium' if row.rr_ratio and row.rr_ratio < 2.5 else 'low' }}" onclick="toggleDetail(this)">
-                <td class="row-select" onclick="event.stopPropagation()"><input type="checkbox" class="row-check"></td>
-                <td>
-                  <a href="/research?stock_code={{ row.stock_code }}">{{ row.stock_code }}</a>
-                  <div style="font-size:11px;color:var(--muted);">{{ row.stock_name }}</div>
-                </td>
-                <td>{{ row.strategy_id or '-' }}</td>
-                <td>{{ execution.unified_date or '-' }}</td>
-                <td><span class="tag {{ stage_tag }}">{{ stage_label }}</span></td>
-                <td>—</td>
-                <td>—</td>
-                <td>—</td>
-                <td>
-                  {% if row.resonance_label %}
-                    <span class="tag tag-blue">{{ row.resonance_label }}</span>
-                  {% else %}
-                    <span class="tag tag-gray">待评估</span>
+        {% if watch_objects %}
+        <div class="watch-grid">
+          {% for item in watch_objects %}
+          <div class="watch-card">
+            <div class="watch-top">
+              <div>
+                <a class="watch-name" href="{{ item.research_url }}">{{ item.stock_code }}</a>
+                <div class="watch-meta">
+                  <span class="tag {% if item.tone == 'pass' %}tag-green{% else %}tag-amber{% endif %}">{{ item.conclusion }}</span>
+                  <span class="tag {% if item.urgency == 'today' %}tag-green{% elif item.urgency == 'soon' %}tag-amber{% else %}tag-gray{% endif %}">{{ item.urgency_label }}</span>
+                  <span class="tag tag-blue">{{ item.current_state }}</span>
+                  <span class="tag tag-gray">{{ item.trigger_label }}</span>
+                  {% if item.status == 'active' %}
+                  <span class="tag tag-green">进行中</span>
                   {% endif %}
-                </td>
-                <td>
-                  {% if row.rr_ratio %}
-                    <span class="tag {% if row.rr_ratio >= 3 %}tag-green{% elif row.rr_ratio >= 1.5 %}tag-amber{% else %}tag-red{% endif %}">RR {{ row.rr_ratio }}</span>
-                  {% else %}
-                    <span class="tag tag-gray">待评估</span>
-                  {% endif %}
-                </td>
-                <td>{{ row.next_action or '持续观察' }}</td>
-                <td><span class="tag tag-gray">待复盘</span></td>
-                <td onclick="event.stopPropagation()">
-                  <button class="ask-ai-chip" data-stock="{{ row.stock_code }}" data-name="{{ row.stock_name or '' }}">
-                    <span class="dot"></span>问观象
-                  </button>
-                </td>
-              </tr>
-              {# 详情抽屉 #}
-              <tr class="detail-row" style="display:none;">
-                <td colspan="13" style="padding:0;">
-                  <div class="detail-drawer" id="detail-{{ loop.index }}">
-                    <div class="detail-grid">
-                      <div class="detail-col">
-                        <h4>入选原因</h4>
-                        <p>{{ row.queue_reason or row.path_label or '策略触发入选' }}</p>
-                        <h4 style="margin-top:12px;">回测证据</h4>
-                        <p>适配度：{{ row.strategy_environment_fit or '-' }}<br>生命周期：{{ row.lifecycle_stage or '-' }}</p>
-                      </div>
-                      <div class="detail-col">
-                        <h4>多周期状态</h4>
-                        <p>
-                          MN1: {{ row.mn1_state or '-' }}<br>
-                          W1: {{ row.w1_state or '-' }}<br>
-                          D1: {{ row.d1_state or '-' }}<br>
-                          EF: {{ row.ef_count or 0 }}
-                        </p>
-                        <h4 style="margin-top:12px;">风险反驳</h4>
-                        <p>{{ row.sr_boundary_direction or '暂无风险标记' }}</p>
-                      </div>
-                      <div class="detail-col">
-                        <h4>当前观察日志</h4>
-                        <p>{{ row.fit_reasons or '暂无日志' }}</p>
-                        <h4 style="margin-top:12px;">后续动作</h4>
-                        <p>{{ row.next_action or '持续观察' }}</p>
-                      </div>
-                    </div>
-                  </div>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+                </div>
+              </div>
+              <div style="text-align:right;font-size:12px;color:var(--muted);">
+                <div>有效期 {{ item.valid_from }} → {{ item.valid_to }}</div>
+                <div style="margin-top:4px;">{{ item.email }}</div>
+              </div>
+            </div>
+
+            <div class="watch-grid-3">
+              <div class="watch-field">
+                <div class="watch-field-label">回来看的时点</div>
+                <div class="watch-field-value">{{ item.revisit_copy }}</div>
+              </div>
+              <div class="watch-field">
+                <div class="watch-field-label">观察期状态</div>
+                <div class="watch-field-value">{{ item.due_copy }}</div>
+              </div>
+              <div class="watch-field">
+                <div class="watch-field-label">最近变化</div>
+                <div class="watch-field-value">{{ item.recent_change }}</div>
+              </div>
+            </div>
+
+            <div class="watch-grid-3">
+              <div class="watch-field">
+                <div class="watch-field-label">等待条件</div>
+                <div class="watch-field-value">{{ item.wait_condition }}</div>
+              </div>
+              <div class="watch-field">
+                <div class="watch-field-label">失效条件</div>
+                <div class="watch-field-value">{{ item.invalid_condition }}</div>
+              </div>
+              <div class="watch-field">
+                <div class="watch-field-label">下一次提醒理由</div>
+                <div class="watch-field-value">{{ item.next_reminder_reason }}</div>
+              </div>
+            </div>
+
+            <div class="watch-grid-3">
+              <div class="watch-field">
+                <div class="watch-field-label">当前风险提示</div>
+                <div class="watch-field-value">{{ item.live_risk }}</div>
+              </div>
+              <div class="watch-field">
+                <div class="watch-field-label">最近触发</div>
+                <div class="watch-field-value">{{ item.last_triggered_at or '尚未触发' }}</div>
+              </div>
+              <div class="watch-field">
+                <div class="watch-field-label">创建时间</div>
+                <div class="watch-field-value">{{ item.created_at or '-' }}</div>
+              </div>
+            </div>
+
+            <div class="watch-actions">
+              <a class="watch-action" href="{{ item.research_url }}">打开研究页</a>
+              <a class="watch-action" href="javascript:void(0)" onclick="aiAsk('{{ item.stock_code }} 当前观察对象：{{ item.conclusion }}。请解释等待条件和失效条件')">问观象解释</a>
+              <button class="watch-action danger" onclick="cancelUserTask('{{ item.task_id }}')">取消观察</button>
+            </div>
+          </div>
+          {% endfor %}
         </div>
-        {% if not all_rows %}
-        <p class="muted">当前没有跟踪对象。</p>
+        {% else %}
+        <div class="task-empty">
+          <div>暂无观察对象。先去机会池或研究页挑出真正需要持续跟踪的对象，再把它们放进账本。</div>
+          <div class="empty-actions">
+            <a class="watch-action" href="/recommend">先去机会池挑对象</a>
+            <a class="watch-action" href="/research">直接查个股</a>
+            <a class="watch-action" href="javascript:void(0)" onclick="aiAsk('帮我从今天的系统结果里挑出值得创建观察任务的对象')">让观象帮我排序</a>
+          </div>
+        </div>
         {% endif %}
+      </section>
+
+      <section class="panel span-2">
+        <details>
+          <summary style="font-size:14px;font-weight:700;">查看系统跟踪台账</summary>
+          <div class="panel-head" style="margin-top:14px;">
+            <h2>系统跟踪台账</h2>
+            <span>共 {{ execution.total }} 条记录，仅作为系统背景，不等于用户观察对象</span>
+          </div>
+          <div style="overflow:auto;">
+            <table class="ledger-table">
+              <thead>
+                <tr>
+                  <th>标的</th>
+                  <th>当前阶段</th>
+                  <th>Agent/状态</th>
+                  <th>风险状态</th>
+                  <th>下一步动作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% set all_rows = execution.priority_queue + execution.observe_queue + execution.recent_queue %}
+                {% for row in all_rows %}
+                {% set is_priority = row in execution.priority_queue %}
+                {% set is_observe = row in execution.observe_queue %}
+                <tr>
+                  <td>
+                    <a href="/research?stock_code={{ row.stock_code }}">{{ row.stock_code }}</a>
+                    <div style="font-size:11px;color:var(--muted);">{{ row.stock_name }}</div>
+                  </td>
+                  <td>
+                    <span class="tag {% if is_priority %}tag-green{% elif is_observe %}tag-amber{% else %}tag-gray{% endif %}">
+                      {% if is_priority %}优先{% elif is_observe %}观察{% else %}常规{% endif %}
+                    </span>
+                  </td>
+                  <td>
+                    {% if row.resonance_label %}
+                    <span class="tag tag-blue">{{ row.resonance_label }}</span>
+                    {% else %}
+                    <span class="tag tag-gray">待评估</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ row.risk or '暂无明显风险提示。' }}</td>
+                  <td>{{ row.next_action or '持续观察' }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            {% if not all_rows %}
+            <p class="task-empty" style="margin-top:12px;">当前没有系统跟踪对象。</p>
+            {% endif %}
+          </div>
+        </details>
       </section>
     </main>
 
     <script>
-      function toggleSelectAll() {
-        var checked = document.getElementById('selectAll').checked;
-        document.querySelectorAll('.row-check').forEach(function(cb) { cb.checked = checked; });
-      }
-      function toggleDetail(row) {
-        var next = row.nextElementSibling;
-        if (!next || !next.classList.contains('detail-row')) return;
-        var drawer = next.querySelector('.detail-drawer');
-        if (!drawer) return;
-        var isOpen = drawer.classList.contains('open');
-        document.querySelectorAll('.detail-drawer.open').forEach(function(d) { d.classList.remove('open'); d.closest('tr').style.display = 'none'; });
-        if (!isOpen) {
-          drawer.classList.add('open');
-          next.style.display = 'table-row';
-        }
-      }
-      function filterTable() {
-        var stage = document.getElementById('filterStage').value;
-        var risk = document.getElementById('filterRisk').value;
-        document.querySelectorAll('#ledgerTable tbody > tr:not(.detail-row)').forEach(function(row) {
-          var show = true;
-          if (stage && row.dataset.stage !== stage) show = false;
-          if (risk && row.dataset.risk !== risk) show = false;
-          row.style.display = show ? '' : 'none';
-          var next = row.nextElementSibling;
-          if (next && next.classList.contains('detail-row')) {
-            next.style.display = 'none';
-            var drawer = next.querySelector('.detail-drawer');
-            if (drawer) drawer.classList.remove('open');
-          }
-        });
-      }
-      function sortTable(colIndex) {
-        var tbody = document.querySelector('#ledgerTable tbody');
-        var groups = Array.from(tbody.querySelectorAll('tr:not(.detail-row)')).map(function(row) {
-          return {
-            row: row,
-            detail: row.nextElementSibling && row.nextElementSibling.classList.contains('detail-row') ? row.nextElementSibling : null
-          };
-        });
-        groups.sort(function(a, b) {
-          var aVal = a.row.cells[colIndex].innerText.trim();
-          var bVal = b.row.cells[colIndex].innerText.trim();
-          var aNum = parseFloat(aVal.replace(/[^0-9.-]/g, ''));
-          var bNum = parseFloat(bVal.replace(/[^0-9.-]/g, ''));
-          if (!isNaN(aNum) && !isNaN(bNum)) return bNum - aNum;
-          return aVal.localeCompare(bVal);
-        });
-        groups.forEach(function(group) {
-          tbody.appendChild(group.row);
-          if (group.detail) tbody.appendChild(group.detail);
-        });
-      }
-      function batchAction(action) {
-        var selected = document.querySelectorAll('.row-check:checked').length;
-        alert('已选择 ' + selected + ' 条记录，执行：' + action + '（功能开发中）');
-      }
-      function exportTable() {
-        alert('导出功能开发中');
-      }
-      function taskLabel(task) {
-        var labels = {
-          long_term_watch: '长期跟踪',
-          w1_breakout: '周线突破',
-          state_drop: '状态跌出',
-          d1_weakening_3d: 'D1 走弱'
-        };
-        return labels[task.trigger_type] || task.trigger_type || '-';
-      }
-      function renderUserTasks(tasks) {
-        var list = document.getElementById('userTaskList');
-        var count = document.getElementById('userTaskCount');
-        count.textContent = tasks.length + ' 条';
-        if (!tasks.length) {
-          list.innerHTML = '<div class="task-empty">暂无用户观察任务。可以点右上角「观象」，让它帮你建立盯盘提醒。</div>';
-          return;
-        }
-        list.innerHTML = tasks.map(function(task) {
-          var stock = task.stock_code || '-';
-          var note = task.note || taskLabel(task);
-          var valid = (task.valid_from || '-') + ' 至 ' + (task.valid_to || '-');
-          var statusClass = task.status === 'active' ? 'tag-green' : 'tag-gray';
-          return '<div class="task-row" data-task-id="' + (task.task_id || '') + '">' +
-            '<div><a href="/research?stock_code=' + stock + '">' + stock + '</a><div style="font-size:11px;color:var(--muted);">' + taskLabel(task) + '</div></div>' +
-            '<div>' + note + '<div style="font-size:11px;color:var(--muted);">' + (task.email || '-') + '</div></div>' +
-            '<div>' + valid + '</div>' +
-            '<div><span class="tag ' + statusClass + '">' + (task.status || '-') + '</span></div>' +
-            '<button onclick="cancelUserTask(event, \\'' + (task.task_id || '') + '\\')">取消</button>' +
-          '</div>';
-        }).join('');
-      }
-      function loadUserTasks() {
-        fetch('/api/user-tasks?status=active&task_type=watch_command')
-          .then(function(resp) {
-            if (resp.status === 401) throw new Error('unauthorized');
-            return resp.json();
-          })
-          .then(function(data) { renderUserTasks(data.tasks || []); })
-          .catch(function() {
-            document.getElementById('userTaskCount').textContent = '不可用';
-            document.getElementById('userTaskList').innerHTML = '<div class="task-empty">观察任务需要登录后查看。</div>';
-          });
-      }
-      function cancelUserTask(event, taskId) {
-        event.stopPropagation();
+      function cancelUserTask(taskId) {
         if (!taskId) return;
         fetch('/api/user-tasks/' + encodeURIComponent(taskId) + '/cancel', { method: 'POST' })
           .then(function(resp) { return resp.json(); })
-          .then(function() { loadUserTasks(); });
+          .then(function() { window.location.reload(); });
       }
-      document.addEventListener('DOMContentLoaded', loadUserTasks);
     </script>
 
     {% set ai_page_context = '/watchlist' %}

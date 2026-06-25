@@ -1,0 +1,989 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hermass 赚钱秘籍仪表盘</title>
+    <style>
+      :root {
+        --bg: #f3f6f2;
+        --paper: #fbfcf8;
+        --panel: rgba(255, 255, 255, 0.88);
+        --line: rgba(21, 40, 34, 0.1);
+        --ink: #152822;
+        --muted: #566b63;
+        --green: #157a56;
+        --green-soft: rgba(21, 122, 86, 0.12);
+        --blue: #2566a2;
+        --blue-soft: rgba(37, 102, 162, 0.12);
+        --amber: #cb7d17;
+        --amber-soft: rgba(203, 125, 23, 0.12);
+        --red: #b84a3a;
+        --red-soft: rgba(184, 74, 58, 0.12);
+        --shadow: 0 24px 64px rgba(24, 40, 34, 0.12);
+        --radius-xl: 28px;
+        --radius-lg: 20px;
+        --radius-md: 14px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        color: var(--ink);
+        font-family: "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+        background:
+          radial-gradient(circle at 0% 0%, rgba(37, 102, 162, 0.16), transparent 26%),
+          radial-gradient(circle at 100% 0%, rgba(21, 122, 86, 0.12), transparent 24%),
+          linear-gradient(180deg, #f8faf7 0%, var(--bg) 100%);
+      }
+
+      a {
+        color: inherit;
+      }
+
+      .page {
+        width: min(1360px, calc(100vw - 32px));
+        margin: 20px auto 56px;
+      }
+
+      .shell {
+        border: 1px solid rgba(255, 255, 255, 0.7);
+        border-radius: 32px;
+        background: rgba(251, 252, 248, 0.72);
+        backdrop-filter: blur(18px);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        padding: 18px 24px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.64);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .brand-mark {
+        width: 46px;
+        height: 46px;
+        border-radius: 14px;
+        background:
+          linear-gradient(180deg, rgba(21, 122, 86, 0.12), rgba(37, 102, 162, 0.12)),
+          #fff;
+        border: 1px solid var(--line);
+        display: grid;
+        place-items: center;
+        font-size: 24px;
+      }
+
+      .brand h1 {
+        margin: 0;
+        font-size: 22px;
+        letter-spacing: -0.03em;
+      }
+
+      .brand p {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .nav {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .nav a,
+      .nav button {
+        padding: 10px 14px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        background: transparent;
+        text-decoration: none;
+        font: inherit;
+        color: var(--muted);
+        cursor: pointer;
+      }
+
+      .nav a:hover,
+      .nav button:hover,
+      .nav a.active {
+        border-color: var(--line);
+        background: rgba(255, 255, 255, 0.78);
+        color: var(--ink);
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: 1.12fr 0.88fr;
+        gap: 20px;
+        padding: 24px;
+      }
+
+      .hero-main,
+      .hero-side,
+      .section,
+      .glass-card {
+        border: 1px solid var(--line);
+        border-radius: var(--radius-xl);
+        background: var(--panel);
+        backdrop-filter: blur(12px);
+      }
+
+      .hero-main {
+        padding: 34px 34px 28px;
+        min-height: 420px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .hero-main::after {
+        content: "";
+        position: absolute;
+        right: -120px;
+        top: 40px;
+        width: 420px;
+        height: 420px;
+        background:
+          radial-gradient(circle at 35% 35%, rgba(21, 122, 86, 0.18), transparent 40%),
+          radial-gradient(circle at 60% 55%, rgba(37, 102, 162, 0.18), transparent 44%);
+        pointer-events: none;
+      }
+
+      .hero-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.76);
+        border: 1px solid var(--line);
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--blue);
+      }
+
+      .hero-title {
+        margin: 18px 0 12px;
+        max-width: 640px;
+        font-size: 68px;
+        line-height: 0.96;
+        letter-spacing: -0.065em;
+      }
+
+      .hero-copy {
+        margin: 0;
+        max-width: 640px;
+        color: var(--muted);
+        font-size: 17px;
+        line-height: 1.78;
+      }
+
+      .hero-pill-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 22px;
+      }
+
+      .hero-pill {
+        padding: 10px 14px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.78);
+        border: 1px solid var(--line);
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .hero-rules {
+        margin-top: 28px;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .hero-rule {
+        padding: 14px;
+        border-radius: var(--radius-md);
+        background: rgba(255, 255, 255, 0.82);
+        border: 1px solid rgba(21, 40, 34, 0.08);
+      }
+
+      .hero-rule strong {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 13px;
+      }
+
+      .hero-rule span {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .hero-side {
+        padding: 26px 24px 24px;
+        display: grid;
+        gap: 16px;
+      }
+
+      .hero-side h2 {
+        margin: 0;
+        font-size: 32px;
+        letter-spacing: -0.04em;
+      }
+
+      .hero-side p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.7;
+      }
+
+      .route-rail {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .route-node {
+        padding: 18px 14px 16px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.82);
+        border: 1px solid rgba(21, 40, 34, 0.08);
+        text-align: center;
+      }
+
+      .route-node .icon {
+        width: 52px;
+        height: 52px;
+        margin: 0 auto 12px;
+        border-radius: 16px;
+        display: grid;
+        place-items: center;
+        font-size: 24px;
+      }
+
+      .route-node strong {
+        display: block;
+        font-size: 14px;
+        margin-bottom: 4px;
+      }
+
+      .route-node span {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .route-node:nth-child(1) .icon { background: var(--green-soft); color: var(--green); }
+      .route-node:nth-child(2) .icon { background: var(--blue-soft); color: var(--blue); }
+      .route-node:nth-child(3) .icon { background: rgba(35, 122, 151, 0.12); color: #237a97; }
+      .route-node:nth-child(4) .icon { background: var(--amber-soft); color: var(--amber); }
+
+      .hero-foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 18px;
+        padding-top: 4px;
+      }
+
+      .hero-foot span {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        gap: 20px;
+        padding: 0 24px 24px;
+      }
+
+      .span-12 { grid-column: span 12; }
+      .span-7 { grid-column: span 7; }
+      .span-5 { grid-column: span 5; }
+      .span-6 { grid-column: span 6; }
+      .span-4 { grid-column: span 4; }
+
+      .section {
+        padding: 24px;
+      }
+
+      .section-header {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+
+      .section-header h2 {
+        margin: 0;
+        font-size: 34px;
+        letter-spacing: -0.05em;
+      }
+
+      .section-header p {
+        margin: 8px 0 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.7;
+        max-width: 720px;
+      }
+
+      .badge {
+        padding: 8px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.82);
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .dual-framework {
+        display: grid;
+        grid-template-columns: 1fr 84px 1fr;
+        gap: 18px;
+        align-items: center;
+      }
+
+      .framework-card {
+        padding: 22px;
+        border-radius: 22px;
+        border: 1px solid var(--line);
+        background: linear-gradient(180deg, rgba(255,255,255,0.86), rgba(248,250,247,0.92));
+      }
+
+      .framework-card h3 {
+        margin: 0 0 8px;
+        font-size: 26px;
+        letter-spacing: -0.04em;
+      }
+
+      .framework-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.7;
+      }
+
+      .framework-card ol {
+        margin: 18px 0 0;
+        padding-left: 20px;
+        display: grid;
+        gap: 14px;
+      }
+
+      .framework-card li {
+        color: var(--muted);
+        line-height: 1.65;
+      }
+
+      .framework-card li strong {
+        display: block;
+        color: var(--ink);
+        margin-bottom: 4px;
+      }
+
+      .vs-mark {
+        width: 84px;
+        height: 84px;
+        border-radius: 50%;
+        border: 1px solid var(--line);
+        display: grid;
+        place-items: center;
+        background: rgba(255,255,255,0.82);
+        font-size: 18px;
+        font-weight: 800;
+        color: var(--blue);
+      }
+
+      .verdict-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .verdict-card {
+        padding: 20px;
+        border-radius: 22px;
+        border: 1px solid var(--line);
+        background: linear-gradient(180deg, rgba(255,255,255,0.84), rgba(248,250,247,0.95));
+      }
+
+      .verdict-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .verdict-status.pass { background: var(--green-soft); color: var(--green); }
+      .verdict-status.watch { background: var(--amber-soft); color: var(--amber); }
+      .verdict-status.risk { background: var(--red-soft); color: var(--red); }
+
+      .verdict-card h3 {
+        margin: 14px 0 8px;
+        font-size: 30px;
+        letter-spacing: -0.05em;
+      }
+
+      .verdict-card ul {
+        margin: 18px 0 0;
+        padding-left: 18px;
+        display: grid;
+        gap: 8px;
+      }
+
+      .verdict-card li {
+        color: var(--muted);
+        line-height: 1.65;
+      }
+
+      .playbook {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .play-step {
+        padding: 18px 16px;
+        border-radius: 20px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.82);
+      }
+
+      .play-step .no {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        font-size: 14px;
+        font-weight: 800;
+        margin-bottom: 12px;
+        color: #fff;
+      }
+
+      .play-step:nth-child(1) .no,
+      .play-step:nth-child(2) .no,
+      .play-step:nth-child(6) .no { background: var(--green); }
+      .play-step:nth-child(3) .no,
+      .play-step:nth-child(4) .no { background: var(--blue); }
+      .play-step:nth-child(5) .no { background: #eb6d1c; }
+
+      .play-step strong {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 18px;
+        letter-spacing: -0.03em;
+      }
+
+      .play-step p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.65;
+      }
+
+      .watch-strip {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .watch-card {
+        padding: 18px;
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        background: rgba(255,255,255,0.82);
+      }
+
+      .watch-card strong {
+        display: block;
+        font-size: 15px;
+        margin-bottom: 8px;
+      }
+
+      .watch-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.7;
+      }
+
+      .danger-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      .danger-table th,
+      .danger-table td {
+        padding: 14px 10px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        vertical-align: top;
+        font-size: 14px;
+        line-height: 1.7;
+      }
+
+      .danger-table th {
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      .danger-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 11px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .danger-label.good { background: var(--green-soft); color: var(--green); }
+      .danger-label.warn { background: var(--amber-soft); color: var(--amber); }
+      .danger-label.bad { background: var(--red-soft); color: var(--red); }
+
+      .footer {
+        padding: 18px 24px 22px;
+        display: grid;
+        grid-template-columns: 1.3fr 1fr 1fr 1.2fr;
+        gap: 18px;
+        border-top: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.58);
+      }
+
+      .footer-block strong {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 13px;
+      }
+
+      .footer-block p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.7;
+      }
+
+      @media (max-width: 1180px) {
+        .hero,
+        .dual-framework,
+        .verdict-grid,
+        .playbook,
+        .watch-strip,
+        .footer {
+          grid-template-columns: 1fr;
+        }
+
+        .grid {
+          grid-template-columns: 1fr;
+        }
+
+        .span-12,
+        .span-7,
+        .span-6,
+        .span-5,
+        .span-4 {
+          grid-column: auto;
+        }
+
+        .route-rail,
+        .hero-rules {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .hero-title {
+          font-size: 52px;
+        }
+
+        .vs-mark {
+          margin: 0 auto;
+        }
+      }
+
+      @media (max-width: 760px) {
+        .page {
+          width: min(100vw, calc(100vw - 16px));
+          margin: 8px auto 24px;
+        }
+
+        .topbar,
+        .hero,
+        .grid,
+        .footer {
+          padding-left: 14px;
+          padding-right: 14px;
+        }
+
+        .topbar {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        .hero-title {
+          font-size: 40px;
+        }
+
+        .route-rail,
+        .hero-rules {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="shell">
+        <header class="topbar">
+          <div class="brand">
+            <div class="brand-mark">📈</div>
+            <div>
+              <h1>Hermass 赚钱秘籍</h1>
+              <p>把市场噪音压成路径、裁决、观察与复盘的决策仪表盘</p>
+            </div>
+          </div>
+          <nav class="nav">
+            <a class="active" href="#hero">总览</a>
+            <a href="#framework">双路径框架</a>
+            <a href="#verdicts">裁决规则</a>
+            <a href="#playbook">决策流程</a>
+            <a href="#watch">观察提醒</a>
+            <a href="#danger">避坑清单</a>
+          </nav>
+        </header>
+
+        <section class="hero" id="hero">
+          <div class="hero-main">
+            <div class="hero-kicker">研究驱动决策，不靠情绪，不靠猜涨停</div>
+            <h2 class="hero-title">先找路径<br />再下判断<br />最后才出手</h2>
+            <p class="hero-copy">
+              Hermass 不是“给你一堆股票”的系统，而是把每天的赚钱动作压缩成三个问题：今天该从市场切，还是从个股切；这只票是继续、等待还是回避；什么时候回来复看，什么条件下直接失效。
+            </p>
+            <div class="hero-pill-row">
+              <div class="hero-pill">市场判断是背景音，不是开关</div>
+              <div class="hero-pill">先看路径，不先看指标</div>
+              <div class="hero-pill">裁决比材料更重要</div>
+              <div class="hero-pill">观察账本负责驱动复访</div>
+            </div>
+            <div class="hero-rules">
+              <div class="hero-rule">
+                <strong>规则 1：先决定从哪进</strong>
+                <span>顺风日先看市场与方向，逆风日先看局部强结构和外部线索。</span>
+              </div>
+              <div class="hero-rule">
+                <strong>规则 2：研究页必须给结论</strong>
+                <span>不是读材料，而是先看到“继续 / 等条件 / 暂不继续”。</span>
+              </div>
+              <div class="hero-rule">
+                <strong>规则 3：观察对象要有时间感</strong>
+                <span>什么时候回来，何时失效，何时触发，全部前置。</span>
+              </div>
+              <div class="hero-rule">
+                <strong>规则 4：复盘才会提升胜率</strong>
+                <span>每一次裁决都要能回看，不然系统永远停留在表面聪明。</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="hero-side">
+            <div>
+              <h2>路线导航</h2>
+              <p>赚钱不是每天都做同一件事。环境不同，入口不同，动作顺序也不同。</p>
+            </div>
+            <div class="route-rail">
+              <div class="route-node">
+                <div class="icon">🧭</div>
+                <strong>识别环境</strong>
+                <span>判断顺风、逆风、还是等待日</span>
+              </div>
+              <div class="route-node">
+                <div class="icon">📚</div>
+                <strong>走对路径</strong>
+                <span>选市场入口或个股入口</span>
+              </div>
+              <div class="route-node">
+                <div class="icon">🎯</div>
+                <strong>形成裁决</strong>
+                <span>给继续、等待或回避结论</span>
+              </div>
+              <div class="route-node">
+                <div class="icon">📈</div>
+                <strong>追踪优化</strong>
+                <span>创建观察，等触发，再复盘</span>
+              </div>
+            </div>
+            <div class="hero-foot">
+              <span>你获得：更清晰的入口</span>
+              <span>更可执行的动作</span>
+              <span>更少的冲动交易</span>
+              <span>更强的复利纪律</span>
+            </div>
+          </div>
+        </section>
+
+        <div class="grid">
+          <section class="section span-12" id="framework">
+            <div class="section-header">
+              <div>
+                <h2>市场 vs 个股：双路径赚钱框架</h2>
+                <p>先判断今天更适合自上而下还是自下而上。赚钱不是死盯一只票，而是在对的环境里用对的进入方式。</p>
+              </div>
+              <div class="badge">路径选错，后面全错</div>
+            </div>
+            <div class="dual-framework">
+              <div class="framework-card">
+                <h3>路径一：先看市场，再选个股</h3>
+                <p>适合顺风或共振较强的日子。先缩圈，再深挖，不要一开始就埋进个股细节。</p>
+                <ol>
+                  <li><strong>市场环境判断</strong> 看宽度、活跃性、风险偏好和资金面，确认今天是进攻日还是防守日。</li>
+                  <li><strong>方向识别</strong> 只盯少数承接最好的行业，不在弱方向里找侥幸样本。</li>
+                  <li><strong>机会池收敛</strong> 从推荐页挑局部最强对象，再进入研究页做裁决。</li>
+                  <li><strong>输出</strong> 市场观点 + 方向配置 + 少数重点对象。</li>
+                </ol>
+              </div>
+              <div class="vs-mark">互相验证</div>
+              <div class="framework-card">
+                <h3>路径二：聚焦个股，反推验证</h3>
+                <p>适合震荡、偏弱或外部线索驱动的日子。先研究样本，再回头校验它是不是逆风里的假机会。</p>
+                <ol>
+                  <li><strong>样本本体研究</strong> 看结构、估值、增长、题材、资金与位置。</li>
+                  <li><strong>给出裁决</strong> 明确继续、等待还是回避，别把材料堆给用户自己拼。</li>
+                  <li><strong>补环境校验</strong> 用市场页和行业页确认它是不是孤立脉冲。</li>
+                  <li><strong>输出</strong> 买卖区间、风险边界、何时回来看。</li>
+                </ol>
+              </div>
+            </div>
+          </section>
+
+          <section class="section span-12" id="verdicts">
+            <div class="section-header">
+              <div>
+                <h2>研究裁决卡：赚钱不是看资料，是看结论</h2>
+                <p>研究页第一屏必须先告诉你这只票应该怎么处理，然后再展开证据。三种结论足够覆盖绝大多数动作。</p>
+              </div>
+              <div class="badge">先结论，后证据</div>
+            </div>
+            <div class="verdict-grid">
+              <div class="verdict-card">
+                <div class="verdict-status pass">继续跟踪</div>
+                <h3>能继续</h3>
+                <ul>
+                  <li>多周期结构至少两层站得住。</li>
+                  <li>资金确认或行业承接至少有一层成立。</li>
+                  <li>研究页要给出下一步动作：继续下钻证据，还是创建观察任务。</li>
+                </ul>
+              </div>
+              <div class="verdict-card">
+                <div class="verdict-status watch">等条件</div>
+                <h3>先别急</h3>
+                <ul>
+                  <li>现在更像观察样本，不是成熟机会。</li>
+                  <li>页面必须写清等待什么：资金确认、行业承接，还是 1-3 天站稳。</li>
+                  <li>等条件比强行下判断更赚钱，因为它直接过滤掉低质量试错。</li>
+                </ul>
+              </div>
+              <div class="verdict-card">
+                <div class="verdict-status risk">暂不继续</div>
+                <h3>先回避</h3>
+                <ul>
+                  <li>出现资金背离、跌回关键支撑、或结构明确失效。</li>
+                  <li>研究页要写清楚失效条件，不许只说“风险较大”。</li>
+                  <li>回避不是错过机会，而是保护注意力和本金。</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <section class="section span-12" id="playbook">
+            <div class="section-header">
+              <div>
+                <h2>赚钱六步法</h2>
+                <p>把页面使用顺序固定下来，系统才能变成赚钱工具，而不是信息游乐场。</p>
+              </div>
+              <div class="badge">Playbook</div>
+            </div>
+            <div class="playbook">
+              <div class="play-step">
+                <div class="no">1</div>
+                <strong>界定问题</strong>
+                <p>今天先问路径，不先问“买哪只”。先识别环境，再决定入口。</p>
+              </div>
+              <div class="play-step">
+                <div class="no">2</div>
+                <strong>收集信号</strong>
+                <p>市场页看环境，推荐页看收敛后的对象池，不平均用力。</p>
+              </div>
+              <div class="play-step">
+                <div class="no">3</div>
+                <strong>分析研究</strong>
+                <p>研究页给结论、等待条件、失效条件，而不是只堆资料。</p>
+              </div>
+              <div class="play-step">
+                <div class="no">4</div>
+                <strong>形成观点</strong>
+                <p>把对象定为“继续 / 等条件 / 暂不继续”，才算完成一次判断。</p>
+              </div>
+              <div class="play-step">
+                <div class="no">5</div>
+                <strong>执行跟踪</strong>
+                <p>创建观察任务，把提醒、有效期、复看时点写清楚。</p>
+              </div>
+              <div class="play-step">
+                <div class="no">6</div>
+                <strong>复盘优化</strong>
+                <p>回看哪些判断赚钱，哪些判断浪费注意力，持续调参。</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="section span-7" id="watch">
+            <div class="section-header">
+              <div>
+                <h2>观察账本：赚钱靠复看，不靠记忆</h2>
+                <p>真正的观察对象必须带着时间感存在。不是“收藏”，而是告诉你什么时候回来、看什么、什么情况下直接删除。</p>
+              </div>
+              <div class="badge">Watchlist</div>
+            </div>
+            <div class="watch-strip">
+              <div class="watch-card">
+                <strong>回来看的时点</strong>
+                <p>今天刚触发、这两天要复看、还是几天内到期，必须一眼看到。</p>
+              </div>
+              <div class="watch-card">
+                <strong>等待条件</strong>
+                <p>不是“继续关注”，而是写清楚等待资金确认、行业承接还是结构继续展开。</p>
+              </div>
+              <div class="watch-card">
+                <strong>失效条件</strong>
+                <p>跌回支撑、资金背离扩大、或突破失败，任何一条触发都要降级或删除。</p>
+              </div>
+              <div class="watch-card">
+                <strong>下一次提醒理由</strong>
+                <p>系统要告诉你为什么要回来，而不是让你自己想“这票我是不是看过”。</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="section span-5" id="profit">
+            <div class="section-header">
+              <div>
+                <h2>赚钱核心</h2>
+                <p>Hermass 最值钱的不是数据多，而是让你少做三件亏钱的事。</p>
+              </div>
+            </div>
+            <div class="glass-card" style="padding: 22px; border-radius: 24px;">
+              <div class="hero-rule" style="margin-bottom: 12px;">
+                <strong>少在逆风里强行找全面进攻机会</strong>
+                <span>逆风日也会有机会，但那是局部、精选、证据化的机会，不是普涨幻想。</span>
+              </div>
+              <div class="hero-rule" style="margin-bottom: 12px;">
+                <strong>少把阅读误当成决策</strong>
+                <span>看完一屏屏材料，不等于知道下一步该买、该等还是该撤。</span>
+              </div>
+              <div class="hero-rule">
+                <strong>少让机会失联</strong>
+                <span>真正赚钱的对象通常不是当天看完当天结束，而是后面几天被持续正确跟踪。</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="section span-12" id="danger">
+            <div class="section-header">
+              <div>
+                <h2>最容易亏钱的六个误用</h2>
+                <p>如果用户这样用系统，再漂亮的页面也赚不到钱。这一页要反过来教用户怎么避坑。</p>
+              </div>
+              <div class="badge">Do / Don’t</div>
+            </div>
+            <table class="danger-table">
+              <thead>
+                <tr>
+                  <th>误用</th>
+                  <th>表现</th>
+                  <th>正确用法</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="danger-label bad">把市场当开关</span></td>
+                  <td>一看大盘弱，就以为今天完全不能研究个股。</td>
+                  <td>市场只是背景音，决定你先从市场切还是先从线索切。</td>
+                </tr>
+                <tr>
+                  <td><span class="danger-label bad">把推荐池当购物车</span></td>
+                  <td>看到一堆候选就想全看，注意力被打散。</td>
+                  <td>先看哪一组，再挑其中少数对象，不平铺几十只。</td>
+                </tr>
+                <tr>
+                  <td><span class="danger-label warn">把研究页当资料库</span></td>
+                  <td>阅读很多，但最后没有明确动作。</td>
+                  <td>先看裁决卡，再决定要不要展开证据层。</td>
+                </tr>
+                <tr>
+                  <td><span class="danger-label warn">把观察账本当收藏夹</span></td>
+                  <td>对象越来越多，但没有复看节奏。</td>
+                  <td>每个观察对象都必须有等待条件、失效条件和回来时点。</td>
+                </tr>
+                <tr>
+                  <td><span class="danger-label good">先问路径再问个股</span></td>
+                  <td>知道今天该从哪进，后面所有页面都会更有效。</td>
+                  <td>首页先看路由，顺风看市场，逆风看局部，迷茫时问观象。</td>
+                </tr>
+                <tr>
+                  <td><span class="danger-label good">先裁决再执行</span></td>
+                  <td>继续、等待、回避三分法会显著降低冲动试错。</td>
+                  <td>不给结论不下单，不写观察条件不创建观察任务。</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+        </div>
+
+        <footer class="footer">
+          <div class="footer-block">
+            <strong>这份秘籍的核心</strong>
+            <p>赚钱不是更多信息，而是更短的决策链路。路径、裁决、观察、复盘，这四层必须闭环。</p>
+          </div>
+          <div class="footer-block">
+            <strong>建议入口</strong>
+            <p>首页负责导航，市场页负责定环境，研究页负责出裁决，观察账本负责驱动复看。</p>
+          </div>
+          <div class="footer-block">
+            <strong>最重要动作</strong>
+            <p>今天先决定从哪条路进；看到研究结论后，再决定要不要创建观察。</p>
+          </div>
+          <div class="footer-block">
+            <strong>一句话收束</strong>
+            <p>先走对路，再盯对票，最后用纪律把正确判断变成复利。</p>
+          </div>
+        </footer>
+      </div>
+    </div>
+  </body>
+</html>

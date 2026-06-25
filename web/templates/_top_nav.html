@@ -1,3 +1,19 @@
+<div class="step-bar" id="hermass-step-bar">
+  <div class="step-item {% if request.url.path in ('/', '/market', '/recommend') %}active{% endif %}" data-step="walk">
+    <span class="step-dot"></span>
+    <span class="step-label">第一步：走路</span>
+  </div>
+  <div class="step-connector {% if request.url.path in ('/research', '/watchlist', '/recommend') %}active{% endif %}"></div>
+  <div class="step-item {% if request.url.path == '/research' %}active{% endif %}" data-step="verdict">
+    <span class="step-dot"></span>
+    <span class="step-label">第二步：裁决</span>
+  </div>
+  <div class="step-connector {% if request.url.path == '/watchlist' %}active{% endif %}"></div>
+  <div class="step-item {% if request.url.path == '/watchlist' %}active{% endif %}" data-step="track">
+    <span class="step-dot"></span>
+    <span class="step-label">第三步：追踪</span>
+  </div>
+</div>
 <a href="/" {% if nav_active == 'home' %}class="active"{% endif %}>首页</a>
 <a href="/market" {% if nav_active == 'market' %}class="active"{% endif %}>市场</a>
 <a href="/recommend" {% if nav_active == 'opportunity' %}class="active"{% endif %}>机会</a>
@@ -6,6 +22,7 @@
 <span class="toolbox-wrap">
   <a href="javascript:void(0)" class="nav-toolbox" onclick="var m=this.nextElementSibling;m.style.display=m.style.display==='block'?'none':'block'">工具箱 ▾</a>
   <div class="toolbox-menu" style="display:none">
+    <a href="/playbook">赚钱秘籍</a>
     <a href="/mystrategies">策略工坊</a>
     <a href="/backtest">回测验证</a>
     <a href="/debate-dashboard">决策复盘</a>

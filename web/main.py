@@ -2184,6 +2184,122 @@ def _count_cached_clues() -> int:
         return 0
 
 
+def _candidate_group_key(candidate: dict[str, Any]) -> str:
+    bucket = str(candidate.get("bucket") or "")
+    current_state = str(candidate.get("current_state") or "")
+    if bucket == "priority" and current_state in {"刚突破待确认", "推进中段", "高位延展"}:
+        return "ready"
+    if bucket == "observe" or current_state == "收缩蓄力":
+        return "observe"
+    return "repair"
+
+
+def _candidate_group_meta(group_key: str) -> dict[str, str]:
+    if group_key == "ready":
+        return {
+            "key": "ready",
+            "title": "顺风优先看",
+            "desc": "市场不是开关，但这批对象已经具备先看价值，先确认个股证据是否够。",
+            "tag_class": "tag-green",
+            "tag_label": "先看",
+        }
+    if group_key == "observe":
+        return {
+            "key": "observe",
+            "title": "逆风也能跟",
+            "desc": "大盘一般时，重点看这类收缩蓄力或局部走强对象，不急着扩大范围。",
+            "tag_class": "tag-amber",
+            "tag_label": "跟踪",
+        }
+    return {
+        "key": "repair",
+        "title": "暂不推进",
+        "desc": "这类对象先别投入注意力，除非后续重新修复到可观察状态。",
+        "tag_class": "tag-gray",
+        "tag_label": "暂缓",
+    }
+
+
+def _group_observation_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[str, list[dict[str, Any]]] = {"ready": [], "observe": [], "repair": []}
+    for candidate in candidates:
+        grouped[_candidate_group_key(candidate)].append(candidate)
+
+    ordered_groups: list[dict[str, Any]] = []
+    for key in ("ready", "observe", "repair"):
+        rows = grouped.get(key) or []
+        if not rows:
+            continue
+        meta = _candidate_group_meta(key)
+        lead = rows[0]
+        lead_name = str(lead.get("stock_code") or "").strip() or "当前样本"
+        if key == "ready":
+            summary = f"先从 {lead_name} 这类已进入推进区的对象下手，先确认还能不能继续。"
+        elif key == "observe":
+            summary = f"这组先记等待条件，不急着扩大范围，优先盯 {lead_name} 这类收缩或局部转强样本。"
+        else:
+            summary = f"这组暂时不投入注意力，除非后续像 {lead_name} 这样重新修复到可观察状态。"
+        ordered_groups.append({
+            **meta,
+            "count": len(rows),
+            "rows": rows[:3],
+            "summary": summary,
+        })
+    return ordered_groups
+
+
+def _parse_iso_datetime(value: Any) -> datetime | None:
+    raw = str(value or "").strip()
+    if not raw or raw == "-":
+        return None
+    normalized = raw.replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(normalized)
+    except Exception:
+        pass
+    for fmt in ("%Y-%m-%d", "%Y%m%d", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(raw, fmt)
+        except Exception:
+            continue
+    return None
+
+
+def _watch_due_copy(valid_to: Any) -> str:
+    due_dt = _parse_iso_datetime(valid_to)
+    if not due_dt:
+        return "未设置到期日"
+    days = (due_dt.date() - date.today()).days
+    if days < 0:
+        return "已过观察期"
+    if days == 0:
+        return "今天到期，必须重评"
+    if days == 1:
+        return "明天到期，建议今天复看"
+    if days <= 3:
+        return f"{days} 天内到期，别让它失联"
+    return f"剩余 {days} 天观察期"
+
+
+def _watch_revisit_copy(last_triggered_at: Any, urgency: str, valid_to: Any) -> str:
+    triggered_dt = _parse_iso_datetime(last_triggered_at)
+    if triggered_dt:
+        days = (date.today() - triggered_dt.date()).days
+        if days <= 0:
+            return "今天刚触发，优先回来看结果"
+        if days == 1:
+            return "昨天触发过，今天要看是否延续"
+        return f"{days} 天前触发，回来看后续有没有跟上"
+    if urgency == "today":
+        return "今天要复看，别把观察对象拖成背景噪音"
+    if urgency == "soon":
+        return "这两天回来一次，确认等待条件有没有靠近"
+    due_copy = _watch_due_copy(valid_to)
+    if due_copy != "未设置到期日":
+        return due_copy
+    return "先放在账本里，等下一次触发或到期再回来"
+
+
 def _daily_observation_brief(username: str = "") -> dict[str, Any]:
     market = _daily_brief()
     execution = _execution_lane()
@@ -2195,20 +2311,27 @@ def _daily_observation_brief(username: str = "") -> dict[str, Any]:
     if len(candidates) < 5:
         for row in observe_rows[: 5 - len(candidates)]:
             candidates.append(_observation_candidate(row, len(candidates) + 1, "observe"))
+    candidate_groups = _group_observation_candidates(candidates)
 
     ef2_pct = _floatish(market.get("ef2_pct")) or 0.0
-    if candidates and ef2_pct >= 15:
+    if ef2_pct >= 15:
+        routing_mode = "top_down"
+        routing_label = "先看市场，再下钻"
         posture = "selective"
-        posture_label = "可选择性处理"
-        action_line = "先看优先观察对象，不扩大到全市场搜索。"
+        posture_label = "顺风但仍需筛选"
+        action_line = "市场有一定共振，先用市场和方向缩圈，再处理优先对象。"
     elif candidates:
+        routing_mode = "bottom_up"
+        routing_label = "先追线索，再核验证据"
         posture = "observe"
-        posture_label = "先观察再推进"
-        action_line = "今天以结构确认和证据补全为主，不急于执行。"
+        posture_label = "局部机会优先"
+        action_line = "今天更适合从外部线索或候选对象切入，再回研究页补足证据。"
     else:
+        routing_mode = "reset"
+        routing_label = "先回到环境判断"
         posture = "wait"
-        posture_label = "等待"
-        action_line = "当前没有强优先对象，把注意力放在市场方向和研究准备。"
+        posture_label = "先不扩展观察"
+        action_line = "当前没有明确对象，先回市场页看顺风还是逆风，再决定往哪条路径走。"
 
     active_tasks: list[dict[str, Any]] = []
     user_task_source = "not_authenticated"
@@ -2242,9 +2365,12 @@ def _daily_observation_brief(username: str = "") -> dict[str, Any]:
             "label": posture_label,
             "summary": f"{market.get('conclusion', '')} {execution.get('lane_hint', '')}".strip(),
             "next_step": action_line,
+            "routing_mode": routing_mode,
+            "routing_label": routing_label,
             "avoid": "不要把系统级每日任务和个人观察任务混在一起；用户观察必须由用户确认创建。",
         },
         "watch_candidates": candidates,
+        "watch_groups": candidate_groups,
         "external_clue_count": _count_cached_clues(),
         "active_user_tasks": active_tasks,
         "tracked_stock_codes": sorted({
@@ -2409,6 +2535,85 @@ def _external_clues_for_stock(stock_code: str) -> list[dict[str, Any]]:
         return load_cached_clues_for_stock(stock_code)
     except Exception:
         return []
+
+
+def _build_research_verdict(
+    stock_code: str,
+    check_items: list[dict[str, Any]],
+    cards: dict[str, Any],
+    resonance_summary: dict[str, Any],
+    resonance_label: str,
+    strategy_rows: list[dict[str, Any]],
+    sr_direction: str,
+    moneyflow_confirmed: bool,
+    moneyflow_divergence: bool,
+    sw_l1: str,
+    confirm_rate: Any,
+) -> dict[str, Any]:
+    pass_count = sum(1 for item in check_items if item.get("status") == "pass")
+    risk_count = sum(1 for item in check_items if item.get("status") == "risk")
+    watch_count = sum(1 for item in check_items if item.get("status") == "watch")
+    strategy_name = strategy_rows[0].get("strategy_label", "") if strategy_rows else ""
+
+    reasons: list[str] = []
+    if risk_count:
+        verdict = "暂不继续"
+        tone = "risk"
+        reasons.append("当前已有明确反证，先不要把它升级成重点观察对象。")
+        reasons.append(resonance_summary.get("moneyflow_divergence") or resonance_summary.get("breakout_view") or "当前突破质量不足。")
+        if sr_direction == "below_support":
+            reasons.append("价格已落到关键支撑下方，结构先按失效或降级处理。")
+        next_action = "先不推进，等结构重新修复后再回来看。"
+        wait_condition = "等待重新站回关键支撑上方，且资金流不再背离。"
+    elif pass_count >= 3 and moneyflow_confirmed:
+        verdict = "可继续"
+        tone = "pass"
+        reasons.append(f"{resonance_label}，结构层面已具备继续跟踪价值。")
+        reasons.append(resonance_summary.get("moneyflow_confirmation") or "资金流目前支持结构判断。")
+        if sw_l1 and isinstance(confirm_rate, (int, float)):
+            reasons.append(f"{sw_l1} 当前承接{('较强' if confirm_rate >= 0.75 else '尚可')}，不是纯个股孤立脉冲。")
+        elif strategy_name:
+            reasons.append(f"{strategy_name} 当前仍具备继续验证空间。")
+        next_action = "继续下钻证据，并决定是否创建观察任务。"
+        wait_condition = "当前不需要额外等待条件，重点看后续是否继续站稳并获得承接。"
+    else:
+        verdict = "等条件"
+        tone = "watch"
+        reasons.append("现在更像观察样本，不是可以直接下结论的成熟对象。")
+        if watch_count or pass_count:
+            reasons.append("已有部分证据支持，但关键确认还没补齐。")
+        reasons.append(resonance_summary.get("breakout_view") or "当前位置仍需更多确认。")
+        next_action = "先记录等待条件，别急着投入过多注意力。"
+        if moneyflow_divergence:
+            wait_condition = "等待资金背离消失，再决定是否继续。"
+        elif "刚突破" in str(resonance_summary.get("breakout_view") or ""):
+            wait_condition = "等待 1-3 天站稳或回踩确认后再继续。"
+        else:
+            wait_condition = "等待资金确认、行业承接或结构继续展开三者至少补齐一项。"
+
+    if cards.get("error"):
+        verdict = "等条件"
+        tone = "watch"
+        reasons = [
+            "当前研究卡处于降级展示，先不要把缺失模块当成负面结论。",
+            "可先用结构与策略视图维持观察，等研究卡恢复后再完整判断。",
+        ]
+        next_action = "先按观察对象处理，等研究卡恢复后再做最终裁决。"
+        wait_condition = "等待基础资料链路恢复。"
+
+    invalid_condition = "若后续出现明显资金背离或重新跌回关键支撑下方，当前判断失效。"
+    if sr_direction == "below_support":
+        invalid_condition = "当前已处于失效边缘，只有重新修复回支撑上方才值得重评。"
+
+    return {
+        "stock_code": stock_code,
+        "verdict": verdict,
+        "tone": tone,
+        "reasons": reasons[:3],
+        "next_action": next_action,
+        "wait_condition": wait_condition,
+        "invalid_condition": invalid_condition,
+    }
 
 
 def _research_page_context(stock_code: str, render_profile: str) -> dict[str, Any]:
@@ -2631,28 +2836,98 @@ def _research_page_context(stock_code: str, render_profile: str) -> dict[str, An
     worst_status = max((item["status"] for item in check_items), key=lambda status: status_rank.get(status, 1))
     pass_count = sum(1 for item in check_items if item["status"] == "pass")
     risk_count = sum(1 for item in check_items if item["status"] == "risk")
+    missing_count = sum(1 for item in check_items if item["status"] == "missing")
+
+    # 5 级精准裁决：从「主动执行」到「明确不建议」
+    # —— 基于 Hermass 的 State 数据、资金流数据和 iFinD 基本面
     if risk_count:
-        check_verdict = "先不要把外部线索升级为执行对象。当前存在明确风险项，适合做反证复核。"
+        check_verdict = "当前存在明确风险项，不适合升级为执行对象。先做反证复核。"
         check_tier = "risk"
-    elif pass_count >= 3:
-        check_verdict = "这条外部线索值得继续验证。结构、资金、行业或基本面至少有多项证据支持。"
+        conclusion = "先不要碰"
+        conclusion_tier = "avoid"
+        entry_trigger = "不适用（已明确不建议）"
+        risk_boundary = "当前风险项消除前，不重新评估"
+    elif pass_count >= 4:
+        check_verdict = "多维度证据充分支持，结构、资金、行业和基本面都有正向确认，值得重点执行。"
         check_tier = "pass"
-    elif pass_count >= 1:
+        conclusion = "积极追进"
+        conclusion_tier = "go"
+        market_cap_text = (
+            "{:.0f}亿".format(float(market_cap_val) / 1e8)
+            if isinstance(market_cap_val, (int, float)) and market_cap_val > 0
+            else "不限"
+        )
+        pb_text = "，PB {:.1f}".format(pb_val) if isinstance(pb_val, (int, float)) else ""
+        entry_trigger = f"市值 {market_cap_text}{pb_text} 区间分批入场"
+        if isinstance(ef_count, int) and ef_count >= 2:
+            entry_trigger = "D1 回踩关键均线或 BB 中轨时分批入场"
+        support_text = "W1 支撑" if w1_hex.startswith("E") or w1_hex.startswith("F") else "D1 止损位"
+        atr_text = f"（约 -{int(round(d1_atr * 1.5, 0))}%）" if isinstance(d1_atr, (int, float)) and d1_atr > 0 else ""
+        risk_boundary = f"若 D1 收盘跌破 {support_text}{atr_text}，强制离场"
+    elif pass_count >= 3:
+        check_verdict = "这条线索值得继续验证。结构、资金或行业至少有多项证据支持。"
+        check_tier = "pass"
+        conclusion = "值得继续看"
+        conclusion_tier = "verify"
+        entry_trigger = "等资金流进一步确认后再入场"
+        risk_boundary = "若 D1 跌破当前支撑位，降级为等待"
+    elif pass_count >= 2:
         check_verdict = "这条外部线索可以进入观察，但证据还不够深。先补行业、资金或基本面确认。"
         check_tier = "watch"
-    else:
-        check_verdict = "这条外部线索目前只能作为线索，不足以进入重点研究。"
+        conclusion = "等一等"
+        conclusion_tier = "wait"
+        entry_trigger = "等 D1 出现单日放量+收阳确认后才能考虑"
+        risk_boundary = "若连续缩量阴跌超过 3 天，降级为暂不继续"
+    elif missing_count >= 3:
+        check_verdict = "当前基础数据缺口太大，无法形成有效判断。先补足数据再评估。"
         check_tier = "missing"
+        conclusion = "证据不够"
+        conclusion_tier = "insufficient"
+        entry_trigger = "不适用（数据缺失状态）"
+        risk_boundary = "先运行 fetch_ifind_news.py / fetch_ifind_fundamentals.py 补数据"
+    else:
+        check_verdict = "这条外部线索目前只能作为线索，不足以进入重点研究。先跟踪，不急于判断。"
+        check_tier = "watch"
+        conclusion = "再看一看"
+        conclusion_tier = "wait"
+        entry_trigger = "等行业或资金出现明确信号后再启动"
+        risk_boundary = "若持续无进展超过 10 个交易日，暂时搁置"
+
+    # 提取关键值用于裁决展示
+    market_cap_val = (_fin_data.get("market_cap") if _fin_data else None)
+    pb_val = (_fin_data.get("pb") if _fin_data else None)
+    d1_atr = float(state_core.get("d1_atr14", 0) or 0)
+    mn1_hex = str(state_core.get("mn1_state_hex") or "-")
+    w1_hex = str(state_core.get("w1_state_hex") or "-")
+    d1_hex = str(state_core.get("d1_state_hex") or "-")
+
     single_stock_checkup = {
         "title": "线索验证体检",
         "verdict": check_verdict,
         "tier": check_tier,
         "worst_status": worst_status,
         "items": check_items,
+        "conclusion": conclusion,
+        "conclusion_tier": conclusion_tier,
+        "entry_trigger": entry_trigger,
+        "risk_boundary": risk_boundary,
         "next_step": (
             "若线索来自小红书、公众号或自媒体，先把原始理由贴给观象，再用本页五项体检做核验。"
         ),
     }
+    research_verdict = _build_research_verdict(
+        stock_code=stock_code.strip().upper(),
+        check_items=check_items,
+        cards=cards,
+        resonance_summary=resonance_summary,
+        resonance_label=resonance_label,
+        strategy_rows=strategy_rows,
+        sr_direction=sr_direction,
+        moneyflow_confirmed=moneyflow_confirmed,
+        moneyflow_divergence=moneyflow_divergence,
+        sw_l1=sw_l1,
+        confirm_rate=confirm_rate,
+    )
 
     strategy_risk_lines = []
     for row in strategy_rows:
@@ -2677,6 +2952,7 @@ def _research_page_context(stock_code: str, render_profile: str) -> dict[str, An
         "summary": summary,
         "ai_summary": ai_summary,
         "single_stock_checkup": single_stock_checkup,
+        "research_verdict": research_verdict,
         "external_clues": _external_clues_for_stock(stock_code),
         "coverage": coverage,
         "missing_modules": missing_modules,
@@ -2706,6 +2982,126 @@ def _research_page_context(stock_code: str, render_profile: str) -> dict[str, An
         "d1_label": _hex_to_human_label(d1_hex),
         "resonance_label": resonance_label,
         "state_prior_view": state_prior_view,
+    }
+
+
+def _watch_trigger_label(trigger_type: str) -> str:
+    labels = {
+        "long_term_watch": "长期跟踪",
+        "w1_breakout": "周线突破",
+        "state_drop": "状态跌出",
+        "d1_weakening_3d": "D1 走弱",
+    }
+    key = str(trigger_type or "").strip()
+    return labels.get(key, key or "-")
+
+
+def _watchlist_page_context(username: str = "") -> dict[str, Any]:
+    execution = _execution_lane()
+    merged_rows = (execution.get("priority_queue", []) or []) + (execution.get("observe_queue", []) or []) + (execution.get("recent_queue", []) or [])
+    row_map: dict[str, dict[str, Any]] = {}
+    for row in merged_rows:
+        stock_code = str(row.get("stock_code") or "").strip().upper()
+        if stock_code and stock_code not in row_map:
+            row_map[stock_code] = row
+
+    active_tasks: list[dict[str, Any]] = []
+    if username and username != "anonymous":
+        try:
+            task_payload = list_user_tasks(
+                user=username,
+                status="active",
+                task_type="watch_command",
+                limit=500,
+            )
+            active_tasks = task_payload.get("tasks", []) if task_payload.get("ok") else []
+        except Exception:
+            active_tasks = []
+
+    watch_objects: list[dict[str, Any]] = []
+    for task in active_tasks:
+        stock_code = str(task.get("stock_code") or "").strip().upper()
+        row = row_map.get(stock_code, {})
+        bucket = str(row.get("bucket") or "")
+        current_state = str(row.get("current_state") or row.get("resonance_label") or "待观察").strip()
+        live_risk = str(row.get("risk") or row.get("fake_breakout_risk") or "暂无明显风险提示。").strip()
+        next_action = str(row.get("next_action") or "继续观察，等待条件满足。").strip()
+        recent_change = str(row.get("reason") or row.get("queue_reason") or task.get("note") or "当前仍在观察阶段。").strip()
+        if bucket == "priority":
+            conclusion = "继续跟踪"
+            tone = "pass"
+            urgency = "today"
+            urgency_label = "今天先看"
+        elif bucket == "observe" or row:
+            conclusion = "等条件"
+            tone = "watch"
+            urgency = "soon"
+            urgency_label = "这两天看"
+        else:
+            conclusion = "等待信号"
+            tone = "watch"
+            urgency = "later"
+            urgency_label = "暂缓"
+        invalid_condition = "若价格重新跌回关键支撑下方，或资金背离持续扩大，则当前观察失效。"
+        if "支撑下方" in live_risk or "失效" in live_risk:
+            invalid_condition = live_risk
+        if task.get("last_triggered_at"):
+            urgency = "today"
+            urgency_label = "刚触发"
+        revisit_copy = _watch_revisit_copy(task.get("last_triggered_at"), urgency, task.get("valid_to"))
+        due_copy = _watch_due_copy(task.get("valid_to"))
+        watch_objects.append({
+            "task_id": task.get("task_id", ""),
+            "stock_code": stock_code,
+            "email": task.get("email", ""),
+            "trigger_label": _watch_trigger_label(task.get("trigger_type", "")),
+            "trigger_type": task.get("trigger_type", ""),
+            "note": str(task.get("note") or "").strip(),
+            "valid_from": task.get("valid_from", "-"),
+            "valid_to": task.get("valid_to", "-"),
+            "created_at": task.get("created_at", "-"),
+            "last_triggered_at": task.get("last_triggered_at"),
+            "status": task.get("status", "active"),
+            "conclusion": conclusion,
+            "tone": tone,
+            "urgency": urgency,
+            "urgency_label": urgency_label,
+            "current_state": current_state,
+            "wait_condition": next_action,
+            "invalid_condition": invalid_condition,
+            "recent_change": recent_change,
+            "next_reminder_reason": str(task.get("note") or "等待触发条件满足。").strip(),
+            "revisit_copy": revisit_copy,
+            "due_copy": due_copy,
+            "research_url": f"/research?stock_code={stock_code}" if stock_code else "/research",
+            "has_live_context": bool(row),
+            "live_risk": live_risk,
+        })
+
+    urgency_rank = {"today": 0, "soon": 1, "later": 2}
+    watch_objects.sort(
+        key=lambda item: (
+            urgency_rank.get(str(item.get("urgency") or ""), 9),
+            str(item.get("valid_to") or ""),
+            str(item.get("stock_code") or ""),
+        )
+    )
+    focus_summary = []
+    for item in watch_objects[:3]:
+        focus_summary.append(
+            {
+                "stock_code": item["stock_code"],
+                "urgency_label": item["urgency_label"],
+                "reason": item["revisit_copy"] if item["urgency"] != "later" else item["next_reminder_reason"],
+                "research_url": item["research_url"],
+            }
+        )
+
+    return {
+        "execution": execution,
+        "watch_objects": watch_objects,
+        "watch_object_count": len(watch_objects),
+        "watch_focus_summary": focus_summary,
     }
 
 
@@ -2975,6 +3371,20 @@ def design_feedback_page(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
         request,
         "feedback.html",
+        {
+            "request": request,
+            "today": str(date.today()),
+            "current_user": profile,
+        },
+    )
+
+
+@app.get("/playbook", response_class=HTMLResponse)
+def playbook_page(request: Request) -> HTMLResponse:
+    profile = get_current_profile(request)
+    return templates.TemplateResponse(
+        request,
+        "playbook.html",
         {
             "request": request,
             "today": str(date.today()),
@@ -3976,15 +4386,15 @@ def api_per_stock_history(stock_code: str = "", limit: int = 30) -> JSONResponse
 @app.get("/watchlist", response_class=HTMLResponse)
 def watchlist_page(request: Request) -> HTMLResponse:
     profile = get_current_profile(request)
+    username = profile.get("username") or ""
+    ctx = _watchlist_page_context(username)
+    ctx["request"] = request
+    ctx["today"] = str(date.today())
+    ctx["current_user"] = profile
     return templates.TemplateResponse(
         request,
         "watchlist.html",
-        {
-            "request": request,
-            "today": str(date.today()),
-            "execution": _execution_lane(),
-            "current_user": profile,
-        },
+        ctx,
     )
 
 
@@ -5417,7 +5827,7 @@ def _rule_fallback_after_llm_failure(query: ChatQuery, failure: dict[str, Any]) 
 _GENERAL_QA_SYSTEM_PROMPT = (
     "你是「观象」，Hermass 量化观测台的 AI 助手。\n"
     "你不是闲聊机器人，而是面向投资研究工作流的 AI Native 研究专家。\n"
-    "你帮助用户完成每日决策旅程：今天能不能动手、动谁、为什么是它、哪里可能错。\n\n"
+    "你帮助用户完成每日决策旅程：今天先走哪条路、先看谁、为什么是它、哪里可能错。\n\n"
     "## 回答原则\n"
     "1. 先给结论：第一句必须回答用户当前该如何理解，不绕弯。\n"
     "2. 再给证据：区分本地数据、规则口径、AI 推理，不把推理伪装成数据。\n"
@@ -5698,15 +6108,15 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
     if any(k in msg_lower for k in ("怎么用", "如何使用", "使用说明", "帮助", "help", "从哪开始", "新手")):
         return {
             "answer": (
-                "建议按「市场 → 行业 → 研究」的顺序上手："
-                "先看市场页判断大环境能不能做，再看行业页找顺风方向，"
-                "最后到研究页看具体股票的多周期结构。"
-                "你也可以直接问我问题，比如「现在能不能做」「000021 怎么样」。"
+                "建议先判断今天更适合自上而下还是自下而上："
+                "如果全市场共振强，先看市场和行业缩圈；"
+                "如果大盘一般但局部机会集中，就直接从线索或个股切入，再回研究页补证据。"
+                "你也可以直接问我「今天先看什么方向」「000021 怎么样」。"
             ),
-            "why": "多周期框架的核心是先判断大环境，再缩圈到方向，最后看个股执行，这个顺序能避免逆势操作。",
-            "multi_cycle_view": "上手后你会慢慢习惯 MN1/W1/D1 三层视角：月线看大势、周线看结构、日线找介入时机。",
-            "single_cycle_position": "刚开始不用追求完美判断，先把市场页和行业页看熟，再逐步深入个股。",
-            "avoid": "不要一上来就盯着个股涨跌做决定，先建立「环境 → 方向 → 标的」的思考习惯。",
+            "why": "市场判断是背景音，不是开关。Hermass 的作用是帮你判断今天该先看环境，还是先抓局部机会。",
+            "multi_cycle_view": "MN1/W1/D1 仍然是底层框架，但首页应该先告诉你从哪条路径进入，而不是一次把所有分析平铺出来。",
+            "single_cycle_position": "刚开始先学会两件事：顺风日先缩圈，逆风日先抓局部强结构，然后再看个股证据是否完整。",
+            "avoid": "不要把“市场偏弱”直接等同于“今天什么都不能做”；真正该避免的是在没有路径感的情况下乱看一堆票。",
             "next_actions": [
                 {"label": "打开市场页", "url": "/market"},
                 {"label": "打开行业页", "url": "/industry"},
