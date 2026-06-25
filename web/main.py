@@ -1358,6 +1358,140 @@ def _market_analysis_data() -> dict[str, Any]:
         "strategy_risk_banner": strategy_risk_banner,
         "freshness": freshness_rows,
         "stale_rows": stale_rows,
+        "agent_consensus": _agent_market_consensus(core_date),
+    }
+
+
+def _agent_market_consensus(core_date: Any) -> dict[str, Any]:
+    """从最新 Agent 辩论 JSON 读市场级共识和 6 Agent 意见。"""
+    debate_path = ROOT / "outputs" / "debate" / "agent_debate_latest.json"
+    if not debate_path.exists():
+        return {
+            "available": False,
+            "opinions": [],
+            "summary": {},
+            "pulse": {},
+            "freshness": _freshness_info(
+                "Agent 辩论",
+                "-",
+                core_date,
+                0,
+                "日更",
+                "主判断",
+                debate_path,
+            ),
+        }
+    try:
+        debate = json.loads(debate_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {
+            "available": False,
+            "opinions": [],
+            "summary": {},
+            "pulse": {},
+            "freshness": _freshness_info(
+                "Agent 辩论",
+                "-",
+                core_date,
+                0,
+                "日更",
+                "主判断",
+                debate_path,
+            ),
+        }
+    ms = debate.get("market_summary", {}) or {}
+    ops: list[dict] = debate.get("opinions", []) or []
+    state_date = str(debate.get("state_date") or "")
+    freshness = _freshness_info(
+        "Agent 辩论",
+        state_date,
+        core_date,
+        0,
+        "日更",
+        "主判断",
+        debate_path,
+    )
+
+    def _to_int(value: Any, default: int = 0) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _to_float(value: Any, default: float = 0.0) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    ef2_count = _to_int(ms.get("ef2_count"), 0)
+    bull_pct = _to_float(ms.get("d1_bull_pct"), 0.0)
+    total = _to_int(ms.get("total_stocks"), 0)
+
+    if bull_pct >= 55 and ef2_count >= 500:
+        market_label = "偏多"
+        market_tier = "bullish"
+    elif bull_pct >= 45:
+        market_label = "中性"
+        market_tier = "neutral"
+    elif bull_pct >= 30:
+        market_label = "偏弱"
+        market_tier = "caution"
+    else:
+        market_label = "偏空"
+        market_tier = "bearish"
+
+    pulse = {
+        "ef2_pct": round(ef2_count / total * 100, 1) if total else 0,
+        "ef2_count": ef2_count,
+        "ef3_count": _to_int(ms.get("ef3_count"), 0),
+        "d1_bull_pct": bull_pct,
+        "w1_bull_pct": round(_to_float(ms.get("w1_bull_pct"), 0.0), 1),
+        "avg_d1_adx": round(_to_float(ms.get("avg_d1_adx"), 0.0), 1),
+        "avg_w1_adx": round(_to_float(ms.get("avg_w1_adx"), 0.0), 1),
+        "avg_atr_pct": round(_to_float(ms.get("avg_atr_pct"), 0.0), 1),
+        "fake_breakout": _to_int(ms.get("fake_breakout"), 0),
+        "bearish_div": _to_int(ms.get("bearish_div"), 0),
+        "strong_momentum": _to_int(ms.get("strong_momentum"), 0),
+        "market_label": market_label,
+        "market_tier": market_tier,
+    }
+
+    agent_color_map: dict[str, str] = {
+        "强势多头": "#16a34a", "偏多": "#4f8cff", "震荡整理": "#ca8a04",
+        "中性": "#5a6f8a", "偏弱": "#dc2626", "偏空": "#dc2626",
+        "green": "var(--good)", "yellow": "var(--accent)", "red": "var(--bad)",
+    }
+    opinions = []
+    for op in ops[:6]:
+        verdict = str(op.get("verdict") or op.get("conclusion") or "观望")[:20]
+        agent = str(op.get("agent") or "")[:12]
+        role = str(op.get("role") or "")[:20]
+        color = op.get("verdict_color") or "yellow"
+        opinions.append({
+            "agent": agent,
+            "role": role,
+            "verdict": verdict,
+            "color": agent_color_map.get(color, agent_color_map.get(verdict, "var(--accent)")),
+        })
+
+    consensus_count = sum(1 for o in opinions if o["verdict"] in ("偏多", "强势多头"))
+    if consensus_count >= 4:
+        consensus = "多数 Agent 偏多"
+    elif consensus_count >= 2:
+        consensus = "Agent 有分歧"
+    else:
+        consensus = "多数 Agent 偏谨慎"
+
+    return {
+        "available": bool(ops) and freshness["usable"],
+        "consensus": consensus,
+        "state_date": state_date,
+        "market_label": market_label,
+        "market_tier": market_tier,
+        "pulse": pulse,
+        "opinions": opinions,
+        "freshness": freshness,
     }
 
 
@@ -2188,6 +2322,86 @@ def _research_lane(default_code: str) -> dict[str, Any]:
     }
 
 
+def _ifind_stock_fundamentals(stock_code: str) -> dict[str, Any]:
+    """从缓存的 iFinD 基本面 JSON 中读取 PE/PB/ROE/增长数据，超过 5 天视为过期。"""
+    try:
+        fp = ROOT / "outputs" / "ifind" / "stock_fundamentals.json"
+        if not fp.exists():
+            return {}
+        data = json.loads(fp.read_text(encoding="utf-8"))
+        cached_at = data.get("cached_at", "")
+        if cached_at:
+            try:
+                age_days = (datetime.now() - datetime.fromisoformat(cached_at)).days
+                if age_days > 5:
+                    log.warning("iFinD fundamentals cache expired (cached_at=%s, age=%d days)", cached_at, age_days)
+                    return {}
+            except Exception:
+                log.warning("iFinD fundamentals cache has invalid cached_at: %s", cached_at)
+                return {}
+        else:
+            log.warning("iFinD fundamentals cache missing cached_at, treating as expired")
+            return {}
+        stocks = data.get("stocks", {}) or {}
+        # 尝试精确匹配 + 代码规范化
+        code_upper = str(stock_code or "").strip().upper()
+        for k in (stock_code, code_upper, f"{code_upper}.SH", f"{code_upper}.SZ"):
+            if k in stocks:
+                return stocks[k]
+        return {}
+    except Exception:
+        return {}
+
+
+def _ifind_fundamentals_checkup_item(f: dict[str, Any]) -> dict[str, Any]:
+    """把 iFinD 基本面数据转成线索验证体检的一个条目。"""
+    parts = []
+    tier = "missing"
+    pe = f.get("pe_ttm")
+    pb = f.get("pb")
+    roe = f.get("roe")
+    growth = f.get("revenue_growth") or f.get("net_profit_growth")
+
+    if pe is not None:
+        pe_val = float(pe)
+        if pe_val < 0:
+            parts.append(f"PE {pe_val:.1f}（亏损）")
+            tier = "risk"
+        elif pe_val > 50:
+            parts.append(f"PE {pe_val:.1f}（偏贵）")
+            tier = "watch"
+        elif pe_val < 15:
+            parts.append(f"PE {pe_val:.1f}（偏低）")
+            tier = "pass"
+        else:
+            parts.append(f"PE {pe_val:.1f}")
+    if pb is not None:
+        parts.append(f"PB {float(pb):.1f}")
+    if roe is not None:
+        roe_val = float(roe)
+        parts.append(f"ROE {roe_val:.1f}%")
+        if tier == "missing":
+            tier = "pass" if roe_val > 15 else "watch"
+    if growth is not None:
+        g = float(growth)
+        prefix = "营收增速" if f.get("revenue_growth") is not None else "净利增速"
+        parts.append(f"{prefix} {g:.1f}%")
+        if g < 0 and tier != "risk":
+            tier = "risk"
+    report_date = f.get("report_date", "")
+    if report_date:
+        parts.append(f"（{report_date[:4]}-{report_date[4:6]}）")
+
+    if not parts:
+        return {"label": "估值与增长", "status": "missing", "text": "暂无 iFinD 基本面数据，运行 scripts/fetch_ifind_fundamentals.py 拉取。"}
+
+    return {
+        "label": "估值与增长",
+        "status": tier,
+        "text": "；".join(parts) + "。",
+    }
+
+
 def _external_clues_for_stock(stock_code: str) -> list[dict[str, Any]]:
     """从缓存的 iFinD 外部线索中读取单只标的的公告和新闻。"""
     try:
@@ -2383,6 +2597,13 @@ def _research_page_context(stock_code: str, render_profile: str) -> dict[str, An
         else:
             resonance_summary["breakout_view"] = "已越过阻力，但更像中段推进，不应再按早期突破处理。"
 
+    _fin_data = _ifind_stock_fundamentals(stock_code)
+    fundamentals_item = (
+        _ifind_fundamentals_checkup_item(_fin_data)
+        if _fin_data
+        else {"label": "估值与增长", "status": "missing", "text": "暂无 iFinD 基本面数据，运行 scripts/fetch_ifind_fundamentals.py 拉取。"}
+    )
+
     check_items = [
         {
             "label": "多周期结构",
@@ -2404,6 +2625,7 @@ def _research_page_context(stock_code: str, render_profile: str) -> dict[str, An
             "status": "risk" if moneyflow_divergence or sr_direction == "below_support" else "watch",
             "text": resonance_summary["breakout_view"],
         },
+        fundamentals_item,
     ]
     status_rank = {"pass": 0, "watch": 1, "missing": 2, "risk": 3}
     worst_status = max((item["status"] for item in check_items), key=lambda status: status_rank.get(status, 1))
@@ -2413,7 +2635,7 @@ def _research_page_context(stock_code: str, render_profile: str) -> dict[str, An
         check_verdict = "先不要把外部线索升级为执行对象。当前存在明确风险项，适合做反证复核。"
         check_tier = "risk"
     elif pass_count >= 3:
-        check_verdict = "这条外部线索值得继续验证。结构、资金或行业至少有多项证据支持。"
+        check_verdict = "这条外部线索值得继续验证。结构、资金、行业或基本面至少有多项证据支持。"
         check_tier = "pass"
     elif pass_count >= 1:
         check_verdict = "这条外部线索可以进入观察，但证据还不够深。先补行业、资金或基本面确认。"
@@ -2421,7 +2643,6 @@ def _research_page_context(stock_code: str, render_profile: str) -> dict[str, An
     else:
         check_verdict = "这条外部线索目前只能作为线索，不足以进入重点研究。"
         check_tier = "missing"
-
     single_stock_checkup = {
         "title": "线索验证体检",
         "verdict": check_verdict,
@@ -2429,7 +2650,7 @@ def _research_page_context(stock_code: str, render_profile: str) -> dict[str, An
         "worst_status": worst_status,
         "items": check_items,
         "next_step": (
-            "若线索来自小红书、公众号或自媒体，先把原始理由贴给观象，再用本页四项体检做核验。"
+            "若线索来自小红书、公众号或自媒体，先把原始理由贴给观象，再用本页五项体检做核验。"
         ),
     }
 

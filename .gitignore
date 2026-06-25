@@ -27,6 +27,7 @@ config/secrets/
 !.env.example
 ifind-finance-data-*/mcp_config.json
 outputs/ifind/external_clues.json
+outputs/ifind/stock_fundamentals.json
 
 # raw / large local data
 data/**/*.csv
