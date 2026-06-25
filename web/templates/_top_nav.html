@@ -1,0 +1,16 @@
+<a href="/" {% if nav_active == 'home' %}class="active"{% endif %}>首页</a>
+<a href="/market" {% if nav_active == 'market' %}class="active"{% endif %}>市场</a>
+<a href="/recommend" {% if nav_active == 'opportunity' %}class="active"{% endif %}>机会</a>
+<a href="/research" {% if nav_active == 'research' %}class="active"{% endif %}>研究</a>
+<a href="javascript:void(0)" class="nav-ai" onclick="aiToggle()">观象</a>
+<span class="toolbox-wrap">
+  <a href="javascript:void(0)" class="nav-toolbox" onclick="var m=this.nextElementSibling;m.style.display=m.style.display==='block'?'none':'block'">工具箱 ▾</a>
+  <div class="toolbox-menu" style="display:none">
+    <a href="/mystrategies">策略工坊</a>
+    <a href="/backtest">回测验证</a>
+    <a href="/debate-dashboard">决策复盘</a>
+    <a href="/agent-debate">Agent 辩论</a>
+    <a href="/chain-studio">产业链工作台</a>
+    <a href="/journal">交易日志</a>
+  </div>
+</span>

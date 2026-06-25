@@ -45,35 +45,50 @@
           </div>
           <div>
             <h3>观象</h3>
-            <p class="ai-identity-subtitle">Hermass 多周期研究助手</p>
+            <p class="ai-identity-subtitle">AI Native 多周期研究专家</p>
           </div>
         </div>
-        <div class="ai-mode-switch" role="tablist" aria-label="助手模式">
-          <button type="button" class="active" id="ai-mode-chat" onclick="aiSetMode('chat')">对话</button>
-          <button type="button" id="ai-mode-agent" onclick="aiSetMode('agent')">任务</button>
-        </div>
+        <div class="ai-header-controls">
+          <div class="ai-mode-switch" role="tablist" aria-label="助手模式">
+            <button type="button" class="active" id="ai-mode-chat" onclick="aiSetMode('chat')">研究</button>
+            <button type="button" id="ai-mode-agent" onclick="aiSetMode('agent')">任务</button>
+          </div>
           <label class="ai-llm-toggle">
             <input type="checkbox" id="ai-use-llm" checked />
-            <span>更自然的解释</span>
+            <span>专家增强</span>
           </label>
+        </div>
         <button class="ai-close" onclick="aiToggle()" aria-label="关闭">&times;</button>
       </div>
       <div class="ai-body" id="ai-body">
-        <div class="ai-hint" id="ai-hint">
-          <strong>当前模式说明</strong>
-          <span id="ai-hint-text">对话模式适合先问市场、方向、个股怎么看；任务模式适合把盯盘、长期跟踪和提醒任务交给系统。</span>
+        <div class="ai-welcome" id="ai-welcome">
+          <div class="ai-welcome-kicker">今日研究流</div>
+          <h4>先问结论，再看证据。</h4>
+          <p id="ai-hint-text">我会按“市场是否允许 → 机会是否集中 → 个股证据是否够 → 风险哪里会错”的顺序回答。</p>
+          <div class="ai-capability-grid">
+            <button type="button" onclick="aiAsk('现在市场允许出手吗？给我结论、证据和风险边界')">
+              <b>市场结论</b><span>能不能动手</span>
+            </button>
+            <button type="button" onclick="aiAsk('今天机会池里先看哪类标的？按一致性和风险排序')">
+              <b>机会排序</b><span>动谁更合理</span>
+            </button>
+            <button type="button" onclick="aiAsk('帮我分析 000021 当前多周期状态、风险和下一步')">
+              <b>个股研判</b><span>为什么是它</span>
+            </button>
+            <button type="button" onclick="aiSetMode('agent');aiAsk('盯 000021，突破周线关键位提醒我，邮箱 test@example.com')">
+              <b>任务委托</b><span>盯盘与提醒</span>
+            </button>
+          </div>
         </div>
         <div class="ai-session-ctx" id="ai-session-ctx" style="display:none;">
           <span class="ctx-dot"></span>
           <span id="ai-ctx-text">跟踪中：000021.SZ</span>
         </div>
         <div class="ai-quick" id="ai-quick">
-          <button onclick="aiAsk('现在能不能做')">现在能不能做</button>
-          <button onclick="aiAsk('今天先看什么方向')">今天先看什么方向</button>
-          <button onclick="aiAsk('帮我看一只股票')">帮我看一只股票</button>
-          <button onclick="aiAsk('用价值分析看000021')">用价值分析看一只票</button>
-          <button onclick="aiAsk('盯 000021，突破周线关键位提醒我，邮箱 test@example.com')">试试盯盘命令</button>
-          <button onclick="aiAsk('我应该先去哪一页')">我应该先去哪一页</button>
+          <button onclick="aiAsk('现在能不能做？只给结论、证据、风险、下一步')">能不能做</button>
+          <button onclick="aiAsk('今天先看什么方向？按市场、行业、机会三层说')">看什么方向</button>
+          <button onclick="aiAsk('帮我看 000021：多周期、资金、风险、下一步')">分析个股</button>
+          <button onclick="aiAsk('我现在在哪一步？下一步该点哪里')">下一步去哪</button>
         </div>
         <div class="ai-messages" id="ai-messages"></div>
       </div>
@@ -115,7 +130,13 @@
           return d.innerHTML;
         }
 
+        function aiHideWelcome() {
+          var welcome = document.getElementById('ai-welcome');
+          if (welcome) welcome.style.display = 'none';
+        }
+
         function aiAppend(text, isUser) {
+          if (isUser) aiHideWelcome();
           var div = document.createElement('div');
           div.className = 'ai-msg ' + (isUser ? 'user' : 'bot');
           div.innerHTML = text;
@@ -150,7 +171,22 @@
           }
         }
 
-function aiRender(data) {
+        function providerLabel(data) {
+          var provider = data.provider || '';
+          if (provider === 'managed_deepseek' || provider === 'deepseek_direct') return 'DeepSeek 增强';
+          if (provider === 'agently_deepseek') return 'Agently 多 Agent';
+          if (provider.indexOf('workflow_') === 0) return '外部工作流';
+          return '本地规则';
+        }
+
+        function supportLabel(data) {
+          if (data.data_support === 'local_data') return ['local', '本地数据支持'];
+          if (data.data_support === 'llm_only') return ['llm', 'AI 推理为主'];
+          if (data.data_support === 'rule_only') return ['rule', '规则口径'];
+          return ['rule', '研究辅助'];
+        }
+
+        function aiRender(data) {
           aiRemoveTyping();
           if (data.session_id) {
             aiSession.session_id = data.session_id;
@@ -163,42 +199,47 @@ function aiRender(data) {
           }
           aiUpdateCtx();
           var html = '';
-          // 主回答区置顶，元信息沉底
+          var support = supportLabel(data);
+          html += '<div class="ai-answer-card">';
+          html += '<div class="ai-answer-top">';
+          html += '<span class="ai-answer-title">观象研判</span>';
+          html += '<span class="ai-source-badge ' + support[0] + '">' + escapeHtml(support[1]) + '</span>';
+          html += '</div>';
           if (data.answer) {
-            var body = escapeHtml(data.answer || '');
+            html += '<div class="ai-verdict">' + escapeHtml(data.answer || '') + '</div>';
+          }
+          if (data.why || data.multi_cycle_view || data.single_cycle_position) {
+            html += '<div class="ai-evidence-grid">';
             if (data.why) {
-              body += '<br><br><span class="ai-why">' + escapeHtml(data.why) + '</span>';
+              html += '<div class="ai-evidence-card"><span>判断依据</span><p>' + escapeHtml(data.why) + '</p></div>';
             }
-            html += '<div class="ai-msg-body">' + body + '</div>';
+            if (data.multi_cycle_view) {
+              html += '<div class="ai-evidence-card"><span>多周期</span><p>' + escapeHtml(data.multi_cycle_view) + '</p></div>';
+            }
+            if (data.single_cycle_position) {
+              html += '<div class="ai-evidence-card"><span>当前位置</span><p>' + escapeHtml(data.single_cycle_position) + '</p></div>';
+            }
+            html += '</div>';
           }
           if (data.avoid) {
-            html += '<div class="ai-avoid">暂不关注：' + escapeHtml(data.avoid) + '</div>';
+            html += '<div class="ai-risk-card"><span>风险边界</span><p>' + escapeHtml(data.avoid) + '</p></div>';
           }
           if (data.next_actions && data.next_actions.length) {
+            html += '<div class="ai-action-label">建议下一步</div>';
             html += '<div class="ai-actions">';
             data.next_actions.forEach(function(a) {
               html += '<a href="' + escapeHtml(a.url) + '">' + escapeHtml(a.label) + '</a>';
             });
             html += '</div>';
           }
+          html += '</div>';
           if (data.provider || data.enhancement_used !== undefined || data.mode_used) {
             var meta = [];
-            if (data.provider === 'managed_deepseek' || data.provider === 'deepseek_direct') meta.push('DeepSeek 增强');
-            else if (data.provider === 'agently_deepseek') meta.push('Agently + DeepSeek');
-            else if ((data.provider || '').indexOf('workflow_') === 0) meta.push('外部工作流');
-            else meta.push('规则回答');
+            meta.push(providerLabel(data));
             if (data.enhancement_used === true) meta.push('已启用增强解释');
             else if (data.enhancement_used === false && data.provider !== 'rule_based') meta.push('未使用增强');
             if (data.mode_used === 'agent') meta.push('任务模式');
             html += '<div class="ai-meta">' + escapeHtml(meta.join(' · ')) + '</div>';
-            // 数据来源标注徽章
-            if (data.data_support === 'local_data') {
-              html += '<span class="ai-source-badge local">● 本地数据支持</span>';
-            } else if (data.data_support === 'llm_only') {
-              html += '<span class="ai-source-badge llm">○ 暂无本地数据</span>';
-            } else if (data.data_support === 'rule_only') {
-              html += '<span class="ai-source-badge rule">● 规则口径</span>';
-            }
           }
           if (data.support_note) {
             html += '<div class="ai-support-note">' + escapeHtml(data.support_note) + '</div>';
@@ -323,6 +364,7 @@ function aiRender(data) {
           .then(function(r) {
             if (!r.ok) {
               var msg = r.status === 429 ? '请求太频繁，请稍后再试。' :
+                        r.status === 401 ? 'AI 对话需要认证。请使用公网账号访问后再提问。' :
                         r.status >= 500 ? '服务端异常（HTTP ' + r.status + '），稍后重试。' :
                         '请求失败（HTTP ' + r.status + '）。';
               throw new Error(msg);

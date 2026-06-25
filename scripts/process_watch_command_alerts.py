@@ -20,6 +20,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from hermass_platform.agents.base_agent import find_foundation_db
+from agently_adapter.tools.user_tasks import USER_TASK_LEDGER, load_user_task_ledger, save_user_task_ledger
 
 LEDGER = ROOT / "outputs" / "alerts" / "watch_command_ledger.json"
 SENT_LEDGER = ROOT / "outputs" / "alerts" / "watch_command_email_sent.json"
@@ -46,6 +47,43 @@ def _load_json(path: Path, default: dict[str, Any]) -> dict[str, Any]:
 def _save_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _load_watch_records() -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, Any]]:
+    """Load site-legacy watch commands plus user-level tasks.
+
+    The website cron remains an executor. User-created schedules live in
+    outputs/user_tasks/user_task_ledger.json and are mapped into the executor's
+    runtime shape here.
+    """
+    legacy = _load_json(LEDGER, {"version": "1.0.0", "commands": []})
+    user_tasks = load_user_task_ledger(USER_TASK_LEDGER)
+    records: list[dict[str, Any]] = []
+
+    for record in legacy.get("commands", []) or []:
+        row = dict(record)
+        row.setdefault("_ledger", "watch_command_ledger")
+        row.setdefault("_record_id", row.get("watch_id"))
+        records.append(row)
+
+    for task in user_tasks.get("tasks", []) or []:
+        if task.get("task_type") != "watch_command":
+            continue
+        row = dict(task)
+        row["watch_id"] = task.get("task_id") or task.get("watch_id")
+        row.setdefault("_ledger", "user_task_ledger")
+        row.setdefault("_record_id", row.get("watch_id"))
+        records.append(row)
+
+    return records, legacy, user_tasks
+
+
+def _mark_user_task_triggered(user_tasks: dict[str, Any], record: dict[str, Any], ts: str) -> None:
+    task_id = record.get("_record_id") or record.get("watch_id")
+    for task in user_tasks.get("tasks", []) or []:
+        if task.get("task_id") == task_id:
+            task["last_triggered_at"] = ts
+            break
 
 
 def _smtp_config() -> SMTPConfig | None:
@@ -170,19 +208,19 @@ def main() -> int:
     args = parser.parse_args()
 
     smtp = _smtp_config()
-    ledger = _load_json(LEDGER, {"version": "1.0.0", "commands": []})
+    records, ledger, user_tasks = _load_watch_records()
     sent = _load_json(SENT_LEDGER, {"version": "1.0.0", "sent_keys": []})
     sent_keys = set(sent.get("sent_keys", []))
     name_map = _stock_name_map()
 
     fired: list[dict[str, Any]] = []
-    for record in ledger.get("commands", []):
+    for record in records:
         if record.get("status") != "active":
             continue
         valid_to = str(record.get("valid_to") or "")
         if valid_to and valid_to < args.date:
             continue
-        key = f"{args.date}:{record.get('watch_id')}:{record.get('trigger_type')}"
+        key = f"{args.date}:{record.get('_ledger')}:{record.get('watch_id')}:{record.get('trigger_type')}"
         if key in sent_keys:
             continue
         snapshot = _state_snapshot(record["stock_code"], args.date)
@@ -204,12 +242,16 @@ def main() -> int:
             msg = _compose_email(record, stock_name, snapshot, reason)
             _send_email(smtp, record["email"], msg)
             sent_keys.add(key)
-            record["last_triggered_at"] = datetime.now(timezone.utc).isoformat()
+            triggered_at = datetime.now(timezone.utc).isoformat()
+            record["last_triggered_at"] = triggered_at
+            if record.get("_ledger") == "user_task_ledger":
+                _mark_user_task_triggered(user_tasks, record, triggered_at)
 
     if not args.dry and smtp:
         sent["sent_keys"] = sorted(sent_keys)[-2000:]
         _save_json(SENT_LEDGER, sent)
         _save_json(LEDGER, ledger)
+        save_user_task_ledger(user_tasks, USER_TASK_LEDGER)
 
     print(
         json.dumps(

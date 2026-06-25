@@ -5,17 +5,20 @@
     result = handle(user_input, context)
 
 约束：
-- 本层只做「路由 → 场景执行 → 返回」三件事，不碰业务数据。
-- 所有业务数据（market_data, stock_states 等）由调用方在 context 中准备好。
+- 本层只做「路由 → 工具预取 → 场景执行 → 返回」四件事。
+- 调用方仍优先准备业务上下文；缺失的市场/个股/产业链证据由受控 ToolRegistry 补齐。
 - 任何 Agent 调用失败都返回 None，调用方（web/main.py）应回退到规则回答。
 """
 
 from __future__ import annotations
 
+import time
+import uuid
 from typing import Any
 
 from agently_adapter.agents import router
-from agently_adapter.scenarios import get_scenario_module
+from agently_adapter.scenarios import get_scenario_module, get_scenario_tools
+from agently_adapter.tools import run_tool
 
 # ── 复合场景配置 ──────────────────────────────────────────────────────────
 
@@ -66,6 +69,8 @@ def _execute_compound(
     answer_scenario = "industry_scan"
     task_mod = get_scenario_module(task_scenario)
     answer_mod = get_scenario_module(answer_scenario)
+    _prepare_scenario_tools(task_scenario, user_input, context)
+    _prepare_scenario_tools(answer_scenario, user_input, context)
 
     task_result = None
     answer_result = None
@@ -115,6 +120,7 @@ def _execute_compound(
         "confidence": route.get("confidence", 0.0) if route else 0.0,
         "secondary_scenario": "",
     })
+    _attach_trace(result, context, [primary, secondary])
     return result
 
 
@@ -157,10 +163,15 @@ def handle(user_input: str, context: dict[str, Any]) -> dict[str, Any] | None:
     """
     if not user_input or not user_input.strip():
         return None
+    started = time.monotonic()
+    context.setdefault("trace_id", str(uuid.uuid4())[:8])
 
     # 价值分析路径：直接走 prompt-pack 增强的 DeepSeek 调用，不经过场景链
     if context.get("value_prompt_pack"):
-        return _handle_value_analysis(context)
+        result = _handle_value_analysis(context)
+        if result is not None:
+            _attach_trace(result, context, ["value_analysis"], started)
+        return result
 
     # 1. 场景路由 —— LLM 判断场景类型
     route = router.run(user_input, context)
@@ -180,7 +191,9 @@ def handle(user_input: str, context: dict[str, Any]) -> dict[str, Any] | None:
 
     # 复合场景检测：主/次场景配对命中
     if _should_compound(scenario_name, secondary, user_input):
-        return _execute_compound(scenario_name, secondary, user_input, context, route)
+        result = _execute_compound(scenario_name, secondary, user_input, context, route)
+        _attach_trace(result, context, [scenario_name, secondary], started)
+        return result
 
     # 场景二次纠偏：当用户问题关键词与次场景更匹配时，切换场景
     scenario_mod = None
@@ -201,14 +214,17 @@ def handle(user_input: str, context: dict[str, Any]) -> dict[str, Any] | None:
             if scenario_mod is None:
                 return None
 
-    # 3. 执行场景链
+    # 3. 准备场景工具结果，再执行场景链
+    _prepare_scenario_tools(scenario_name, user_input, context)
     try:
         result = scenario_mod.run(user_input, context)
     except Exception:
         result = None
 
     if result is None:
-        return _fallback_response(user_input, context)
+        result = _fallback_response(user_input, context)
+        _attach_trace(result, context, [scenario_name], started)
+        return result
 
     # 补充元信息
     result.setdefault("mode_used", context.get("mode", "chat"))
@@ -220,7 +236,108 @@ def handle(user_input: str, context: dict[str, Any]) -> dict[str, Any] | None:
         "confidence": route.get("confidence", 0.0) if route else 0.0,
         "secondary_scenario": route.get("secondary_scenario", "") if route else "",
     })
+    _attach_trace(result, context, [scenario_name], started)
     return result
+
+
+def _prepare_scenario_tools(
+    scenario_name: str,
+    user_input: str,
+    context: dict[str, Any],
+) -> dict[str, Any]:
+    """Run the small deterministic tool prefetch for a scenario."""
+    allowed_tools = get_scenario_tools(scenario_name)
+    if not allowed_tools:
+        return context.setdefault("tool_results", {})
+
+    tool_results = context.setdefault("tool_results", {})
+    user = str(context.get("username") or context.get("user_id") or "anonymous")
+    trace_id = str(context.get("trace_id") or "")
+    symbol = _resolve_symbol(user_input, context)
+
+    def run_once(tool_name: str, params: dict[str, Any] | None = None) -> None:
+        if tool_name in tool_results:
+            return
+        tool_results[tool_name] = run_tool(
+            tool_name,
+            params or {},
+            user=user,
+            trace_id=trace_id,
+            allowed_tools=allowed_tools,
+        )
+
+    if "get_market_phase" in allowed_tools:
+        run_once("get_market_phase")
+    if symbol and "get_stock_state" in allowed_tools:
+        run_once("get_stock_state", {"stock_code": symbol})
+    if symbol and "get_chain_position" in allowed_tools:
+        run_once("get_chain_position", {"stock_code": symbol})
+
+    _hydrate_context_from_tools(context)
+    return tool_results
+
+
+def _resolve_symbol(user_input: str, context: dict[str, Any]) -> str:
+    symbol = str(context.get("symbol") or context.get("stock_code") or "").strip().upper()
+    if symbol:
+        return symbol
+    import re
+
+    m = re.search(r"\b([0-9]{6})(?:\.(?:SZ|SH))?\b", user_input.strip().upper())
+    if not m:
+        return ""
+    code = m.group(1)
+    suffix = "SH" if code.startswith(("5", "6", "9")) else "SZ"
+    return f"{code}.{suffix}"
+
+
+def _hydrate_context_from_tools(context: dict[str, Any]) -> None:
+    tool_results = context.get("tool_results") or {}
+    stock_result = tool_results.get("get_stock_state") or {}
+    stock_data = stock_result.get("data") if stock_result.get("ok") else None
+    if isinstance(stock_data, dict) and stock_data.get("available"):
+        context.setdefault("symbol", stock_data.get("stock_code") or "")
+        context.setdefault("stock_name", stock_data.get("stock_name") or stock_data.get("stock_code") or "")
+        context.setdefault("industry_name", stock_data.get("industry_name") or "")
+        context.setdefault("stock_states", stock_data.get("stock_states") or {})
+        context.setdefault("ef_count", stock_data.get("ef_count") or 0)
+        context.setdefault("capital_flow", stock_data.get("capital_flow") or {})
+        context.setdefault("breakout_status", stock_data.get("breakout_status") or "")
+        context.setdefault("sustained_days", stock_data.get("sustained_days") or 0)
+
+    market_result = tool_results.get("get_market_phase") or {}
+    market_data = market_result.get("data") if market_result.get("ok") else None
+    if isinstance(market_data, dict) and market_data.get("available"):
+        existing = context.setdefault("market_data", {})
+        if isinstance(existing, dict):
+            existing.setdefault("phase", market_data)
+
+
+def _attach_trace(
+    result: dict[str, Any],
+    context: dict[str, Any],
+    scenarios: list[str],
+    started: float | None = None,
+) -> None:
+    tool_results = context.get("tool_results") or {}
+    sources = list(result.get("sources") or [])
+    for name, payload in tool_results.items():
+        source_name = f"tool:{name}"
+        if payload.get("ok") and source_name not in sources:
+            sources.append(source_name)
+    result["sources"] = sources
+    trace = dict(result.get("trace") or {})
+    trace.setdefault("id", context.get("trace_id", ""))
+    trace.setdefault("scenarios", scenarios)
+    trace.setdefault("tools", [name for name, payload in tool_results.items() if payload.get("ok")])
+    trace.setdefault("tool_errors", {
+        name: payload.get("error")
+        for name, payload in tool_results.items()
+        if not payload.get("ok")
+    })
+    if started is not None:
+        trace["elapsed_ms"] = int((time.monotonic() - started) * 1000)
+    result["trace"] = trace
 
 
 def _keyword_fallback_route(user_input: str, context: dict[str, Any]) -> str:
@@ -259,8 +376,16 @@ def _handle_value_analysis(context: dict[str, Any]) -> dict[str, Any] | None:
         stock_code = payload.get("stock_code", "")
 
         from agently_adapter.deepseek import call as deepseek_call
+        from agently_adapter.tools import list_tools
 
-        result = deepseek_call(payload)
+        allowed_tools = ["get_market_phase", "get_stock_state", "get_chain_position"]
+        result = deepseek_call(
+            payload,
+            tools=list_tools(allowed_tools),
+            allowed_tools=allowed_tools,
+            user=str(context.get("username") or context.get("user_id") or "anonymous"),
+            trace_id=str(context.get("trace_id") or ""),
+        )
         if not result:
             return None
 

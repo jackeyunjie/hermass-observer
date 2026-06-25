@@ -38,6 +38,7 @@ from hermass_platform.research import (
     format_evidence_card,
     format_quick_research_card,
 )
+from agently_adapter.tools.user_tasks import cancel_user_task, create_user_watch_task, list_user_tasks
 
 # 启动时初始化用户 profile（读取环境变量 HERMASS_HTPASSWD_USERS 中的逗号分隔用户名）
 init_profiles([u.strip() for u in os.environ.get("HERMASS_HTPASSWD_USERS", "").split(",") if u.strip()])
@@ -1999,6 +2000,140 @@ def _execution_lane() -> dict[str, Any]:
     }
 
 
+def _observation_candidate(row: dict[str, Any], rank: int, bucket: str) -> dict[str, Any]:
+    stock_code = str(row.get("stock_code") or "").strip()
+    stock_name = str(row.get("stock_name") or "").strip()
+    current_state = str(row.get("current_state") or row.get("current_state_label") or "观察").strip()
+    trigger_type = "w1_breakout"
+    if current_state in {"高位延展", "推进中段"}:
+        trigger_type = "d1_weakening_3d"
+    elif current_state in {"失效回落", "等待修复"}:
+        trigger_type = "state_drop"
+    note_parts = [
+        row.get("state_reason"),
+        row.get("moneyflow_confirmation"),
+        row.get("sector_followthrough"),
+    ]
+    note = "；".join(str(part).strip() for part in note_parts if str(part or "").strip())
+    if not note:
+        note = str(row.get("queue_reason") or row.get("next_action") or "观察结构变化").strip()
+    return {
+        "rank": rank,
+        "bucket": bucket,
+        "stock_code": stock_code,
+        "stock_name": stock_name,
+        "current_state": current_state,
+        "resonance_label": row.get("current_state_label") or row.get("resonance_label") or "",
+        "rr_ratio": row.get("rr_ratio"),
+        "confidence": row.get("confidence"),
+        "strategy_label": row.get("strategy_label") or row.get("path_label") or "",
+        "reason": row.get("queue_reason") or row.get("strategy_reason") or "-",
+        "risk": row.get("fake_breakout_risk") or row.get("moneyflow_divergence_text") or "-",
+        "next_action": row.get("next_action") or "打开研究卡，确认是否值得继续观察。",
+        "research_url": f"/research?stock_code={stock_code}" if stock_code else "/research",
+        "task_suggestion": {
+            "trigger_type": trigger_type,
+            "watch_type": "conditional",
+            "valid_days": 30,
+            "note": note,
+        },
+    }
+
+
+def _count_cached_clues() -> int:
+    """返回缓存的 iFinD 外部线索总数。"""
+    try:
+        from scripts.fetch_ifind_news import load_cached_clues
+        return int((load_cached_clues().get("total_clues") or 0))
+    except Exception:
+        return 0
+
+
+def _daily_observation_brief(username: str = "") -> dict[str, Any]:
+    market = _daily_brief()
+    execution = _execution_lane()
+    priority_rows = execution.get("priority_queue", []) or []
+    observe_rows = execution.get("observe_queue", []) or []
+    candidates: list[dict[str, Any]] = []
+    for row in priority_rows[:5]:
+        candidates.append(_observation_candidate(row, len(candidates) + 1, "priority"))
+    if len(candidates) < 5:
+        for row in observe_rows[: 5 - len(candidates)]:
+            candidates.append(_observation_candidate(row, len(candidates) + 1, "observe"))
+
+    ef2_pct = _floatish(market.get("ef2_pct")) or 0.0
+    if candidates and ef2_pct >= 15:
+        posture = "selective"
+        posture_label = "可选择性处理"
+        action_line = "先看优先观察对象，不扩大到全市场搜索。"
+    elif candidates:
+        posture = "observe"
+        posture_label = "先观察再推进"
+        action_line = "今天以结构确认和证据补全为主，不急于执行。"
+    else:
+        posture = "wait"
+        posture_label = "等待"
+        action_line = "当前没有强优先对象，把注意力放在市场方向和研究准备。"
+
+    active_tasks: list[dict[str, Any]] = []
+    user_task_source = "not_authenticated"
+    if username and username != "anonymous":
+        try:
+            task_payload = list_user_tasks(
+                user=username,
+                status="active",
+                task_type="watch_command",
+                limit=500,
+            )
+            active_tasks = task_payload.get("tasks", []) if task_payload.get("ok") else []
+            user_task_source = "user_task_ledger"
+        except Exception:
+            active_tasks = []
+            user_task_source = "user_task_ledger_unavailable"
+
+    return {
+        "ok": True,
+        "date": market.get("date") or str(date.today()),
+        "market": {
+            "env_label": market.get("env_label"),
+            "conclusion": market.get("conclusion"),
+            "ef2_count": market.get("ef2_count"),
+            "ef2_pct": market.get("ef2_pct"),
+            "top_industries": market.get("top_industries", []),
+            "macro_bg": market.get("macro_bg", ""),
+        },
+        "decision": {
+            "posture": posture,
+            "label": posture_label,
+            "summary": f"{market.get('conclusion', '')} {execution.get('lane_hint', '')}".strip(),
+            "next_step": action_line,
+            "avoid": "不要把系统级每日任务和个人观察任务混在一起；用户观察必须由用户确认创建。",
+        },
+        "watch_candidates": candidates,
+        "external_clue_count": _count_cached_clues(),
+        "active_user_tasks": active_tasks,
+        "tracked_stock_codes": sorted({
+            str(row.get("stock_code", "")).strip().upper()
+            for row in active_tasks
+            if str(row.get("stock_code", "")).strip()
+        }),
+        "task_scope": {
+            "site_tasks": "config/hermes_cron.json",
+            "user_tasks": user_task_source,
+        },
+        "sources": [
+            source
+            for source in [
+                "outputs/daily_snapshot.json",
+                "outputs/forward_observation",
+                "outputs/reward_risk",
+                "outputs/user_tasks/user_task_ledger.json" if user_task_source == "user_task_ledger" else "",
+            ]
+            if source
+        ],
+    }
+
+
 def _research_lane(default_code: str) -> dict[str, Any]:
     quant = _quant_summary()
     signals = quant["signals"]["rows"]
@@ -2050,6 +2185,15 @@ def _research_lane(default_code: str) -> dict[str, Any]:
         "lead_signal": lead.get("signal_name", ""),
         "recent_research": recent_research,
     }
+
+
+def _external_clues_for_stock(stock_code: str) -> list[dict[str, Any]]:
+    """从缓存的 iFinD 外部线索中读取单只标的的公告和新闻。"""
+    try:
+        from scripts.fetch_ifind_news import load_cached_clues_for_stock
+        return load_cached_clues_for_stock(stock_code)
+    except Exception:
+        return []
 
 
 def _research_page_context(stock_code: str, render_profile: str) -> dict[str, Any]:
@@ -2238,6 +2382,56 @@ def _research_page_context(stock_code: str, render_profile: str) -> dict[str, An
         else:
             resonance_summary["breakout_view"] = "已越过阻力，但更像中段推进，不应再按早期突破处理。"
 
+    check_items = [
+        {
+            "label": "多周期结构",
+            "status": "pass" if isinstance(ef_count, int) and ef_count >= 2 else "watch" if isinstance(ef_count, int) and ef_count == 1 else "missing",
+            "text": f"{resonance_label}，MN1/W1/D1={mn1_hex or '-'}/{w1_hex or '-'}/{d1_hex or '-'}。{state_prior_view or '暂无结构词典解释。'}",
+        },
+        {
+            "label": "资金确认",
+            "status": "pass" if moneyflow_confirmed and not moneyflow_divergence else "risk" if moneyflow_divergence else "missing",
+            "text": resonance_summary["moneyflow_confirmation"],
+        },
+        {
+            "label": "行业位置",
+            "status": "pass" if isinstance(confirm_rate, (int, float)) and confirm_rate >= 0.6 else "watch" if sw_l1 else "missing",
+            "text": resonance_summary["sector_followthrough"],
+        },
+        {
+            "label": "风险底线",
+            "status": "risk" if moneyflow_divergence or sr_direction == "below_support" else "watch",
+            "text": resonance_summary["breakout_view"],
+        },
+    ]
+    status_rank = {"pass": 0, "watch": 1, "missing": 2, "risk": 3}
+    worst_status = max((item["status"] for item in check_items), key=lambda status: status_rank.get(status, 1))
+    pass_count = sum(1 for item in check_items if item["status"] == "pass")
+    risk_count = sum(1 for item in check_items if item["status"] == "risk")
+    if risk_count:
+        check_verdict = "先不要把外部线索升级为执行对象。当前存在明确风险项，适合做反证复核。"
+        check_tier = "risk"
+    elif pass_count >= 3:
+        check_verdict = "这条外部线索值得继续验证。结构、资金或行业至少有多项证据支持。"
+        check_tier = "pass"
+    elif pass_count >= 1:
+        check_verdict = "这条外部线索可以进入观察，但证据还不够深。先补行业、资金或基本面确认。"
+        check_tier = "watch"
+    else:
+        check_verdict = "这条外部线索目前只能作为线索，不足以进入重点研究。"
+        check_tier = "missing"
+
+    single_stock_checkup = {
+        "title": "线索验证体检",
+        "verdict": check_verdict,
+        "tier": check_tier,
+        "worst_status": worst_status,
+        "items": check_items,
+        "next_step": (
+            "若线索来自小红书、公众号或自媒体，先把原始理由贴给观象，再用本页四项体检做核验。"
+        ),
+    }
+
     strategy_risk_lines = []
     for row in strategy_rows:
         risk = row.get("risk")
@@ -2260,6 +2454,8 @@ def _research_page_context(stock_code: str, render_profile: str) -> dict[str, An
         "strategy_rows": strategy_rows,
         "summary": summary,
         "ai_summary": ai_summary,
+        "single_stock_checkup": single_stock_checkup,
+        "external_clues": _external_clues_for_stock(stock_code),
         "coverage": coverage,
         "missing_modules": missing_modules,
         "research_warnings": research_warnings,
@@ -2533,6 +2729,7 @@ def index(request: Request, mode: str = "") -> HTMLResponse:
             "stock_code": "000021.SZ",
             "render_profile": "full",
             "daily_brief": _daily_brief(),
+            "observation_brief": _daily_observation_brief(profile.get("username", "")),
             "current_user": profile,
         },
     )
@@ -2566,6 +2763,7 @@ def preview_cards(
             "stock_code": stock_code,
             "render_profile": render_profile,
             "daily_brief": _daily_brief(),
+            "observation_brief": _daily_observation_brief(profile.get("username", "")),
             "current_user": profile,
         },
     )
@@ -3065,6 +3263,70 @@ def chain_serenity_analysis(request: Request, chain_id: str, state_date: str | N
 @app.get("/api/chain-studio")
 def chain_studio_api() -> JSONResponse:
     return JSONResponse(content=_chain_studio_data())
+
+
+@app.get("/api/daily-observation-brief")
+def api_daily_observation_brief(request: Request) -> JSONResponse:
+    profile = get_current_profile(request)
+    username = profile.get("username") or ""
+    return JSONResponse(content=_daily_observation_brief(username))
+
+
+@app.get("/api/user-tasks")
+def api_user_tasks(request: Request, status: str = "", task_type: str = "", limit: int = 100) -> JSONResponse:
+    profile = get_current_profile(request)
+    username = profile.get("username") or ""
+    if not username or username == "anonymous":
+        return JSONResponse(content={"ok": False, "error": "unauthorized"}, status_code=401)
+    return JSONResponse(content=list_user_tasks(user=username, status=status, task_type=task_type, limit=limit))
+
+
+@app.post("/api/user-tasks/{task_id}/cancel")
+def api_cancel_user_task(request: Request, task_id: str) -> JSONResponse:
+    profile = get_current_profile(request)
+    username = profile.get("username") or ""
+    if not username or username == "anonymous":
+        return JSONResponse(content={"ok": False, "error": "unauthorized"}, status_code=401)
+    result = cancel_user_task(task_id, user=username)
+    status_code = 200 if result.get("ok") else 404 if result.get("error") == "task_not_found" else 403
+    return JSONResponse(content=result, status_code=status_code)
+
+
+@app.post("/api/user-tasks")
+def api_create_user_task(request: Request, body: dict | None = Body(default=None)) -> JSONResponse:
+    """直接从观察候选创建用户盯盘任务，不经过对话流程。"""
+    profile = get_current_profile(request)
+    username = profile.get("username") or ""
+    if not username or username == "anonymous":
+        return JSONResponse(content={"ok": False, "error": "unauthorized"}, status_code=401)
+
+    body = body or {}
+    stock_code = str(body.get("stock_code") or "").strip()
+    email = str(body.get("email") or "").strip().lower()
+
+    if not stock_code:
+        return JSONResponse(content={"ok": False, "error": "缺少股票代码"}, status_code=400)
+    if not email or "@" not in email:
+        return JSONResponse(content={"ok": False, "error": "缺少或无效的邮箱"}, status_code=400)
+
+    try:
+        valid_days = int(body.get("valid_days") or 30)
+    except (TypeError, ValueError):
+        return JSONResponse(content={"ok": False, "error": "valid_days 必须是数字"}, status_code=400)
+    valid_days = max(1, min(valid_days, 365))
+
+    result = create_user_watch_task(
+        stock_code=stock_code,
+        email=email,
+        trigger_type=str(body.get("trigger_type") or "general_watch"),
+        watch_type=str(body.get("watch_type") or "conditional"),
+        note=str(body.get("note") or "创建于首页观察候选"),
+        valid_days=valid_days,
+        page_context=str(body.get("page_context") or "/"),
+        created_by=username,
+    )
+    result["ok"] = True
+    return JSONResponse(content=result)
 
 
 @app.get("/api/recommend")
@@ -4052,30 +4314,31 @@ def _detect_watch_command(query: ChatQuery) -> dict[str, Any] | None:
     }
 
 
-def _register_watch_command(command: dict[str, Any]) -> dict[str, Any]:
-    ledger = _load_watch_command_ledger()
-    commands = ledger.setdefault("commands", [])
-    today = date.today()
-    valid_to = today + timedelta(days=int(command["valid_days"]))
-    watch_id = f"watch_{today.strftime('%Y%m%d')}_{command['stock_code'].replace('.', '')}_{len(commands)+1:03d}"
-    record = {
-        "watch_id": watch_id,
-        "stock_code": command["stock_code"],
-        "watch_type": command["watch_type"],
-        "trigger_type": command["trigger_type"],
-        "email": command["email"],
-        "valid_from": today.isoformat(),
-        "valid_to": valid_to.isoformat(),
-        "status": "active",
-        "note": command["note"],
-        "created_from": "ai_assistant",
-        "page_context": command.get("page_context") or "",
-        "last_triggered_at": None,
-    }
-    commands.append(record)
-    ledger["commands"] = commands[-500:]
-    _save_watch_command_ledger(ledger)
-    return record
+def _register_watch_command(command: dict[str, Any], username: str = "") -> dict[str, Any]:
+    result = create_user_watch_task(
+        stock_code=command["stock_code"],
+        email=command["email"],
+        trigger_type=command["trigger_type"],
+        watch_type=command["watch_type"],
+        note=command["note"],
+        valid_days=int(command["valid_days"]),
+        page_context=command.get("page_context") or "",
+        created_by=username,
+    )
+    task = result.get("task") or {}
+    if not task and result.get("task_id"):
+        task = {
+            "task_id": result.get("task_id"),
+            "stock_code": result.get("stock_code") or command["stock_code"],
+            "watch_type": command["watch_type"],
+            "trigger_type": command["trigger_type"],
+            "email": command["email"],
+            "valid_from": date.today().isoformat(),
+            "valid_to": result.get("valid_to") or "",
+            "status": "active",
+            "note": command["note"],
+        }
+    return task
 
 
 def _deepseek_enabled() -> bool:
@@ -4386,6 +4649,7 @@ LOCAL_EVIDENCE_SOURCES = {
     "market_views",
     "watch_command",
     "watch_command_ledger",
+    "user_task_ledger",
     "page_context",
     "session_context",
 }
@@ -4866,12 +5130,15 @@ def _rule_fallback_after_llm_failure(query: ChatQuery, failure: dict[str, Any]) 
 
 _GENERAL_QA_SYSTEM_PROMPT = (
     "你是「观象」，Hermass 量化观测台的 AI 助手。\n"
-    "你帮助用户理解市场、行业、个股、策略概念和使用方法。\n\n"
+    "你不是闲聊机器人，而是面向投资研究工作流的 AI Native 研究专家。\n"
+    "你帮助用户完成每日决策旅程：今天能不能动手、动谁、为什么是它、哪里可能错。\n\n"
     "## 回答原则\n"
-    "1. 研究导向：只做解释、翻译和导航，不给出买卖建议。\n"
-    "2. 坦诚直接：有数据说数据，没数据说明当前未覆盖，不编造。\n"
-    "3. 简洁有用：一句话能说清的不堆段落，但也不敷衍。\n"
-    "4. 多周期视角：涉及市场或个股时，自然带入 MN1/W1/D1 多周期框架。\n\n"
+    "1. 先给结论：第一句必须回答用户当前该如何理解，不绕弯。\n"
+    "2. 再给证据：区分本地数据、规则口径、AI 推理，不把推理伪装成数据。\n"
+    "3. 必给风险边界：说明什么情况下当前判断会失效。\n"
+    "4. 必给下一步：把用户带到市场、机会、研究、产业链或观察账本。\n"
+    "5. 研究导向：只做解释、翻译、导航和观察建议，不给出买卖指令。\n"
+    "6. 多周期视角：涉及市场或个股时，自然带入 MN1/W1/D1，多讲结构，少讲情绪。\n\n"
     "## 你能做什么\n"
     "- 解释量化概念（State E/F、VCP、2560、布林强盗、ATR 等）\n"
     "- 介绍平台功能和使用方法\n"
@@ -4885,18 +5152,18 @@ _GENERAL_QA_SYSTEM_PROMPT = (
     "- multi_cycle_view: 多周期视角（如不适用填空字符串）\n"
     "- single_cycle_position: 单周期位置判断（如不适用填空字符串）\n"
     "- avoid: 需要避免的误解或滥用\n"
-    "- next_actions: 建议的下一步操作 [{label: 按钮文字, url: 页面路径}]\n"
+    "- next_actions: 建议的下一步操作，1-3 个即可 [{label: 按钮文字, url: 页面路径}]\n"
     "- sources: 信息来源列表，如 [general_knowledge, page_context]\n"
     "- freshness_note: 时效性说明（如不适用填空字符串）\n\n"
     "## 语气规则\n"
     "- 概念解释 → 老师语气：清晰、结构化、举例说明\n"
     "- 功能介绍 → 向导语气：直接告诉怎么操作\n"
-    "- 市场/个股 → 分析师语气：有判断但不越界\n"
+    "- 市场/个股 → 专家语气：结论明确、证据分层、风险克制，不越界\n"
     "- 闲聊 → 友好简洁，但不偏离研究定位\n"
     "## next_actions 可用页面\n"
-    "- 市场页 /market、行业页 /industry、执行页 /watchlist\n"
+    "- 首页 /、市场页 /market、机会池 /recommend、观察账本 /watchlist\n"
     "- 研究页 /research?stock_code=XXXXXX.SZ\n"
-    "- 产业链 /chain-studio、首页 /\n"
+    "- 产业链 /chain-studio、策略工坊 /mystrategies、回测 /backtest、决策复盘 /debate-dashboard\n"
 )
 
 
@@ -5047,10 +5314,10 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
                 "remembered_email": "",
                 "mode_used": mode,
             }
-        record = _register_watch_command(watch_command)
+        record = _register_watch_command(watch_command, username=str((query.session_context or {}).get("username") or ""))
         return {
             "answer": f"已为 {record['stock_code']} 建立盯盘任务，后续会按「{record['note']}」发邮件到 {record['email']}。",
-            "why": "当前指令已被结构化写入盯盘账本，后续由后台任务按条件检查并触发提醒。",
+            "why": "当前指令已被结构化写入你的用户任务账本，后续由网站定时执行器按条件检查并触发提醒。",
             "multi_cycle_view": "这类提醒会优先检查多周期环境是否进入你指定的条件，例如周线关键位突破、行业共振或大周期共振变化。",
             "single_cycle_position": "邮件提醒不会盲发，而是结合当前单周期是否进入刚突破、跌破支撑或持续走弱等位置来触发。",
             "avoid": "暂时不用反复提交同一条命令；后续同日同条件会自动去重。",
@@ -5058,7 +5325,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
                 {"label": "打开执行页", "url": "/watchlist"},
                 {"label": "打开研究页", "url": f"/research?stock_code={record['stock_code']}"},
             ],
-            "sources": ["watch_command_ledger"],
+            "sources": ["user_task_ledger"],
             "freshness_note": f"盯盘任务创建日期为 {record['valid_from']}，默认有效至 {record['valid_to']}。",
             "remembered_stock_code": record["stock_code"],
             "remembered_email": record["email"],
@@ -5066,6 +5333,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
             "task_card": {
                 "title": "任务确认",
                 "task_type": "盯盘提醒",
+                "task_id": record.get("task_id", ""),
                 "stock_code": record["stock_code"],
                 "trigger_type": record["trigger_type"],
                 "email": record["email"],
@@ -5599,6 +5867,7 @@ def chat_query(request: Request, query: ChatQuery) -> JSONResponse:
                 else:
                     merged_ctx[k] = v
         # 回填会话上下文：保证 _chat_stock_code() 在第二轮"它"提问时能找到历史股票代码
+        merged_ctx["username"] = user_id
         query.session_context = merged_ctx
         conv_mgr.add_message(session.session_id, "user", query.message)
     except Exception:

@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
+from agently_adapter.tools import user_tasks
 from web.main import app
 
 
@@ -163,3 +164,28 @@ def test_chat_query_workflow_answer_with_local_sources_keeps_origin_workflow():
     assert payload["answer_origin"] == "workflow"
     assert payload["data_support"] == "local_data"
     assert "已结合本地数据证据" in payload["support_note"]
+
+
+def test_chat_query_watch_command_writes_user_task_ledger(tmp_path, monkeypatch):
+    ledger = tmp_path / "user_task_ledger.json"
+    monkeypatch.setattr(user_tasks, "USER_TASK_LEDGER", ledger)
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/chat/query",
+        headers=_basic_auth_header(),
+        json={
+            "message": "帮我盯着 000021 周线关键位突破，发邮件到 test@example.com",
+            "page_context": "/watchlist",
+            "mode": "chat",
+            "use_llm": False,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "user_task_ledger" in payload["sources"]
+    assert payload["task_card"]["task_id"].startswith("user_watch_")
+    saved = user_tasks.load_user_task_ledger(ledger)
+    assert len(saved["tasks"]) == 1
+    assert saved["tasks"][0]["created_by"] == "hermass-test"

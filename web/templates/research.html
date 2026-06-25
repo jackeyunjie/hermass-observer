@@ -13,14 +13,7 @@
         <h1>个股研究</h1>
       </div>
       <div class="date">
-        <a href="/?mode=research">首页</a>
-        <a href="/market">市场</a>
-        <a href="/industry">行业</a>
-        <a href="/chain-studio">产业链工作台</a>
-        <a href="/research" class="active">研究</a>
-        <a href="/watchlist">执行</a>
-        <a href="/backtest">回测</a>
-        <a href="javascript:void(0)" class="nav-ai" onclick="aiToggle()">观象</a>
+        {% set nav_active = 'research' %}{% include '_top_nav.html' %}
         <span>{{ today }}</span>
       </div>
     </header>
@@ -48,6 +41,62 @@
           <button type="submit">加载研究</button>
         </form>
       </section>
+
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>{{ single_stock_checkup.title }}</h2>
+          <span>把外部线索放进 Hermass 框架里核验</span>
+        </div>
+        <table>
+          <tbody>
+            <tr>
+              <td>体检结论</td>
+              <td>
+                <span class="tag {% if single_stock_checkup.tier == 'pass' %}tag-green{% elif single_stock_checkup.tier == 'risk' %}tag-red{% elif single_stock_checkup.tier == 'missing' %}tag-gray{% else %}tag-amber{% endif %}">
+                  {% if single_stock_checkup.tier == 'pass' %}值得继续验证{% elif single_stock_checkup.tier == 'risk' %}先做反证{% elif single_stock_checkup.tier == 'missing' %}证据不足{% else %}进入观察{% endif %}
+                </span>
+                <div style="margin-top:6px;">{{ single_stock_checkup.verdict }}</div>
+              </td>
+            </tr>
+            {% for item in single_stock_checkup['items'] %}
+            <tr>
+              <td>{{ item.label }}</td>
+              <td>
+                <span class="tag {% if item.status == 'pass' %}tag-green{% elif item.status == 'risk' %}tag-red{% elif item.status == 'missing' %}tag-gray{% else %}tag-amber{% endif %}">
+                  {% if item.status == 'pass' %}通过{% elif item.status == 'risk' %}风险{% elif item.status == 'missing' %}缺口{% else %}观察{% endif %}
+                </span>
+                <span style="margin-left:8px;">{{ item.text }}</span>
+              </td>
+            </tr>
+            {% endfor %}
+            <tr><td>下一步</td><td>{{ single_stock_checkup.next_step }}</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      {% if external_clues %}
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>外部线索</h2>
+          <span>iFinD · 公告 / 媒体 · 每标的至多 6 条</span>
+        </div>
+        <div style="display:grid; gap:6px;">
+          {% for clue in external_clues[:6] %}
+          <div style="display:flex;align-items:flex-start;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px;">
+            <span class="tag {% if clue.source_layer == 'L1' %}tag-green{% else %}tag-gray{% endif %}" style="flex-shrink:0;white-space:nowrap;">{{ clue.source_layer }}</span>
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ clue.title[:80] }}</div>
+              {% if clue.snippet %}
+              <div style="color:var(--muted);font-size:12px;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">{{ clue.snippet[:200] }}</div>
+              {% endif %}
+            </div>
+            <span style="flex-shrink:0;color:var(--muted);font-size:11px;white-space:nowrap;">{{ clue.date }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        <p class="hero-note" style="margin-top:8px;">L1 公告来自交易所披露，L2 媒体仅作线索提示。线索不能替代体检。</p>
+      </section>
+      {% endif %}
 
       <section class="panel span-2">
         <div class="panel-head">

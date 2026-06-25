@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Hermass 模拟跟踪</title>
+    <title>Hermass 观察账本</title>
     <link rel="stylesheet" href="/static/style.css" />
     <style>
       .toolbar {
@@ -92,8 +92,41 @@
         padding-left: 16px;
         line-height: 1.6;
       }
+      .task-strip {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+      .task-row {
+        display: grid;
+        grid-template-columns: minmax(110px, 150px) 1fr minmax(90px, 120px) minmax(96px, 120px) 72px;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        font-size: 13px;
+      }
+      .task-row button {
+        width: auto;
+        padding: 6px 10px;
+        font-size: 12px;
+        background: #fff;
+        color: var(--bad);
+        border: 1px solid rgba(184,74,58,0.24);
+      }
+      .task-empty {
+        padding: 12px;
+        border: 1px dashed var(--line);
+        border-radius: 8px;
+        color: var(--muted);
+        font-size: 13px;
+      }
       @media (max-width: 860px) {
         .detail-grid { grid-template-columns: 1fr; }
+        .task-row { grid-template-columns: 1fr; align-items: start; }
         .toolbar { flex-direction: column; align-items: stretch; }
       }
     </style>
@@ -102,19 +135,10 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">Hermass 多周期观察</p>
-        <h1>模拟跟踪</h1>
+        <h1>观察账本</h1>
       </div>
       <div class="date">
-        <a href="/">首页</a>
-        <a href="/market">市场</a>
-        <a href="/industry">行业</a>
-        <a href="/chain-studio">产业链工作台</a>
-        <a href="/research">研究</a>
-        <a href="/watchlist" class="active">模拟跟踪</a>
-        <a href="/backtest">回测</a>
-        <a href="/agent-debate">Agent 辩论</a>
-        <a href="/mystrategies">策略工坊</a>
-        <a href="javascript:void(0)" class="nav-ai" onclick="aiToggle()">观象</a>
+        {% set nav_active = 'opportunity' %}{% include '_top_nav.html' %}
         <span>{{ today }}</span>
       </div>
     </header>
@@ -122,6 +146,14 @@
     <main class="layout">
       {# ── 主体：高密度表格账本 ── #}
       <section class="panel span-2">
+        <div class="panel-head">
+          <h2>我的观察任务</h2>
+          <span id="userTaskCount">加载中</span>
+        </div>
+        <div class="task-strip" id="userTaskList">
+          <div class="task-empty">正在读取你的观察任务。</div>
+        </div>
+
         <div class="panel-head">
           <h2>跟踪账本</h2>
           <span>共 {{ execution.total }} 条记录</span>
@@ -310,6 +342,57 @@
       function exportTable() {
         alert('导出功能开发中');
       }
+      function taskLabel(task) {
+        var labels = {
+          long_term_watch: '长期跟踪',
+          w1_breakout: '周线突破',
+          state_drop: '状态跌出',
+          d1_weakening_3d: 'D1 走弱'
+        };
+        return labels[task.trigger_type] || task.trigger_type || '-';
+      }
+      function renderUserTasks(tasks) {
+        var list = document.getElementById('userTaskList');
+        var count = document.getElementById('userTaskCount');
+        count.textContent = tasks.length + ' 条';
+        if (!tasks.length) {
+          list.innerHTML = '<div class="task-empty">暂无用户观察任务。可以点右上角「观象」，让它帮你建立盯盘提醒。</div>';
+          return;
+        }
+        list.innerHTML = tasks.map(function(task) {
+          var stock = task.stock_code || '-';
+          var note = task.note || taskLabel(task);
+          var valid = (task.valid_from || '-') + ' 至 ' + (task.valid_to || '-');
+          var statusClass = task.status === 'active' ? 'tag-green' : 'tag-gray';
+          return '<div class="task-row" data-task-id="' + (task.task_id || '') + '">' +
+            '<div><a href="/research?stock_code=' + stock + '">' + stock + '</a><div style="font-size:11px;color:var(--muted);">' + taskLabel(task) + '</div></div>' +
+            '<div>' + note + '<div style="font-size:11px;color:var(--muted);">' + (task.email || '-') + '</div></div>' +
+            '<div>' + valid + '</div>' +
+            '<div><span class="tag ' + statusClass + '">' + (task.status || '-') + '</span></div>' +
+            '<button onclick="cancelUserTask(event, \\'' + (task.task_id || '') + '\\')">取消</button>' +
+          '</div>';
+        }).join('');
+      }
+      function loadUserTasks() {
+        fetch('/api/user-tasks?status=active&task_type=watch_command')
+          .then(function(resp) {
+            if (resp.status === 401) throw new Error('unauthorized');
+            return resp.json();
+          })
+          .then(function(data) { renderUserTasks(data.tasks || []); })
+          .catch(function() {
+            document.getElementById('userTaskCount').textContent = '不可用';
+            document.getElementById('userTaskList').innerHTML = '<div class="task-empty">观察任务需要登录后查看。</div>';
+          });
+      }
+      function cancelUserTask(event, taskId) {
+        event.stopPropagation();
+        if (!taskId) return;
+        fetch('/api/user-tasks/' + encodeURIComponent(taskId) + '/cancel', { method: 'POST' })
+          .then(function(resp) { return resp.json(); })
+          .then(function() { loadUserTasks(); });
+      }
+      document.addEventListener('DOMContentLoaded', loadUserTasks);
     </script>
 
     {% set ai_page_context = '/watchlist' %}

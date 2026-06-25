@@ -25,6 +25,8 @@ config/secrets/
 .env*
 **/.envrc
 !.env.example
+ifind-finance-data-*/mcp_config.json
+outputs/ifind/external_clues.json
 
 # raw / large local data
 data/**/*.csv
