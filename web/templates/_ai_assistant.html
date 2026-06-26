@@ -54,8 +54,8 @@
             <button type="button" id="ai-mode-agent" onclick="aiSetMode('agent')">任务</button>
           </div>
           <label class="ai-llm-toggle">
-            <input type="checkbox" id="ai-use-llm" checked />
-            <span>专家增强</span>
+            <input type="checkbox" id="ai-use-llm" />
+            <span>增强</span>
           </label>
         </div>
         <button class="ai-close" onclick="aiToggle()" aria-label="关闭">&times;</button>
@@ -343,28 +343,42 @@
           aiSession.recent_topics.unshift(text.substring(0, 80));
           if (aiSession.recent_topics.length > 5) aiSession.recent_topics = aiSession.recent_topics.slice(0, 5);
 
-          fetch('/api/chat/query', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-              message: text,
-              page_context: pageContext,
-              session_id: aiSession.session_id,
-              session_context: {
-                stock_code: aiSession.stock_code,
-                email: aiSession.email,
-                recent_topics: aiSession.recent_topics || [],
-                turn_count: aiSession.turn_count || 0,
-                page: pageContext
-              },
-              mode: aiMode,
-              use_llm: !!document.getElementById('ai-use-llm')?.checked
-            })
+          var useEnhanced = !!document.getElementById('ai-use-llm')?.checked;
+          var payload = {
+            message: text,
+            page_context: pageContext,
+            session_id: aiSession.session_id,
+            session_context: {
+              stock_code: aiSession.stock_code,
+              email: aiSession.email,
+              recent_topics: aiSession.recent_topics || [],
+              turn_count: aiSession.turn_count || 0,
+              page: pageContext
+            },
+            mode: aiMode,
+            use_llm: useEnhanced
+          };
+
+          function requestGuanxiang(url, body) {
+            return fetch(url, {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify(body)
+            });
+          }
+
+          var firstUrl = useEnhanced ? '/api/chat/query' : '/api/chat/public-query';
+          requestGuanxiang(firstUrl, payload)
+          .then(function(r) {
+            if (!r.ok && firstUrl !== '/api/chat/public-query') {
+              var publicPayload = Object.assign({}, payload, { use_llm: false });
+              return requestGuanxiang('/api/chat/public-query', publicPayload);
+            }
+            return r;
           })
           .then(function(r) {
             if (!r.ok) {
               var msg = r.status === 429 ? '请求太频繁，请稍后再试。' :
-                        r.status === 401 ? 'AI 对话入口仍受保护。页面可直接浏览，提问观象时再使用对话账号。' :
                         r.status >= 500 ? '服务端异常（HTTP ' + r.status + '），稍后重试。' :
                         '请求失败（HTTP ' + r.status + '）。';
               throw new Error(msg);

@@ -12,6 +12,48 @@ def _basic_auth_header(username: str = "hermass-test", password: str = "Hermass2
     return {"Authorization": f"Basic {token}"}
 
 
+def test_chat_public_query_allows_anonymous_rule_answer():
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/chat/public-query",
+        json={
+            "message": "今天从哪开始",
+            "page_context": "/",
+            "mode": "chat",
+            "use_llm": True,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "rule_based"
+    assert payload["enhancement_used"] is False
+    assert payload["public_mode"] is True
+    assert payload["next_actions"]
+    assert payload["user_id"].startswith("visitor_")
+
+
+def test_chat_public_query_watch_command_prompts_for_email():
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/chat/public-query",
+        json={
+            "message": "帮我盯着 000021 周线关键位突破",
+            "page_context": "/watchlist",
+            "mode": "agent",
+            "use_llm": True,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["public_mode"] is True
+    assert payload["remembered_stock_code"] == "000021.SZ"
+    assert "邮箱" in payload["answer"]
+
+
 def test_chat_query_rejects_anonymous_request():
     client = TestClient(app)
 

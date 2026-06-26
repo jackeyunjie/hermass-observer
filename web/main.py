@@ -5995,7 +5995,7 @@ def _general_deepseek_answer(query: ChatQuery) -> dict[str, Any] | None:
     return None
 
 
-def _chat_answer(query: ChatQuery) -> dict[str, Any]:
+def _chat_answer(query: ChatQuery, *, allow_general_llm: bool = True) -> dict[str, Any]:
     """基于用户问题调用现有数据返回回答。"""
     msg = query.message.strip()
     msg_lower = msg.lower()
@@ -6357,7 +6357,7 @@ def _chat_answer(query: ChatQuery) -> dict[str, Any]:
         return _learning_answer(msg, query, mode)
 
     # ── 默认回答：规则未命中时，走通用 DeepSeek Q&A ──────────────────────
-    deepseek_answer = _general_deepseek_answer(query)
+    deepseek_answer = _general_deepseek_answer(query) if allow_general_llm else None
     if deepseek_answer:
         return deepseek_answer
 
@@ -6671,6 +6671,65 @@ def chat_query(request: Request, query: ChatQuery) -> JSONResponse:
                 "support_note": "规则兜底，暂无实际数据支持。",
                 "user_id": user_id,
                 "session_id": query.session_id or "",
+                "error": str(exc),
+                "error_type": type(exc).__name__,
+                "degraded": True,
+            },
+        )
+
+
+@app.post("/api/chat/public-query")
+def public_chat_query(request: Request, query: ChatQuery) -> JSONResponse:
+    """Public Guanxiang endpoint.
+
+    This keeps the first-use product path usable without Basic Auth by forcing
+    local-data/rule answers only. The protected /api/chat/query endpoint remains
+    the path for LLM-enhanced answers and persisted authenticated conversations.
+    """
+    identity = _request_user_identity(request)
+    user_id = str(identity["user_key"] or "anonymous")
+    query.use_llm = False
+    query.session_context = dict(query.session_context or {})
+    query.session_context["username"] = user_id
+
+    try:
+        result = _chat_answer(query, allow_general_llm=False)
+        result.setdefault("provider", "rule_based")
+        result["enhancement_used"] = False
+        result = _annotate_chat_support(result)
+        result["user_id"] = user_id
+        result["session_id"] = query.session_id or ""
+        result["public_mode"] = True
+        result.setdefault("support_note", "公开观象使用本地数据和规则回答；专家增强需使用受保护对话入口。")
+        return JSONResponse(content=result)
+    except Exception as exc:
+        log.exception("public_chat_query failed; returning public fallback")
+        stock_code = _chat_stock_code(query)
+        return JSONResponse(
+            content={
+                "answer": "我现在先给你可执行入口：先看首页路径，再进研究页确认个股，最后把值得复看的对象放进观察账本。",
+                "why": "公开观象的本地规则链路刚才没有完整跑通，但页面主要入口仍可直接使用。",
+                "multi_cycle_view": "市场问题先看市场页，个股问题先看研究页，复看问题先看观察账本。",
+                "single_cycle_position": "如果你已经有股票代码，直接打开研究页比继续等待回答更快。",
+                "avoid": "先不要反复刷新同一问题；可以直接点下一步入口继续使用。",
+                "next_actions": [
+                    {"label": "打开首页", "url": "/"},
+                    {"label": "打开市场页", "url": "/market"},
+                    {"label": "打开研究页", "url": f"/research?stock_code={stock_code or '000021.SZ'}"},
+                ],
+                "sources": ["public_chat_query_fallback"],
+                "freshness_note": "公开观象已启用接口级兜底。",
+                "remembered_stock_code": stock_code,
+                "remembered_email": _chat_email(query),
+                "mode_used": str(query.mode or "chat").lower(),
+                "provider": "rule_based",
+                "enhancement_used": False,
+                "answer_origin": "rule_based",
+                "data_support": "rule_only",
+                "support_note": "公开观象兜底回答，暂无实际数据支持。",
+                "user_id": user_id,
+                "session_id": query.session_id or "",
+                "public_mode": True,
                 "error": str(exc),
                 "error_type": type(exc).__name__,
                 "degraded": True,
