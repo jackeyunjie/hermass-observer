@@ -23,10 +23,34 @@ def test_daily_observation_brief_allows_anonymous_without_user_tasks(tmp_path, m
     payload = response.json()
     assert payload["ok"] is True
     assert payload["task_scope"]["site_tasks"] == "config/hermes_cron.json"
-    assert payload["task_scope"]["user_tasks"] == "not_authenticated"
+    assert payload["task_scope"]["user_tasks"] == "visitor_task_ledger"
     assert payload["active_user_tasks"] == []
     assert "decision" in payload
     assert "watch_candidates" in payload
+
+
+def test_daily_observation_brief_includes_guest_tasks(tmp_path, monkeypatch):
+    monkeypatch.setattr(user_tasks, "USER_TASK_LEDGER", tmp_path / "user_task_ledger.json")
+
+    client = TestClient(app)
+    created = client.post(
+        "/api/user-tasks",
+        json={
+            "stock_code": "000021.SZ",
+            "email": "guest@example.com",
+            "trigger_type": "w1_breakout",
+            "watch_type": "conditional",
+            "note": "游客观察",
+            "valid_days": 30,
+        },
+    )
+    assert created.status_code == 200
+
+    response = client.get("/api/daily-observation-brief")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["task_scope"]["user_tasks"] == "visitor_task_ledger"
+    assert payload["active_user_tasks"][0]["stock_code"] == "000021.SZ"
 
 
 def test_daily_observation_brief_includes_authenticated_user_tasks(tmp_path, monkeypatch):

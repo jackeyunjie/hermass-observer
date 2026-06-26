@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+from http.cookies import SimpleCookie
 
 from fastapi.testclient import TestClient
 
@@ -13,15 +14,34 @@ def _basic_auth_header(username: str = "hermass-test", password: str = "Hermass2
     return {"Authorization": f"Basic {token}"}
 
 
-def test_user_tasks_api_requires_auth():
+def test_user_tasks_api_allows_guest_session_create_list_cancel(tmp_path, monkeypatch):
+    monkeypatch.setattr(user_tasks, "USER_TASK_LEDGER", tmp_path / "user_task_ledger.json")
     client = TestClient(app)
-    response = client.get("/api/user-tasks")
-    assert response.status_code == 401
-    assert response.json() == {"ok": False, "error": "unauthorized"}
+    created = client.post(
+        "/api/user-tasks",
+        json={"stock_code": "000021.SZ", "email": "test@example.com", "note": "免登录观察"},
+    )
+    assert created.status_code == 200
+    payload = created.json()
+    assert payload["ok"] is True
+    assert payload["created"] is True
+    assert payload["task"]["created_by"].startswith("visitor_")
 
-    created = client.post("/api/user-tasks", json={"stock_code": "000021.SZ", "email": "test@example.com"})
-    assert created.status_code == 401
-    assert created.json() == {"ok": False, "error": "unauthorized"}
+    cookie_header = created.headers.get("set-cookie", "")
+    assert "hermass_visitor_id=" in cookie_header
+    visitor_cookie = SimpleCookie()
+    visitor_cookie.load(cookie_header)
+    visitor_id = visitor_cookie["hermass_visitor_id"].value
+
+    client.cookies.set("hermass_visitor_id", visitor_id)
+
+    listed = client.get("/api/user-tasks")
+    assert listed.status_code == 200
+    assert listed.json()["tasks"][0]["task_id"] == payload["task"]["task_id"]
+
+    cancelled = client.post(f"/api/user-tasks/{payload['task']['task_id']}/cancel")
+    assert cancelled.status_code == 200
+    assert cancelled.json()["task"]["status"] == "cancelled"
 
 
 def test_user_tasks_api_lists_and_cancels_user_task(tmp_path, monkeypatch):

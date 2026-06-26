@@ -385,11 +385,7 @@
               {% if observation_brief.external_clue_count %}
                 外部线索 {{ observation_brief.external_clue_count }} 条
               {% endif %}
-              {% if current_user and current_user.username != 'anonymous' %}
                 ，我的观察任务 <span id="userTaskCounter">{{ observation_brief.active_user_tasks | length }}</span> 个
-              {% else %}
-                ，<a href="javascript:void(0)" id="userTaskLoginHint" onclick="aiAsk('今天更适合自上而下还是自下而上？只给结论')" style="color:var(--muted);text-decoration:underline;">登录后可查看我的观察任务</a>
-              {% endif %}
               </div>
             </div>
           </div>
@@ -515,7 +511,7 @@
           </div>
           {% endfor %}
         </div>
-        <p class="hero-note" style="margin-top:8px;">需要持续提醒时，用观象创建个人观察任务；已有任务可去 <a href="/watchlist">观察账本</a> 管理。</p>
+        <p class="hero-note" style="margin-top:8px;">全站页面默认免登录可用。需要持续提醒时，直接创建观察任务；已有任务去 <a href="/watchlist">观察账本</a> 管理。</p>
         {% else %}
         <p class="muted">当前没有强优先对象。建议先 <a href="/market" style="color:var(--accent);text-decoration:underline;">看市场环境</a> 判断今天是顺风还是逆风，再去 <a href="/recommend" style="color:var(--accent);text-decoration:underline;">机会池</a> 看局部机会是否集中。</p>
         {% endif %}
@@ -672,9 +668,6 @@
             setTimeout(function() { hideTaskForm(rowId); }, 2000);
           } else {
             var errMsg = data.error || data.reason || '创建失败';
-            if (data.__http_status === 401 || errMsg === 'unauthorized') {
-              errMsg = '创建个人观察任务需要认证。请先点「问观象」发送一句问题完成认证，再回来确认创建。';
-            }
             if (resultEl) resultEl.innerHTML = '<span style="color:var(--bad);">\u2717 ' + errMsg.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</span>';
           }
         })

@@ -64,16 +64,16 @@
         <div class="ai-welcome" id="ai-welcome">
           <div class="ai-welcome-kicker">今日研究流</div>
           <h4>先问结论，再看证据。</h4>
-          <p id="ai-hint-text">我会按“市场是否允许 → 机会是否集中 → 个股证据是否够 → 风险哪里会错”的顺序回答。</p>
+          <p id="ai-hint-text">我会先告诉你今天该走哪条路，再帮你判断这只票要不要继续看，最后把判断变成观察任务。页面浏览默认免登录。</p>
           <div class="ai-capability-grid">
-            <button type="button" onclick="aiAsk('现在市场允许出手吗？给我结论、证据和风险边界')">
-              <b>市场结论</b><span>能不能动手</span>
+            <button type="button" onclick="aiAsk('今天更适合自上而下还是自下而上？给我结论和下一步')">
+              <b>路径路由</b><span>先走哪条路</span>
             </button>
             <button type="button" onclick="aiAsk('今天机会池里先看哪类标的？按一致性和风险排序')">
               <b>机会排序</b><span>动谁更合理</span>
             </button>
-            <button type="button" onclick="aiAsk('帮我分析 000021 当前多周期状态、风险和下一步')">
-              <b>个股研判</b><span>为什么是它</span>
+            <button type="button" onclick="aiAsk('帮我分析 000021 当前是可继续、等条件还是暂不继续，只给结论和下一步')">
+              <b>个股裁决</b><span>要不要继续看</span>
             </button>
             <button type="button" onclick="aiSetMode('agent');aiAsk('盯 000021，突破周线关键位提醒我，邮箱 test@example.com')">
               <b>任务委托</b><span>盯盘与提醒</span>
@@ -85,9 +85,9 @@
           <span id="ai-ctx-text">跟踪中：000021.SZ</span>
         </div>
         <div class="ai-quick" id="ai-quick">
-          <button onclick="aiAsk('现在能不能做？只给结论、证据、风险、下一步')">能不能做</button>
+          <button onclick="aiAsk('今天更适合自上而下还是自下而上？只给结论和下一步')">走哪条路</button>
           <button onclick="aiAsk('今天先看什么方向？按市场、行业、机会三层说')">看什么方向</button>
-          <button onclick="aiAsk('帮我看 000021：多周期、资金、风险、下一步')">分析个股</button>
+          <button onclick="aiAsk('帮我看 000021：可继续、等条件还是暂不继续')">分析个股</button>
           <button onclick="aiAsk('我现在在哪一步？下一步该点哪里')">下一步去哪</button>
         </div>
         <div class="ai-messages" id="ai-messages"></div>
@@ -364,7 +364,7 @@
           .then(function(r) {
             if (!r.ok) {
               var msg = r.status === 429 ? '请求太频繁，请稍后再试。' :
-                        r.status === 401 ? 'AI 对话需要认证。请使用公网账号访问后再提问。' :
+                        r.status === 401 ? 'AI 对话入口仍受保护。页面可直接浏览，提问观象时再使用对话账号。' :
                         r.status >= 500 ? '服务端异常（HTTP ' + r.status + '），稍后重试。' :
                         '请求失败（HTTP ' + r.status + '）。';
               throw new Error(msg);

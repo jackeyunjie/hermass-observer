@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import re
+import secrets
 import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -26,6 +27,7 @@ from pydantic import BaseModel
 ROOT = Path(__file__).resolve().parents[1]
 log = logging.getLogger("hermass.web")
 DESIGN_FEEDBACK_PATH = ROOT / "outputs" / "feedback" / "design_feedback.jsonl"
+VISITOR_COOKIE_NAME = "hermass_visitor_id"
 
 import contextlib
 import io
@@ -92,6 +94,55 @@ templates.env.globals["severity_badge"] = _jinja_severity_badge
 
 app = FastAPI(title="Hermass Internal Console", version="0.1.0")
 app.mount("/static", StaticFiles(directory=str(WEB_DIR / "static")), name="static")
+
+
+def _request_visitor_id(request: Request) -> str:
+    cached = getattr(request.state, "visitor_id", "")
+    if cached:
+        return str(cached)
+    cookie_value = str(request.cookies.get(VISITOR_COOKIE_NAME) or "").strip()
+    visitor_id = cookie_value or f"visitor_{secrets.token_urlsafe(12)}"
+    request.state.visitor_id = visitor_id
+    return visitor_id
+
+
+def _request_user_identity(request: Request, profile: dict[str, Any] | None = None) -> dict[str, Any]:
+    profile = profile or get_current_profile(request)
+    username = str(profile.get("username") or "").strip()
+    if username and username != "anonymous":
+        return {
+            "profile": profile,
+            "user_key": username,
+            "is_guest": False,
+            "task_scope": "user_task_ledger",
+        }
+    return {
+        "profile": profile,
+        "user_key": _request_visitor_id(request),
+        "is_guest": True,
+        "task_scope": "visitor_task_ledger",
+    }
+
+
+@app.middleware("http")
+async def ensure_guest_visitor_cookie(request: Request, call_next):
+    response = await call_next(request)
+    try:
+        identity = _request_user_identity(request)
+        if identity["is_guest"]:
+            visitor_id = str(identity["user_key"] or "").strip()
+            if visitor_id and request.cookies.get(VISITOR_COOKIE_NAME) != visitor_id:
+                response.set_cookie(
+                    VISITOR_COOKIE_NAME,
+                    visitor_id,
+                    max_age=365 * 24 * 60 * 60,
+                    httponly=True,
+                    samesite="lax",
+                    path="/",
+                )
+    except Exception:
+        pass
+    return response
 
 
 STRATEGY_CATALOG: dict[str, dict[str, str]] = {
@@ -2300,7 +2351,7 @@ def _watch_revisit_copy(last_triggered_at: Any, urgency: str, valid_to: Any) -> 
     return "先放在账本里，等下一次触发或到期再回来"
 
 
-def _daily_observation_brief(username: str = "") -> dict[str, Any]:
+def _daily_observation_brief(user_key: str = "", task_scope: str = "not_authenticated") -> dict[str, Any]:
     market = _daily_brief()
     execution = _execution_lane()
     priority_rows = execution.get("priority_queue", []) or []
@@ -2334,20 +2385,21 @@ def _daily_observation_brief(username: str = "") -> dict[str, Any]:
         action_line = "当前没有明确对象，先回市场页看顺风还是逆风，再决定往哪条路径走。"
 
     active_tasks: list[dict[str, Any]] = []
-    user_task_source = "not_authenticated"
-    if username and username != "anonymous":
+    user_task_source = task_scope or "not_authenticated"
+    if user_key:
         try:
             task_payload = list_user_tasks(
-                user=username,
+                user=user_key,
                 status="active",
                 task_type="watch_command",
                 limit=500,
             )
             active_tasks = task_payload.get("tasks", []) if task_payload.get("ok") else []
-            user_task_source = "user_task_ledger"
+            if user_task_source == "not_authenticated":
+                user_task_source = "user_task_ledger"
         except Exception:
             active_tasks = []
-            user_task_source = "user_task_ledger_unavailable"
+            user_task_source = f"{user_task_source}_unavailable"
 
     return {
         "ok": True,
@@ -2996,7 +3048,7 @@ def _watch_trigger_label(trigger_type: str) -> str:
     return labels.get(key, key or "-")
 
 
-def _watchlist_page_context(username: str = "") -> dict[str, Any]:
+def _watchlist_page_context(user_key: str = "") -> dict[str, Any]:
     execution = _execution_lane()
     merged_rows = (execution.get("priority_queue", []) or []) + (execution.get("observe_queue", []) or []) + (execution.get("recent_queue", []) or [])
     row_map: dict[str, dict[str, Any]] = {}
@@ -3006,10 +3058,10 @@ def _watchlist_page_context(username: str = "") -> dict[str, Any]:
             row_map[stock_code] = row
 
     active_tasks: list[dict[str, Any]] = []
-    if username and username != "anonymous":
+    if user_key:
         try:
             task_payload = list_user_tasks(
-                user=username,
+                user=user_key,
                 status="active",
                 task_type="watch_command",
                 limit=500,
@@ -3336,6 +3388,7 @@ def health() -> dict[str, str]:
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request, mode: str = "") -> HTMLResponse:
     profile = get_current_profile(request)
+    identity = _request_user_identity(request, profile)
     user_type = profile.get("user_type", "执行型")
     # 若未传 mode，按 user_type 映射到对应首页视角
     mode_map = {"方向型": "direction", "研究型": "research", "执行型": "execution"}
@@ -3359,7 +3412,7 @@ def index(request: Request, mode: str = "") -> HTMLResponse:
             "stock_code": "000021.SZ",
             "render_profile": "full",
             "daily_brief": _daily_brief(),
-            "observation_brief": _daily_observation_brief(profile.get("username", "")),
+            "observation_brief": _daily_observation_brief(identity["user_key"], identity["task_scope"]),
             "current_user": profile,
         },
     )
@@ -3401,6 +3454,7 @@ def preview_cards(
     mode: str = Form("direction"),
 ) -> HTMLResponse:
     profile = get_current_profile(request)
+    identity = _request_user_identity(request, profile)
     cards = _render_cards(stock_code, render_profile)
     return templates.TemplateResponse(
         request,
@@ -3421,7 +3475,7 @@ def preview_cards(
             "stock_code": stock_code,
             "render_profile": render_profile,
             "daily_brief": _daily_brief(),
-            "observation_brief": _daily_observation_brief(profile.get("username", "")),
+            "observation_brief": _daily_observation_brief(identity["user_key"], identity["task_scope"]),
             "current_user": profile,
         },
     )
@@ -3925,9 +3979,8 @@ def chain_studio_api() -> JSONResponse:
 
 @app.get("/api/daily-observation-brief")
 def api_daily_observation_brief(request: Request) -> JSONResponse:
-    profile = get_current_profile(request)
-    username = profile.get("username") or ""
-    return JSONResponse(content=_daily_observation_brief(username))
+    identity = _request_user_identity(request)
+    return JSONResponse(content=_daily_observation_brief(identity["user_key"], identity["task_scope"]))
 
 
 @app.post("/api/design-feedback")
@@ -3970,20 +4023,14 @@ def api_design_feedback(request: Request, body: dict | None = Body(default=None)
 
 @app.get("/api/user-tasks")
 def api_user_tasks(request: Request, status: str = "", task_type: str = "", limit: int = 100) -> JSONResponse:
-    profile = get_current_profile(request)
-    username = profile.get("username") or ""
-    if not username or username == "anonymous":
-        return JSONResponse(content={"ok": False, "error": "unauthorized"}, status_code=401)
-    return JSONResponse(content=list_user_tasks(user=username, status=status, task_type=task_type, limit=limit))
+    identity = _request_user_identity(request)
+    return JSONResponse(content=list_user_tasks(user=identity["user_key"], status=status, task_type=task_type, limit=limit))
 
 
 @app.post("/api/user-tasks/{task_id}/cancel")
 def api_cancel_user_task(request: Request, task_id: str) -> JSONResponse:
-    profile = get_current_profile(request)
-    username = profile.get("username") or ""
-    if not username or username == "anonymous":
-        return JSONResponse(content={"ok": False, "error": "unauthorized"}, status_code=401)
-    result = cancel_user_task(task_id, user=username)
+    identity = _request_user_identity(request)
+    result = cancel_user_task(task_id, user=identity["user_key"])
     status_code = 200 if result.get("ok") else 404 if result.get("error") == "task_not_found" else 403
     return JSONResponse(content=result, status_code=status_code)
 
@@ -3991,11 +4038,7 @@ def api_cancel_user_task(request: Request, task_id: str) -> JSONResponse:
 @app.post("/api/user-tasks")
 def api_create_user_task(request: Request, body: dict | None = Body(default=None)) -> JSONResponse:
     """直接从观察候选创建用户盯盘任务，不经过对话流程。"""
-    profile = get_current_profile(request)
-    username = profile.get("username") or ""
-    if not username or username == "anonymous":
-        return JSONResponse(content={"ok": False, "error": "unauthorized"}, status_code=401)
-
+    identity = _request_user_identity(request)
     body = body or {}
     stock_code = str(body.get("stock_code") or "").strip()
     email = str(body.get("email") or "").strip().lower()
@@ -4019,7 +4062,7 @@ def api_create_user_task(request: Request, body: dict | None = Body(default=None
         note=str(body.get("note") or "创建于首页观察候选"),
         valid_days=valid_days,
         page_context=str(body.get("page_context") or "/"),
-        created_by=username,
+        created_by=identity["user_key"],
     )
     result["ok"] = True
     return JSONResponse(content=result)
@@ -4386,8 +4429,8 @@ def api_per_stock_history(stock_code: str = "", limit: int = 30) -> JSONResponse
 @app.get("/watchlist", response_class=HTMLResponse)
 def watchlist_page(request: Request) -> HTMLResponse:
     profile = get_current_profile(request)
-    username = profile.get("username") or ""
-    ctx = _watchlist_page_context(username)
+    identity = _request_user_identity(request, profile)
+    ctx = _watchlist_page_context(identity["user_key"])
     ctx["request"] = request
     ctx["today"] = str(date.today())
     ctx["current_user"] = profile
