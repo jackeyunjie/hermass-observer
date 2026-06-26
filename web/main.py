@@ -19,7 +19,7 @@ from typing import Any
 import duckdb
 import requests
 from fastapi import Body, FastAPI, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -3383,6 +3383,12 @@ def _save_design_feedback(record: dict[str, Any], path: Path | None = None) -> N
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "service": "hermass-internal-console"}
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon() -> Response:
+    """Avoid browser console noise on public pages."""
+    return Response(status_code=204)
 
 
 @app.get("/", response_class=HTMLResponse)
