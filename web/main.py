@@ -3452,6 +3452,20 @@ def playbook_page(request: Request) -> HTMLResponse:
     )
 
 
+@app.get("/guide", response_class=HTMLResponse)
+def guide_page(request: Request) -> HTMLResponse:
+    profile = get_current_profile(request)
+    return templates.TemplateResponse(
+        request,
+        "guide.html",
+        {
+            "request": request,
+            "today": str(date.today()),
+            "current_user": profile,
+        },
+    )
+
+
 @app.post("/", response_class=HTMLResponse)
 def preview_cards(
     request: Request,

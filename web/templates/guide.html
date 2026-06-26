@@ -1,0 +1,676 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hermass 使用说明</title>
+    <link rel="stylesheet" href="/static/ai-assistant.css" />
+    <style>
+      :root {
+        --bg: #eef3ec;
+        --paper: #fffdf5;
+        --ink: #14231e;
+        --muted: #61736b;
+        --line: rgba(20, 35, 30, 0.1);
+        --green: #14785a;
+        --blue: #2267a5;
+        --amber: #c77814;
+        --red: #b24a3a;
+        --green-soft: rgba(20, 120, 90, 0.13);
+        --blue-soft: rgba(34, 103, 165, 0.13);
+        --amber-soft: rgba(199, 120, 20, 0.15);
+        --red-soft: rgba(178, 74, 58, 0.13);
+        --shadow: 0 22px 70px rgba(26, 39, 34, 0.13);
+      }
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        color: var(--ink);
+        font-family: "Avenir Next", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+        background:
+          radial-gradient(circle at 12% 0%, rgba(34, 103, 165, 0.18), transparent 26%),
+          radial-gradient(circle at 92% 8%, rgba(20, 120, 90, 0.18), transparent 25%),
+          linear-gradient(180deg, #f9fbf5 0%, var(--bg) 100%);
+      }
+      a { color: inherit; }
+      .page { width: min(1400px, calc(100vw - 32px)); margin: 18px auto 56px; }
+      .shell {
+        overflow: hidden;
+        border-radius: 34px;
+        border: 1px solid rgba(255, 255, 255, 0.8);
+        background: rgba(255, 253, 245, 0.78);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(18px);
+      }
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        padding: 18px 24px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.66);
+      }
+      .brand h1 { margin: 0; font-size: 22px; letter-spacing: -0.04em; }
+      .brand p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+      .date-wrap { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+      .subnav {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 12px 24px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(255, 253, 245, 0.86);
+        backdrop-filter: blur(16px);
+      }
+      .subnav a {
+        padding: 8px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.74);
+        text-decoration: none;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .subnav a:hover { color: var(--ink); border-color: rgba(20,35,30,0.22); }
+      .hero {
+        display: grid;
+        grid-template-columns: 1.05fr 0.95fr;
+        gap: 20px;
+        padding: 24px;
+      }
+      .hero-main,
+      .hero-side,
+      .section,
+      .tile,
+      .flow-card,
+      .page-card,
+      .ask-card,
+      .rhythm-card {
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.82);
+        backdrop-filter: blur(12px);
+      }
+      .hero-main {
+        position: relative;
+        overflow: hidden;
+        min-height: 430px;
+        padding: 34px;
+        border-radius: 30px;
+      }
+      .hero-main::after {
+        content: "";
+        position: absolute;
+        right: -120px;
+        bottom: -140px;
+        width: 460px;
+        height: 460px;
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at 35% 35%, rgba(20, 120, 90, 0.2), transparent 42%),
+          radial-gradient(circle at 62% 60%, rgba(34, 103, 165, 0.18), transparent 45%);
+      }
+      .kicker {
+        display: inline-flex;
+        padding: 8px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: rgba(255,255,255,0.76);
+        color: var(--green);
+        font-size: 12px;
+        font-weight: 800;
+      }
+      .hero-title {
+        position: relative;
+        z-index: 1;
+        margin: 18px 0 14px;
+        max-width: 720px;
+        font-size: clamp(44px, 6vw, 78px);
+        line-height: 0.95;
+        letter-spacing: -0.075em;
+      }
+      .hero-copy {
+        position: relative;
+        z-index: 1;
+        margin: 0;
+        max-width: 720px;
+        color: var(--muted);
+        font-size: 17px;
+        line-height: 1.78;
+      }
+      .hero-actions {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 24px;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 42px;
+        padding: 10px 15px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: #fff;
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 800;
+      }
+      .btn.primary { background: var(--green); border-color: var(--green); color: #fff; }
+      .hero-side {
+        display: grid;
+        gap: 14px;
+        padding: 24px;
+        border-radius: 30px;
+      }
+      .hero-side h2 { margin: 0; font-size: 32px; letter-spacing: -0.05em; }
+      .hero-side p { margin: 0; color: var(--muted); line-height: 1.7; }
+      .quick-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .tile { padding: 16px; border-radius: 18px; }
+      .tile strong { display: block; font-size: 16px; margin-bottom: 6px; }
+      .tile span { color: var(--muted); font-size: 13px; line-height: 1.6; }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        gap: 20px;
+        padding: 0 24px 24px;
+      }
+      .span-12 { grid-column: span 12; }
+      .span-7 { grid-column: span 7; }
+      .span-5 { grid-column: span 5; }
+      .section {
+        padding: 24px;
+        border-radius: 28px;
+      }
+      .section-head {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 18px;
+        margin-bottom: 20px;
+      }
+      .section-head h2 { margin: 0; font-size: 34px; letter-spacing: -0.055em; }
+      .section-head p { margin: 8px 0 0; max-width: 760px; color: var(--muted); line-height: 1.7; }
+      .badge {
+        flex: none;
+        padding: 8px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: #fff;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .flow {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+      }
+      .flow-card {
+        position: relative;
+        min-height: 230px;
+        padding: 20px;
+        border-radius: 24px;
+      }
+      .flow-card::after {
+        content: "→";
+        position: absolute;
+        right: -14px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: var(--ink);
+        color: #fff;
+        font-weight: 800;
+        z-index: 2;
+      }
+      .flow-card:last-child::after { display: none; }
+      .no {
+        width: 42px;
+        height: 42px;
+        display: grid;
+        place-items: center;
+        border-radius: 14px;
+        color: #fff;
+        font-weight: 900;
+        margin-bottom: 14px;
+      }
+      .flow-card:nth-child(1) .no { background: var(--green); }
+      .flow-card:nth-child(2) .no { background: var(--blue); }
+      .flow-card:nth-child(3) .no { background: var(--amber); }
+      .flow-card:nth-child(4) .no { background: var(--red); }
+      .flow-card h3 { margin: 0 0 10px; font-size: 24px; letter-spacing: -0.04em; }
+      .flow-card p { margin: 0; color: var(--muted); line-height: 1.7; font-size: 14px; }
+      .flow-card a { display: inline-flex; margin-top: 16px; color: var(--blue); font-size: 13px; font-weight: 800; text-decoration: none; }
+      .page-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+      .page-card {
+        display: grid;
+        gap: 12px;
+        padding: 20px;
+        border-radius: 22px;
+      }
+      .page-card h3 { margin: 0; font-size: 24px; letter-spacing: -0.04em; }
+      .page-card p { margin: 0; color: var(--muted); line-height: 1.65; }
+      .mini-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+      .mini-list li {
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: rgba(20,35,30,0.045);
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.55;
+      }
+      .page-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+      .page-actions a {
+        padding: 9px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: #fff;
+        text-decoration: none;
+        font-size: 12px;
+        font-weight: 800;
+      }
+      .diagram {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      .screen {
+        padding: 18px;
+        border-radius: 24px;
+        background: #17241f;
+        color: #f8fff9;
+        min-height: 360px;
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+      }
+      .screen-top { display: flex; gap: 7px; margin-bottom: 18px; }
+      .dot { width: 10px; height: 10px; border-radius: 50%; background: #f46d5e; }
+      .dot:nth-child(2) { background: #f6c456; }
+      .dot:nth-child(3) { background: #6ed48e; }
+      .mock-block {
+        margin-bottom: 12px;
+        padding: 14px;
+        border-radius: 16px;
+        background: rgba(255,255,255,0.09);
+      }
+      .mock-block strong { display: block; margin-bottom: 6px; }
+      .mock-block span { color: rgba(248,255,249,0.68); font-size: 13px; line-height: 1.55; }
+      .legend { display: grid; gap: 10px; }
+      .legend-item {
+        display: grid;
+        grid-template-columns: 34px 1fr;
+        gap: 12px;
+        align-items: start;
+        padding: 14px;
+        border-radius: 16px;
+        background: rgba(255,255,255,0.82);
+        border: 1px solid var(--line);
+      }
+      .legend-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 12px;
+        display: grid;
+        place-items: center;
+        font-weight: 900;
+        color: #fff;
+      }
+      .legend-item:nth-child(1) .legend-icon { background: var(--green); }
+      .legend-item:nth-child(2) .legend-icon { background: var(--blue); }
+      .legend-item:nth-child(3) .legend-icon { background: var(--amber); }
+      .legend-item:nth-child(4) .legend-icon { background: var(--red); }
+      .legend-item strong { display: block; margin-bottom: 4px; }
+      .legend-item span { color: var(--muted); font-size: 13px; line-height: 1.55; }
+      .ask-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+      .ask-card { padding: 18px; border-radius: 20px; }
+      .ask-card h3 { margin: 0 0 10px; font-size: 20px; }
+      .ask-card code {
+        display: block;
+        margin-top: 10px;
+        padding: 11px 12px;
+        border-radius: 12px;
+        background: rgba(34, 103, 165, 0.1);
+        color: var(--blue);
+        font-size: 13px;
+        white-space: normal;
+        line-height: 1.55;
+      }
+      .ask-card p { margin: 0; color: var(--muted); line-height: 1.65; }
+      .rhythm { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+      .rhythm-card { padding: 20px; border-radius: 22px; }
+      .rhythm-card .time { display: inline-flex; padding: 7px 11px; border-radius: 999px; background: var(--green-soft); color: var(--green); font-size: 12px; font-weight: 900; }
+      .rhythm-card h3 { margin: 14px 0 8px; font-size: 24px; letter-spacing: -0.04em; }
+      .rhythm-card p { margin: 0; color: var(--muted); line-height: 1.65; }
+      .footer {
+        display: grid;
+        grid-template-columns: 1.5fr 1fr 1fr;
+        gap: 18px;
+        padding: 20px 24px 24px;
+        border-top: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.58);
+      }
+      .footer strong { display: block; margin-bottom: 8px; }
+      .footer p { margin: 0; color: var(--muted); line-height: 1.7; font-size: 13px; }
+      @media (max-width: 1100px) {
+        .hero, .diagram, .footer { grid-template-columns: 1fr; }
+        .grid { grid-template-columns: 1fr; }
+        .span-12, .span-7, .span-5 { grid-column: auto; }
+        .flow, .page-grid, .ask-grid, .rhythm { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .flow-card::after { display: none; }
+      }
+      @media (max-width: 720px) {
+        .page { width: min(100vw, calc(100vw - 12px)); margin: 6px auto 24px; }
+        .topbar, .hero, .grid, .footer { padding-left: 14px; padding-right: 14px; }
+        .topbar { flex-direction: column; align-items: flex-start; }
+        .quick-grid, .flow, .page-grid, .ask-grid, .rhythm { grid-template-columns: 1fr; }
+        .section-head { flex-direction: column; align-items: flex-start; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="shell">
+        <header class="topbar">
+          <div class="brand">
+            <h1>Hermass 使用说明</h1>
+            <p>一页看懂：怎么打开、怎么判断、怎么提问、怎么复看</p>
+          </div>
+          <div class="date-wrap">
+            {% set nav_active = 'toolbox' %}{% include '_top_nav.html' %}
+            <span style="color:var(--muted);font-size:13px;">{{ today }}</span>
+          </div>
+        </header>
+
+        <nav class="subnav">
+          <a href="#one-minute">一分钟上手</a>
+          <a href="#map">网站地图</a>
+          <a href="#screens">看屏幕</a>
+          <a href="#ask">怎么问观象</a>
+          <a href="#rhythm">每天怎么用</a>
+          <a href="#feedback">反馈入口</a>
+        </nav>
+
+        <section class="hero" id="one-minute">
+          <div class="hero-main">
+            <span class="kicker">公开免登录 · 打开就能用</span>
+            <h2 class="hero-title">不要先研究所有页面。先完成一次决策闭环。</h2>
+            <p class="hero-copy">
+              Hermass 的核心不是“看很多指标”，而是帮你把一次股票判断压成四步：先确定今天从哪条路进，再验证个股证据，再创建观察，最后在条件变化时回来复看。
+            </p>
+            <div class="hero-actions">
+              <a class="btn primary" href="/">打开首页</a>
+              <a class="btn" href="/guide#ask">先看怎么问观象</a>
+              <a class="btn" href="/playbook">看赚钱秘籍</a>
+              <a class="btn" href="/feedback">提交反馈</a>
+            </div>
+          </div>
+          <aside class="hero-side">
+            <h2>新用户只记四件事</h2>
+            <p>不要把系统当成行情软件。它更像一个“决策导航器”：告诉你今天该从哪里开始、哪只值得继续、什么条件触发复看。</p>
+            <div class="quick-grid">
+              <div class="tile"><strong>首页</strong><span>先判断今天走市场路线，还是个股线索路线。</span></div>
+              <div class="tile"><strong>研究页</strong><span>输入股票代码，看“继续 / 等待 / 回避”的证据。</span></div>
+              <div class="tile"><strong>观察账本</strong><span>不是收藏夹，是提醒你什么时候回来复看的清单。</span></div>
+              <div class="tile"><strong>观象</strong><span>右下角助手。直接问股票、路线、下一步。</span></div>
+            </div>
+          </aside>
+        </section>
+
+        <main class="grid">
+          <section class="section span-12">
+            <div class="section-head">
+              <div>
+                <h2>一次完整使用流程</h2>
+                <p>第一次使用不要到处点。按下面 4 步走一遍，你就知道这个系统到底帮你省掉哪部分判断成本。</p>
+              </div>
+              <span class="badge">决策闭环</span>
+            </div>
+            <div class="flow">
+              <div class="flow-card">
+                <div class="no">1</div>
+                <h3>首页定路径</h3>
+                <p>先看今天是顺风、逆风还是局部机会日。市场好时自上而下，市场一般时先追强结构线索。</p>
+                <a href="/">去首页</a>
+              </div>
+              <div class="flow-card">
+                <div class="no">2</div>
+                <h3>研究页下裁决</h3>
+                <p>输入股票代码，看多周期结构、资金确认、行业位置、风险底线、估值增长是否支持继续。</p>
+                <a href="/research?stock_code=000021.SZ">试 000021.SZ</a>
+              </div>
+              <div class="flow-card">
+                <div class="no">3</div>
+                <h3>创建观察</h3>
+                <p>只有“还值得看、但条件未完全触发”的对象才放入观察。不要把观察账本当收藏夹。</p>
+                <a href="/watchlist">去观察账本</a>
+              </div>
+              <div class="flow-card">
+                <div class="no">4</div>
+                <h3>复看和反馈</h3>
+                <p>收盘后看哪些对象触发、失效、或需要修改条件。不好用的地方直接提交反馈。</p>
+                <a href="/feedback">提交反馈</a>
+              </div>
+            </div>
+          </section>
+
+          <section class="section span-12" id="map">
+            <div class="section-head">
+              <div>
+                <h2>网站地图：每页只做一件事</h2>
+                <p>不要把所有页面都当入口。每个页面承担不同阶段的任务。</p>
+              </div>
+              <span class="badge">页面分工</span>
+            </div>
+            <div class="page-grid">
+              <article class="page-card">
+                <h3>首页</h3>
+                <p>回答“今天从哪开始”。适合每天第一次打开。</p>
+                <ul class="mini-list">
+                  <li>看当前姿态：顺风 / 逆风 / 局部机会</li>
+                  <li>看系统建议路径：市场优先还是个股优先</li>
+                  <li>点候选组进入研究页</li>
+                </ul>
+                <div class="page-actions"><a href="/">打开首页</a><a href="/guide#ask">问观象</a></div>
+              </article>
+              <article class="page-card">
+                <h3>市场页</h3>
+                <p>回答“今天环境支持哪类动作”。适合判断风向。</p>
+                <ul class="mini-list">
+                  <li>看市场裁决和市场脉搏</li>
+                  <li>看 Agent 是否共识或分歧</li>
+                  <li>只把市场当背景，不当买卖开关</li>
+                </ul>
+                <div class="page-actions"><a href="/market">打开市场页</a></div>
+              </article>
+              <article class="page-card">
+                <h3>机会页</h3>
+                <p>回答“先看哪一组对象”。适合从候选池缩圈。</p>
+                <ul class="mini-list">
+                  <li>先看分组，不要先看单只</li>
+                  <li>优先处理证据更完整的组</li>
+                  <li>点进研究页做最终裁决</li>
+                </ul>
+                <div class="page-actions"><a href="/recommend">打开机会页</a></div>
+              </article>
+              <article class="page-card">
+                <h3>研究页</h3>
+                <p>回答“这只股票要不要继续看”。这是个股裁决页。</p>
+                <ul class="mini-list">
+                  <li>输入股票代码</li>
+                  <li>先看顶部裁决，不先读全部材料</li>
+                  <li>如果是等待型结论，再创建观察</li>
+                </ul>
+                <div class="page-actions"><a href="/research?stock_code=000021.SZ">试一个股票</a></div>
+              </article>
+              <article class="page-card">
+                <h3>观察账本</h3>
+                <p>回答“什么时候回来复看”。这是复访驱动页。</p>
+                <ul class="mini-list">
+                  <li>只放需要跟踪条件的对象</li>
+                  <li>每天收盘看状态变化</li>
+                  <li>触发、失效、过期都要处理</li>
+                </ul>
+                <div class="page-actions"><a href="/watchlist">打开观察账本</a></div>
+              </article>
+              <article class="page-card">
+                <h3>观象</h3>
+                <p>回答“我下一步该点哪里”。右下角浮窗默认免登录。</p>
+                <ul class="mini-list">
+                  <li>问路径：今天从哪开始</li>
+                  <li>问个股：000021 怎么样</li>
+                  <li>问任务：帮我盯突破条件</li>
+                </ul>
+                <div class="page-actions"><a href="javascript:void(0)" onclick="aiToggle()">打开观象</a></div>
+              </article>
+            </div>
+          </section>
+
+          <section class="section span-7" id="screens">
+            <div class="section-head">
+              <div>
+                <h2>看屏幕时先看哪里</h2>
+                <p>每页都按“顶部结论 → 证据卡片 → 下一步按钮”的顺序读。</p>
+              </div>
+            </div>
+            <div class="screen">
+              <div class="screen-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+              <div class="mock-block"><strong>1. 顶部结论</strong><span>先看系统把复杂信息压缩成什么判断：继续、等待、回避、或先换路径。</span></div>
+              <div class="mock-block"><strong>2. 关键证据</strong><span>再看支持结论的 3-5 个证据，不要先陷入所有指标。</span></div>
+              <div class="mock-block"><strong>3. 风险边界</strong><span>明确什么情况说明判断错了，什么情况下不应该继续跟。</span></div>
+              <div class="mock-block"><strong>4. 下一步按钮</strong><span>打开研究页、创建观察、回到首页、或提交反馈。</span></div>
+            </div>
+          </section>
+
+          <section class="section span-5">
+            <div class="section-head">
+              <div>
+                <h2>四种状态怎么看</h2>
+                <p>不要追求“确定性”。系统只负责把状态翻译成动作。</p>
+              </div>
+            </div>
+            <div class="legend">
+              <div class="legend-item"><div class="legend-icon">进</div><div><strong>可以继续</strong><span>证据完整，风险边界清楚。继续到研究页或观察账本。</span></div></div>
+              <div class="legend-item"><div class="legend-icon">等</div><div><strong>等待条件</strong><span>方向不错但缺触发条件。最适合创建观察。</span></div></div>
+              <div class="legend-item"><div class="legend-icon">缩</div><div><strong>先缩圈</strong><span>候选太多时，先按行业、策略、风险过滤。</span></div></div>
+              <div class="legend-item"><div class="legend-icon">停</div><div><strong>暂不继续</strong><span>证据不足或风险过大。不要为了“看过”而收藏。</span></div></div>
+            </div>
+          </section>
+
+          <section class="section span-12" id="ask">
+            <div class="section-head">
+              <div>
+                <h2>观象怎么问</h2>
+                <p>观象不是聊天机器人。最有效的问题是“给我下一步动作”，而不是泛泛问涨跌。</p>
+              </div>
+              <span class="badge">右下角浮窗</span>
+            </div>
+            <div class="ask-grid">
+              <div class="ask-card">
+                <h3>问路径</h3>
+                <p>不知道先看市场还是先看个股时这样问。</p>
+                <code>今天从哪开始？</code>
+                <code>现在适合自上而下还是自下而上？</code>
+              </div>
+              <div class="ask-card">
+                <h3>问个股</h3>
+                <p>已经有股票代码时，直接给代码，不要绕。</p>
+                <code>000021 怎么样？</code>
+                <code>600519 现在是继续看还是等？</code>
+              </div>
+              <div class="ask-card">
+                <h3>建观察</h3>
+                <p>想让系统帮你记住复看条件时这样问。</p>
+                <code>帮我盯着 000021 周线关键位突破</code>
+                <code>如果 000021 失效提醒我</code>
+              </div>
+            </div>
+          </section>
+
+          <section class="section span-12" id="rhythm">
+            <div class="section-head">
+              <div>
+                <h2>每天怎么用</h2>
+                <p>使用频率不是越高越好。关键是在正确时间做正确动作。</p>
+              </div>
+              <span class="badge">每日节奏</span>
+            </div>
+            <div class="rhythm">
+              <div class="rhythm-card">
+                <span class="time">开盘前 3 分钟</span>
+                <h3>只看首页</h3>
+                <p>确认今天从哪条路进。如果系统提示局部机会优先，就不要先钻市场指数。</p>
+              </div>
+              <div class="rhythm-card">
+                <span class="time">盘中有线索</span>
+                <h3>进研究页</h3>
+                <p>输入股票代码，先看顶部裁决。如果只是“等条件”，不要马上下结论，创建观察。</p>
+              </div>
+              <div class="rhythm-card">
+                <span class="time">收盘后 5 分钟</span>
+                <h3>看观察账本</h3>
+                <p>处理触发、失效、过期对象。把值得复盘的判断沉淀下来，系统才会越来越贴近你的使用方式。</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="section span-12" id="feedback">
+            <div class="section-head">
+              <div>
+                <h2>如果不好用，直接这样反馈</h2>
+                <p>当前阶段根本目标是被使用并拿到反馈。不要只说“信息太多”，最好指出卡在哪一步。</p>
+              </div>
+              <span class="badge">反馈模板</span>
+            </div>
+            <div class="ask-grid">
+              <div class="ask-card">
+                <h3>入口问题</h3>
+                <p>不知道下一步点哪里、页面太多、导航不清楚。</p>
+                <code>我打开首页后不知道先点哪里。</code>
+              </div>
+              <div class="ask-card">
+                <h3>结论问题</h3>
+                <p>系统给了很多证据，但没有形成明确动作。</p>
+                <code>研究页看完还是不知道该继续、等待还是回避。</code>
+              </div>
+              <div class="ask-card">
+                <h3>观象问题</h3>
+                <p>回答不贴近你的真实问题、没给下一步、或不够像助手。</p>
+                <code>我问 000021，它没有告诉我下一步该做什么。</code>
+              </div>
+            </div>
+            <div class="hero-actions" style="margin-top:18px;">
+              <a class="btn primary" href="/feedback">提交反馈</a>
+              <a class="btn" href="javascript:void(0)" onclick="aiToggle()">打开观象</a>
+            </div>
+          </section>
+        </main>
+
+        <footer class="footer">
+          <div>
+            <strong>网站地址</strong>
+            <p>http://console.supertrader.world/guide</p>
+          </div>
+          <div>
+            <strong>一句话用法</strong>
+            <p>首页定路径，研究页下裁决，观察账本管复看，观象负责导航。</p>
+          </div>
+          <div>
+            <strong>当前策略</strong>
+            <p>全站浏览免登录。观象默认公开规则回答；专家增强入口按安全规则受保护。</p>
+          </div>
+        </footer>
+      </div>
+    </div>
+    {% include '_ai_assistant.html' %}
+  </body>
+</html>
