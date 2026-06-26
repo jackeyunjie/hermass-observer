@@ -56,6 +56,35 @@
       .brand h1 { margin: 0; font-size: 22px; letter-spacing: -0.03em; }
       .brand p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
       .date-wrap { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+      .subnav {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 12px 24px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(251, 252, 248, 0.82);
+        backdrop-filter: blur(14px);
+      }
+      .subnav a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 8px 12px;
+        border-radius: 999px;
+        text-decoration: none;
+        font-size: 12px;
+        color: var(--muted);
+        border: 1px solid transparent;
+        background: rgba(255,255,255,0.7);
+      }
+      .subnav a:hover {
+        border-color: var(--line);
+        color: var(--ink);
+      }
       .hero {
         display: grid;
         grid-template-columns: 1.12fr 0.88fr;
@@ -126,6 +155,29 @@
         font-size: 13px;
         color: var(--muted);
       }
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 22px;
+      }
+      .hero-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 11px 16px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.86);
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 700;
+      }
+      .hero-action.primary {
+        background: var(--green);
+        border-color: var(--green);
+        color: #fff;
+      }
       .hero-rules {
         margin-top: 28px;
         display: grid;
@@ -155,6 +207,26 @@
       }
       .hero-side h2 { margin: 0; font-size: 32px; letter-spacing: -0.04em; }
       .hero-side p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.7; }
+      .open-list {
+        display: grid;
+        gap: 10px;
+      }
+      .open-item {
+        padding: 12px 14px;
+        border-radius: 16px;
+        border: 1px solid rgba(21, 40, 34, 0.08);
+        background: rgba(255,255,255,0.82);
+      }
+      .open-item strong {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 13px;
+      }
+      .open-item code {
+        font-size: 12px;
+        color: var(--blue);
+        word-break: break-all;
+      }
       .route-rail {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -292,6 +364,57 @@
       .watch-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
       .watch-card { padding: 18px; border-radius: 18px; }
       .watch-card strong { display: block; font-size: 15px; margin-bottom: 8px; }
+      .mode-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+      .mode-card {
+        padding: 22px;
+        border-radius: 22px;
+        border: 1px solid var(--line);
+        background: rgba(255,255,255,0.84);
+      }
+      .mode-card h3 {
+        margin: 0 0 8px;
+        font-size: 28px;
+        letter-spacing: -0.04em;
+      }
+      .mode-card p,
+      .mode-card li {
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.7;
+      }
+      .mode-card ol {
+        margin: 16px 0 0;
+        padding-left: 20px;
+        display: grid;
+        gap: 10px;
+      }
+      .mode-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 16px;
+      }
+      .mode-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 10px 14px;
+        border-radius: 999px;
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 700;
+        border: 1px solid var(--line);
+        background: #fff;
+      }
+      .mode-link.primary {
+        background: var(--blue);
+        border-color: var(--blue);
+        color: #fff;
+      }
       .danger-table { width: 100%; border-collapse: collapse; }
       .danger-table th, .danger-table td {
         padding: 14px 10px;
@@ -330,7 +453,7 @@
       .footer-block strong { display: block; margin-bottom: 8px; font-size: 13px; }
       .footer-block p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
       @media (max-width: 1180px) {
-        .hero, .dual-framework, .verdict-grid, .playbook, .watch-strip, .footer { grid-template-columns: 1fr; }
+        .hero, .dual-framework, .verdict-grid, .playbook, .watch-strip, .footer, .mode-grid { grid-template-columns: 1fr; }
         .grid { grid-template-columns: 1fr; }
         .span-12, .span-7, .span-5 { grid-column: auto; }
         .route-rail, .hero-rules { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -362,6 +485,17 @@
             <span style="color:var(--muted);font-size:13px;">{{ today }}</span>
           </div>
         </header>
+        <div class="subnav">
+          <a href="#start-now">先开始</a>
+          <a href="#page-roles">页面分工</a>
+          <a href="#framework">双路径</a>
+          <a href="#how-to-research">研究页</a>
+          <a href="#when-to-watch">建观察</a>
+          <a href="#watchlist-howto">观察账本</a>
+          <a href="#daily-rhythm">每日节奏</a>
+          <a href="#how-to-ask-ai">怎么问观象</a>
+          <a href="#danger">避坑</a>
+        </div>
 
         <section class="hero" id="hero">
           <div class="hero-main">
@@ -375,6 +509,12 @@
               <div class="hero-pill">先看路径，不先看指标</div>
               <div class="hero-pill">裁决比材料更重要</div>
               <div class="hero-pill">观察账本负责驱动复访</div>
+            </div>
+            <div class="hero-actions">
+              <a class="hero-action primary" href="/">先去首页定路径</a>
+              <a class="hero-action" href="/market">直接看市场</a>
+              <a class="hero-action" href="/research">直接做个股裁决</a>
+              <a class="hero-action" href="/watchlist">回观察账本</a>
             </div>
             <div class="hero-rules">
               <div class="hero-rule">
@@ -412,10 +552,66 @@
               <span>更少的冲动交易</span>
               <span>更强的复利纪律</span>
             </div>
+            <div class="open-list">
+              <div class="open-item">
+                <strong>网站打开地址</strong>
+                <code>http://console.supertrader.world/playbook</code>
+              </div>
+              <div class="open-item">
+                <strong>首页入口</strong>
+                <code>http://console.supertrader.world/</code>
+              </div>
+              <div class="open-item">
+                <strong>研究页入口</strong>
+                <code>http://console.supertrader.world/research</code>
+              </div>
+              <div class="open-item">
+                <strong>观察账本入口</strong>
+                <code>http://console.supertrader.world/watchlist</code>
+              </div>
+            </div>
           </div>
         </section>
 
         <div class="grid">
+          <section class="section span-12" id="start-now">
+            <div class="section-header">
+              <div>
+                <h2>现在直接开始：新手模式 / 交易日模式</h2>
+                <p>如果你不想先读完整说明，就按下面两套起手法直接开工。区别不在知识多少，在于你今天是不是已经带着问题回来。</p>
+              </div>
+              <div class="badge">Start Here</div>
+            </div>
+            <div class="mode-grid">
+              <div class="mode-card">
+                <h3>新手模式</h3>
+                <p>第一次用，或者最近几天没打开过系统。目标不是找票，而是先建立顺序感。</p>
+                <ol>
+                  <li>先回首页，看“今天从哪条路进”。</li>
+                  <li>如果提示先看市场，就去 `/market`；如果提示先看局部，就去 `/recommend`。</li>
+                  <li>最后只挑 1-2 个对象进 `/research`，强制给出裁决，不要贪多。</li>
+                </ol>
+                <div class="mode-actions">
+                  <a class="mode-link primary" href="/">从首页开始</a>
+                  <a class="mode-link" href="/playbook#page-roles">先看页面分工</a>
+                </div>
+              </div>
+              <div class="mode-card">
+                <h3>交易日模式</h3>
+                <p>你已经在跟踪对象，或者今天盘中二次回来。目标不是重新浏览，而是快速回到动作。</p>
+                <ol>
+                  <li>优先打开 `/watchlist`，先处理“今天先看”或“刚触发”的对象。</li>
+                  <li>需要重新判断时，再跳回 `/research` 看裁决是否升级、降级或失效。</li>
+                  <li>只有当观察对象不够用时，才回 `/market` 或 `/recommend` 扩充样本。</li>
+                </ol>
+                <div class="mode-actions">
+                  <a class="mode-link primary" href="/watchlist">回观察账本</a>
+                  <a class="mode-link" href="/playbook#daily-rhythm">看每日节奏</a>
+                </div>
+              </div>
+            </div>
+          </section>
+
           <section class="section span-12" id="page-roles">
             <div class="section-header">
               <div>
