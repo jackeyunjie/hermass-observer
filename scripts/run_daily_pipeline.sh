@@ -130,6 +130,21 @@ else
     log " 行业景气度生成失败（非致命）"
 fi
 
+# ── Step 5.5: 生成全三 E/F 快照与行业轮动证据 ──
+log "Step 5.5/12: 生成全三 E/F 快照与行业轮动证据..."
+if "$VENV_DIR/bin/python" "$PRODUCT_DIR/scripts/export_daily_all_three_ef.py" \
+    --date "$DATE_STR" 2>&1 | tail -1; then
+    log " 全三 E/F 快照生成完成"
+    if "$VENV_DIR/bin/python" "$PRODUCT_DIR/recommendation/build_industry_rotation_evidence.py" \
+        --date "$DATE_STR" 2>&1 | tail -1; then
+        log " 行业轮动证据生成完成"
+    else
+        log " 行业轮动证据生成失败（非致命）"
+    fi
+else
+    log " 全三 E/F 快照生成失败（非致命），跳过行业轮动证据"
+fi
+
 # ── Step 6: 策略信号账本 ──
 log "Step 6/12: 构建策略信号账本..."
 if "$VENV_DIR/bin/python" "$PRODUCT_DIR/scripts/strategy_signal_ledger.py" \
@@ -184,6 +199,15 @@ else
     log " 每日预警跳过（非致命）"
 fi
 
+# ── Step 10.6: 生成每日研报简报 ──
+log "Step 10.6/12: 生成每日研报简报..."
+if "$VENV_DIR/bin/python" "$PRODUCT_DIR/scripts/daily_research_brief.py" \
+    --date "$DATE_STR" 2>&1 | tail -1; then
+    log " 每日研报简报生成完成"
+else
+    log " 每日研报简报生成失败（非致命）"
+fi
+
 # ── Step 11: 生成Excel并发送邮件 ──
 log "Step 11/12: 生成Excel并发送邮件..."
 export HERMASS_SMTP_USER="1300893414@qq.com"
@@ -200,8 +224,8 @@ fi
 log "Step 11.5/12: 飞书推送每日摘要..."
 LARK_CONFIG="$PRODUCT_DIR/config/platform/lark_app.yaml"
 if [ -f "$LARK_CONFIG" ]; then
-    # 尝试读取配置的 chat_id
-    CHAT_ID=$(grep -E '^\s*chat_id:' "$LARK_CONFIG" | head -1 | sed 's/.*chat_id:\s*"\?\([^"]*\)"\?.*/\1/')
+    # 尝试读取配置的 chat_id（兼容带引号与不带引号格式）
+    CHAT_ID=$(grep -E '^\s*chat_id:' "$LARK_CONFIG" | head -1 | sed -n 's/.*chat_id:[[:space:]]*"\{0,1\}\([^"]*\)"\{0,1\}.*/\1/p')
     if [ -n "$CHAT_ID" ] && [ "$CHAT_ID" != "oc_xxx" ]; then
         # 构建简洁的每日摘要
         SUMMARY="Hermass Observer 每日流水线完成 - ${DATE_STR}
@@ -214,7 +238,7 @@ Foundation DB: ${FOUNDATION_DB}
 @Bot 市场怎么样  — 查看市场分析
 @Bot 板块共振    — 查看板块信号"
 
-        if lark-cli im +messages-send --chat-id "$CHAT_ID" --text "$SUMMARY" 2>&1 | tail -1; then
+        if lark-cli im +messages-send --as bot --chat-id "$CHAT_ID" --text "$SUMMARY" 2>&1 | tail -1; then
             log " 飞书推送完成"
         else
             log " 飞书推送失败（非致命）"
