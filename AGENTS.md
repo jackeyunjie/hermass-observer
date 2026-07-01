@@ -298,7 +298,7 @@ State Cube 一行/一组候选
 
 | 组件 | 路径 | 状态 |
 |------|------|------|
-| State Cube 构建 | `scripts/build_state_cube.py` | 已完成 MVP |
+| State Cube 构建 | `scripts/build_state_cube.py` | 已加入 `config/hermes_cron.json`，每个交易日 15:32 自动刷新 |
 | State Cube 数据 | `outputs/state_cube/state_cube.duckdb` | 718 万行 × 25 字段，约 767MB |
 | Agent 辩论 | `scripts/agent_debate_runner.py` | 已接入 State Cube，每日运行 |
 | 动态权重路由 | `scripts/dynamic_weight_router.py` | 已产出市场级 verdict |
@@ -428,6 +428,11 @@ future_r5, future_r20
    - run_recommendation_workflow.py --date YYYY-MM-DD
    - build_stock_percentiles.py --date YYYY-MM-DD
    - rebuild_bb_pivot_atr.py --date YYYY-MM-DD
+   - build_state_cube.py --foundation outputs/p116_foundation_YYYYMMDD/p116_foundation.duckdb --output outputs/state_cube/state_cube.duckdb
+   - agent_debate_runner.py --date YYYY-MM-DD --top-n 50
+   - dynamic_weight_router.py --date YYYY-MM-DD
+   - decision_observation_ledger.py --date YYYY-MM-DD
+   - build_chain_studio.py && build_chain_event_cross.py && chain_propagation_analyzer.py --date YYYY-MM-DD && chain_rrg_calculator.py --date YYYY-MM-DD && build_chain_fund_manager_assistant.py --date YYYY-MM-DD
    - build_daily_snapshot.py --date YYYY-MM-DD
    - send_daily_hermass_digest_to_lark.py --date YYYY-MM-DD（推送群消息 + 同步决策观察账本到飞书 Base）
 4. Kimi 只上传产物 JSON/CSV 到服务器 outputs/ 对应目录

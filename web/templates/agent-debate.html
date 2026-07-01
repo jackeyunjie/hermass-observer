@@ -106,16 +106,7 @@
         <h1>Agent 辩论</h1>
       </div>
       <div class="date">
-        <a href="/">首页</a>
-        <a href="/market">市场</a>
-        <a href="/industry">行业</a>
-        <a href="/chain-studio">产业链工作台</a>
-        <a href="/research">研究</a>
-        <a href="/watchlist">模拟跟踪</a>
-        <a href="/backtest">回测</a>
-        <a href="/agent-debate" class="active">Agent 辩论</a>
-        <a href="/mystrategies">策略工坊</a>
-        <a href="javascript:void(0)" class="nav-ai" onclick="aiToggle()">观象</a>
+        {% set nav_active = 'toolbox' %}{% include '_top_nav.html' %}
         <span>{{ today }}</span>
       </div>
     </header>

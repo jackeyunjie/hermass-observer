@@ -13,14 +13,7 @@
         <h1>行业观察</h1>
       </div>
       <div class="date">
-        <a href="/?mode=direction">首页</a>
-        <a href="/market">市场</a>
-        <a href="/industry" class="active">行业</a>
-        <a href="/chain-studio">产业链工作台</a>
-        <a href="/research">研究</a>
-        <a href="/watchlist">执行</a>
-        <a href="/backtest">回测</a>
-        <a href="javascript:void(0)" class="nav-ai" onclick="aiToggle()">观象</a>
+        {% set nav_active = 'market' %}{% include '_top_nav.html' %}
         <span>数据 {{ industry.date }}</span>
       </div>
     </header>

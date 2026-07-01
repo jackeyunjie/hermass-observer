@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>P116 推荐工作台</title>
+    <title>机会池</title>
     <link rel="stylesheet" href="/static/style.css" />
     <style>
       .kpi-grid {
@@ -130,23 +130,22 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">Hermass 多周期观察</p>
-        <h1>P116 推荐工作台</h1>
+        <h1>机会池</h1>
       </div>
       <div class="date">
-        <a href="/">首页</a>
-        <a href="/market">市场</a>
-        <a href="/industry">行业</a>
-        <a href="/chain-studio">产业链工作台</a>
-        <a href="/recommend" class="active">推荐工作台</a>
-        <a href="/research">研究</a>
-        <a href="/watchlist">模拟跟踪</a>
-        <a href="/backtest">回测</a>
-        <a href="/agent-debate">Agent 辩论</a>
-        <a href="javascript:void(0)" class="nav-ai" onclick="aiToggle()">观象</a>
+        {% set nav_active = 'opportunity' %}{% include '_top_nav.html' %}
       </div>
     </header>
 
     <main class="layout">
+      <section class="panel span-2 hero-panel">
+        <div class="panel-head">
+          <h2>先决定动谁</h2>
+          <span>候选 → 观察 → 复核</span>
+        </div>
+        <p class="hero-copy">先看组合候选是否集中在少数方向，再把高一致性标的加入观察账本；不确定的标的先点进研究页看证据。</p>
+      </section>
+
       <section class="panel span-2">
         <div class="notice-bar" id="notice"></div>
         <div class="kpi-grid" id="kpis"></div>

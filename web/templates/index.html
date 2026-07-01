@@ -344,7 +344,7 @@
           </div>
         </div>
         <div class="hero-ai-chips">
-          <button class="btn btn-sm" onclick="heroAskChip('今天更适合先缩圈还是先追局部？只给结论')">走哪条路</button>
+          <button class="btn btn-sm" onclick="heroAskChip('今天更适合先缩圈还是先追局部？只给结论')">定路径</button>
           <button class="btn btn-sm" onclick="aiToggle()">问个股</button>
           <button class="btn btn-sm" onclick="aiAsk('带我走一遍赚钱六步法')">赚钱秘籍</button>
         </div>
@@ -354,7 +354,7 @@
       <section class="panel span-2">
         <div class="route-grid">
           <div class="route-main">
-            <span class="route-kicker">今天从哪条路进 ← 赚钱秘籍第一步：先走对路</span>
+            <span class="route-kicker">今天从哪条路径进 ← 赚钱秘籍第一步：先定入口</span>
             <div class="route-title">{{ observation_brief.decision.routing_label }}</div>
             <div class="route-copy">{{ observation_brief.decision.next_step }}</div>
             <div class="route-actions">
@@ -374,7 +374,7 @@
             <div class="route-note">
               <div class="route-note-label">当前姿态</div>
               <div class="route-note-value">{{ observation_brief.decision.label }}</div>
-              <div class="route-note-copy">市场不是开关，是地图。决定了从哪条路进。</div>
+              <div class="route-note-copy">市场不是开关，是地图。决定了今天从哪里开始看。</div>
             </div>
             <div class="route-note">
               <div class="route-note-label">今天的关注池</div>
@@ -417,7 +417,7 @@
             <div class="entry-icon debate">💬</div>
             <div>
               <div class="entry-label">问观象</div>
-              <div class="entry-desc">让观象直接告诉你今天该走哪条路</div>
+              <div class="entry-desc">让观象直接告诉你今天该从哪里开始</div>
             </div>
           </a>
           <a class="entry-item" href="/guide">

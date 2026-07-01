@@ -61,8 +61,15 @@ def upload_file(path: Path, upload_type: str, date: str, content_type: str, time
     raw_size = path.stat().st_size
     print(f"上传 {upload_type} ({raw_size / 1024:.1f} KB)...")
     raw_bytes = path.read_bytes()
-    # 对 JSON/CSV 大文件自动 gzip 压缩，绕过 Nginx 1MB 默认请求体限制
-    if raw_size > 512 * 1024 and content_type in ("application/json", "text/csv"):
+    # 对 JSON/CSV 大文件以及 DuckDB 数据库自动 gzip 压缩，绕过 Nginx 请求体限制
+    # DuckDB 文件通常可大幅压缩（例如 20MB -> 460KB），必须压缩后再上传
+    should_compress = (
+        raw_size > 512 * 1024
+        and content_type in ("application/json", "text/csv")
+    ) or (
+        path.suffix == ".duckdb" and raw_size > 128 * 1024
+    )
+    if should_compress:
         compressed = gzip.compress(raw_bytes, compresslevel=6)
         if len(compressed) < raw_size:
             file_payload = (path.name + ".gz", compressed, "application/gzip")

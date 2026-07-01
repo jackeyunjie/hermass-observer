@@ -38,14 +38,7 @@
     <h1>研究观察</h1>
   </div>
   <div class="date">
-    <a href="/">首页</a>
-    <a href="/market">市场</a>
-    <a href="/industry">行业</a>
-    <a href="/chain-studio">产业链工作台</a>
-    <a href="/research">研究</a>
-    <a href="/watchlist">执行</a>
-    <a href="/backtest">回测</a>
-    <a href="/2560-sr-observation" class="active">2560 SR</a>
+    {% set nav_active = 'research' %}{% include '_top_nav.html' %}
     <span>数据 {{ report.observation_date }}</span>
   </div>
 </header>

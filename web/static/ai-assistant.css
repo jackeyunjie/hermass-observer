@@ -399,6 +399,40 @@
   color: var(--good);
 }
 
+.ai-feedback-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(220, 226, 223, 0.86);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.ai-feedback-bar button {
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ai-feedback-bar button:hover {
+  border-color: var(--good);
+  color: var(--good);
+}
+
+.ai-feedback-bar em {
+  color: var(--good);
+  font-style: normal;
+  font-weight: 700;
+}
+
 .ai-input-area {
   display: flex;
   gap: 8px;

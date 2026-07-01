@@ -1629,6 +1629,54 @@ code {
   color: var(--muted);
   font-weight: 400;
 }
+/* 赚钱秘籍三步进度条 */
+.step-bar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 12px;
+}
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0.4;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+.step-item.active {
+  opacity: 1;
+}
+.step-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--line);
+  flex-shrink: 0;
+}
+.step-item.active .step-dot {
+  background: var(--good);
+}
+.step-label {
+  font-weight: 700;
+}
+.step-connector {
+  flex: 1;
+  height: 2px;
+  min-width: 16px;
+  margin: 0 8px;
+  background: var(--line);
+  border-radius: 1px;
+  transition: background 0.15s;
+}
+.step-connector.active {
+  background: var(--good);
+}
 .topbar .date a.active {
   color: var(--good);
   font-weight: 700;

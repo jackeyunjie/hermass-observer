@@ -5707,16 +5707,36 @@ def _llm_chat_answer(query: ChatQuery) -> dict[str, Any] | None:
             context["stock_states"] = {}
 
     # ── 统一入口：转发到 agently 场景化多 Agent 链 ──────────────────────────
+    result = None
     if handle is not None:
         result = handle(query.message, context)
-        if result is not None:
-            return result
+    if result is None:
+        try:
+            from agently_adapter.workflow_bridge import call_workflow
+            result = call_workflow(query.message, context)
+        except Exception:
+            result = None
+    return _normalize_chat_result(result)
 
-    try:
-        from agently_adapter.workflow_bridge import call_workflow
-        return call_workflow(query.message, context)
-    except Exception:
-        return None
+
+def _normalize_chat_result(result: dict[str, Any] | None) -> dict[str, Any] | None:
+    """确保 LLM / workflow 返回符合前端 JSON 合同：字符串字段必须是字符串。"""
+    if not isinstance(result, dict):
+        return result
+    string_fields = ["answer", "why", "multi_cycle_view", "single_cycle_position", "avoid", "freshness_note"]
+    for field in string_fields:
+        value = result.get(field)
+        if value is None:
+            result[field] = ""
+        elif isinstance(value, list):
+            result[field] = "\n".join(str(v) for v in value)
+        elif not isinstance(value, str):
+            result[field] = str(value)
+    if not isinstance(result.get("next_actions"), list):
+        result["next_actions"] = []
+    if not isinstance(result.get("sources"), list):
+        result["sources"] = []
+    return result
 
 
 def _value_context_for_agent(symbol: str) -> dict[str, Any]:
@@ -7030,6 +7050,11 @@ async def admin_upload_data(
         dest_dir = dest_dir / "strategy_signals"
         dest_dir.mkdir(parents=True, exist_ok=True)
         dest_path = dest_dir / f"strategy_signal_daily_{date}.json"
+    elif type == "industry_chain":
+        # 产业链证据库 DuckDB（通常 gzip 压缩后上传，服务器解压后写入）
+        dest_dir = dest_dir / "industry_chain"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest_path = dest_dir / "industry_chain_evidence.duckdb"
     elif type == "foundation_delta":
         if not date:
             return JSONResponse(content={"ok": False, "error": "missing date"}, status_code=400)

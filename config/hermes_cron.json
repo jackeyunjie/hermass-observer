@@ -58,6 +58,13 @@
       "delivery": "terminal"
     },
     {
+      "name": "实时事件源状态快照",
+      "schedule": "3 */1 * * *",
+      "command": "cd /Users/lv111101/Documents/hermass-observer-product && (.venv/bin/python scripts/fetch_us_market_realtime_sources.py || true) && .venv/bin/python scripts/build_realtime_event_snapshot.py",
+      "description": "每小时尝试更新隔夜美股/跨资产观察并生成宏观/海外/地缘事件回答的实时源覆盖快照；外部源失败时保守保留缺口",
+      "delivery": "terminal"
+    },
+    {
       "name": "Agent 互评交叉校验",
       "schedule": "30 15 * * 1-5",
       "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python scripts/agent_cross_review.py --date $(date +%Y-%m-%d)",
@@ -76,6 +83,13 @@
       "schedule": "45 15 * * 1-5",
       "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python scripts/build_human_review_alignment.py --date $(date +%Y-%m-%d)",
       "description": "每个交易日 15:45 生成当天人机对齐复盘 Markdown，供人工确认并同步 Obsidian",
+      "delivery": "terminal"
+    },
+    {
+      "name": "State Cube 增量刷新",
+      "schedule": "32 15 * * 1-5",
+      "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python scripts/build_state_cube.py --foundation $(ls -t outputs/p116_foundation_*/p116_foundation.duckdb | head -1) --output outputs/state_cube/state_cube.duckdb --min-date 2020-01-01",
+      "description": "每个交易日 15:32 用最新 Foundation DB 增量刷新 State Cube",
       "delivery": "terminal"
     },
     {
@@ -100,6 +114,13 @@
       "delivery": "terminal"
     },
     {
+      "name": "产业链数据日更",
+      "schedule": "36 15 * * 1-5",
+      "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python scripts/build_chain_studio.py && .venv/bin/python scripts/build_chain_event_cross.py && .venv/bin/python scripts/chain_propagation_analyzer.py --date $(date +%Y-%m-%d) && .venv/bin/python scripts/chain_rrg_calculator.py --date $(date +%Y-%m-%d) && .venv/bin/python scripts/build_chain_fund_manager_assistant.py --date $(date +%Y-%m-%d)",
+      "description": "每个交易日 15:36 刷新产业链工作台数据（studio/event/propagation/RRG/候选池）",
+      "delivery": "terminal"
+    },
+    {
       "name": "产业链 Agent 辩论",
       "schedule": "38 15 * * 1-5",
       "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python scripts/chain_debate_runner.py --date $(date +%Y-%m-%d)",
@@ -112,6 +133,13 @@
       "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python scripts/chain_review_backfill.py --date $(date +%Y-%m-%d) --horizon 5 && .venv/bin/python scripts/chain_review_backfill.py --date $(date +%Y-%m-%d) --horizon 20",
       "description": "每个交易日 15:45 执行产业链 5 日和 20 日 outcome 回填",
       "delivery": "terminal"
+    },
+    {
+      "name": "每日复盘飞书群+Base同步",
+      "schedule": "46 15 * * 1-5",
+      "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python scripts/send_daily_hermass_digest_to_lark.py --date $(date +%Y-%m-%d)",
+      "description": "每个交易日 15:46 推送每日复盘群消息，并将市场级/TopN 个股判断同步到飞书 Base",
+      "delivery": "lark"
     },
     {
       "name": "对话导出到 Obsidian 知识库",

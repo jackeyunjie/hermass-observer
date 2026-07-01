@@ -113,7 +113,7 @@ def call_with_tools(
                 (instruct or DEFAULT_INSTRUCT)
                 + "\n\n结构化输入：\n"
                 + json.dumps(payload, ensure_ascii=False, indent=2, default=str)
-                + "\n\n输出必须是 JSON，字段至少包含 answer/why/avoid/next_actions/sources/freshness_note。"
+                + "\n\n输出必须是 JSON，字段至少包含 answer/why/multi_cycle_view/single_cycle_position/avoid/next_actions/sources/freshness_note。"
             ),
         },
     ]

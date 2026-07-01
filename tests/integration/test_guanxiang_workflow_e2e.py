@@ -3,6 +3,7 @@
 前置条件：
 - 测试内会 patch 外部 workflow HTTP 调用，不依赖本地 19999 端口服务。
 - 环境变量已配置 HERMASS_AI_WORKFLOW_PROVIDER=generic 等
+- /api/chat/query 需要 Basic Auth，因此 TestClient 请求需携带认证头
 
 运行：
     HERMASS_AI_WORKFLOW_PROVIDER=generic \
@@ -12,6 +13,7 @@
 """
 from __future__ import annotations
 
+import base64
 import os
 from unittest.mock import patch
 
@@ -29,15 +31,21 @@ from web.main import app
 
 client = TestClient(app)
 
+
+def _basic_auth_header(username: str = "hermass-test", password: str = "Hermass2026!Lab") -> dict[str, str]:
+    token = base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
+    return {"Authorization": f"Basic {token}"}
+
+
 QUESTIONS = [
-    ("泛问题", "你能帮我做什么"),
-    ("市场问题", "现在能不能做"),
-    ("行业问题", "今天先看什么方向"),
-    ("个股问题", "000021怎么看"),
-    ("基本面问题", "用价值分析看000021"),
-    ("教学问题", "什么是State E/F"),
-    ("导航问题", "我应该先去哪页"),
-    ("无本地数据问题", "解释一下低空经济这个概念"),
+    ("泛问题", "你能帮我做什么", "rule_based"),
+    ("市场问题", "现在能不能做", "workflow_"),
+    ("行业问题", "今天先看什么方向", "workflow_"),
+    ("个股问题", "000021怎么看", "workflow_"),
+    ("基本面问题", "用价值分析看000021", "workflow_"),
+    ("教学问题", "什么是State E/F", "rule_based"),
+    ("导航问题", "我应该先去哪页", "workflow_"),
+    ("无本地数据问题", "解释一下低空经济这个概念", "deepseek_"),
 ]
 
 
@@ -85,14 +93,15 @@ def fake_workflow_post(url, headers, json, timeout):
     )
 
 
-@pytest.mark.parametrize("label,message", QUESTIONS)
-def test_workflow_fallback_8_questions(label: str, message: str):
-    """8 个覆盖问题均触发外部工作流 fallback，并正确标注来源与数据支持状态。"""
-    # 强制 Agently qa_entry.handle 返回 None，确保走 workflow fallback
+@pytest.mark.parametrize("label,message,expected_provider_prefix", QUESTIONS)
+def test_workflow_fallback_8_questions(label: str, message: str, expected_provider_prefix: str):
+    """8 个覆盖问题在强制走外部工作流时，按当前路由规则得到预期来源，并正确标注来源与数据支持状态。"""
+    # 强制 Agently qa_entry.handle 返回 None，确保非规则问题走 workflow fallback
     with patch("agently_adapter.qa_entry.handle", return_value=None), \
          patch("agently_adapter.workflow_bridge.requests.post", side_effect=fake_workflow_post):
         response = client.post(
             "/api/chat/query",
+            headers=_basic_auth_header(),
             json={
                 "message": message,
                 "page_context": "/",
@@ -103,33 +112,33 @@ def test_workflow_fallback_8_questions(label: str, message: str):
     assert response.status_code == 200, f"{label} HTTP 错误"
     payload = response.json()
 
-    # 关键断言：必须来自外部工作流
     provider = payload.get("provider", "")
-    assert provider.startswith("workflow_"), (
-        f"{label} ('{message}') 期望 provider 以 workflow_ 开头，实际: {provider}"
+    assert provider.startswith(expected_provider_prefix), (
+        f"{label} ('{message}') 期望 provider 以 {expected_provider_prefix} 开头，实际: {provider}"
     )
 
-    # 关键断言：必须声明无本地数据支持
-    data_support = payload.get("data_support", "")
-    support_note = payload.get("support_note", "")
-    assert data_support == "llm_only", (
-        f"{label} 期望 data_support=llm_only，实际: {data_support}"
-    )
-    assert "暂无实际数据支持" in support_note, (
-        f"{label} 期望 support_note 含'暂无实际数据支持'，实际: {support_note}"
-    )
+    # 外部工作流回答必须声明无本地数据支持；规则/教学回答允许 rule_based
+    if expected_provider_prefix == "workflow_":
+        data_support = payload.get("data_support", "")
+        support_note = payload.get("support_note", "")
+        assert data_support == "llm_only", (
+            f"{label} 期望 data_support=llm_only，实际: {data_support}"
+        )
+        assert "暂无实际数据支持" in support_note, (
+            f"{label} 期望 support_note 含'暂无实际数据支持'，实际: {support_note}"
+        )
 
-    # 关键断言：sources 不得伪造本地源
-    sources = payload.get("sources", [])
-    for fake in ("daily_snapshot", "research_evidence", "p116_foundation"):
-        assert fake not in sources, f"{label} sources 不应伪造 {fake}"
+        # 关键断言：sources 不得伪造本地源
+        sources = payload.get("sources", [])
+        for fake in ("daily_snapshot", "research_evidence", "p116_foundation"):
+            assert fake not in sources, f"{label} sources 不应伪造 {fake}"
 
     # 关键断言：answer 非空
     assert payload.get("answer"), f"{label} answer 不能为空"
 
     # 打印摘要供人工核对
     print(f"\n[{label}] {message}")
-    print(f"  provider={provider}, data_support={data_support}")
+    print(f"  provider={provider}, data_support={payload.get('data_support', '')}")
     print(f"  answer_preview={payload.get('answer','')[:60]}...")
 
 

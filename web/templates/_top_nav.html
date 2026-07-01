@@ -1,7 +1,7 @@
 <div class="step-bar" id="hermass-step-bar">
-  <div class="step-item {% if request.url.path in ('/', '/market', '/recommend') %}active{% endif %}" data-step="walk">
+  <div class="step-item {% if request.url.path in ('/', '/market', '/recommend') %}active{% endif %}" data-step="route">
     <span class="step-dot"></span>
-    <span class="step-label">第一步：走路</span>
+    <span class="step-label">第一步：定路径</span>
   </div>
   <div class="step-connector {% if request.url.path in ('/research', '/watchlist', '/recommend') %}active{% endif %}"></div>
   <div class="step-item {% if request.url.path == '/research' %}active{% endif %}" data-step="verdict">
@@ -20,7 +20,7 @@
 <a href="/research" {% if nav_active == 'research' %}class="active"{% endif %}>研究</a>
 <a href="javascript:void(0)" class="nav-ai" onclick="aiToggle()">观象</a>
 <span class="toolbox-wrap">
-  <a href="javascript:void(0)" class="nav-toolbox" onclick="var m=this.nextElementSibling;m.style.display=m.style.display==='block'?'none':'block'">工具箱 ▾</a>
+  <a href="javascript:void(0)" class="nav-toolbox {% if nav_active in ('toolbox', 'feedback') %}active{% endif %}" onclick="var m=this.nextElementSibling;m.style.display=m.style.display==='block'?'none':'block'">工具箱 ▾</a>
   <div class="toolbox-menu" style="display:none">
     <a href="/guide">使用说明</a>
     <a href="/playbook">赚钱秘籍</a>

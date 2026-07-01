@@ -5,6 +5,74 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Hermass 多周期市场观察</title>
     <link rel="stylesheet" href="/static/style.css" />
+    <style>
+      .verdict-hero {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        margin-bottom: 16px;
+      }
+      .verdict-card {
+        padding: 20px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: #fff;
+      }
+      .verdict-card.bullish { border-left: 4px solid var(--good); background: linear-gradient(135deg, rgba(14,124,102,0.05), #fff); }
+      .verdict-card.bearish { border-left: 4px solid var(--bad); background: linear-gradient(135deg, rgba(184,74,58,0.05), #fff); }
+      .verdict-card.caution { border-left: 4px solid var(--accent); background: linear-gradient(135deg, rgba(217,138,26,0.05), #fff); }
+      .verdict-card.neutral { border-left: 4px solid #5a6f8a; }
+      .verdict-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px; }
+      .verdict-big { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
+      .verdict-sub { font-size: 13px; color: var(--muted); line-height: 1.5; }
+      .pulse-strip {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+      .pulse-item {
+        padding: 14px 16px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        text-align: center;
+      }
+      .pulse-val { font-size: 22px; font-weight: 800; }
+      .pulse-val.green { color: var(--good); }
+      .pulse-val.red { color: var(--bad); }
+      .pulse-val.amber { color: var(--accent); }
+      .pulse-val.blue { color: #2563eb; }
+      .pulse-label { font-size: 12px; color: var(--muted); margin-top: 2px; }
+      .pulse-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+      .agent-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+      .agent-card {
+        padding: 14px 16px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+      }
+      .agent-name { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+      .agent-role { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+      .agent-verdict {
+        display: inline-block;
+        padding: 3px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 700;
+        color: #fff;
+      }
+      @media (max-width: 860px) {
+        .verdict-hero { grid-template-columns: 1fr; }
+        .pulse-strip { grid-template-columns: repeat(2, 1fr); }
+        .agent-grid { grid-template-columns: 1fr 1fr; }
+      }
+    </style>
   </head>
   <body>
     <header class="topbar">
@@ -13,38 +81,86 @@
         <h1>市场观察</h1>
       </div>
       <div class="date">
-        <a href="/?mode=direction">首页</a>
-        <a href="/market" class="active">市场</a>
-        <a href="/industry">行业</a>
-        <a href="/chain-studio">产业链工作台</a>
-        <a href="/research">研究</a>
-        <a href="/watchlist">执行</a>
-        <a href="/backtest">回测</a>
-        <a href="javascript:void(0)" class="nav-ai" onclick="aiToggle()">观象</a>
+        {% set nav_active = 'market' %}{% include '_top_nav.html' %}
         <span>数据 {{ market.presentation.data_date }}</span>
       </div>
     </header>
 
     <main class="layout">
-      <section class="panel span-2 hero-panel">
-        <div class="panel-head">
-          <h2>{{ market.presentation.title }}</h2>
-          <span>{{ market.presentation.status }} / 页面 {{ market.presentation.page_date }}</span>
+      {% set ac = market.agent_consensus %}
+      {% set tier = (ac.pulse.market_tier if ac.available else 'neutral') if ac else 'neutral' %}
+      {% set pulse = ac.pulse if ac and ac.available else {} %}
+
+      {# ── 1. 市场裁决 Hero ── #}
+      <section class="panel span-2">
+        <div class="verdict-hero">
+          <div class="verdict-card {{ tier }}">
+            <div class="verdict-label">市场结论</div>
+            <div class="verdict-big">{{ market.presentation.title }}</div>
+            <div class="verdict-sub">
+              {% if ac and ac.available %}
+                {{ ac.market_label }} · {{ ac.consensus }} · EF≥2 标的 {{ pulse.ef2_count }} 只 · D1 动量 {{ pulse.d1_bull_pct }}%
+              {% else %}
+                {{ market.stance }}
+              {% endif %}
+            </div>
+          </div>
+          <div class="verdict-card">
+            <div class="verdict-label">当前建议</div>
+            <div class="verdict-big">{{ market.focus_now[:40] }}</div>
+            <div class="verdict-sub">数据截至 {{ market.presentation.data_date }}{% if ac and ac.available %} · Agent 辩论 {{ ac.state_date }}{% endif %}</div>
+          </div>
         </div>
-        <p class="hero-copy">{{ market.presentation.summary }}</p>
-        <p class="hero-note">
-          当前数据日期：{{ market.presentation.data_date }}。先看能不能用，再决定是否下钻行业和个股。
-        </p>
-        <p class="hero-note">{{ market.presentation.action }}</p>
       </section>
 
-      <section class="panel span-2 warning-panel">
+      {# ── 2. 市场脉搏 ── #}
+      {% if ac and ac.available %}
+      <section class="panel span-2">
         <div class="panel-head">
-          <h2>策略使用风险</h2>
-          <span>先看大节奏，再决定策略权重</span>
+          <h2>市场脉搏</h2>
+          <span>State Cube · Agent 辩论 · 全市场快照</span>
         </div>
-        <p class="hero-note">{{ market.strategy_risk_banner }}</p>
+        <div class="pulse-strip">
+          <div class="pulse-item">
+            <div class="pulse-val {% if pulse.ef2_pct >= 15 %}green{% elif pulse.ef2_pct >= 8 %}amber{% else %}red{% endif %}">{{ pulse.ef2_pct }}%</div>
+            <div class="pulse-label">EF≥2 宽度</div>
+            <div class="pulse-sub">{{ pulse.ef2_count }} / {{ pulse.ef3_count }} EF3</div>
+          </div>
+          <div class="pulse-item">
+            <div class="pulse-val {% if pulse.d1_bull_pct >= 55 %}green{% elif pulse.d1_bull_pct >= 40 %}amber{% else %}red{% endif %}">{{ pulse.d1_bull_pct }}%</div>
+            <div class="pulse-label">D1 动量偏多</div>
+            <div class="pulse-sub">W1 {{ pulse.w1_bull_pct }}% · ADX D1 {{ pulse.avg_d1_adx }} W1 {{ pulse.avg_w1_adx }}</div>
+          </div>
+          <div class="pulse-item">
+            <div class="pulse-val blue">{{ pulse.avg_atr_pct }}%</div>
+            <div class="pulse-label">平均波动率</div>
+            <div class="pulse-sub">强势动量 {{ pulse.strong_momentum }} 只</div>
+          </div>
+          <div class="pulse-item">
+            <div class="pulse-val {% if pulse.fake_breakout > 200 %}red{% elif pulse.fake_breakout > 100 %}amber{% else %}green{% endif %}">{{ pulse.fake_breakout }}</div>
+            <div class="pulse-label">假突破风险</div>
+            <div class="pulse-sub">反向动量 {{ pulse.bearish_div }} 只</div>
+          </div>
+        </div>
       </section>
+
+      {# ── 3. Agent 共识 ── #}
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>Agent 共识</h2>
+          <span>{{ ac.consensus }} · 6 个 Agent 对当前市场环境的独立判断</span>
+        </div>
+        <div class="agent-grid">
+          {% for op in ac.opinions %}
+          <div class="agent-card">
+            <div class="agent-name">{{ op.agent }}</div>
+            <div class="agent-role">{{ op.role }}</div>
+            <span class="agent-verdict" style="background:{{ op.color }};">{{ op.verdict }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
 
       {% if market.stale_rows %}
       <section class="panel span-2 warning-panel">
@@ -57,6 +173,16 @@
             <li>{{ row.message }}</li>
           {% endfor %}
         </ul>
+      </section>
+      {% endif %}
+
+      {% if ac and ac.freshness and ac.freshness.status != 'ok' %}
+      <section class="panel span-2 warning-panel">
+        <div class="panel-head">
+          <h2>Agent 辩论提示</h2>
+          <span>旧辩论不会冒充当天市场结论</span>
+        </div>
+        <p class="hero-note">{{ ac.freshness.message }}</p>
       </section>
       {% endif %}
 

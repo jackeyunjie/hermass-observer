@@ -62,21 +62,21 @@
       </div>
       <div class="ai-body" id="ai-body">
         <div class="ai-welcome" id="ai-welcome">
-          <div class="ai-welcome-kicker">今日研究流</div>
-          <h4>先问结论，再看证据。</h4>
-          <p id="ai-hint-text">我会先告诉你今天该走哪条路，再帮你判断这只票要不要继续看，最后把判断变成观察任务。页面浏览默认免登录。</p>
+          <div class="ai-welcome-kicker">高维研判入口</div>
+          <h4>问判断、冲突、反证和下一步。</h4>
+          <p id="ai-hint-text">不必照着固定问题问。你可以直接描述困惑，我会先抽象成环境、方向、对象或执行问题，再给出证据路径和风险边界。</p>
           <div class="ai-capability-grid">
-            <button type="button" onclick="aiAsk('今天更适合自上而下还是自下而上？给我结论和下一步')">
-              <b>路径路由</b><span>先走哪条路</span>
+            <button type="button" onclick="aiAsk('把今天的市场问题抽象成一个判断框架：关键变量、反证条件、下一步验证')">
+              <b>抽象框架</b><span>把问题提炼清楚</span>
             </button>
-            <button type="button" onclick="aiAsk('今天机会池里先看哪类标的？按一致性和风险排序')">
-              <b>机会排序</b><span>动谁更合理</span>
+            <button type="button" onclick="aiAsk('当前最值得关注的矛盾是什么？哪些证据支持，哪些证据反对？')">
+              <b>冲突识别</b><span>看支持与反对</span>
             </button>
-            <button type="button" onclick="aiAsk('帮我分析 000021 当前是可继续、等条件还是暂不继续，只给结论和下一步')">
-              <b>个股裁决</b><span>要不要继续看</span>
+            <button type="button" onclick="aiAsk('帮我分析 000021：先给高维判断，再拆成结构、风险、后验验证')">
+              <b>深度拆解</b><span>结构、风险、后验</span>
             </button>
-            <button type="button" onclick="aiSetMode('agent');aiAsk('盯 000021，突破周线关键位提醒我，邮箱 test@example.com')">
-              <b>任务委托</b><span>盯盘与提醒</span>
+            <button type="button" onclick="aiAsk('如果这个判断是错的，最可能错在哪里？我该怎么验证？')">
+              <b>反证推演</b><span>先找哪里会错</span>
             </button>
           </div>
         </div>
@@ -85,15 +85,15 @@
           <span id="ai-ctx-text">跟踪中：000021.SZ</span>
         </div>
         <div class="ai-quick" id="ai-quick">
-          <button onclick="aiAsk('今天更适合自上而下还是自下而上？只给结论和下一步')">走哪条路</button>
-          <button onclick="aiAsk('今天先看什么方向？按市场、行业、机会三层说')">看什么方向</button>
-          <button onclick="aiAsk('帮我看 000021：可继续、等条件还是暂不继续')">分析个股</button>
-          <button onclick="aiAsk('我现在在哪一步？下一步该点哪里')">下一步去哪</button>
+          <button onclick="aiAsk('提炼当前核心矛盾')">提炼矛盾</button>
+          <button onclick="aiAsk('给我反证条件')">反证条件</button>
+          <button onclick="aiAsk('用后验思维复盘这个判断')">后验复盘</button>
+          <button onclick="aiAsk('我现在在哪一步？下一步该点哪里')">流程定位</button>
         </div>
         <div class="ai-messages" id="ai-messages"></div>
       </div>
       <div class="ai-input-area">
-        <input type="text" id="ai-input" placeholder="输入问题…" onkeydown="if(event.key==='Enter')aiSend()" />
+        <input type="text" id="ai-input" placeholder="问判断、冲突、反证、后验…" onkeydown="if(event.key==='Enter')aiSend()" />
         <button onclick="aiSend()">发送</button>
       </div>
     </div>
@@ -109,6 +109,7 @@
         var aiSession = { session_id: '', stock_code: '', email: '', recent_topics: [], turn_count: 0 };
         window.aiSession = aiSession;
         var aiMode = 'chat';
+        var aiLastExchange = { question: '', answer: '', trace_id: '', provider: '' };
 
         function aiToggle() {
           var open = drawer.classList.contains('open');
@@ -198,6 +199,14 @@
             aiSession.email = data.remembered_email;
           }
           aiUpdateCtx();
+          aiLastExchange = {
+            question: data.__user_question || aiLastExchange.question || '',
+            answer: data.answer || '',
+            trace_id: (data.intent && data.intent.trace_id) || data.trace_id || '',
+            provider: data.provider || '',
+            support: data.data_support || '',
+            stock_code: data.remembered_stock_code || aiSession.stock_code || ''
+          };
           var html = '';
           var support = supportLabel(data);
           html += '<div class="ai-answer-card">';
@@ -258,6 +267,13 @@
             html += '<div class="ai-task-row"><span>状态</span><b>' + escapeHtml(data.task_card.status || '-') + '</b></div>';
             html += '</div>';
           }
+          html += '<div class="ai-feedback-bar">';
+          html += '<span>这次回答</span>';
+          html += '<button type="button" onclick="aiFeedback(\'accepted\')">有用</button>';
+          html += '<button type="button" onclick="aiFeedback(\'unclear\')">看不懂</button>';
+          html += '<button type="button" onclick="aiFeedback(\'challenged\')">不认同</button>';
+          html += '<em class="ai-feedback-status"></em>';
+          html += '</div>';
           if (data.remembered_stock_code) {
             var followupEmail = aiSession.email || 'test@example.com';
             html += '<div class="ai-followups">';
@@ -268,6 +284,46 @@
           }
           aiAppend(html, false);
         }
+
+        function aiFeedback(reaction) {
+          var detail = '';
+          if (reaction === 'unclear') {
+            detail = window.prompt('哪里看不懂？可留空直接提交。', '') || '';
+          } else if (reaction === 'challenged') {
+            detail = window.prompt('你不认同哪一点？可留空直接提交。', '') || '';
+          }
+          var statusItems = document.querySelectorAll('.ai-feedback-status');
+          var status = statusItems.length ? statusItems[statusItems.length - 1] : null;
+          if (status) status.textContent = '记录中...';
+          fetch('/api/ai-feedback', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              source: 'web_ai',
+              user_question: aiLastExchange.question || '',
+              agent_answer: aiLastExchange.answer || '',
+              user_feedback: detail,
+              user_reaction: reaction,
+              session_id: aiSession.session_id || '',
+              page_context: pageContext,
+              trace_id: aiLastExchange.trace_id || '',
+              related_stock: aiLastExchange.stock_code || aiSession.stock_code || '',
+              metadata: {
+                provider: aiLastExchange.provider || '',
+                data_support: aiLastExchange.support || '',
+                mode: aiMode
+              }
+            })
+          })
+          .then(function(resp) { return resp.json(); })
+          .then(function(data) {
+            if (status) status.textContent = data.ok ? '已记录' : (data.error || '记录失败');
+          })
+          .catch(function() {
+            if (status) status.textContent = '记录失败';
+          });
+        }
+        window.aiFeedback = aiFeedback;
 
         function aiSetMode(mode) {
           aiMode = mode === 'agent' ? 'agent' : 'chat';
@@ -387,6 +443,7 @@
           })
           .then(function(data) {
             aiRemoveTyping();
+            data.__user_question = text;
             aiRender(data);
           })
           .catch(function(err) {

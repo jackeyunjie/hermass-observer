@@ -1,0 +1,9 @@
+# Hermass 每日复盘飞书多维表格配置
+# 由 scripts/setup_lark_base_digest_table.py 自动生成/更新
+
+digest:
+  enabled: false
+  base_token: ""        # Base 链接中的 base_token 或 wiki 解析后的 obj_token
+  table_id: ""          # 创建后自动写入，例如 tbl_xxx
+  table_name: "Hermass 决策观察账本"
+  max_stocks_per_day: 50  # 每天同步的个股记录数上限（市场级 1 条 + 个股最多 N 条）
