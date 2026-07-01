@@ -85,6 +85,32 @@ fi
 
 # ── Step 5: 市场与行业辅助视图 ──
 log "Step 5/12: 构建市场与行业辅助视图..."
+if "$VENV_DIR/bin/python" "$PRODUCT_DIR/blackwolf_actions/download_market_assets.py" \
+    --date "$DATE_STR" --days 3 2>&1 | tail -1; then
+    log " 市场资产行情下载完成"
+else
+    log " 市场资产行情下载失败（market_assets_state 可能滞后）"
+fi
+for asset_date in $("$VENV_DIR/bin/python" - "$DATE_STR" <<'PY'
+from datetime import date, timedelta
+import sys
+
+current = date.fromisoformat(sys.argv[1])
+dates = []
+while len(dates) < 3:
+    if current.weekday() < 5:
+        dates.append(current.isoformat())
+    current -= timedelta(days=1)
+print(" ".join(reversed(dates)))
+PY
+); do
+    if "$VENV_DIR/bin/python" "$PRODUCT_DIR/blackwolf_actions/import_market_assets_duckdb.py" \
+        --date "$asset_date" 2>&1 | tail -1; then
+        log " 市场资产行情导入完成: $asset_date"
+    else
+        log " 市场资产行情导入失败: $asset_date"
+    fi
+done
 if "$VENV_DIR/bin/python" "$PRODUCT_DIR/scripts/build_market_assets_state.py" \
     --date "$DATE_STR" 2>&1 | tail -1; then
     log " 宽基与行业 ETF State 生成完成"

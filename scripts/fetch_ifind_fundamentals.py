@@ -211,11 +211,12 @@ def fetch_stock_fundamentals(codes: list[str], skill_dir: Path | None = None) ->
         parsed["fetched_at"] = datetime.now().isoformat()
         results[code] = parsed
         cache[code] = parsed
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    OUTPUT_FILE.write_text(
-        json.dumps({"cached_at": datetime.now().isoformat(), "stocks": cache}, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+        # 每拉一只就写缓存，避免超时/中断导致全部丢失
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        OUTPUT_FILE.write_text(
+            json.dumps({"cached_at": datetime.now().isoformat(), "stocks": cache}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
     return results
 
 

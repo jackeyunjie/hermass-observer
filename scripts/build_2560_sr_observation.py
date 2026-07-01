@@ -662,7 +662,7 @@ def render_markdown(report: dict[str, Any]) -> str:
                     f"- MA25方向: close {'上方' if d1['ma25'] is not None and d1['close'] > d1['ma25'] else '下方或贴近'} MA25；斜率 {((d1['ma25_slope'] or 0.0) * 100):.2f}%",
                     f"- VMA5/VMA60状态: {format_vma_relation(d1)}；过滤状态 {stock['serial_filter']['volume_trigger']['status']}",
                     f"- SR支撑区/阻力区/当前位置: {format_sr_zone(sr_zone)}",
-                    f"- W1/D1/M30多周期矩阵: W1({matrix['W1']['trend']},{matrix['W1']['volume']},{matrix['W1']['sr_position']}) / D1({matrix['D1']['trend']},{matrix['D1']['volume']},{matrix['D1']['sr_position']}) / M30({matrix['M30']['trend']},{matrix['M30']['volume']},{matrix['M30']['sr_position']})",
+                    f"- W1/D1/M30多周期矩阵: W1({matrix.get('W1', {}).get('trend', 'N/A')},{matrix.get('W1', {}).get('volume', 'N/A')},{matrix.get('W1', {}).get('sr_position', 'N/A')}) / D1({matrix.get('D1', {}).get('trend', 'N/A')},{matrix.get('D1', {}).get('volume', 'N/A')},{matrix.get('D1', {}).get('sr_position', 'N/A')}) / M30({matrix.get('M30', {}).get('trend', 'N/A')},{matrix.get('M30', {}).get('volume', 'N/A')},{matrix.get('M30', {}).get('sr_position', 'N/A')})",
                     f"- 共振评估: {stock['resonance']}",
                     f"- 收缩观察: {stock['contraction_summary']}",
                     f"- 失效条件: {stock['invalidations']}",

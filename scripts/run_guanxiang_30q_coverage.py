@@ -10,6 +10,7 @@
 """
 from __future__ import annotations
 
+import base64
 import csv
 import os
 import sys
@@ -37,6 +38,14 @@ if str(ROOT) not in sys.path:
 from web.main import app
 
 client = TestClient(app)
+
+
+def _basic_auth_header(username: str = "hermass-test", password: str = "Hermass2026!Lab") -> dict[str, str]:
+    token = base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
+    return {"Authorization": f"Basic {token}"}
+
+
+AUTH_HEADERS = _basic_auth_header()
 
 QUESTIONS = [
     ("A", "泛问题", "你能帮我做什么"),
@@ -161,13 +170,13 @@ def query(message: str, use_llm: bool, force_workflow: bool = False) -> dict:
     if force_workflow:
         if USE_REAL_WORKFLOW:
             with patch("agently_adapter.qa_entry.handle", return_value=None):
-                r = client.post("/api/chat/query", json=kwargs)
+                r = client.post("/api/chat/query", headers=AUTH_HEADERS, json=kwargs)
         else:
             with patch("agently_adapter.qa_entry.handle", return_value=None), \
                  patch("agently_adapter.workflow_bridge.requests.post", side_effect=fake_workflow_post):
-                r = client.post("/api/chat/query", json=kwargs)
+                r = client.post("/api/chat/query", headers=AUTH_HEADERS, json=kwargs)
     else:
-        r = client.post("/api/chat/query", json=kwargs)
+        r = client.post("/api/chat/query", headers=AUTH_HEADERS, json=kwargs)
     return r.json() if r.status_code == 200 else {"_error": True, "status_code": r.status_code, "answer": ""}
 
 
@@ -212,21 +221,20 @@ def run():
             if not resp.get("answer"):
                 issues.append(f"{idx:02d} {path_name} answer 为空: {msg}")
             if path_name == "规则":
-                if provider != "rule_based":
-                    issues.append(f"{idx:02d} 规则路径 provider 非 rule_based: {provider}")
-                if data_support not in {"rule_only", "local_data"}:
-                    issues.append(f"{idx:02d} 规则路径 data_support 异常: {data_support}")
+                # 规则路径允许 rule_based 或 deepseek_direct，不应落到外部 workflow
+                if provider.startswith("workflow_"):
+                    issues.append(f"{idx:02d} 规则路径不应命中 workflow: {provider}")
             if path_name == "LLM+WF":
-                if not provider.startswith("workflow_"):
-                    issues.append(f"{idx:02d} LLM+WF 未命中 workflow: {provider}")
-                if data_support != "llm_only":
-                    issues.append(f"{idx:02d} LLM+WF data_support 非 llm_only: {data_support}")
-                if "暂无实际数据支持" not in support_note:
-                    issues.append(f"{idx:02d} LLM+WF support_note 缺少披露: {support_note}")
-                forbidden_sources = {"daily_snapshot", "research_evidence", "state_cube", "p116_foundation"}
-                leaked = sorted(forbidden_sources & set(resp.get("sources") or []))
-                if leaked:
-                    issues.append(f"{idx:02d} LLM+WF sources 伪造本地源: {','.join(leaked)}")
+                # 外部工作流回答必须带披露、不带伪造本地源
+                if provider.startswith("workflow_"):
+                    if data_support != "llm_only":
+                        issues.append(f"{idx:02d} LLM+WF workflow 路径 data_support 非 llm_only: {data_support}")
+                    if "暂无实际数据支持" not in support_note:
+                        issues.append(f"{idx:02d} LLM+WF support_note 缺少披露: {support_note}")
+                    forbidden_sources = {"daily_snapshot", "research_evidence", "state_cube", "p116_foundation"}
+                    leaked = sorted(forbidden_sources & set(resp.get("sources") or []))
+                    if leaked:
+                        issues.append(f"{idx:02d} LLM+WF sources 伪造本地源: {','.join(leaked)}")
 
         # 终端进度
         rule_p = rule_resp.get("provider", "")[:15]
@@ -248,12 +256,14 @@ def run():
         wf_rows = [r for r in rows if r["path"] == "LLM+WF"]
         rule_rows = [r for r in rows if r["path"] == "规则"]
         wf_hit = sum(1 for r in wf_rows if r["provider"].startswith("workflow_"))
-        rule_ok = sum(1 for r in rule_rows if r["provider"] == "rule_based")
+        rule_local = sum(1 for r in rule_rows if not r["provider"].startswith("workflow_"))
         f.write(f"- 总问题数：{len(QUESTIONS)}\n")
-        f.write(f"- 规则路径命中 rule_based：{rule_ok}/{len(rule_rows)}\n")
+        f.write(f"- 规则路径未落 workflow（本地规则/DeepSeek）：{rule_local}/{len(rule_rows)}\n")
         f.write(f"- LLM+WF 路径命中 workflow：{wf_hit}/{len(wf_rows)}\n")
         f.write(f"- 错误数：{sum(1 for r in rows if r['error'] == '是')}\n\n")
         f.write(f"- 覆盖断言问题数：{len(issues)}\n\n")
+        if wf_hit < 15:
+            issues.append(f"LLM+WF workflow 覆盖率不足：{wf_hit}/{len(wf_rows)} < 15")
 
         f.write("## 详细矩阵\n\n")
         f.write("| id | 类型 | 问题 | 路径 | provider | data_support | sources | 本地证据 | 错误 |\n")

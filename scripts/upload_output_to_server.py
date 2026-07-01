@@ -58,10 +58,21 @@ def upload_file(path: Path, upload_type: str, date: str, content_type: str, time
     if not path.exists():
         print(f"[ERROR] {path} 不存在")
         sys.exit(1)
-    print(f"上传 {upload_type} ({path.stat().st_size / 1024:.1f} KB)...")
+    raw_size = path.stat().st_size
+    print(f"上传 {upload_type} ({raw_size / 1024:.1f} KB)...")
+    raw_bytes = path.read_bytes()
+    # 对 JSON/CSV 大文件自动 gzip 压缩，绕过 Nginx 1MB 默认请求体限制
+    if raw_size > 512 * 1024 and content_type in ("application/json", "text/csv"):
+        compressed = gzip.compress(raw_bytes, compresslevel=6)
+        if len(compressed) < raw_size:
+            file_payload = (path.name + ".gz", compressed, "application/gzip")
+        else:
+            file_payload = (path.name, raw_bytes, content_type)
+    else:
+        file_payload = (path.name, raw_bytes, content_type)
     resp = requests.post(
         BASE_URL,
-        files={"file": (path.name, path.read_bytes(), content_type)},
+        files={"file": file_payload},
         data={"type": upload_type, "date": compact_date(date)},
         auth=AUTH,
         headers=HEADERS,
@@ -114,23 +125,47 @@ def upload_foundation(date: str) -> None:
         sys.exit(1)
 
 
-def upload_foundation_delta(date: str) -> None:
-    db_path = ROOT / "outputs" / f"foundation_delta_{date}" / "foundation_delta.duckdb"
-    if not db_path.exists():
-        print(f"[ERROR] {db_path} 不存在")
-        sys.exit(1)
-
-    size_mb = db_path.stat().st_size / 1024 / 1024
-    print(f"压缩上传 Foundation 增量包 ({size_mb:.1f} MB)...")
-
-    compressed = gzip.compress(db_path.read_bytes(), compresslevel=6)
-    comp_mb = len(compressed) / 1024 / 1024
-    print(f"压缩后 {comp_mb:.1f} MB ({comp_mb / size_mb * 100:.0f}%)")
-
+def _upload_chunked(upload_id: str, payload: bytes, date: str, chunk_type: str, merge_type: str, filename: str = "") -> dict:
+    import hashlib
+    CHUNK_SIZE = 768 * 1024  # 每个分片 768KB，低于 Nginx 1MB 默认限制
+    total_chunks = (len(payload) + CHUNK_SIZE - 1) // CHUNK_SIZE
+    print(f"分片上传 {chunk_type}，共 {total_chunks} 片，总大小 {len(payload) / 1024 / 1024:.1f} MB...")
+    for i in range(total_chunks):
+        chunk = payload[i * CHUNK_SIZE:(i + 1) * CHUNK_SIZE]
+        chunk_hash = hashlib.sha256(chunk).hexdigest()
+        resp = requests.post(
+            BASE_URL,
+            files={"file": (f"chunk_{i}", chunk, "application/octet-stream")},
+            data={
+                "type": chunk_type,
+                "date": date,
+                "upload_id": upload_id,
+                "chunk_index": str(i),
+                "total_chunks": str(total_chunks),
+                "chunk_hash": chunk_hash,
+            },
+            auth=AUTH,
+            headers=HEADERS,
+            timeout=60,
+        )
+        try:
+            data = resp.json()
+        except Exception:
+            print(f"[ERROR] 分片 {i + 1}/{total_chunks} 非 JSON 响应: HTTP {resp.status_code}")
+            print(resp.text[:500])
+            sys.exit(1)
+        if not data.get("ok"):
+            print(f"[ERROR] 分片 {i + 1}/{total_chunks} 上传失败: {data.get('error')}")
+            sys.exit(1)
     resp = requests.post(
         BASE_URL,
-        files={"file": ("foundation_delta.duckdb.gz", compressed, "application/gzip")},
-        data={"type": "foundation_delta", "date": date},
+        files={"file": ("merge.bin", b"\x00", "application/octet-stream")},
+        data={
+            "type": merge_type,
+            "date": date,
+            "upload_id": upload_id,
+            "total_chunks": str(total_chunks),
+        },
         auth=AUTH,
         headers=HEADERS,
         timeout=300,
@@ -138,16 +173,62 @@ def upload_foundation_delta(date: str) -> None:
     try:
         data = resp.json()
     except Exception:
-        print(f"[ERROR] 非 JSON 响应: HTTP {resp.status_code}")
+        print(f"[ERROR] 合并请求非 JSON 响应: HTTP {resp.status_code}")
         print(resp.text[:500])
         sys.exit(1)
-    if data.get("ok"):
-        merged = data.get("merged") or {}
-        tables = merged.get("tables") or {}
-        print(f"[OK] 上传并合并成功: {data.get('path')} ({len(tables)} tables)")
-    else:
-        print(f"[ERROR] 上传失败: {data.get('error')}")
+    if not data.get("ok"):
+        print(f"[ERROR] 合并失败: {data.get('error')}")
         sys.exit(1)
+    return data
+
+
+def upload_foundation_delta(date: str) -> None:
+    db_path = ROOT / "outputs" / f"foundation_delta_{date}" / "foundation_delta.duckdb"
+    if not db_path.exists():
+        print(f"[ERROR] {db_path} 不存在")
+        sys.exit(1)
+
+    raw_bytes = db_path.read_bytes()
+    size_mb = len(raw_bytes) / 1024 / 1024
+    # foundation_delta.duckdb 本身已是 gzip 格式，无需再次压缩
+    is_gzipped = raw_bytes[:2] == b"\x1f\x8b"
+    compressed = raw_bytes if is_gzipped else gzip.compress(raw_bytes, compresslevel=6)
+    print(f"上传 Foundation 增量包 ({size_mb:.1f} MB，已 {'是 gzip' if is_gzipped else '重新压缩为 gzip'})...")
+    comp_mb = len(compressed) / 1024 / 1024
+    print(f"上传大小 {comp_mb:.1f} MB")
+
+    # 小于 1MB 直接上传，否则分片上传
+    if len(compressed) <= 900 * 1024:
+        resp = requests.post(
+            BASE_URL,
+            files={"file": ("foundation_delta.duckdb.gz", compressed, "application/gzip")},
+            data={"type": "foundation_delta", "date": date},
+            auth=AUTH,
+            headers=HEADERS,
+            timeout=300,
+        )
+        try:
+            data = resp.json()
+        except Exception:
+            print(f"[ERROR] 非 JSON 响应: HTTP {resp.status_code}")
+            print(resp.text[:500])
+            sys.exit(1)
+        if not data.get("ok"):
+            print(f"[ERROR] 上传失败: {data.get('error')}")
+            sys.exit(1)
+    else:
+        data = _upload_chunked(
+            upload_id=f"fd_{date}",
+            payload=compressed,
+            date=date,
+            chunk_type="foundation_delta_chunk",
+            merge_type="foundation_delta_merge",
+            filename="foundation_delta.duckdb.gz",
+        )
+
+    merged = data.get("merged") or {}
+    tables = merged.get("tables") or {}
+    print(f"[OK] 上传并合并成功: {data.get('path')} ({len(tables)} tables)")
 
 
 def upload_snapshot() -> None:
