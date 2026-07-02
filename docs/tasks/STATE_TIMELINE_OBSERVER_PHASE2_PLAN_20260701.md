@@ -476,14 +476,16 @@ curl -s "http://localhost:8020/api/state-observer?symbol_set=top50&days=1&page_s
 4. ✅ 同步更新 `validate_website_data_sync.py` 与单元测试
 5. ✅ 本地加固：分页上限、日期校正、XSS 转义
 
-**第二周（服务化）—— 待开工：**
+**第二周（服务化）—— 部分完成：**
 
-1. P2-C 后台异步导出任务
-2. P2-D 每日邮件摘要
-3. P2-F 性能预计算表脚本（默认关闭）
-4. P2-G Observation Ledger 预留接口
-5. 更新 `config/hermes_cron.json`
-6. 部署与冒烟
+交付文档：`docs/tasks/STATE_TIMELINE_OBSERVER_PHASE2B_EXPORT_DELIVERY_20260702.md`
+
+1. ✅ P2-C 后台异步导出任务
+2. ⏳ P2-D 每日邮件摘要
+3. ⏳ P2-F 性能预计算表脚本（默认关闭）
+4. ⏳ P2-G Observation Ledger 预留接口
+5. ⏳ 更新 `config/hermes_cron.json`
+6. ⏳ 部署与冒烟
 
 ---
 

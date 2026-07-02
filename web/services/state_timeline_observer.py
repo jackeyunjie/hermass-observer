@@ -17,6 +17,7 @@ import csv
 import io
 import json
 import logging
+import os
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
@@ -26,6 +27,10 @@ import duckdb
 log = logging.getLogger("hermass.web.state_timeline_observer")
 
 ROOT = Path(__file__).resolve().parents[2]
+
+# 预计算表切换开关：默认关闭，通过环境变量 USE_STATE_TIMELINE_MATERIALIZED=1 开启
+USE_STATE_TIMELINE_MATERIALIZED = os.environ.get("USE_STATE_TIMELINE_MATERIALIZED", "0") == "1"
+STATE_TIMELINE_MATERIALIZED_DIR = ROOT / "outputs" / "state_timeline"
 
 # 事件族定义（与 STATE_BASE_CONTRACT.md 保持一致）
 # E/F：state_score ∈ {14, 15}（仅正值）
@@ -459,6 +464,194 @@ def _compute_full_stats(
     }
 
 
+def _find_materialized_db(target_date: date) -> Path | None:
+    """查找对应日期的预计算表文件。"""
+    candidate = STATE_TIMELINE_MATERIALIZED_DIR / f"state_timeline_daily_{target_date.strftime('%Y%m%d')}.duckdb"
+    if candidate.exists() and candidate.stat().st_size > 0:
+        return candidate
+    return None
+
+
+def _build_materialized_where_clause(
+    filters: dict[str, Any],
+    effective_symbols: list[str] | None,
+    force_empty: bool = False,
+) -> tuple[str, list[Any]]:
+    """为物化表构建 WHERE 子句与参数（与 _build_core_query 过滤语义保持一致）。"""
+    params: list[Any] = []
+    parts: list[str] = []
+
+    if force_empty:
+        parts.append("FALSE")
+    elif effective_symbols:
+        placeholders = ", ".join(["?"] * len(effective_symbols))
+        parts.append(f"stock_code IN ({placeholders})")
+        params.extend(effective_symbols)
+
+    bool_fields = [
+        "mn1_is_ef", "w1_is_ef", "d1_is_ef",
+        "mn1_is_ab", "w1_is_ab", "d1_is_ab",
+        "mn1_is_zero", "w1_is_zero", "d1_is_zero",
+    ]
+    for field in bool_fields:
+        value = _parse_bool_param(filters.get(field))
+        if value is not None:
+            parts.append(f"{field} = ?")
+            params.append(value)
+
+    for pattern_field in ("ef_pattern_any", "ab_pattern_any", "zero_pattern_any"):
+        value = filters.get(pattern_field)
+        if not value:
+            continue
+        if isinstance(value, str):
+            patterns = [p.strip() for p in value.split(",") if p.strip()]
+        elif isinstance(value, list):
+            patterns = [str(p).strip() for p in value if str(p).strip()]
+        else:
+            patterns = []
+        if not patterns:
+            continue
+        target = pattern_field.replace("_pattern_any", "_pattern")
+        placeholders = ", ".join(["?"] * len(patterns))
+        parts.append(f"{target} IN ({placeholders})")
+        params.extend(patterns)
+
+    industry = filters.get("industry_l1")
+    if industry:
+        if isinstance(industry, str):
+            industries = [i.strip() for i in industry.split(",") if i.strip()]
+        elif isinstance(industry, list):
+            industries = [str(i).strip() for i in industry if str(i).strip()]
+        else:
+            industries = []
+        if industries:
+            placeholders = ", ".join(["?"] * len(industries))
+            parts.append(f"COALESCE(industry_l1, '未分类') IN ({placeholders})")
+            params.extend(industries)
+
+    where_sql = "WHERE " + " AND ".join(parts) if parts else ""
+    return where_sql, params
+
+
+def _query_materialized(
+    materialized_db: Path,
+    target_date: date,
+    filters: dict[str, Any],
+    effective_symbols: list[str] | None,
+    force_empty: bool,
+    page: int,
+    page_size: int,
+    format: str,
+    fetch_all: bool,
+) -> tuple[list[tuple[Any, ...]], list[str], dict[str, int]]:
+    """从物化表读取数据。
+
+    返回：rows（已按分页处理）、columns、stats（全结果统计）
+    """
+    con = duckdb.connect(str(materialized_db), read_only=True)
+    try:
+        where_sql, params = _build_materialized_where_clause(
+            filters, effective_symbols, force_empty=force_empty
+        )
+
+        # 先取全部匹配行做统计（单日全市场最多 ~5500 行，内存可承受）
+        count_sql = f"""
+            SELECT
+                COUNT(*),
+                COUNT(DISTINCT stock_code),
+                COUNT(*) FILTER (WHERE ef_count > 0),
+                COUNT(*) FILTER (WHERE ab_count > 0),
+                COUNT(*) FILTER (WHERE zero_count > 0)
+            FROM state_timeline_daily
+            {where_sql}
+        """
+        count_row = con.execute(count_sql, params).fetchone()
+        stats = {
+            "row_count": count_row[0] if count_row else 0,
+            "symbol_count": count_row[1] if count_row else 0,
+            "ef_row_count": count_row[2] if count_row else 0,
+            "ab_row_count": count_row[3] if count_row else 0,
+            "zero_row_count": count_row[4] if count_row else 0,
+        }
+
+        is_csv = format.lower() == "csv"
+        if is_csv or fetch_all:
+            sql = f"""
+                SELECT * FROM state_timeline_daily
+                {where_sql}
+                ORDER BY state_date DESC, stock_code
+            """
+            rows = con.execute(sql, params).fetchall()
+        else:
+            offset = max(0, (page - 1)) * page_size
+            sql = f"""
+                SELECT * FROM state_timeline_daily
+                {where_sql}
+                ORDER BY state_date DESC, stock_code
+                LIMIT ? OFFSET ?
+            """
+            rows = con.execute(sql, params + [page_size, offset]).fetchall()
+
+        columns = [d[0] for d in con.description]
+        return rows, columns, stats
+    finally:
+        try:
+            con.close()
+        except Exception:
+            pass
+
+
+def _build_materialized_response(
+    rows: list[tuple[Any, ...]],
+    columns: list[str],
+    stats: dict[str, int],
+    from_date: date,
+    to_date: date,
+    query_info: dict[str, Any],
+    format: str,
+) -> dict[str, Any]:
+    """从物化表查询结果构建 response，结构与 CTE 路径保持一致。"""
+    row_dicts = [_row_to_dict(r, columns) for r in rows]
+
+    is_csv = format.lower() == "csv"
+    if is_csv:
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=columns)
+        writer.writeheader()
+        for row in row_dicts:
+            writer.writerow(row)
+        return {
+            "ok": True,
+            "csv": output.getvalue(),
+            "meta": {
+                "row_count": stats["row_count"],
+                "symbol_count": stats["symbol_count"],
+                "ef_row_count": stats["ef_row_count"],
+                "ab_row_count": stats["ab_row_count"],
+                "zero_row_count": stats["zero_row_count"],
+                "date_min": from_date.isoformat(),
+                "date_max": to_date.isoformat(),
+                "as_of_date": to_date.isoformat(),
+            },
+        }
+
+    return {
+        "ok": True,
+        "query": query_info,
+        "meta": {
+            "row_count": stats["row_count"],
+            "symbol_count": stats["symbol_count"],
+            "ef_row_count": stats["ef_row_count"],
+            "ab_row_count": stats["ab_row_count"],
+            "zero_row_count": stats["zero_row_count"],
+            "date_min": from_date.isoformat(),
+            "date_max": to_date.isoformat(),
+            "as_of_date": to_date.isoformat(),
+        },
+        "rows": row_dicts,
+    }
+
+
 def query_state_timeline(
     symbols: str | None = None,
     symbol_set: str | None = None,
@@ -515,6 +708,49 @@ def query_state_timeline(
         watchlist_codes: list[str] | None = None
         if symbol_set and symbol_set.lower() == "watchlist":
             watchlist_codes = _resolve_watchlist_codes(user_key or "")
+
+        # 预计算表切换：单日查询且开关打开时，优先走物化表
+        materialized_db: Path | None = None
+        if USE_STATE_TIMELINE_MATERIALIZED and from_date == to_date:
+            materialized_db = _find_materialized_db(to_date)
+
+        if materialized_db:
+            effective_symbols: list[str] | None = None
+            force_empty = False
+            if symbol_list:
+                effective_symbols = [_canonical_stock_code(s) for s in symbol_list if s.strip()]
+            elif symbol_set and symbol_set.lower() == "top50" and top50_codes:
+                effective_symbols = top50_codes
+            elif symbol_set and symbol_set.lower() == "watchlist":
+                if watchlist_codes:
+                    effective_symbols = watchlist_codes
+                else:
+                    force_empty = True
+
+            rows, columns, stats = _query_materialized(
+                materialized_db,
+                to_date,
+                filters,
+                effective_symbols,
+                force_empty,
+                page,
+                page_size,
+                format,
+                fetch_all,
+            )
+            query_info = {
+                "symbols": symbols,
+                "symbol_set": symbol_set,
+                "date_from": from_date.isoformat(),
+                "date_to": to_date.isoformat(),
+                "days": days,
+                "filters": filters,
+                "page": page,
+                "page_size": page_size,
+            }
+            return _build_materialized_response(
+                rows, columns, stats, from_date, to_date, query_info, format
+            )
 
         sql, params = _build_core_query(
             symbol_list,

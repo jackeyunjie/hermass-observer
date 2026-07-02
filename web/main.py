@@ -19,7 +19,7 @@ from typing import Any
 import duckdb
 import requests
 from fastapi import Body, FastAPI, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -4185,6 +4185,65 @@ def state_observer_timeline_api(
         date_to=date_to,
     )
     return JSONResponse(content=result)
+
+
+@app.post("/api/state-observer/export")
+def state_observer_export_api(
+    request: Request,
+    body: dict[str, Any],
+) -> JSONResponse:
+    """State Timeline 导出任务创建。
+
+    小查询返回 status="sync"，前端复用现有 /api/state-observer?format=csv。
+    大查询创建后台任务，返回 task_id 与 download_path。
+    """
+    from web.services.state_timeline_export_worker import create_export_task
+
+    identity = _request_user_identity(request)
+    user_key = str(identity.get("user_key") or "")
+
+    query = dict(body)
+    query["user_key"] = user_key
+    result = create_export_task(query)
+    return JSONResponse(content=result)
+
+
+@app.get("/api/state-observer/export/{task_id}")
+def state_observer_export_status_api(task_id: str) -> JSONResponse:
+    """查询导出任务状态。"""
+    from web.services.state_timeline_export_worker import get_task_status
+
+    status = get_task_status(task_id)
+    if status is None:
+        return JSONResponse(content={"ok": False, "error": "task not found"}, status_code=404)
+    return JSONResponse(content=status)
+
+
+@app.get("/api/state-observer/export/{task_id}/download")
+def state_observer_export_download_api(task_id: str) -> Response:
+    """下载导出产物。"""
+    from web.services.state_timeline_export_worker import get_output_path, get_task_status
+    from datetime import date
+
+    status = get_task_status(task_id)
+    if status is None:
+        return JSONResponse(content={"ok": False, "error": "task not found"}, status_code=404)
+    if status["status"] != "completed":
+        return JSONResponse(
+            content={"ok": False, "error": f"task status is {status['status']}"},
+            status_code=400,
+        )
+
+    output_path = get_output_path(task_id)
+    if output_path is None or not output_path.exists():
+        return JSONResponse(content={"ok": False, "error": "file not found"}, status_code=404)
+
+    filename = f"state_timeline_{date.today().isoformat()}.csv"
+    return FileResponse(
+        path=str(output_path),
+        media_type="text/csv; charset=utf-8",
+        filename=filename,
+    )
 
 
 @app.get("/state-observer", response_class=HTMLResponse)

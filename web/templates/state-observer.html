@@ -336,6 +336,7 @@
           <button onclick="loadData()" style="margin-left:auto;">查询</button>
           <button onclick="exportCsv()">导出 CSV</button>
         </div>
+        <div id="exportStatusBox" style="margin-top:12px;padding:12px;border-radius:8px;background:#f8fafc;display:none;"></div>
       </section>
 
       {# ── 3. 统计 ── #}
@@ -585,35 +586,111 @@
         loadData();
       }
 
-      function exportCsv() {
-        const params = new URLSearchParams();
+      let exportPollTimer = null;
+
+      function buildExportQuery() {
+        const query = {};
         const symbolSet = document.getElementById('symbol_set').value;
         const symbols = document.getElementById('symbols').value.trim();
 
         if (symbols) {
-          params.set('symbols', symbols);
+          query.symbols = symbols;
         } else if (symbolSet) {
-          params.set('symbol_set', symbolSet);
+          query.symbol_set = symbolSet;
         } else {
-          params.set('symbol_set', 'top50');
+          query.symbol_set = 'top50';
         }
 
         const dateFrom = document.getElementById('date_from').value;
         const dateTo = document.getElementById('date_to').value;
         if (dateFrom && dateTo) {
-          params.set('date_from', dateFrom);
-          params.set('date_to', dateTo);
+          query.date_from = dateFrom;
+          query.date_to = dateTo;
         } else {
-          params.set('days', document.getElementById('days').value || '6');
+          query.days = document.getElementById('days').value || '6';
         }
 
         const filters = getFilters();
-        Object.entries(filters).forEach(([k, v]) => params.set(k, v));
+        Object.entries(filters).forEach(([k, v]) => query[k] = v);
+        query.format = 'csv';
+        return query;
+      }
 
-        // CSV 导出全结果，不带 page/page_size
-        params.set('format', 'csv');
+      function buildSyncExportUrl(query) {
+        const params = new URLSearchParams();
+        Object.entries(query).forEach(([k, v]) => { if (v != null && v !== '') params.set(k, v); });
+        return '/api/state-observer?' + params.toString();
+      }
 
-        window.open('/api/state-observer?' + params.toString(), '_blank');
+      function renderExportStatus(html) {
+        const box = document.getElementById('exportStatusBox');
+        box.innerHTML = html;
+        box.style.display = html ? 'block' : 'none';
+      }
+
+      async function pollExportStatus(taskId, downloadPath) {
+        if (exportPollTimer) clearInterval(exportPollTimer);
+        renderExportStatus(`后台导出任务 <code>${escapeHtml(taskId)}</code> 排队中，请稍候…`);
+
+        exportPollTimer = setInterval(async () => {
+          try {
+            const res = await fetch('/api/state-observer/export/' + encodeURIComponent(taskId));
+            const data = await res.json();
+            if (!data.ok) {
+              renderExportStatus('任务状态查询失败：' + escapeHtml(data.error || '未知错误'));
+              clearInterval(exportPollTimer);
+              return;
+            }
+            if (data.status === 'completed') {
+              clearInterval(exportPollTimer);
+              renderExportStatus(`导出完成：${data.row_count} 行 <a href="${downloadPath}" target="_blank">点击下载 CSV</a>`);
+            } else if (data.status === 'failed') {
+              clearInterval(exportPollTimer);
+              renderExportStatus('导出失败：' + escapeHtml(data.error || '未知错误'));
+            } else {
+              renderExportStatus(`后台导出任务 <code>${escapeHtml(taskId)}</code> 状态：${escapeHtml(data.status)}，预估 ${data.estimated_rows} 行…`);
+            }
+          } catch (err) {
+            renderExportStatus('轮询异常：' + escapeHtml(err.message));
+            clearInterval(exportPollTimer);
+          }
+        }, 2000);
+      }
+
+      async function exportCsv() {
+        if (exportPollTimer) clearInterval(exportPollTimer);
+
+        const query = buildExportQuery();
+        renderExportStatus('正在估算导出规模…');
+
+        try {
+          const res = await fetch('/api/state-observer/export', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(query)
+          });
+          const data = await res.json();
+
+          if (!data.ok) {
+            renderExportStatus('创建导出任务失败：' + escapeHtml(data.error || '未知错误'));
+            return;
+          }
+
+          if (data.status === 'sync') {
+            renderExportStatus(`规模较小（约 ${data.estimated_rows} 行），直接同步下载。`);
+            window.open(buildSyncExportUrl(query), '_blank');
+            return;
+          }
+
+          if (data.status === 'queued' && data.task_id) {
+            await pollExportStatus(data.task_id, data.download_path);
+            return;
+          }
+
+          renderExportStatus('未知导出状态：' + escapeHtml(data.status));
+        } catch (err) {
+          renderExportStatus('请求异常：' + escapeHtml(err.message));
+        }
       }
 
       document.querySelectorAll('#eventTabs .event-tab').forEach(tab => {

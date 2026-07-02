@@ -161,6 +161,20 @@
       "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python scripts/run_serenity_chain_analysis.py --all",
       "description": "每日 22:00 运行 Serenity 式产业链瓶颈分析，产出 Markdown 报告并写入 AgentMemory",
       "delivery": "terminal"
+    },
+    {
+      "name": "State Timeline 每日邮件摘要",
+      "schedule": "30 16 * * 1-5",
+      "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python scripts/send_state_timeline_digest_email.py --date $(date +%Y-%m-%d)",
+      "description": "每个交易日 16:30 发送 State Timeline 每日摘要邮件",
+      "delivery": "terminal"
+    },
+    {
+      "name": "State Timeline 导出产物清理",
+      "schedule": "0 2 * * *",
+      "command": "cd /Users/lv111101/Documents/hermass-observer-product && (mkdir -p outputs/state_timeline_exports || true) && find outputs/state_timeline_exports -name 'state_timeline_export_*.csv' -mtime +7 -delete",
+      "description": "每日 02:00 清理 7 天前的 State Timeline 异步导出文件",
+      "delivery": "terminal"
     }
   ]
 }
