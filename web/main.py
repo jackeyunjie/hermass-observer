@@ -4276,6 +4276,11 @@ def state_observer_export_download_api(request: Request, task_id: str) -> Respon
     status = get_task_status(task_id)
     if status is None:
         return JSONResponse(content={"ok": False, "error": "task not found"}, status_code=404)
+    if status["status"] == "expired":
+        return JSONResponse(
+            content={"ok": False, "error": "file expired or cleaned", "file_present": False},
+            status_code=410,
+        )
     if status["status"] != "completed":
         return JSONResponse(
             content={"ok": False, "error": f"task status is {status['status']}"},
@@ -4284,7 +4289,10 @@ def state_observer_export_download_api(request: Request, task_id: str) -> Respon
 
     output_path = get_output_path(task_id)
     if output_path is None or not output_path.exists():
-        return JSONResponse(content={"ok": False, "error": "file not found"}, status_code=404)
+        return JSONResponse(
+            content={"ok": False, "error": "file expired or cleaned", "file_present": False},
+            status_code=410,
+        )
 
     filename = f"state_timeline_{date.today().isoformat()}.csv"
     return FileResponse(
@@ -4337,6 +4345,36 @@ def state_observer_subscriptions_create_api(
     return JSONResponse(content=result)
 
 
+@app.post("/api/state-observer/subscriptions/{task_id}/update")
+def state_observer_subscriptions_update_api(
+    request: Request,
+    task_id: str,
+    body: dict[str, Any],
+) -> JSONResponse:
+    """更新 State Timeline 邮件订阅参数。仅 owner 可更新。"""
+    from agently_adapter.tools.user_tasks import update_state_timeline_subscription
+
+    identity = _request_user_identity(request)
+    user_key = str(identity.get("user_key") or "")
+
+    email = body.get("email")
+    symbol_set = body.get("symbol_set")
+    days = body.get("days")
+
+    result = update_state_timeline_subscription(
+        task_id,
+        user=user_key,
+        email=email,
+        symbol_set=symbol_set,
+        days=days,
+    )
+    if not result.get("ok"):
+        error = result.get("error")
+        status = 403 if error == "forbidden" else 404 if error == "task_not_found" else 400
+        return JSONResponse(content=result, status_code=status)
+    return JSONResponse(content=result)
+
+
 @app.post("/api/state-observer/subscriptions/{task_id}/cancel")
 def state_observer_subscriptions_cancel_api(
     request: Request,
@@ -4354,6 +4392,30 @@ def state_observer_subscriptions_cancel_api(
             return JSONResponse(content=result, status_code=403)
         return JSONResponse(content=result, status_code=404)
     return JSONResponse(content=result)
+
+
+@app.get("/api/state-observer/subscriptions/dispatch-logs")
+def state_observer_subscriptions_dispatch_logs_api(
+    request: Request,
+    limit: int = 100,
+) -> JSONResponse:
+    """返回 State Timeline 订阅的最近派发日志，按 task_id 取最新一条。"""
+    from scripts.send_state_timeline_digest_email import load_recent_dispatch_logs
+
+    identity = _request_user_identity(request)
+    user_key = str(identity.get("user_key") or "")
+
+    logs_by_task = load_recent_dispatch_logs(max_per_task=1)
+    # 用户隔离：只返回该用户拥有订阅的日志
+    from agently_adapter.tools.user_tasks import list_state_timeline_subscriptions
+
+    subs = list_state_timeline_subscriptions(user=user_key, status="", limit=500)
+    owned_task_ids = {str(s.get("task_id") or "") for s in subs.get("subscriptions", [])}
+    filtered = {
+        tid: logs[0] for tid, logs in logs_by_task.items()
+        if tid in owned_task_ids
+    }
+    return JSONResponse(content={"ok": True, "logs": filtered})
 
 
 @app.get("/state-observer", response_class=HTMLResponse)
@@ -7221,28 +7283,38 @@ def _csv_status(path: Path, expected_date: str) -> dict[str, Any]:
 
 
 def _state_timeline_materialized_status(normalized_date: str) -> dict[str, Any]:
-    """State Timeline 预计算表状态。"""
+    """State Timeline 预计算表状态，包含默认策略判断。"""
     compact_date = normalized_date.replace("-", "")
     path = ROOT / "outputs" / "state_timeline" / f"state_timeline_daily_{compact_date}.duckdb"
-    status: dict[str, Any] = {
-        "path": str(path),
-        "exists": path.exists(),
-        "size": path.stat().st_size if path.exists() else 0,
-        "date": normalized_date,
-        "row_count": 0,
-        "use_env_switch": USE_STATE_TIMELINE_MATERIALIZED,
-    }
-    if path.exists():
+    exists = path.exists() and path.stat().st_size > 0
+    row_count = 0
+    healthy = False
+    if exists:
         try:
             con = duckdb.connect(str(path), read_only=True)
             try:
                 row = con.execute("SELECT COUNT(*) FROM state_timeline_daily").fetchone()
-                status["row_count"] = row[0] if row else 0
+                row_count = row[0] if row else 0
+                healthy = row_count > 0
             finally:
                 con.close()
         except Exception:
-            pass
-    return status
+            exists = False
+            healthy = False
+
+    enabled_by_default = USE_STATE_TIMELINE_MATERIALIZED
+    auto_would_use = enabled_by_default and exists and healthy
+
+    return {
+        "path": str(path),
+        "exists": exists,
+        "size": path.stat().st_size if path.exists() else 0,
+        "date": normalized_date,
+        "row_count": row_count,
+        "healthy": healthy,
+        "enabled_by_default": enabled_by_default,
+        "auto_would_use": auto_would_use,
+    }
 
 
 def _foundation_status(date_str: str) -> dict[str, Any]:

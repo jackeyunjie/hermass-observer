@@ -14,11 +14,12 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import smtplib
 import sys
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
@@ -29,6 +30,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 REQUIRED_DISCLAIMER = "仅作研究观察，不构成交易建议"
 SITE_URL = "http://console.supertrader.world/state-observer"
+DISPATCH_LOG_PATH = ROOT / "outputs" / "user_tasks" / "state_timeline_dispatch_log.jsonl"
 
 
 def _smtp_config() -> dict[str, Any] | None:
@@ -367,6 +369,63 @@ def _load_subscriptions(ledger_path: Path | None = None) -> list[dict[str, Any]]
     return subs
 
 
+def _write_dispatch_log(
+    task_id: str,
+    email: str,
+    dispatch_date: str,
+    status: str,
+    error: str,
+    created_by: str,
+    symbol_set: str,
+    days: int,
+) -> None:
+    """追加一条派发日志到 JSONL。"""
+    try:
+        DISPATCH_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        record = {
+            "task_id": task_id,
+            "email": email,
+            "dispatch_date": dispatch_date,
+            "status": status,
+            "error": error,
+            "created_by": created_by,
+            "symbol_set": symbol_set,
+            "days": days,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        with DISPATCH_LOG_PATH.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except Exception as exc:
+        print(f"写入派发日志失败: {exc}", file=sys.stderr)
+
+
+def load_recent_dispatch_logs(
+    log_path: Path | None = None,
+    max_per_task: int = 1,
+) -> dict[str, list[dict[str, Any]]]:
+    """读取最近派发日志，按 task_id 分组，每个 task 最多返回最近 N 条。"""
+    path = log_path or DISPATCH_LOG_PATH
+    if not path.exists():
+        return {}
+
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            records = [json.loads(line) for line in f if line.strip()]
+    except Exception:
+        return {}
+
+    records.sort(
+        key=lambda r: (str(r.get("timestamp", "")), str(r.get("dispatch_date", ""))),
+        reverse=True,
+    )
+    by_task: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for r in records:
+        tid = str(r.get("task_id") or "")
+        if tid and len(by_task[tid]) < max_per_task:
+            by_task[tid].append(r)
+    return dict(by_task)
+
+
 def _send_one_digest(
     anchor_date: str,
     symbol_set: str,
@@ -411,7 +470,7 @@ def _dispatch_subscriptions(
     dry: bool = False,
     ledger_path: Path | None = None,
 ) -> int:
-    """按订阅批量派发，单个失败不影响其他订阅。"""
+    """按订阅批量派发，单个失败不影响其他订阅；每次派发写持久化日志。"""
     subs = _load_subscriptions(ledger_path)
     if not subs:
         print(f"未找到 {anchor_date} 的 active state_timeline_digest 订阅")
@@ -427,6 +486,8 @@ def _dispatch_subscriptions(
         user_key = str(sub.get("created_by") or "").strip()
 
         label = f"{task_id} email={email} symbol_set={symbol_set} days={days}"
+        status = "failed"
+        error = ""
         try:
             ok = _send_one_digest(
                 anchor_date=anchor_date,
@@ -438,11 +499,26 @@ def _dispatch_subscriptions(
             )
             if ok:
                 print(f"[DISPATCH OK {idx}/{total}] {label}")
+                status = "sent"
                 success += 1
             else:
                 print(f"[DISPATCH EMPTY {idx}/{total}] {label}")
+                status = "empty"
         except Exception as exc:
+            error = str(exc)
             print(f"[DISPATCH FAIL {idx}/{total}] {label}: {exc}", file=sys.stderr)
+
+        if not dry:
+            _write_dispatch_log(
+                task_id=task_id,
+                email=email,
+                dispatch_date=anchor_date,
+                status=status,
+                error=error,
+                created_by=user_key,
+                symbol_set=symbol_set,
+                days=days,
+            )
 
     print(f"派发完成: {success}/{total} 成功")
     return 0 if success == total else 1

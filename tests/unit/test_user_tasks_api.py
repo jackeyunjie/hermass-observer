@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import json
 from http.cookies import SimpleCookie
 
 from fastapi.testclient import TestClient
@@ -278,3 +279,116 @@ def test_state_timeline_subscriptions_invalid_symbol_set_returns_400(tmp_path, m
     assert response.status_code == 400
     assert response.json()["created"] is False
     assert response.json()["reason"] == "invalid_symbol_set"
+
+
+def test_state_timeline_subscriptions_update_success(tmp_path, monkeypatch):
+    monkeypatch.setattr(user_tasks, "USER_TASK_LEDGER", tmp_path / "user_task_ledger.json")
+    client = TestClient(app, headers=_basic_auth_header("hermass-test"))
+
+    created = client.post(
+        "/api/state-observer/subscriptions",
+        json={"email": "old@example.com", "symbol_set": "top50", "days": 3},
+    )
+    task_id = created.json()["task"]["task_id"]
+
+    updated = client.post(
+        f"/api/state-observer/subscriptions/{task_id}/update",
+        json={"email": "new@example.com", "symbol_set": "watchlist", "days": 7},
+    )
+    assert updated.status_code == 200
+    payload = updated.json()
+    assert payload["ok"] is True
+    assert payload["task"]["email"] == "new@example.com"
+    assert payload["task"]["symbol_set"] == "watchlist"
+    assert payload["task"]["days"] == 7
+
+
+def test_state_timeline_subscriptions_update_forbidden_for_other_user(tmp_path, monkeypatch):
+    ledger = tmp_path / "user_task_ledger.json"
+    monkeypatch.setattr(user_tasks, "USER_TASK_LEDGER", ledger)
+
+    created = user_tasks.create_state_timeline_subscription(
+        email="alice@example.com",
+        symbol_set="top50",
+        days=3,
+        created_by="alice",
+    )
+    task_id = created["task"]["task_id"]
+
+    client = TestClient(app, headers=_basic_auth_header("bob"))
+    response = client.post(
+        f"/api/state-observer/subscriptions/{task_id}/update",
+        json={"email": "bob@example.com", "symbol_set": "all", "days": 5},
+    )
+    assert response.status_code == 403
+    assert response.json()["error"] == "forbidden"
+
+
+def test_state_timeline_subscriptions_update_rejects_duplicate(tmp_path, monkeypatch):
+    monkeypatch.setattr(user_tasks, "USER_TASK_LEDGER", tmp_path / "user_task_ledger.json")
+    client = TestClient(app, headers=_basic_auth_header("hermass-test"))
+
+    first = client.post(
+        "/api/state-observer/subscriptions",
+        json={"email": "a@example.com", "symbol_set": "top50", "days": 3},
+    )
+    client.post(
+        "/api/state-observer/subscriptions",
+        json={"email": "b@example.com", "symbol_set": "top50", "days": 3},
+    )
+
+    task_id = first.json()["task"]["task_id"]
+    response = client.post(
+        f"/api/state-observer/subscriptions/{task_id}/update",
+        json={"email": "b@example.com", "symbol_set": "top50", "days": 3},
+    )
+    assert response.status_code == 400
+    assert response.json()["error"] == "duplicate_active_subscription"
+
+
+def test_state_timeline_subscriptions_dispatch_logs_user_isolation(tmp_path, monkeypatch):
+    from scripts import send_state_timeline_digest_email
+
+    ledger = tmp_path / "user_task_ledger.json"
+    log_path = tmp_path / "state_timeline_dispatch_log.jsonl"
+    monkeypatch.setattr(user_tasks, "USER_TASK_LEDGER", ledger)
+    monkeypatch.setattr(send_state_timeline_digest_email, "DISPATCH_LOG_PATH", log_path)
+
+    created = user_tasks.create_state_timeline_subscription(
+        email="alice@example.com",
+        symbol_set="top50",
+        days=3,
+        created_by="alice",
+    )
+    user_tasks.create_state_timeline_subscription(
+        email="bob@example.com",
+        symbol_set="top50",
+        days=3,
+        created_by="bob",
+    )
+
+    log_path.write_text(
+        json.dumps({
+            "task_id": created["task"]["task_id"],
+            "email": "alice@example.com",
+            "dispatch_date": "2026-07-02",
+            "status": "sent",
+            "created_by": "alice",
+            "symbol_set": "top50",
+            "days": 3,
+            "timestamp": "2026-07-02",
+        }) + "\n",
+        encoding="utf-8",
+    )
+
+    client = TestClient(app, headers=_basic_auth_header("alice"))
+    response = client.get("/api/state-observer/subscriptions/dispatch-logs")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert len(payload["logs"]) == 1
+    assert created["task"]["task_id"] in payload["logs"]
+
+    client_bob = TestClient(app, headers=_basic_auth_header("bob"))
+    response_bob = client_bob.get("/api/state-observer/subscriptions/dispatch-logs")
+    assert response_bob.json()["logs"] == {}

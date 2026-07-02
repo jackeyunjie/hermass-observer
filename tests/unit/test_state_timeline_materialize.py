@@ -164,14 +164,21 @@ class TestMaterializedQuerySwitch:
 
 
 class TestSwitchDefault:
-    """验证默认关闭开关，不影响现有行为。"""
+    """验证默认启用策略与回退行为。"""
 
-    def test_default_switch_is_off(self) -> None:
-        # 当前进程若未设置环境变量，导入时值应为 False
-        # 注意：若测试运行前已设置环境变量，需单独验证；此处验证模块默认值
-        assert observer.USE_STATE_TIMELINE_MATERIALIZED is False
+    def test_default_switch_is_on(self) -> None:
+        # Phase 2D 后默认启用智能 auto（未设置环境变量时默认为 True）
+        assert observer.USE_STATE_TIMELINE_MATERIALIZED is True
 
-    def test_default_query_still_works(self) -> None:
+    def test_default_query_auto_fallback_when_no_materialized_file(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # 默认启用但本地无对应物化文件时，应自动回退实时 CTE 并给出原因
+        monkeypatch.setattr(observer, "STATE_TIMELINE_MATERIALIZED_DIR", Path("/nonexistent_state_timeline"))
         result = observer.query_state_timeline(symbols="all", days=1, page_size=5)
         assert result["ok"] is True
         assert len(result["rows"]) == 5
+        assert result["meta"]["materialized_used"] is False
+        assert result["meta"]["materialized_reason"] == "auto_fallback_missing_file"
+        assert result["meta"]["materialized_requested"] is None

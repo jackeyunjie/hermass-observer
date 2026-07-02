@@ -28,8 +28,11 @@ log = logging.getLogger("hermass.web.state_timeline_observer")
 
 ROOT = Path(__file__).resolve().parents[2]
 
-# 预计算表切换开关：默认关闭，通过环境变量 USE_STATE_TIMELINE_MATERIALIZED=1 开启
-USE_STATE_TIMELINE_MATERIALIZED = os.environ.get("USE_STATE_TIMELINE_MATERIALIZED", "0") == "1"
+# 预计算表默认启用策略：
+# - materialized=None 时，默认启用智能 auto（单日 + 物化文件存在 -> 优先物化表，否则回退实时 CTE）
+# - 环境变量 USE_STATE_TIMELINE_MATERIALIZED=0 可全局关闭默认 auto
+# - materialized=True/False 显式强制，不受环境变量影响
+USE_STATE_TIMELINE_MATERIALIZED = os.environ.get("USE_STATE_TIMELINE_MATERIALIZED", "1") == "1"
 STATE_TIMELINE_MATERIALIZED_DIR = ROOT / "outputs" / "state_timeline"
 
 # 事件族定义（与 STATE_BASE_CONTRACT.md 保持一致）
@@ -601,6 +604,95 @@ def _query_materialized(
             pass
 
 
+def _resolve_materialized_decision(
+    materialized: bool | None,
+    from_date: date,
+    to_date: date,
+) -> dict[str, Any]:
+    """决定本次查询是否使用物化表，并给出可解释原因。
+
+    返回：
+        {
+            "mode": "force_on" | "force_off" | "auto",
+            "use_materialized": bool,
+            "materialized_db": Path | None,
+            "reason": str,
+            "error": str | None,
+        }
+    """
+    if materialized is True:
+        if from_date != to_date:
+            return {
+                "mode": "force_on",
+                "use_materialized": False,
+                "materialized_db": None,
+                "reason": "force_on_incompatible_multi_day",
+                "error": "materialized=True 仅支持单日查询",
+            }
+        db = _find_materialized_db(to_date)
+        if not db:
+            return {
+                "mode": "force_on",
+                "use_materialized": False,
+                "materialized_db": None,
+                "reason": "force_on_missing_file",
+                "error": f"materialized=True 但 {to_date} 物化文件不存在",
+            }
+        return {
+            "mode": "force_on",
+            "use_materialized": True,
+            "materialized_db": db,
+            "reason": "force_on_hit",
+            "error": None,
+        }
+
+    if materialized is False:
+        return {
+            "mode": "force_off",
+            "use_materialized": False,
+            "materialized_db": None,
+            "reason": "force_off",
+            "error": None,
+        }
+
+    # auto 模式（materialized=None）
+    if not USE_STATE_TIMELINE_MATERIALIZED:
+        return {
+            "mode": "auto",
+            "use_materialized": False,
+            "materialized_db": None,
+            "reason": "auto_env_disabled",
+            "error": None,
+        }
+
+    if from_date != to_date:
+        return {
+            "mode": "auto",
+            "use_materialized": False,
+            "materialized_db": None,
+            "reason": "auto_fallback_multi_day",
+            "error": None,
+        }
+
+    db = _find_materialized_db(to_date)
+    if not db:
+        return {
+            "mode": "auto",
+            "use_materialized": False,
+            "materialized_db": None,
+            "reason": "auto_fallback_missing_file",
+            "error": None,
+        }
+
+    return {
+        "mode": "auto",
+        "use_materialized": True,
+        "materialized_db": db,
+        "reason": "auto_single_day_hit",
+        "error": None,
+    }
+
+
 def _build_materialized_response(
     rows: list[tuple[Any, ...]],
     columns: list[str],
@@ -609,9 +701,22 @@ def _build_materialized_response(
     to_date: date,
     query_info: dict[str, Any],
     format: str,
+    materialized_debug: dict[str, Any],
 ) -> dict[str, Any]:
     """从物化表查询结果构建 response，结构与 CTE 路径保持一致。"""
     row_dicts = [_row_to_dict(r, columns) for r in rows]
+
+    meta = {
+        "row_count": stats["row_count"],
+        "symbol_count": stats["symbol_count"],
+        "ef_row_count": stats["ef_row_count"],
+        "ab_row_count": stats["ab_row_count"],
+        "zero_row_count": stats["zero_row_count"],
+        "date_min": from_date.isoformat(),
+        "date_max": to_date.isoformat(),
+        "as_of_date": to_date.isoformat(),
+    }
+    meta.update(materialized_debug)
 
     is_csv = format.lower() == "csv"
     if is_csv:
@@ -623,31 +728,13 @@ def _build_materialized_response(
         return {
             "ok": True,
             "csv": output.getvalue(),
-            "meta": {
-                "row_count": stats["row_count"],
-                "symbol_count": stats["symbol_count"],
-                "ef_row_count": stats["ef_row_count"],
-                "ab_row_count": stats["ab_row_count"],
-                "zero_row_count": stats["zero_row_count"],
-                "date_min": from_date.isoformat(),
-                "date_max": to_date.isoformat(),
-                "as_of_date": to_date.isoformat(),
-            },
+            "meta": meta,
         }
 
     return {
         "ok": True,
         "query": query_info,
-        "meta": {
-            "row_count": stats["row_count"],
-            "symbol_count": stats["symbol_count"],
-            "ef_row_count": stats["ef_row_count"],
-            "ab_row_count": stats["ab_row_count"],
-            "zero_row_count": stats["zero_row_count"],
-            "date_min": from_date.isoformat(),
-            "date_max": to_date.isoformat(),
-            "as_of_date": to_date.isoformat(),
-        },
+        "meta": meta,
         "rows": row_dicts,
     }
 
@@ -678,7 +765,7 @@ def query_state_timeline(
       format: 'json' 或 'csv'
       user_key: 用于读取用户 watchlist（symbol_set=watchlist 时生效）
       fetch_all: 内部只读模式，返回全部匹配行，不受分页上限限制
-      materialized: True 强制使用物化表；False 强制使用实时 CTE；None 按环境变量
+      materialized: True 强制使用物化表（失败则报错）；False 强制使用实时 CTE；None 走智能 auto 策略
     """
     filters = filters or {}
     page = max(1, page)
@@ -711,13 +798,18 @@ def query_state_timeline(
         if symbol_set and symbol_set.lower() == "watchlist":
             watchlist_codes = _resolve_watchlist_codes(user_key or "")
 
-        # 预计算表切换：单日查询且开关打开时，优先走物化表
-        use_materialized = USE_STATE_TIMELINE_MATERIALIZED if materialized is None else materialized
-        materialized_db: Path | None = None
-        if use_materialized and from_date == to_date:
-            materialized_db = _find_materialized_db(to_date)
+        # 预计算表决策
+        decision = _resolve_materialized_decision(materialized, from_date, to_date)
+        materialized_debug = {
+            "materialized_requested": materialized,
+            "materialized_used": decision["use_materialized"],
+            "materialized_reason": decision["reason"],
+        }
 
-        if materialized_db:
+        if decision["error"]:
+            return {"ok": False, "error": decision["error"]}
+
+        if decision["use_materialized"] and decision["materialized_db"]:
             effective_symbols: list[str] | None = None
             force_empty = False
             if symbol_list:
@@ -731,7 +823,7 @@ def query_state_timeline(
                     force_empty = True
 
             rows, columns, stats = _query_materialized(
-                materialized_db,
+                decision["materialized_db"],
                 to_date,
                 filters,
                 effective_symbols,
@@ -752,7 +844,7 @@ def query_state_timeline(
                 "page_size": page_size,
             }
             return _build_materialized_response(
-                rows, columns, stats, from_date, to_date, query_info, format
+                rows, columns, stats, from_date, to_date, query_info, format, materialized_debug
             )
 
         sql, params = _build_core_query(
@@ -819,21 +911,34 @@ def query_state_timeline(
             writer.writeheader()
             for row in row_dicts:
                 writer.writerow(row)
+            meta = {
+                "row_count": stats["row_count"],
+                "symbol_count": stats["symbol_count"],
+                "ef_row_count": stats["ef_row_count"],
+                "ab_row_count": stats["ab_row_count"],
+                "zero_row_count": stats["zero_row_count"],
+                "date_min": from_date.isoformat(),
+                "date_max": to_date.isoformat(),
+                "as_of_date": to_date.isoformat(),
+            }
+            meta.update(materialized_debug)
             return {
                 "ok": True,
                 "csv": output.getvalue(),
-                "meta": {
-                    "row_count": stats["row_count"],
-                    "symbol_count": stats["symbol_count"],
-                    "ef_row_count": stats["ef_row_count"],
-                    "ab_row_count": stats["ab_row_count"],
-                    "zero_row_count": stats["zero_row_count"],
-                    "date_min": from_date.isoformat(),
-                    "date_max": to_date.isoformat(),
-                    "as_of_date": to_date.isoformat(),
-                },
+                "meta": meta,
             }
 
+        meta = {
+            "row_count": stats["row_count"],
+            "symbol_count": stats["symbol_count"],
+            "ef_row_count": stats["ef_row_count"],
+            "ab_row_count": stats["ab_row_count"],
+            "zero_row_count": stats["zero_row_count"],
+            "date_min": from_date.isoformat(),
+            "date_max": to_date.isoformat(),
+            "as_of_date": to_date.isoformat(),
+        }
+        meta.update(materialized_debug)
         return {
             "ok": True,
             "query": {
@@ -846,16 +951,7 @@ def query_state_timeline(
                 "page": page,
                 "page_size": page_size,
             },
-            "meta": {
-                "row_count": stats["row_count"],
-                "symbol_count": stats["symbol_count"],
-                "ef_row_count": stats["ef_row_count"],
-                "ab_row_count": stats["ab_row_count"],
-                "zero_row_count": stats["zero_row_count"],
-                "date_min": from_date.isoformat(),
-                "date_max": to_date.isoformat(),
-                "as_of_date": to_date.isoformat(),
-            },
+            "meta": meta,
             "rows": row_dicts,
         }
     except Exception as exc:

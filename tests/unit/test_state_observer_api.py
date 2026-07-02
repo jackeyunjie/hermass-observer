@@ -118,14 +118,14 @@ def test_state_observer_export_uses_authenticated_username(monkeypatch) -> None:
 # ── 导出任务 owner 隔离 ──
 
 
-def _write_fake_task_record(tmp_path: Path, task_id: str, owner_key: str, owner_scope: str) -> None:
+def _write_fake_task_record(tmp_path: Path, task_id: str, owner_key: str, owner_scope: str, status: str = "queued") -> None:
     """在临时导出目录写入一条任务日志记录。"""
     export_dir = tmp_path / "state_timeline_exports"
     export_dir.mkdir(parents=True, exist_ok=True)
     task_log = export_dir / "task_log.jsonl"
     record = {
         "task_id": task_id,
-        "status": "queued",
+        "status": status,
         "format": "csv",
         "query": {"symbol_set": "watchlist", "days": 5, "filters": {}},
         "estimated_rows": 100,
@@ -206,13 +206,17 @@ def test_state_observer_export_download_403_for_non_owner(monkeypatch, tmp_path)
     assert response.json()["error"] == "forbidden"
 
 
-def test_state_observer_page_contains_subscription_entry_and_materialized_mode() -> None:
+def test_state_observer_export_download_returns_410_when_file_expired(monkeypatch, tmp_path) -> None:
+    """产物被清理后，下载接口应返回 410 并说明 file expired or cleaned。"""
+    task_id = "state_timeline_export_20260701_expired01"
+    _write_fake_task_record(tmp_path, task_id, "visitor_owner_123", "guest", status="completed")
+    monkeypatch.setattr(export_worker, "TASK_LOG", tmp_path / "state_timeline_exports" / "task_log.jsonl")
+
     client = TestClient(main.app)
+    client.cookies.set("hermass_visitor_id", "visitor_owner_123")
 
-    response = client.get("/state-observer")
-
-    assert response.status_code == 200
-    html = response.text
-    assert "邮件订阅" in html
-    assert 'id="materialized_mode"' in html
-    assert 'id="subscription_email"' in html
+    response = client.get(f"/api/state-observer/export/{task_id}/download")
+    assert response.status_code == 410
+    payload = response.json()
+    assert payload["error"] == "file expired or cleaned"
+    assert payload["file_present"] is False

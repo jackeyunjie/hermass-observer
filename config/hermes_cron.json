@@ -172,8 +172,8 @@
     {
       "name": "State Timeline 导出产物清理",
       "schedule": "0 2 * * *",
-      "command": "cd /Users/lv111101/Documents/hermass-observer-product && (mkdir -p outputs/state_timeline_exports || true) && find outputs/state_timeline_exports -name 'state_timeline_export_*.csv' -mtime +7 -delete",
-      "description": "每日 02:00 清理 7 天前的 State Timeline 异步导出文件",
+      "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python scripts/clean_state_timeline_exports.py --retention-days 7",
+      "description": "每日 02:00 清理 7 天前的 State Timeline 异步导出文件，并同步标记任务日志为 expired",
       "delivery": "terminal"
     }
   ]

@@ -14,6 +14,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.send_state_timeline_digest_email import (
+    DISPATCH_LOG_PATH,
     _change_strength,
     _compute_extra_changes,
     _dispatch_subscriptions,
@@ -21,7 +22,9 @@ from scripts.send_state_timeline_digest_email import (
     _fmt_delta,
     _latest_rows_for_anchor_date,
     _load_subscriptions,
+    _write_dispatch_log,
     build_html,
+    load_recent_dispatch_logs,
 )
 
 
@@ -241,3 +244,128 @@ def test_dispatch_subscriptions_dry_with_real_data(tmp_path: Path, capsys: pytes
     assert "[DISPATCH OK 1/1]" in captured.out
     assert "派发完成: 1/1 成功" in captured.out
     assert "State Timeline Observer 每日摘要" in captured.out
+
+
+def test_write_dispatch_log_creates_jsonl_record(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    log_path = tmp_path / "dispatch_log.jsonl"
+    monkeypatch.setattr(
+        "scripts.send_state_timeline_digest_email.DISPATCH_LOG_PATH",
+        log_path,
+    )
+    _write_dispatch_log(
+        task_id="task_001",
+        email="a@example.com",
+        dispatch_date="2026-07-02",
+        status="sent",
+        error="",
+        created_by="hermass-test",
+        symbol_set="top50",
+        days=3,
+    )
+    assert log_path.exists()
+    records = [json.loads(line) for line in log_path.read_text(encoding="utf-8").strip().split("\n")]
+    assert len(records) == 1
+    assert records[0]["task_id"] == "task_001"
+    assert records[0]["email"] == "a@example.com"
+    assert records[0]["status"] == "sent"
+    assert records[0]["symbol_set"] == "top50"
+    assert records[0]["days"] == 3
+
+
+def test_load_recent_dispatch_logs_groups_by_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    log_path = tmp_path / "dispatch_log.jsonl"
+    log_path.write_text(
+        json.dumps({"task_id": "t1", "dispatch_date": "2026-07-01", "status": "sent", "timestamp": "2026-07-01"}) + "\n"
+        + json.dumps({"task_id": "t1", "dispatch_date": "2026-07-02", "status": "failed", "timestamp": "2026-07-02"}) + "\n"
+        + json.dumps({"task_id": "t2", "dispatch_date": "2026-07-02", "status": "sent", "timestamp": "2026-07-02"}) + "\n",
+        encoding="utf-8",
+    )
+    logs = load_recent_dispatch_logs(log_path=log_path, max_per_task=1)
+    assert set(logs.keys()) == {"t1", "t2"}
+    # Most recent per task
+    assert logs["t1"][0]["dispatch_date"] == "2026-07-02"
+    assert logs["t1"][0]["status"] == "failed"
+    assert logs["t2"][0]["status"] == "sent"
+
+
+def test_dispatch_subscriptions_writes_log_on_success(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    log_path = tmp_path / "dispatch_log.jsonl"
+    monkeypatch.setattr(
+        "scripts.send_state_timeline_digest_email.DISPATCH_LOG_PATH",
+        log_path,
+    )
+    ledger = _write_temp_ledger(
+        tmp_path,
+        [
+            {
+                "task_id": "digest_001",
+                "task_type": "state_timeline_digest",
+                "email": "a@example.com",
+                "symbol_set": "top50",
+                "days": 3,
+                "status": "active",
+                "created_by": "hermass-test",
+            },
+        ],
+    )
+    monkeypatch.setattr(
+        "scripts.send_state_timeline_digest_email._send_one_digest",
+        lambda **kwargs: True,
+    )
+    rc = _dispatch_subscriptions("2026-07-02", dry=False, ledger_path=ledger)
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert "[DISPATCH OK 1/1]" in captured.out
+    assert log_path.exists()
+    records = [json.loads(line) for line in log_path.read_text(encoding="utf-8").strip().split("\n")]
+    assert len(records) == 1
+    assert records[0]["task_id"] == "digest_001"
+    assert records[0]["status"] == "sent"
+
+
+def test_dispatch_subscriptions_writes_log_on_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    log_path = tmp_path / "dispatch_log.jsonl"
+    monkeypatch.setattr(
+        "scripts.send_state_timeline_digest_email.DISPATCH_LOG_PATH",
+        log_path,
+    )
+    ledger = _write_temp_ledger(
+        tmp_path,
+        [
+            {
+                "task_id": "digest_fail",
+                "task_type": "state_timeline_digest",
+                "email": "fail@example.com",
+                "symbol_set": "all",
+                "days": 2,
+                "status": "active",
+                "created_by": "",
+            },
+        ],
+    )
+
+    def _fail(**kwargs):
+        raise RuntimeError("SMTP error")
+
+    monkeypatch.setattr(
+        "scripts.send_state_timeline_digest_email._send_one_digest",
+        _fail,
+    )
+    rc = _dispatch_subscriptions("2026-07-02", dry=False, ledger_path=ledger)
+    captured = capsys.readouterr()
+    assert rc == 1
+    assert "[DISPATCH FAIL 1/1]" in captured.err
+    assert log_path.exists()
+    records = [json.loads(line) for line in log_path.read_text(encoding="utf-8").strip().split("\n")]
+    assert len(records) == 1
+    assert records[0]["task_id"] == "digest_fail"
+    assert records[0]["status"] == "failed"
+    assert "SMTP error" in records[0]["error"]

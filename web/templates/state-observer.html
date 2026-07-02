@@ -423,8 +423,10 @@
           </div>
         </div>
         <div class="filter-row">
-          <button onclick="createSubscription()">新增订阅</button>
+          <button id="subscriptionSubmitBtn" onclick="createSubscription()">新增订阅</button>
+          <button class="small-btn" onclick="cancelSubscriptionEdit()" id="subscriptionCancelEditBtn" style="display:none;">取消编辑</button>
           <button class="small-btn" onclick="loadSubscriptions()">刷新列表</button>
+          <input type="hidden" id="subscription_edit_task_id" value="" />
         </div>
         <div id="subscriptionStatusBox" class="status-box info"></div>
         <div class="table-wrap" style="margin-top:12px;">
@@ -437,11 +439,13 @@
                 <th>状态</th>
                 <th>创建日</th>
                 <th>有效期至</th>
+                <th>最近派发日</th>
+                <th>最近结果</th>
                 <th>操作</th>
               </tr>
             </thead>
             <tbody id="subscriptionTableBody">
-              <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px;">加载中...</td></tr>
+              <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:24px;">加载中...</td></tr>
             </tbody>
           </table>
         </div>
@@ -759,13 +763,21 @@
         return 'Top50';
       }
 
-      function renderSubscriptions(rows) {
+      function formatDispatchStatus(value) {
+        const map = { sent: '成功', empty: '无数据', failed: '失败' };
+        return map[value] || value || '-';
+      }
+
+      function renderSubscriptions(rows, logs) {
         const tbody = document.getElementById('subscriptionTableBody');
         if (!rows || !rows.length) {
-          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px;">当前没有有效订阅</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:24px;">当前没有有效订阅</td></tr>';
           return;
         }
-        tbody.innerHTML = rows.map(row => `
+        const logsMap = logs || {};
+        tbody.innerHTML = rows.map(row => {
+          const log = logsMap[row.task_id] || {};
+          return `
           <tr>
             <td>${escapeHtml(row.email || '-')}</td>
             <td>${escapeHtml(formatSymbolSetLabel(row.symbol_set || 'top50'))}</td>
@@ -773,29 +785,63 @@
             <td>${escapeHtml(row.status || '-')}</td>
             <td>${escapeHtml(row.created_at || '-')}</td>
             <td>${escapeHtml(row.valid_to || '-')}</td>
-            <td><button class="small-btn" onclick="cancelSubscription('${escapeHtml(row.task_id || '')}')">取消</button></td>
+            <td>${escapeHtml(log.dispatch_date || '-')}</td>
+            <td>${escapeHtml(formatDispatchStatus(log.status))}</td>
+            <td>
+              <button class="small-btn" onclick="editSubscription('${escapeHtml(row.task_id || '')}')">修改</button>
+              <button class="small-btn" onclick="cancelSubscription('${escapeHtml(row.task_id || '')}')">取消</button>
+            </td>
           </tr>
-        `).join('');
+        `}).join('');
       }
 
       async function loadSubscriptions() {
         try {
-          const res = await fetch('/api/state-observer/subscriptions');
-          const data = await res.json();
-          if (!data.ok) {
-            renderSubscriptionStatus('订阅列表加载失败：' + (data.error || '未知错误'), 'error');
+          const [subsRes, logsRes] = await Promise.all([
+            fetch('/api/state-observer/subscriptions'),
+            fetch('/api/state-observer/subscriptions/dispatch-logs'),
+          ]);
+          const subsData = await subsRes.json();
+          const logsData = await logsRes.json();
+          if (!subsData.ok) {
+            renderSubscriptionStatus('订阅列表加载失败：' + (subsData.error || '未知错误'), 'error');
             return;
           }
-          renderSubscriptions(data.subscriptions || []);
+          window._currentSubscriptions = subsData.subscriptions || [];
+          renderSubscriptions(window._currentSubscriptions, logsData.logs || {});
         } catch (err) {
           renderSubscriptionStatus('订阅列表请求异常：' + err.message, 'error');
         }
+      }
+
+      function editSubscription(taskId) {
+        const rows = window._currentSubscriptions || [];
+        const row = rows.find(r => r.task_id === taskId);
+        if (!row) return;
+        document.getElementById('subscription_email').value = row.email || '';
+        document.getElementById('subscription_symbol_set').value = row.symbol_set || 'top50';
+        document.getElementById('subscription_days').value = row.days || 3;
+        document.getElementById('subscription_edit_task_id').value = taskId;
+        document.getElementById('subscriptionSubmitBtn').textContent = '保存修改';
+        document.getElementById('subscriptionCancelEditBtn').style.display = '';
+        renderSubscriptionStatus('正在编辑订阅，修改后点击保存', 'info');
+      }
+
+      function cancelSubscriptionEdit() {
+        document.getElementById('subscription_email').value = localStorage.getItem(subscriptionEmailKey) || '';
+        document.getElementById('subscription_symbol_set').value = 'top50';
+        document.getElementById('subscription_days').value = 3;
+        document.getElementById('subscription_edit_task_id').value = '';
+        document.getElementById('subscriptionSubmitBtn').textContent = '新增订阅';
+        document.getElementById('subscriptionCancelEditBtn').style.display = 'none';
+        renderSubscriptionStatus('', 'info');
       }
 
       async function createSubscription() {
         const email = document.getElementById('subscription_email').value.trim();
         const symbolSet = document.getElementById('subscription_symbol_set').value || 'top50';
         const days = Number.parseInt(document.getElementById('subscription_days').value || '3', 10);
+        const editTaskId = document.getElementById('subscription_edit_task_id').value.trim();
 
         if (!email) {
           renderSubscriptionStatus('请先填写接收邮箱', 'error');
@@ -806,30 +852,39 @@
           return;
         }
 
+        const payload = {
+          email,
+          symbol_set: symbolSet,
+          days,
+          page_context: '/state-observer'
+        };
+
         try {
-          const res = await fetch('/api/state-observer/subscriptions', {
-            method: 'POST',
+          let url = '/api/state-observer/subscriptions';
+          let method = 'POST';
+          if (editTaskId) {
+            url = '/api/state-observer/subscriptions/' + encodeURIComponent(editTaskId) + '/update';
+            method = 'POST';
+          }
+          const res = await fetch(url, {
+            method,
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-              email,
-              symbol_set: symbolSet,
-              days,
-              page_context: '/state-observer'
-            })
+            body: JSON.stringify(payload)
           });
           const data = await res.json();
-          if (!res.ok || !data.created) {
-            const message = data.reason === 'duplicate_active_subscription'
+          if (!res.ok || !data.ok && !data.created) {
+            const message = data.error === 'duplicate_active_subscription'
               ? '相同参数的有效订阅已存在'
-              : (data.reason || data.error || '创建失败');
-            renderSubscriptionStatus('订阅创建失败：' + message, 'error');
+              : (data.reason || data.error || (editTaskId ? '更新失败' : '创建失败'));
+            renderSubscriptionStatus(editTaskId ? '订阅更新失败：' + message : '订阅创建失败：' + message, 'error');
             return;
           }
           localStorage.setItem(subscriptionEmailKey, email);
-          renderSubscriptionStatus('订阅已创建，交易日收盘后会按该参数发送摘要', 'success');
+          renderSubscriptionStatus(editTaskId ? '订阅已更新' : '订阅已创建，交易日收盘后会按该参数发送摘要', 'success');
+          cancelSubscriptionEdit();
           await loadSubscriptions();
         } catch (err) {
-          renderSubscriptionStatus('订阅创建请求异常：' + err.message, 'error');
+          renderSubscriptionStatus(editTaskId ? '订阅更新请求异常：' + err.message : '订阅创建请求异常：' + err.message, 'error');
         }
       }
 
@@ -845,6 +900,7 @@
             return;
           }
           renderSubscriptionStatus('订阅已取消', 'success');
+          cancelSubscriptionEdit();
           await loadSubscriptions();
         } catch (err) {
           renderSubscriptionStatus('取消请求异常：' + err.message, 'error');

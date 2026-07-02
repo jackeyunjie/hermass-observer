@@ -236,6 +236,70 @@ def create_state_timeline_subscription(
     return {"created": True, "task": record}
 
 
+def update_state_timeline_subscription(
+    task_id: str,
+    *,
+    user: str = "",
+    email: str | None = None,
+    symbol_set: str | None = None,
+    days: int | None = None,
+    path: Path | None = None,
+) -> dict[str, Any]:
+    """更新 State Timeline 订阅参数。仅 owner 可更新，更新后仍保持去重。"""
+    user = str(user or "").strip()
+    ledger = load_user_task_ledger(path)
+    tasks = ledger.get("tasks", []) or []
+
+    task = next((t for t in tasks if t.get("task_id") == task_id), None)
+    if task is None:
+        return {"ok": False, "error": "task_not_found"}
+    if task.get("task_type") != "state_timeline_digest":
+        return {"ok": False, "error": "task_type_mismatch"}
+    if user and task.get("created_by") not in ("", None, user):
+        return {"ok": False, "error": "forbidden"}
+    if task.get("status") != "active":
+        return {"ok": False, "error": "not_active"}
+
+    new_email = str(email or task.get("email") or "").strip().lower()
+    new_symbol_set = _normalize_state_timeline_symbol_set(symbol_set or task.get("symbol_set"))
+    try:
+        new_days = max(1, min(int(days if days is not None else task.get("days") or 3), 120))
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "invalid_days"}
+
+    if not _is_valid_email(new_email):
+        return {"ok": False, "error": "invalid_email"}
+    if new_symbol_set not in {"top50", "watchlist", "all"}:
+        return {"ok": False, "error": "invalid_symbol_set"}
+
+    duplicate = next(
+        (
+            row for row in tasks
+            if row.get("task_id") != task_id
+            and row.get("status") == "active"
+            and row.get("task_type") == "state_timeline_digest"
+            and str(row.get("email", "")).strip().lower() == new_email
+            and str(row.get("symbol_set", "")).strip().lower() == new_symbol_set
+            and int(row.get("days") or 0) == new_days
+            and (not user or row.get("created_by") in ("", None, user))
+        ),
+        None,
+    )
+    if duplicate:
+        return {
+            "ok": False,
+            "error": "duplicate_active_subscription",
+            "task_id": duplicate.get("task_id"),
+        }
+
+    task["email"] = new_email
+    task["symbol_set"] = new_symbol_set
+    task["days"] = new_days
+    task["updated_at"] = date.today().isoformat()
+    save_user_task_ledger(ledger, path)
+    return {"ok": True, "task": task}
+
+
 def list_state_timeline_subscriptions(
     *,
     user: str = "",
