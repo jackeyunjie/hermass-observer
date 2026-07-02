@@ -4091,6 +4091,7 @@ def api_create_user_task(request: Request, body: dict | None = Body(default=None
 
 @app.get("/api/state-observer")
 def state_observer_api(
+    request: Request,
     symbols: str | None = None,
     symbol_set: str | None = None,
     date_from: str | None = None,
@@ -4117,6 +4118,7 @@ def state_observer_api(
 
     返回长表：一只股票 × 一个交易日 = 一行。
     支持 EF / A+B / 0 三类事件族筛选与 CSV 导出。
+    symbol_set=watchlist 时读取当前用户的 active watch_command 任务。
     """
     filters = {
         k: v
@@ -4138,6 +4140,9 @@ def state_observer_api(
         if v is not None and str(v).strip() != ""
     }
 
+    identity = _request_user_identity(request)
+    user_key = str(identity.get("user_key") or "")
+
     result = query_state_timeline(
         symbols=symbols,
         symbol_set=symbol_set,
@@ -4148,6 +4153,7 @@ def state_observer_api(
         page=page,
         page_size=page_size,
         format=format,
+        user_key=user_key,
     )
 
     if not result.get("ok"):

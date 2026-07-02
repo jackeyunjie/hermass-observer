@@ -252,7 +252,7 @@
               <option value="">-- 选择集合 --</option>
               <option value="top50" selected>Top50</option>
               <option value="all">全市场</option>
-              <option value="watchlist">自选池（Phase 2 接入）</option>
+              <option value="watchlist">自选池</option>
             </select>
           </div>
           <div class="control-group">
@@ -369,6 +369,7 @@
                 <th>EF 模式</th>
                 <th>A/B 模式</th>
                 <th>0 模式</th>
+                <th>变化</th>
                 <th>行业</th>
                 <th>收盘价</th>
                 <th>成交量</th>
@@ -377,7 +378,7 @@
               </tr>
             </thead>
             <tbody id="tableBody">
-              <tr><td colspan="13" style="text-align:center;color:var(--muted);padding:24px;">请点击“查询”按钮加载数据</td></tr>
+              <tr><td colspan="14" style="text-align:center;color:var(--muted);padding:24px;">请点击“查询”按钮加载数据</td></tr>
             </tbody>
           </table>
         </div>
@@ -515,10 +516,20 @@
         }
       }
 
+      function escapeHtml(text) {
+        if (text == null) return '';
+        return String(text)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+
       function renderTable(rows) {
         const tbody = document.getElementById('tableBody');
         if (!rows.length) {
-          tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;color:var(--muted);padding:24px;">无数据</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="14" style="text-align:center;color:var(--muted);padding:24px;">无数据</td></tr>';
           return;
         }
 
@@ -526,20 +537,27 @@
           const efClass = r.ef_count > 0 ? 'ef' : 'none';
           const abClass = r.ab_count > 0 ? 'ab' : 'none';
           const zeroClass = r.zero_count > 0 ? 'zero' : 'none';
+          const stockName = escapeHtml(r.stock_name || '-');
+          const industry = escapeHtml(r.industry_l1 || '-');
+          const alias = escapeHtml(r.display_alias || '');
+          const code = escapeHtml(r.stock_code);
           return `<tr>
-            <td><strong>${r.stock_code}</strong><br/><span style="color:var(--muted);font-size:11px;">${r.stock_name || '-'}</span></td>
-            <td>${r.state_date}</td>
-            <td><span class="score">${r.mn1_state_score}</span> <span class="hex">${r.mn1_state_hex}</span></td>
-            <td><span class="score">${r.w1_state_score}</span> <span class="hex">${r.w1_state_hex}</span></td>
-            <td><span class="score">${r.d1_state_score}</span> <span class="hex">${r.d1_state_hex}</span></td>
-            <td><span class="tag ${efClass}">${r.ef_pattern}</span></td>
-            <td><span class="tag ${abClass}">${r.ab_pattern}</span></td>
-            <td><span class="tag ${zeroClass}">${r.zero_pattern}</span></td>
-            <td>${r.industry_l1 || '-'}</td>
+            <td><strong>${code}</strong><br/><span style="color:var(--muted);font-size:11px;">${stockName}</span></td>
+            <td>${escapeHtml(r.state_date)}</td>
+            <td><span class="score">${r.mn1_state_score}</span> <span class="hex">${escapeHtml(r.mn1_state_hex)}</span></td>
+            <td><span class="score">${r.w1_state_score}</span> <span class="hex">${escapeHtml(r.w1_state_hex)}</span></td>
+            <td><span class="score">${r.d1_state_score}</span> <span class="hex">${escapeHtml(r.d1_state_hex)}</span></td>
+            <td><span class="tag ${efClass}">${escapeHtml(r.ef_pattern)}</span></td>
+            <td><span class="tag ${abClass}">${escapeHtml(r.ab_pattern)}</span></td>
+            <td><span class="tag ${zeroClass}">${escapeHtml(r.zero_pattern)}</span></td>
+            <td>
+              ${r.state_change_flag ? `<span title="${escapeHtml(r.transition_label)}">变 ${r.ef_change != null ? (r.ef_change > 0 ? '+' + r.ef_change : r.ef_change) : '-'}</span>` : '-'}
+            </td>
+            <td>${industry}</td>
             <td>${r.close != null ? r.close.toFixed(2) : '-'}</td>
             <td>${r.volume != null ? r.volume.toLocaleString() : '-'}</td>
-            <td title="${r.display_alias}">${r.display_alias}</td>
-            <td><a href="/research?stock_code=${r.stock_code}" target="_blank">研究</a></td>
+            <td title="${alias}">${alias}</td>
+            <td><a href="/research?stock_code=${encodeURIComponent(code)}" target="_blank">研究</a></td>
           </tr>`;
         }).join('');
       }

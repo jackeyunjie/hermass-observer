@@ -167,7 +167,7 @@ Observer 是消费层，不是底座层。
 | `state_change_flag` | 是否发生切换 |
 | `ef_change` | 对比上一个交易日的 EF 数量变化 |
 | `resonance_score` | 共振强度评分 |
-| `transition_label` | 例如“由双 E 转单 F” |
+| `transition_label` | 例如 `E/E/0 -> E/A/0`；首条记录显示「初始状态」 |
 | `watch_hint` | 观察提示，不是交易建议 |
 
 ### 4.3 不建议做法

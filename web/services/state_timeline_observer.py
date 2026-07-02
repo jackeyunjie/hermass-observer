@@ -54,6 +54,46 @@ def _canonical_stock_code(value: str) -> str:
     return f"{digits}.SZ"
 
 
+def _resolve_watchlist_codes(user_key: str) -> list[str]:
+    """从 user_task_ledger.json 读取 active watch_command 任务，返回规范化股票代码列表。
+
+    匿名或空 user_key 时返回空列表，避免跨用户泄露 watchlist。
+    """
+    if not user_key or user_key.lower() in ("", "anonymous", "__anonymous__"):
+        return []
+
+    try:
+        from agently_adapter.tools.user_tasks import list_user_tasks
+    except Exception as exc:
+        log.warning("导入 user_tasks 失败: %s", exc)
+        return []
+
+    try:
+        payload = list_user_tasks(
+            user=user_key,
+            status="active",
+            task_type="watch_command",
+            limit=500,
+        )
+    except Exception as exc:
+        log.warning("读取 watchlist 任务失败: %s", exc)
+        return []
+
+    codes: list[str] = []
+    for task in payload.get("tasks", []) or []:
+        code = str(task.get("stock_code") or "").strip()
+        if code:
+            codes.append(_canonical_stock_code(code))
+    # 去重并保留顺序
+    seen: set[str] = set()
+    unique: list[str] = []
+    for code in codes:
+        if code not in seen:
+            seen.add(code)
+            unique.append(code)
+    return unique
+
+
 def _parse_bool_param(value: Any) -> bool | None:
     """解析 query bool 参数。"""
     if value is None:
@@ -92,6 +132,9 @@ def _resolve_date_range(
     max_date = max_date_row[0] if max_date_row and max_date_row[0] else date.today()
 
     if date_from and date_to:
+        # 允许用户写反，自动校正
+        if date_from > date_to:
+            date_from, date_to = date_to, date_from
         return date_from, date_to
 
     if date_from:
@@ -112,6 +155,7 @@ def _build_core_query(
     date_to: date,
     filters: dict[str, Any],
     top50_codes: list[str] | None,
+    watchlist_codes: list[str] | None,
     has_fundamental: bool,
 ) -> tuple[str, list[Any]]:
     """构建 State Timeline 长表查询 SQL 与参数。"""
@@ -120,16 +164,20 @@ def _build_core_query(
     symbol_clause = "TRUE"
     params: list[Any] = []
 
+    is_watchlist = symbol_set and symbol_set.lower() == "watchlist"
+
     effective_symbols: list[str] = []
     if symbols:
         effective_symbols = [_canonical_stock_code(s) for s in symbols if s.strip()]
     elif symbol_set and symbol_set.lower() == "top50" and top50_codes:
         effective_symbols = top50_codes
-    elif symbol_set and symbol_set.lower() == "watchlist":
-        # Phase 1 未接入真实 watchlist，返回空结果
-        effective_symbols = ["__WATCHLIST_NOT_IMPLEMENTED__"]
+    elif is_watchlist:
+        effective_symbols = watchlist_codes or []
 
-    if effective_symbols:
+    if is_watchlist and not effective_symbols:
+        # watchlist 为空时，明确返回空结果，而不是退化成全市场
+        symbol_clause = "FALSE"
+    elif effective_symbols:
         placeholders = ", ".join(["?"] * len(effective_symbols))
         symbol_clause = f"s.stock_code IN ({placeholders})"
         params.extend(effective_symbols)
@@ -280,6 +328,15 @@ def _build_core_query(
             END AS zero_pattern,
             (mn1_state_hex || '/' || w1_state_hex || '/' || d1_state_hex) AS state_triplet
         FROM flags
+    ),
+    lagged AS (
+        SELECT
+            *,
+            LAG(mn1_state_hex) OVER (PARTITION BY stock_code ORDER BY state_date) AS prev_mn1_state_hex,
+            LAG(w1_state_hex) OVER (PARTITION BY stock_code ORDER BY state_date) AS prev_w1_state_hex,
+            LAG(d1_state_hex) OVER (PARTITION BY stock_code ORDER BY state_date) AS prev_d1_state_hex,
+            LAG(ef_count) OVER (PARTITION BY stock_code ORDER BY state_date) AS prev_ef_count
+        FROM derived
     )
     SELECT
         d.stock_code,
@@ -307,10 +364,28 @@ def _build_core_query(
         d.zero_count,
         d.zero_pattern,
         d.state_triplet,
+        CASE
+            WHEN d.prev_mn1_state_hex IS NULL THEN FALSE
+            ELSE (
+                (d.mn1_state_hex IS DISTINCT FROM d.prev_mn1_state_hex)
+                OR (d.w1_state_hex IS DISTINCT FROM d.prev_w1_state_hex)
+                OR (d.d1_state_hex IS DISTINCT FROM d.prev_d1_state_hex)
+            )
+        END AS state_change_flag,
+        (d.ef_count - d.prev_ef_count) AS ef_change,
+        CASE
+            WHEN d.prev_mn1_state_hex IS NULL THEN '初始状态'
+            WHEN (d.mn1_state_hex IS DISTINCT FROM d.prev_mn1_state_hex)
+                 OR (d.w1_state_hex IS DISTINCT FROM d.prev_w1_state_hex)
+                 OR (d.d1_state_hex IS DISTINCT FROM d.prev_d1_state_hex)
+            THEN COALESCE(d.prev_mn1_state_hex || '/' || d.prev_w1_state_hex || '/' || d.prev_d1_state_hex, '-')
+                 || ' -> ' || d.mn1_state_hex || '/' || d.w1_state_hex || '/' || d.d1_state_hex
+            ELSE '-'
+        END AS transition_label,
         d.close,
         d.volume,
         d.state_date AS as_of_date
-    FROM derived d
+    FROM lagged d
     {join_meta}
     {where_sql}
     ORDER BY d.state_date DESC, d.stock_code
@@ -394,19 +469,26 @@ def query_state_timeline(
     page: int = 1,
     page_size: int = 100,
     format: str = "json",
+    user_key: str | None = None,
+    fetch_all: bool = False,
 ) -> dict[str, Any]:
     """查询 State Timeline 长表。
 
     参数：
       symbols: 逗号分隔的股票代码，或 'all'
-      symbol_set: 命名集合，当前支持 'top50'
+      symbol_set: 命名集合，当前支持 'top50' / 'watchlist'
       date_from/date_to: 绝对日期
       days: 相对窗口天数
       filters: 布尔/模式/行业过滤字典
       page/page_size: 分页（CSV 导出时忽略分页，返回全部）
       format: 'json' 或 'csv'
+      user_key: 用于读取用户 watchlist（symbol_set=watchlist 时生效）
+      fetch_all: 内部只读模式，返回全部匹配行，不受分页上限限制
     """
     filters = filters or {}
+    page = max(1, page)
+    page_size = max(1, min(page_size, 500))
+
     foundation_db = find_foundation_db()
     if not foundation_db:
         return {"ok": False, "error": "Foundation DB 不存在"}
@@ -430,6 +512,10 @@ def query_state_timeline(
         if symbol_set and symbol_set.lower() == "top50":
             top50_codes = _compute_top50_codes(con, to_date)
 
+        watchlist_codes: list[str] | None = None
+        if symbol_set and symbol_set.lower() == "watchlist":
+            watchlist_codes = _resolve_watchlist_codes(user_key or "")
+
         sql, params = _build_core_query(
             symbol_list,
             symbol_set,
@@ -437,6 +523,7 @@ def query_state_timeline(
             to_date,
             filters,
             top50_codes,
+            watchlist_codes,
             has_fundamental,
         )
 
@@ -445,8 +532,9 @@ def query_state_timeline(
 
         # 是否导出 CSV：CSV 返回全部匹配行，不做分页
         is_csv = format.lower() == "csv"
+        should_fetch_all = is_csv or fetch_all
 
-        if is_csv:
+        if should_fetch_all:
             rows = con.execute(sql, params).fetchall()
         else:
             offset = max(0, (page - 1)) * page_size
@@ -555,4 +643,5 @@ def query_stock_timeline(
         date_to=date_to,
         page=1,
         page_size=10000,
+        fetch_all=True,
     )

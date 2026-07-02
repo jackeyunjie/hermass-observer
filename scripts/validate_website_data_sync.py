@@ -221,6 +221,7 @@ def validate_state_observer_api(expected_date: str) -> list[str]:
                 "mn1_is_ab", "w1_is_ab", "d1_is_ab",
                 "mn1_is_zero", "w1_is_zero", "d1_is_zero",
                 "ef_pattern", "ab_pattern", "zero_pattern",
+                "state_change_flag", "ef_change", "transition_label",
             ]
             missing = [f for f in required_fields if f not in first]
             if not missing:
@@ -231,6 +232,36 @@ def validate_state_observer_api(expected_date: str) -> list[str]:
             fail(errors, "state-observer API returned no rows for top50")
     except Exception as exc:
         fail(errors, f"state-observer API request failed: {exc}")
+    return errors
+
+
+def validate_state_observer_watchlist(expected_date: str) -> list[str]:
+    """State Timeline Observer watchlist 路径验收：有任务返回真实数据，无任务返回空结果且不报错。"""
+    errors: list[str] = []
+    try:
+        data = get_json("/api/state-observer", {"symbol_set": "watchlist", "days": "5"})
+        if not data.get("ok"):
+            fail(errors, f"state-observer watchlist returned ok=false: {data.get('error')}")
+            return errors
+        rows = data.get("rows", [])
+        meta = data.get("meta", {})
+        if not isinstance(rows, list):
+            fail(errors, "state-observer watchlist rows is not a list")
+            return errors
+        if meta.get("date_max") == expected_date:
+            ok(f"state-observer watchlist date_max={expected_date}")
+        else:
+            fail(errors, f"state-observer watchlist date_max={meta.get('date_max')} != {expected_date}")
+        ok(f"state-observer watchlist returned ok=true rows={len(rows)}")
+        if rows:
+            first = rows[0]
+            if all(f in first for f in ("stock_code", "state_date", "state_change_flag", "ef_change", "transition_label")):
+                ok("state-observer watchlist row fields complete")
+            else:
+                missing = [f for f in ("stock_code", "state_date", "state_change_flag", "ef_change", "transition_label") if f not in first]
+                fail(errors, f"state-observer watchlist missing fields: {missing}")
+    except Exception as exc:
+        fail(errors, f"state-observer watchlist request failed: {exc}")
     return errors
 
 
@@ -271,6 +302,7 @@ def main() -> int:
         fail(errors, f"state-observer page request failed: {exc}")
 
     errors.extend(validate_state_observer_api(expected_date))
+    errors.extend(validate_state_observer_watchlist(expected_date))
 
     if errors:
         print(f"[SUMMARY] failed={len(errors)}")

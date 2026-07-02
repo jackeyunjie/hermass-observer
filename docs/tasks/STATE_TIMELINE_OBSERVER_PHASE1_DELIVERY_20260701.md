@@ -274,6 +274,7 @@ PM preflight 仍全绿，未因本次改动回归。
 ### 已知缺口（非阻塞）
 
 - `symbol_set=watchlist` 当前是占位项，后端故意返回空结果。前端下拉文案已改为“自选池（Phase 2 接入）”。
+- 该占位已在 **Phase 2A** 真实接入，详见 `docs/tasks/STATE_TIMELINE_OBSERVER_PHASE2A_DELIVERY_20260701.md`。
 
 ---
 
@@ -281,8 +282,9 @@ PM preflight 仍全绿，未因本次改动回归。
 
 1. **邮件摘要**：Observer 的每日 HTML 邮件和定时推送。
 2. **后台导出任务**：全市场、长时间窗的 CSV/Parquet 异步导出。
-3. **自选池 `watchlist`**：当前 `symbol_set=watchlist` 返回空结果，Phase 2 接入真实用户自选。
-4. **状态变化摘要**：`state_change_flag`、`transition_label`、`watch_hint` 等增强字段。
+3. ~~**自选池 `watchlist`**：当前 `symbol_set=watchlist` 返回空结果，Phase 2 接入真实用户自选。~~（已在 Phase 2A 完成）
+4. ~~**状态变化摘要**：`state_change_flag`、`transition_label` 等增强字段。~~（已在 Phase 2A 完成最小集合）
+   - 剩余 `watch_hint`、`ab_change`、`zero_change` 等字段待评估。
 5. **Agent 消费接口**：给 Strategy Agent 提供统一只读接口，写入 Observation Ledger。
 6. **性能预计算**：如果实时查询性能下降，再考虑每日预计算 `state_timeline_daily` 物化表。
 7. **共振/风险标签**：`resonance_tag`、`risk_tag` 等需要更多先验数据后再补充。
