@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -133,7 +134,13 @@ def _load_duckdb_rows(date_str: str) -> list[dict[str, Any]]:
             [date_str],
         )
         cols = [desc[0] for desc in result.description]
-        return [dict(zip(cols, row)) for row in result.fetchall()]
+        rows = []
+        for row in result.fetchall():
+            raw = dict(zip(cols, row))
+            sanitized = _sanitize_row(raw)
+            if sanitized is not None:
+                rows.append(sanitized)
+        return rows
     except Exception as exc:
         log.warning("Failed to query %s: %s", DUCKDB_PATH, exc)
         return []
@@ -141,25 +148,58 @@ def _load_duckdb_rows(date_str: str) -> list[dict[str, Any]]:
         con.close()
 
 
+def _sanitize_row(row: Any) -> dict[str, Any] | None:
+    """Normalize a raw row into a safe dict for downstream consumption.
+
+    Returns None if the row cannot be represented as a dict or lacks a usable
+    stock_code/strategy_id combination.
+    """
+    if not isinstance(row, dict):
+        return None
+    strategy_id = str(row.get("strategy_id") or "").strip().lower()
+    stock_code = str(row.get("stock_code") or "").strip()
+    if strategy_id not in ALLOWED_STRATEGIES or not stock_code:
+        return None
+    sanitized = dict(row)
+    sanitized["strategy_id"] = strategy_id
+    sanitized["stock_code"] = stock_code
+    sanitized["stock_name"] = str(row.get("stock_name") or "").strip()
+    sanitized["signal_type"] = str(row.get("signal_type") or "").strip().lower()
+    sanitized["signal_name"] = str(row.get("signal_name") or "").strip()
+    sanitized["raw_signal"] = str(row.get("raw_signal") or "").strip()
+    sanitized["strategy_environment_fit"] = str(row.get("strategy_environment_fit") or "").strip()
+    sanitized["env_category"] = str(row.get("env_category") or "").strip()
+    return sanitized
+
+
 def _load_rows(date_str: str) -> list[dict[str, Any]]:
     """Load rows for a given date, preferring the latest JSON."""
     rows = _load_latest_json(date_str)
     if rows is not None:
-        return [
-            row
-            for row in rows
-            if row.get("strategy_id") in ALLOWED_STRATEGIES
-        ]
+        result = []
+        for row in rows:
+            sanitized = _sanitize_row(row)
+            if sanitized is not None:
+                result.append(sanitized)
+        return result
     return _load_duckdb_rows(date_str)
 
 
 def _row_confidence(row: dict[str, Any]) -> float:
-    """Return numeric confidence for a row."""
+    """Return numeric confidence for a row, clamped to [0, 1].
+
+    Defensive against missing, non-numeric, NaN, negative, or >1 values.
+    """
     value = row.get("signal_strength")
+    if value is None:
+        return 0.0
     try:
-        return float(value) if value is not None else 0.0
+        confidence = float(value)
     except (TypeError, ValueError):
         return 0.0
+    if math.isnan(confidence) or math.isinf(confidence):
+        return 0.0
+    return max(0.0, min(1.0, confidence))
 
 
 def _normalize_date(date_str: str) -> str:

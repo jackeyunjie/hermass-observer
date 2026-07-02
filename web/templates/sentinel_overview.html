@@ -119,10 +119,10 @@
         {% if strategies %}
         <div class="sentinel-grid">
           {% for s in strategies %}
-          <a class="sentinel-card" href="/sentinel/{{ s.strategy_name }}?date={{ date }}">
-            <div class="sentinel-name">{{ s.display_name }}</div>
+          <a class="sentinel-card" href="/sentinel/{{ s.strategy_name|urlencode }}?date={{ date|urlencode }}">
+            <div class="sentinel-name">{{ s.display_name|e }}</div>
             <div class="sentinel-count">{{ s.signal_count }}</div>
-            <div class="sentinel-label {{ s.signal_type }}">{{ s.label }}</div>
+            <div class="sentinel-label {{ s.signal_type|e }}">{{ s.label|e }}</div>
           </a>
           {% endfor %}
         </div>
@@ -143,9 +143,9 @@
             {% for s in strategies %}
               {% for sig in s.signals %}
               <tr>
-                <td><a href="/sentinel/{{ s.strategy_name }}?date={{ date }}">{{ s.display_name }}</a></td>
-                <td><a href="/sentinel/detail?strategy={{ s.strategy_name }}&stock_code={{ sig.stock_code }}&date={{ date }}">{{ sig.stock_code }}</a></td>
-                <td>{{ sig.signal_display_text }}</td>
+                <td><a href="/sentinel/{{ s.strategy_name|urlencode }}?date={{ date|urlencode }}">{{ s.display_name|e }}</a></td>
+                <td><a href="/sentinel/detail?strategy={{ s.strategy_name|urlencode }}&amp;stock_code={{ sig.stock_code|urlencode }}&amp;date={{ date|urlencode }}">{{ sig.stock_code|e }}</a></td>
+                <td>{{ sig.signal_display_text|e }}</td>
                 <td>{{ "%.2f"|format(sig.confidence) }}</td>
               </tr>
               {% endfor %}
@@ -154,8 +154,9 @@
         </table>
         {% else %}
         <div class="empty-state">
-          当日未检测到已允许策略的规则信号（entry / exit / risk）。<br />
-          <span style="font-size:12px">{{ warning or '结构类信号不在哨兵首页展示。' }}</span>
+          <strong>当日无规则信号</strong><br />
+          未检测到 VCP / 2560 / 布林强盗的 entry / exit / risk 规则触发。<br />
+          <span style="font-size:12px">{{ (warning or '结构类信号不在哨兵首页展示。')|e }}</span>
         </div>
         {% endif %}
       </section>

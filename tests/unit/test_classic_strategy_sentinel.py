@@ -331,3 +331,170 @@ class TestRoutes:
         assert response.status_code == 200
         data = response.json()
         assert data["ok"] is False
+
+
+class TestRealSchemaCompatibility:
+    """Tests based on the actual strategy_signal_daily_latest.json schema."""
+
+    def _real_sample_row(self, overrides: dict | None = None) -> dict:
+        """Return a row that mirrors the real production schema."""
+        row = {
+            "signal_date": "2026-07-02",
+            "stock_code": "000021.SZ",
+            "stock_name": "深科技",
+            "strategy_id": "vcp",
+            "signal_type": "entry",
+            "signal_name": "VCP突破确认",
+            "signal_strength": 0.85,
+            "params_json": '{"source": "backtest.strategy_signals.vcp.vcp_signal"}',
+            "raw_signal": "vcp_breakout",
+            "source_module": "backtest.strategy_signals.vcp",
+            "research_only": True,
+            "reminder_eligible": False,
+            "display_scope": "research",
+            "lifecycle_stage": "延展",
+            "strategy_environment_fit": "弱适配",
+            "fit_reasons": "D1波动偏活跃；vcp弱适配",
+            "env_category": "strong_resonance",
+            "w1_mn1_label": "大周期共振",
+            "env_category_factor": 1.1,
+            "vcp_entry_confirmation": None,
+            "vcp_stop_prices": None,
+            "ma2560_entry_confirmation": None,
+            "bollinger_entry_confirmation": None,
+            "atr_chandelier_entry_confirmation": None,
+            "ma2560_local_combo_pass": False,
+            "ma2560_p116_state_match": False,
+            "ma2560_market_match_level": "not_match",
+            "ma2560_state_combo": "E/E/F",
+            "matched_pattern": "",
+            "pattern_boost": 0.0,
+            "conviction_level": "normal",
+        }
+        if overrides:
+            row.update(overrides)
+        return row
+
+    def test_real_schema_overview(self, monkeypatch):
+        row = self._real_sample_row()
+        monkeypatch.setattr(sentinel, "_load_rows", lambda _date: [row])
+        overview = sentinel.get_overview("2026-07-02")
+        assert overview["ok"] is True
+        assert overview["total_stocks"] == 1
+
+    def test_real_schema_detail(self, monkeypatch):
+        row = self._real_sample_row()
+        monkeypatch.setattr(sentinel, "_load_rows", lambda _date: [row])
+        detail = sentinel.get_detail("vcp", "000021.SZ", "2026-07-02")
+        assert detail["ok"] is True
+        assert detail["found"] is True
+        assert detail["stock_name"] == "深科技"
+        assert detail["disclaimer"] == sentinel.RESEARCH_ONLY_DISCLAIMER
+
+    def test_missing_stock_name_defaults_to_empty(self, monkeypatch):
+        row = self._real_sample_row({"stock_name": None})
+        monkeypatch.setattr(sentinel, "_load_rows", lambda _date: [row])
+        detail = sentinel.get_detail("vcp", "000021.SZ", "2026-07-02")
+        assert detail["stock_name"] == ""
+
+    def test_empty_stock_name_defaults_to_empty(self, monkeypatch):
+        row = self._real_sample_row({"stock_name": ""})
+        monkeypatch.setattr(sentinel, "_load_rows", lambda _date: [row])
+        detail = sentinel.get_detail("vcp", "000021.SZ", "2026-07-02")
+        assert detail["stock_name"] == ""
+
+    @pytest.mark.parametrize(
+        "bad_confidence, expected",
+        [
+            (-0.5, 0.0),
+            (1.5, 1.0),
+            (float("nan"), 0.0),
+            (float("inf"), 0.0),
+            ("not_a_number", 0.0),
+            (None, 0.0),
+        ],
+    )
+    def test_abnormal_confidence_clamped(self, monkeypatch, bad_confidence, expected):
+        row = self._real_sample_row({"signal_strength": bad_confidence})
+        monkeypatch.setattr(sentinel, "_load_rows", lambda _date: [row])
+        detail = sentinel.get_detail("vcp", "000021.SZ", "2026-07-02")
+        assert detail["confidence"] == pytest.approx(expected, abs=1e-4)
+
+    def test_missing_strategy_id_is_dropped(self, monkeypatch):
+        row = self._real_sample_row({"strategy_id": None})
+        monkeypatch.setattr(sentinel, "_load_rows", lambda _date: [row])
+        overview = sentinel.get_overview("2026-07-02")
+        assert overview["total_stocks"] == 0
+
+    def test_missing_stock_code_is_dropped(self, monkeypatch):
+        row = self._real_sample_row({"stock_code": ""})
+        monkeypatch.setattr(sentinel, "_load_rows", lambda _date: [row])
+        overview = sentinel.get_overview("2026-07-02")
+        assert overview["total_stocks"] == 0
+
+    def test_missing_signal_type_still_surfaces(self, monkeypatch):
+        row = self._real_sample_row({"signal_type": ""})
+        monkeypatch.setattr(sentinel, "_load_rows", lambda _date: [row])
+        detail = sentinel.get_detail("vcp", "000021.SZ", "2026-07-02")
+        assert detail["ok"] is True
+        assert detail["found"] is True
+
+
+class TestInjectionSafety:
+    """Ensure malicious stock_code / strategy values cannot inject HTML or URL."""
+
+    def _malicious_rows(self) -> list[dict]:
+        return [
+            {
+                "signal_date": "2026-07-02",
+                "stock_code": "000001.SZ<script>alert(1)</script>",
+                "stock_name": "恶意<script>alert(2)</script>名称",
+                "strategy_id": "vcp",
+                "signal_type": "entry",
+                "signal_name": "VCP突破确认",
+                "signal_strength": 0.85,
+                "raw_signal": "vcp_breakout",
+                "strategy_environment_fit": "弱适配",
+            }
+        ]
+
+    def test_overview_html_escapes_malicious_content(self, monkeypatch):
+        monkeypatch.setattr(sentinel, "_load_rows", lambda _date: self._malicious_rows())
+        client = TestClient(main.app)
+        response = client.get("/api/sentinel/overview?date=2026-07-02")
+        assert response.status_code == 200
+        data = response.json()
+        stock = data["strategies"][0]["signals"][0]
+        assert "<script>" in stock["stock_code"]  # JSON preserves literal string
+        assert "</script>" in stock["stock_code"]
+
+    def test_page_overview_escapes_html(self, monkeypatch):
+        monkeypatch.setattr(sentinel, "_load_rows", lambda _date: self._malicious_rows())
+        client = TestClient(main.app)
+        response = client.get("/sentinel?date=2026-07-02")
+        assert response.status_code == 200
+        text = response.text
+        # The literal script tag should not appear in the HTML; it should be escaped.
+        assert "<script>alert(1)</script>" not in text
+        assert "&lt;script&gt;" in text or "000001.SZ" not in text
+
+    def test_page_detail_url_encodes_stock_code(self, monkeypatch):
+        monkeypatch.setattr(sentinel, "_load_rows", lambda _date: self._malicious_rows())
+        client = TestClient(main.app)
+        response = client.get("/sentinel/vcp?date=2026-07-02")
+        assert response.status_code == 200
+        text = response.text
+        # The href must not contain a literal script tag in the URL.
+        assert "<script>alert(1)</script>" not in text
+        # URL-encoded form should be present.
+        assert "%3Cscript%3E" in text
+
+    def test_detail_page_escapes_stock_name(self, monkeypatch):
+        rows = self._malicious_rows()
+        monkeypatch.setattr(sentinel, "_load_rows", lambda _date: rows)
+        client = TestClient(main.app)
+        # Use a safe URL but the row itself has a malicious stock_name.
+        response = client.get("/sentinel/detail?strategy=vcp&stock_code=000001.SZ%3Cscript%3Ealert(1)%3C%2Fscript%3E&date=2026-07-02")
+        assert response.status_code == 200
+        text = response.text
+        assert "<script>alert(2)</script>" not in text

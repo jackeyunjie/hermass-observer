@@ -52,6 +52,11 @@ from web.services.classic_strategy_sentinel import (
     get_overview as sentinel_get_overview,
     get_signals as sentinel_get_signals,
 )
+from web.services.turning_point_probability_reader import (
+    get_signals as tpp_get_signals,
+    get_stock as tpp_get_stock,
+    get_summary as tpp_get_summary,
+)
 
 # 启动时初始化用户 profile（读取环境变量 HERMASS_HTPASSWD_USERS 中的逗号分隔用户名）
 init_profiles([u.strip() for u in os.environ.get("HERMASS_HTPASSWD_USERS", "").split(",") if u.strip()])
@@ -4778,6 +4783,27 @@ def api_sentinel_detail(
     from datetime import date as _date
     target_date = date or _date.today().isoformat()
     return JSONResponse(content=sentinel_get_detail(strategy, stock_code, target_date))
+
+
+@app.get("/api/turning-point-probability/summary")
+def api_turning_point_probability_summary() -> JSONResponse:
+    """转折概率产物摘要 API。"""
+    return JSONResponse(content=tpp_get_summary())
+
+
+@app.get("/api/turning-point-probability/signals")
+def api_turning_point_probability_signals(
+    window: str = "3W",
+    limit: int = 50,
+) -> JSONResponse:
+    """指定时间窗的转折概率 Top 信号 API。"""
+    return JSONResponse(content=tpp_get_signals(window, limit))
+
+
+@app.get("/api/turning-point-probability/stock")
+def api_turning_point_probability_stock(stock_code: str = "") -> JSONResponse:
+    """单标的四个时间窗转折概率 API。"""
+    return JSONResponse(content=tpp_get_stock(stock_code))
 
 
 def _agent_debate_data(stock_code: str = "") -> dict[str, Any]:

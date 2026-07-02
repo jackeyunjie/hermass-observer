@@ -155,14 +155,14 @@
     <main class="layout">
       <section class="panel span-2">
         <div class="breadcrumb">
-          <a href="/">首页</a> / <a href="/sentinel?date={{ date }}">经典策略哨兵</a> / {{ display_name }}
+          <a href="/">首页</a> / <a href="/sentinel?date={{ date|urlencode }}">经典策略哨兵</a> / {{ display_name|e }}
         </div>
         <div class="disclaimer">
           {{ disclaimer }}
         </div>
         {% if env_match.text %}
         <div class="env-match">
-          环境匹配度：{{ env_match.text }}
+          环境匹配度：{{ env_match.text|e }}
         </div>
         {% endif %}
       </section>
@@ -184,9 +184,9 @@
           <tbody>
             {% for sig in signals %}
             <tr {% if selected_stock and sig.stock_code == selected_stock %}class="active"{% endif %}>
-              <td><a href="/sentinel/detail?strategy={{ strategy }}&stock_code={{ sig.stock_code }}&date={{ date }}">{{ sig.stock_code }}{% if sig.stock_name %}（{{ sig.stock_name }}）{% endif %}</a></td>
-              <td>{{ sig.signal_display_text }}</td>
-              <td>{{ sig.signal_type }}</td>
+              <td><a href="/sentinel/detail?strategy={{ strategy|urlencode }}&amp;stock_code={{ sig.stock_code|urlencode }}&amp;date={{ date|urlencode }}">{{ sig.stock_code|e }}{% if sig.stock_name %}（{{ sig.stock_name|e }}）{% endif %}</a></td>
+              <td>{{ sig.signal_display_text|e }}</td>
+              <td>{{ sig.signal_type|e }}</td>
               <td>{{ "%.2f"|format(sig.confidence) }}</td>
             </tr>
             {% endfor %}
@@ -194,16 +194,17 @@
         </table>
         {% else %}
         <div class="empty-state">
-          当日未找到该策略的信号记录。<br />
-          <span style="font-size:12px">{{ warning or '' }}</span>
+          <strong>当日无该策略信号</strong><br />
+          未找到 {{ display_name|e }} 在 {{ date|e }} 的 entry / exit / risk 规则触发。<br />
+          <span style="font-size:12px">{{ (warning or '')|e }}</span>
         </div>
         {% endif %}
 
         {% if selected_stock and detail.found %}
         <div class="detail-panel">
-          <h2>{{ detail.stock_code }}{% if detail.stock_name %}（{{ detail.stock_name }}）{% endif %} 规则触发详情</h2>
+          <h2>{{ detail.stock_code|e }}{% if detail.stock_name %}（{{ detail.stock_name|e }}）{% endif %} 规则触发详情</h2>
           <p style="color:var(--muted);font-size:13px;margin-bottom:16px">
-            {{ detail.signal_display_text }} · 置信度 {{ "%.2f"|format(detail.confidence) }}
+            {{ detail.signal_display_text|e }} · 置信度 {{ "%.2f"|format(detail.confidence) }}
           </p>
 
           <h3>条件检查</h3>
@@ -213,7 +214,7 @@
               <span class="marker {% if item.met %}met{% else %}unmet{% endif %}">
                 {% if item.met %}✓{% else %}✗{% endif %}
               </span>
-              <span>{{ item.condition }}</span>
+              <span>{{ item.condition|e }}</span>
             </li>
             {% endfor %}
           </ul>
@@ -223,8 +224,8 @@
               <h3>止损规则</h3>
               {% for rule in detail.stop_rules %}
               <div class="rule-row">
-                <span class="label">{{ rule.rule }}</span>
-                <span>{{ rule.detail }}</span>
+                <span class="label">{{ rule.rule|e }}</span>
+                <span>{{ rule.detail|e }}</span>
               </div>
               {% endfor %}
             </div>
@@ -244,14 +245,14 @@
             <h3>仓位规则</h3>
             <div class="rule-row">
               <span class="label">规则条文</span>
-              <span>{{ detail.position_rule_text }}</span>
+              <span>{{ detail.position_rule_text|e }}</span>
             </div>
           </div>
           {% endif %}
 
           {% if detail.external_validation %}
           <div class="env-match" style="margin-top:16px">
-            外部验证：{{ detail.external_validation }}
+            外部验证：{{ detail.external_validation|e }}
           </div>
           {% endif %}
         </div>
