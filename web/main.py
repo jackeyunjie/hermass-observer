@@ -42,6 +42,7 @@ from hermass_platform.research import (
     format_quick_research_card,
 )
 from agently_adapter.tools.user_tasks import cancel_user_task, create_user_watch_task, list_user_tasks
+from web.services.state_timeline_observer import query_state_timeline, query_stock_timeline
 
 # 启动时初始化用户 profile（读取环境变量 HERMASS_HTPASSWD_USERS 中的逗号分隔用户名）
 init_profiles([u.strip() for u in os.environ.get("HERMASS_HTPASSWD_USERS", "").split(",") if u.strip()])
@@ -4086,6 +4087,113 @@ def api_create_user_task(request: Request, body: dict | None = Body(default=None
     )
     result["ok"] = True
     return JSONResponse(content=result)
+
+
+@app.get("/api/state-observer")
+def state_observer_api(
+    symbols: str | None = None,
+    symbol_set: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    days: int = 20,
+    mn1_is_ef: str | None = None,
+    w1_is_ef: str | None = None,
+    d1_is_ef: str | None = None,
+    mn1_is_ab: str | None = None,
+    w1_is_ab: str | None = None,
+    d1_is_ab: str | None = None,
+    mn1_is_zero: str | None = None,
+    w1_is_zero: str | None = None,
+    d1_is_zero: str | None = None,
+    ef_pattern_any: str | None = None,
+    ab_pattern_any: str | None = None,
+    zero_pattern_any: str | None = None,
+    industry_l1: str | None = None,
+    page: int = 1,
+    page_size: int = 100,
+    format: str = "json",
+) -> Response:
+    """State Timeline Observer 查询 API。
+
+    返回长表：一只股票 × 一个交易日 = 一行。
+    支持 EF / A+B / 0 三类事件族筛选与 CSV 导出。
+    """
+    filters = {
+        k: v
+        for k, v in {
+            "mn1_is_ef": mn1_is_ef,
+            "w1_is_ef": w1_is_ef,
+            "d1_is_ef": d1_is_ef,
+            "mn1_is_ab": mn1_is_ab,
+            "w1_is_ab": w1_is_ab,
+            "d1_is_ab": d1_is_ab,
+            "mn1_is_zero": mn1_is_zero,
+            "w1_is_zero": w1_is_zero,
+            "d1_is_zero": d1_is_zero,
+            "ef_pattern_any": ef_pattern_any,
+            "ab_pattern_any": ab_pattern_any,
+            "zero_pattern_any": zero_pattern_any,
+            "industry_l1": industry_l1,
+        }.items()
+        if v is not None and str(v).strip() != ""
+    }
+
+    result = query_state_timeline(
+        symbols=symbols,
+        symbol_set=symbol_set,
+        date_from=date_from,
+        date_to=date_to,
+        days=days,
+        filters=filters,
+        page=page,
+        page_size=page_size,
+        format=format,
+    )
+
+    if not result.get("ok"):
+        return JSONResponse(content=result, status_code=500)
+
+    if format.lower() == "csv":
+        filename = f"state_timeline_{date.today().isoformat()}.csv"
+        return Response(
+            content=result["csv"],
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
+        )
+
+    return JSONResponse(content=result)
+
+
+@app.get("/api/state-observer/timeline")
+def state_observer_timeline_api(
+    stock_code: str,
+    days: int = 30,
+    date_from: str | None = None,
+    date_to: str | None = None,
+) -> JSONResponse:
+    """单只股票 State 轨迹查询。"""
+    result = query_stock_timeline(
+        stock_code=stock_code,
+        days=days,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    return JSONResponse(content=result)
+
+
+@app.get("/state-observer", response_class=HTMLResponse)
+def state_observer_page(request: Request) -> HTMLResponse:
+    """State Timeline Observer 工作台页面。"""
+    profile = get_current_profile(request)
+    return templates.TemplateResponse(
+        request,
+        "state-observer.html",
+        {
+            "request": request,
+            "today": str(date.today()),
+            "current_user": profile,
+        },
+    )
 
 
 @app.get("/api/recommend")

@@ -1,0 +1,628 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>State Timeline Observer · Hermass</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <style>
+      .observer-hero {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        margin-bottom: 16px;
+      }
+      .observer-card {
+        padding: 18px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: #fff;
+      }
+      .observer-card h2 {
+        font-size: 14px;
+        color: var(--muted);
+        margin-bottom: 8px;
+        font-weight: 600;
+      }
+      .observer-card p {
+        font-size: 13px;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+      .control-panel {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+      .control-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .control-group label {
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 500;
+      }
+      .control-group input,
+      .control-group select {
+        padding: 8px 10px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        font-size: 13px;
+        background: #fff;
+      }
+      .event-tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+        flex-wrap: wrap;
+      }
+      .event-tab {
+        padding: 6px 14px;
+        border-radius: 16px;
+        border: 1px solid var(--line);
+        background: #fff;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 500;
+      }
+      .event-tab.active {
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+      }
+      .filter-row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+      .filter-row label {
+        font-size: 12px;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        cursor: pointer;
+      }
+      .filter-row input[type="checkbox"] {
+        width: 14px;
+        height: 14px;
+      }
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+      .stat-item {
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        text-align: center;
+      }
+      .stat-val {
+        font-size: 20px;
+        font-weight: 800;
+      }
+      .stat-val.ef { color: var(--good); }
+      .stat-val.ab { color: #2563eb; }
+      .stat-val.zero { color: #7c3aed; }
+      .stat-label {
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+      .table-wrap {
+        overflow-x: auto;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+      }
+      .observer-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+      .observer-table th,
+      .observer-table td {
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        white-space: nowrap;
+      }
+      .observer-table th {
+        background: #f8fafc;
+        font-weight: 600;
+        color: var(--muted);
+        position: sticky;
+        top: 0;
+      }
+      .observer-table tr:hover {
+        background: #f8fafc;
+      }
+      .tag {
+        display: inline-block;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .tag.ef { background: #dcfce7; color: #166534; }
+      .tag.ab { background: #dbeafe; color: #1e40af; }
+      .tag.zero { background: #ede9fe; color: #5b21b6; }
+      .tag.none { background: #f1f5f9; color: #64748b; }
+      .score {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-weight: 700;
+      }
+      .hex {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: var(--muted);
+      }
+      .pagination {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 12px;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .pagination button {
+        padding: 6px 12px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #fff;
+        cursor: pointer;
+        font-size: 13px;
+      }
+      .pagination button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .loading {
+        color: var(--muted);
+        padding: 20px;
+        text-align: center;
+      }
+      .error {
+        color: #b91c1c;
+        padding: 16px;
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        border-radius: 8px;
+        margin-bottom: 12px;
+      }
+      .muted-note {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 8px;
+      }
+      @media (max-width: 860px) {
+        .observer-hero { grid-template-columns: 1fr; }
+        .control-panel { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Hermass 多周期观察</p>
+        <h1>State Timeline Observer</h1>
+      </div>
+      <div class="date">
+        {% set nav_active = 'toolbox' %}{% include '_top_nav.html' %}
+        <span>数据 {{ today }}</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      {# ── 1. 说明卡片 ── #}
+      <section class="panel span-2">
+        <div class="observer-hero">
+          <div class="observer-card">
+            <h2>这是 State 观察工作台</h2>
+            <p>查询任意股票组合在最近任意交易日的 MN1 / W1 / D1 State 轨迹。支持 EF、A+B、0 三类事件族筛选与导出。</p>
+          </div>
+          <div class="observer-card">
+            <h2>不是交易指令面板</h2>
+            <p>本页只展示状态结构，不提供买入、卖出、目标价、止损价或收益承诺。观察结论需要你自己验证。</p>
+          </div>
+        </div>
+      </section>
+
+      {# ── 2. 控制面板 ── #}
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>查询参数</h2>
+          <span>任意股票组合 × 任意时间窗口</span>
+        </div>
+        <div class="control-panel">
+          <div class="control-group">
+            <label for="symbols">股票代码（逗号分隔，留空则按集合）</label>
+            <input type="text" id="symbols" placeholder="例如 000021.SZ,000001.SZ" />
+          </div>
+          <div class="control-group">
+            <label for="symbol_set">股票集合</label>
+            <select id="symbol_set">
+              <option value="">-- 选择集合 --</option>
+              <option value="top50" selected>Top50</option>
+              <option value="all">全市场</option>
+              <option value="watchlist">自选池（Phase 2 接入）</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label for="days">最近 N 天</label>
+            <input type="number" id="days" value="6" min="1" max="120" />
+          </div>
+          <div class="control-group">
+            <label for="date_from">日期从</label>
+            <input type="date" id="date_from" />
+          </div>
+          <div class="control-group">
+            <label for="date_to">日期到</label>
+            <input type="date" id="date_to" />
+          </div>
+          <div class="control-group">
+            <label for="industry_l1">一级行业（逗号分隔）</label>
+            <input type="text" id="industry_l1" placeholder="例如 电子,汽车" />
+          </div>
+          <div class="control-group">
+            <label for="page_size">每页行数</label>
+            <input type="number" id="page_size" value="50" min="10" max="500" />
+          </div>
+        </div>
+
+        <div class="event-tabs" id="eventTabs">
+          <div class="event-tab active" data-family="all">全部</div>
+          <div class="event-tab" data-family="ef">EF</div>
+          <div class="event-tab" data-family="ab">A+B</div>
+          <div class="event-tab" data-family="zero">0</div>
+        </div>
+
+        <div class="filter-row" id="periodFilters">
+          <label><input type="checkbox" id="mn1_is_ef" /> 月线 EF</label>
+          <label><input type="checkbox" id="w1_is_ef" /> 周线 EF</label>
+          <label><input type="checkbox" id="d1_is_ef" /> 日线 EF</label>
+          <label><input type="checkbox" id="mn1_is_ab" /> 月线 A/B</label>
+          <label><input type="checkbox" id="w1_is_ab" /> 周线 A/B</label>
+          <label><input type="checkbox" id="d1_is_ab" /> 日线 A/B</label>
+          <label><input type="checkbox" id="mn1_is_zero" /> 月线 0</label>
+          <label><input type="checkbox" id="w1_is_zero" /> 周线 0</label>
+          <label><input type="checkbox" id="d1_is_zero" /> 日线 0</label>
+        </div>
+
+        <div class="filter-row">
+          <label>EF 交集模式
+            <select id="ef_pattern_any">
+              <option value="">不限</option>
+              <option value="MN1">MN1</option>
+              <option value="W1">W1</option>
+              <option value="D1">D1</option>
+              <option value="MN1+W1">MN1+W1</option>
+              <option value="MN1+D1">MN1+D1</option>
+              <option value="W1+D1">W1+D1</option>
+              <option value="MN1+W1+D1">MN1+W1+D1</option>
+            </select>
+          </label>
+          <label>A/B 交集模式
+            <select id="ab_pattern_any">
+              <option value="">不限</option>
+              <option value="MN1">MN1</option>
+              <option value="W1">W1</option>
+              <option value="D1">D1</option>
+              <option value="MN1+W1">MN1+W1</option>
+              <option value="MN1+D1">MN1+D1</option>
+              <option value="W1+D1">W1+D1</option>
+              <option value="MN1+W1+D1">MN1+W1+D1</option>
+            </select>
+          </label>
+          <label>0 交集模式
+            <select id="zero_pattern_any">
+              <option value="">不限</option>
+              <option value="MN1">MN1</option>
+              <option value="W1">W1</option>
+              <option value="D1">D1</option>
+              <option value="MN1+W1">MN1+W1</option>
+              <option value="MN1+D1">MN1+D1</option>
+              <option value="W1+D1">W1+D1</option>
+              <option value="MN1+W1+D1">MN1+W1+D1</option>
+            </select>
+          </label>
+          <button onclick="loadData()" style="margin-left:auto;">查询</button>
+          <button onclick="exportCsv()">导出 CSV</button>
+        </div>
+      </section>
+
+      {# ── 3. 统计 ── #}
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>当前结果统计</h2>
+          <span id="resultMeta">未查询</span>
+        </div>
+        <div class="stats-grid" id="statsGrid">
+          <div class="stat-item"><div class="stat-val ef" id="statEf">-</div><div class="stat-label">EF 行数（全结果）</div></div>
+          <div class="stat-item"><div class="stat-val ab" id="statAb">-</div><div class="stat-label">A/B 行数（全结果）</div></div>
+          <div class="stat-item"><div class="stat-val zero" id="statZero">-</div><div class="stat-label">0 行数（全结果）</div></div>
+          <div class="stat-item"><div class="stat-val" id="statSymbols">-</div><div class="stat-label">股票数（全结果）</div></div>
+          <div class="stat-item"><div class="stat-val" id="statRows">-</div><div class="stat-label">总行数（全结果）</div></div>
+        </div>
+      </section>
+
+      {# ── 4. 表格 ── #}
+      <section class="panel span-2">
+        <div id="errorBox"></div>
+        <div id="loadingBox" class="loading" style="display:none;">加载中...</div>
+        <div class="table-wrap">
+          <table class="observer-table" id="resultTable">
+            <thead>
+              <tr>
+                <th>股票</th>
+                <th>日期</th>
+                <th>MN1</th>
+                <th>W1</th>
+                <th>D1</th>
+                <th>EF 模式</th>
+                <th>A/B 模式</th>
+                <th>0 模式</th>
+                <th>行业</th>
+                <th>收盘价</th>
+                <th>成交量</th>
+                <th>别名</th>
+                <th>研究</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody">
+              <tr><td colspan="13" style="text-align:center;color:var(--muted);padding:24px;">请点击“查询”按钮加载数据</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <span id="pageInfo"></span>
+          <div>
+            <button id="prevBtn" onclick="changePage(-1)" disabled>上一页</button>
+            <button id="nextBtn" onclick="changePage(1)" disabled>下一页</button>
+          </div>
+        </div>
+        <p class="muted-note">主显示：state_score 数字；辅助：state_hex 字母；展开别名见最后一列。</p>
+      </section>
+    </main>
+
+    <script>
+      let currentPage = 1;
+      let currentMeta = {};
+
+      function getEventFamily() {
+        const active = document.querySelector('#eventTabs .event-tab.active');
+        return active ? active.dataset.family : 'all';
+      }
+
+      function getFilters() {
+        const family = getEventFamily();
+        const filters = {};
+
+        const boolFields = [
+          'mn1_is_ef', 'w1_is_ef', 'd1_is_ef',
+          'mn1_is_ab', 'w1_is_ab', 'd1_is_ab',
+          'mn1_is_zero', 'w1_is_zero', 'd1_is_zero'
+        ];
+
+        if (family === 'ef') {
+          document.getElementById('mn1_is_ef').checked = true;
+          document.getElementById('w1_is_ef').checked = true;
+          document.getElementById('d1_is_ef').checked = true;
+          ['mn1_is_ab','w1_is_ab','d1_is_ab','mn1_is_zero','w1_is_zero','d1_is_zero'].forEach(id => {
+            document.getElementById(id).checked = false;
+          });
+        } else if (family === 'ab') {
+          ['mn1_is_ef','w1_is_ef','d1_is_ef','mn1_is_zero','w1_is_zero','d1_is_zero'].forEach(id => {
+            document.getElementById(id).checked = false;
+          });
+          document.getElementById('mn1_is_ab').checked = true;
+          document.getElementById('w1_is_ab').checked = true;
+          document.getElementById('d1_is_ab').checked = true;
+        } else if (family === 'zero') {
+          ['mn1_is_ef','w1_is_ef','d1_is_ef','mn1_is_ab','w1_is_ab','d1_is_ab'].forEach(id => {
+            document.getElementById(id).checked = false;
+          });
+          document.getElementById('mn1_is_zero').checked = true;
+          document.getElementById('w1_is_zero').checked = true;
+          document.getElementById('d1_is_zero').checked = true;
+        }
+
+        boolFields.forEach(id => {
+          if (document.getElementById(id).checked) {
+            filters[id] = '1';
+          }
+        });
+
+        ['ef_pattern_any', 'ab_pattern_any', 'zero_pattern_any'].forEach(id => {
+          const v = document.getElementById(id).value;
+          if (v) filters[id] = v;
+        });
+
+        const industry = document.getElementById('industry_l1').value.trim();
+        if (industry) filters.industry_l1 = industry;
+
+        return filters;
+      }
+
+      function buildQuery(exportCsv = false) {
+        const params = new URLSearchParams();
+        const symbolSet = document.getElementById('symbol_set').value;
+        const symbols = document.getElementById('symbols').value.trim();
+
+        if (symbols) {
+          params.set('symbols', symbols);
+        } else if (symbolSet) {
+          params.set('symbol_set', symbolSet);
+        } else {
+          params.set('symbol_set', 'top50');
+        }
+
+        const dateFrom = document.getElementById('date_from').value;
+        const dateTo = document.getElementById('date_to').value;
+        if (dateFrom && dateTo) {
+          params.set('date_from', dateFrom);
+          params.set('date_to', dateTo);
+        } else {
+          params.set('days', document.getElementById('days').value || '6');
+        }
+
+        const filters = getFilters();
+        Object.entries(filters).forEach(([k, v]) => params.set(k, v));
+
+        params.set('page', String(currentPage));
+        params.set('page_size', document.getElementById('page_size').value || '50');
+        if (exportCsv) params.set('format', 'csv');
+
+        return '/api/state-observer?' + params.toString();
+      }
+
+      async function loadData() {
+        const loading = document.getElementById('loadingBox');
+        const errorBox = document.getElementById('errorBox');
+        const tbody = document.getElementById('tableBody');
+
+        loading.style.display = 'block';
+        errorBox.innerHTML = '';
+        tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;color:var(--muted);padding:24px;">加载中...</td></tr>';
+
+        try {
+          const url = buildQuery();
+          const res = await fetch(url);
+          const data = await res.json();
+
+          if (!data.ok) {
+            errorBox.innerHTML = '<div class="error">查询失败：' + (data.error || '未知错误') + '</div>';
+            return;
+          }
+
+          currentMeta = data.meta || {};
+          renderTable(data.rows || []);
+          renderStats(data.meta || {});
+          renderPagination();
+          document.getElementById('resultMeta').textContent =
+            `日期 ${data.meta.date_min} ~ ${data.meta.date_max} · 共 ${data.meta.row_count} 行`;
+        } catch (err) {
+          errorBox.innerHTML = '<div class="error">请求异常：' + err.message + '</div>';
+        } finally {
+          loading.style.display = 'none';
+        }
+      }
+
+      function renderTable(rows) {
+        const tbody = document.getElementById('tableBody');
+        if (!rows.length) {
+          tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;color:var(--muted);padding:24px;">无数据</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = rows.map(r => {
+          const efClass = r.ef_count > 0 ? 'ef' : 'none';
+          const abClass = r.ab_count > 0 ? 'ab' : 'none';
+          const zeroClass = r.zero_count > 0 ? 'zero' : 'none';
+          return `<tr>
+            <td><strong>${r.stock_code}</strong><br/><span style="color:var(--muted);font-size:11px;">${r.stock_name || '-'}</span></td>
+            <td>${r.state_date}</td>
+            <td><span class="score">${r.mn1_state_score}</span> <span class="hex">${r.mn1_state_hex}</span></td>
+            <td><span class="score">${r.w1_state_score}</span> <span class="hex">${r.w1_state_hex}</span></td>
+            <td><span class="score">${r.d1_state_score}</span> <span class="hex">${r.d1_state_hex}</span></td>
+            <td><span class="tag ${efClass}">${r.ef_pattern}</span></td>
+            <td><span class="tag ${abClass}">${r.ab_pattern}</span></td>
+            <td><span class="tag ${zeroClass}">${r.zero_pattern}</span></td>
+            <td>${r.industry_l1 || '-'}</td>
+            <td>${r.close != null ? r.close.toFixed(2) : '-'}</td>
+            <td>${r.volume != null ? r.volume.toLocaleString() : '-'}</td>
+            <td title="${r.display_alias}">${r.display_alias}</td>
+            <td><a href="/research?stock_code=${r.stock_code}" target="_blank">研究</a></td>
+          </tr>`;
+        }).join('');
+      }
+
+      function renderStats(meta) {
+        document.getElementById('statEf').textContent = meta.ef_row_count ?? '-';
+        document.getElementById('statAb').textContent = meta.ab_row_count ?? '-';
+        document.getElementById('statZero').textContent = meta.zero_row_count ?? '-';
+        document.getElementById('statSymbols').textContent = meta.symbol_count ?? '-';
+        document.getElementById('statRows').textContent = meta.row_count ?? '-';
+      }
+
+      function renderPagination() {
+        const pageSize = parseInt(document.getElementById('page_size').value || '50');
+        const total = currentMeta.row_count || 0;
+        const totalPages = Math.ceil(total / pageSize) || 1;
+        document.getElementById('pageInfo').textContent = `第 ${currentPage} / ${totalPages} 页 · 共 ${total} 行`;
+        document.getElementById('prevBtn').disabled = currentPage <= 1;
+        document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+      }
+
+      function changePage(delta) {
+        currentPage += delta;
+        if (currentPage < 1) currentPage = 1;
+        loadData();
+      }
+
+      function exportCsv() {
+        const params = new URLSearchParams();
+        const symbolSet = document.getElementById('symbol_set').value;
+        const symbols = document.getElementById('symbols').value.trim();
+
+        if (symbols) {
+          params.set('symbols', symbols);
+        } else if (symbolSet) {
+          params.set('symbol_set', symbolSet);
+        } else {
+          params.set('symbol_set', 'top50');
+        }
+
+        const dateFrom = document.getElementById('date_from').value;
+        const dateTo = document.getElementById('date_to').value;
+        if (dateFrom && dateTo) {
+          params.set('date_from', dateFrom);
+          params.set('date_to', dateTo);
+        } else {
+          params.set('days', document.getElementById('days').value || '6');
+        }
+
+        const filters = getFilters();
+        Object.entries(filters).forEach(([k, v]) => params.set(k, v));
+
+        // CSV 导出全结果，不带 page/page_size
+        params.set('format', 'csv');
+
+        window.open('/api/state-observer?' + params.toString(), '_blank');
+      }
+
+      document.querySelectorAll('#eventTabs .event-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('#eventTabs .event-tab').forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          currentPage = 1;
+          loadData();
+        });
+      });
+
+      document.querySelectorAll('#periodFilters input').forEach(cb => {
+        cb.addEventListener('change', () => {
+          currentPage = 1;
+          loadData();
+        });
+      });
+
+      ['symbols', 'symbol_set', 'days', 'date_from', 'date_to', 'industry_l1', 'page_size',
+       'ef_pattern_any', 'ab_pattern_any', 'zero_pattern_any'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('change', () => { currentPage = 1; loadData(); });
+      });
+
+      // 默认加载
+      loadData();
+    </script>
+  </body>
+</html>

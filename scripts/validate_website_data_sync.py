@@ -164,7 +164,11 @@ def validate_market_page(html: str, expected_date: str) -> list[str]:
         ok(f"market header data date={expected_date}")
     else:
         fail(errors, f"market header missing data date={expected_date}")
-    if f"当前数据日期：{expected_date}" in html:
+    if (
+        f"当前数据日期：{expected_date}" in html
+        or f"数据截至 {expected_date}" in html
+        or f"数据截至&nbsp;{expected_date}" in html
+    ):
         ok(f"market hero data date={expected_date}")
     else:
         fail(errors, f"market hero missing data date={expected_date}")
@@ -172,6 +176,61 @@ def validate_market_page(html: str, expected_date: str) -> list[str]:
         fail(errors, "market first screen still leads with unknown phase")
     else:
         ok("market first screen does not lead with unknown phase")
+    return errors
+
+
+def validate_state_observer_page(html: str) -> list[str]:
+    """State Timeline Observer 页面最小验收：页面可打开且包含核心文案。"""
+    errors: list[str] = []
+    required_phrases = [
+        "State Timeline Observer",
+        "State 观察工作台",
+        "不是交易指令面板",
+        "MN1",
+        "W1",
+        "D1",
+    ]
+    for phrase in required_phrases:
+        if phrase in html:
+            ok(f"state-observer page contains '{phrase}'")
+        else:
+            fail(errors, f"state-observer page missing '{phrase}'")
+    return errors
+
+
+def validate_state_observer_api(expected_date: str) -> list[str]:
+    """State Timeline Observer API 最小验收：能返回当天数据且字段完整。"""
+    errors: list[str] = []
+    try:
+        data = get_json("/api/state-observer", {"symbol_set": "top50", "days": "1", "page": "1", "page_size": "5"})
+        if not data.get("ok"):
+            fail(errors, f"state-observer API returned ok=false: {data.get('error')}")
+            return errors
+        rows = data.get("rows", [])
+        meta = data.get("meta", {})
+        if meta.get("date_max") == expected_date:
+            ok(f"state-observer API date_max={expected_date}")
+        else:
+            fail(errors, f"state-observer API date_max={meta.get('date_max')} != {expected_date}")
+        if rows:
+            first = rows[0]
+            required_fields = [
+                "stock_code", "stock_name", "state_date",
+                "mn1_state_hex", "w1_state_hex", "d1_state_hex",
+                "mn1_is_ef", "w1_is_ef", "d1_is_ef",
+                "mn1_is_ab", "w1_is_ab", "d1_is_ab",
+                "mn1_is_zero", "w1_is_zero", "d1_is_zero",
+                "ef_pattern", "ab_pattern", "zero_pattern",
+            ]
+            missing = [f for f in required_fields if f not in first]
+            if not missing:
+                ok(f"state-observer API row fields complete")
+            else:
+                fail(errors, f"state-observer API missing fields: {missing}")
+        else:
+            fail(errors, "state-observer API returned no rows for top50")
+    except Exception as exc:
+        fail(errors, f"state-observer API request failed: {exc}")
     return errors
 
 
@@ -204,6 +263,14 @@ def main() -> int:
         errors.extend(validate_market_page(market_html, expected_date))
     except Exception as exc:
         fail(errors, f"market page request failed: {exc}")
+
+    try:
+        state_observer_html = get_text("/state-observer")
+        errors.extend(validate_state_observer_page(state_observer_html))
+    except Exception as exc:
+        fail(errors, f"state-observer page request failed: {exc}")
+
+    errors.extend(validate_state_observer_api(expected_date))
 
     if errors:
         print(f"[SUMMARY] failed={len(errors)}")
