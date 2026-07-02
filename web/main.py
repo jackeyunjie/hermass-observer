@@ -47,6 +47,11 @@ from web.services.state_timeline_observer import (
     query_state_timeline,
     query_stock_timeline,
 )
+from web.services.classic_strategy_sentinel import (
+    get_detail as sentinel_get_detail,
+    get_overview as sentinel_get_overview,
+    get_signals as sentinel_get_signals,
+)
 
 # 启动时初始化用户 profile（读取环境变量 HERMASS_HTPASSWD_USERS 中的逗号分隔用户名）
 init_profiles([u.strip() for u in os.environ.get("HERMASS_HTPASSWD_USERS", "").split(",") if u.strip()])
@@ -2510,6 +2515,7 @@ def _classic_strategy_signal_summary(limit: int = 6) -> dict[str, Any]:
         return {"ok": False, "date": "-", "tags": [], "rows": []}
 
     rows = payload.get("rows", []) or []
+    signal_date = str(payload.get("date") or "-")
     strategy_meta = {
         "vcp": "VCP",
         "ma2560": "2560",
@@ -2538,7 +2544,7 @@ def _classic_strategy_signal_summary(limit: int = 6) -> dict[str, Any]:
             "label": display,
             "count": len(items),
             "tone": tone,
-            "href": "/mystrategies",
+            "href": f"/sentinel/{strategy_id}?date={signal_date}",
         })
         for item in items[:2]:
             detail_rows.append({
@@ -2553,7 +2559,7 @@ def _classic_strategy_signal_summary(limit: int = 6) -> dict[str, Any]:
 
     return {
         "ok": True,
-        "date": str(payload.get("date") or "-"),
+        "date": signal_date,
         "tags": tags,
         "rows": detail_rows[:limit],
     }
@@ -4654,6 +4660,124 @@ def market_page(request: Request) -> HTMLResponse:
             "current_user": profile,
         },
     )
+
+
+@app.get("/sentinel", response_class=HTMLResponse)
+def sentinel_overview_page(request: Request, date: str = "") -> HTMLResponse:
+    """经典策略哨兵总览页。"""
+    from datetime import date as _date
+    target_date = date or _date.today().isoformat()
+    profile = get_current_profile(request)
+    data = sentinel_get_overview(target_date)
+    return templates.TemplateResponse(
+        request,
+        "sentinel_overview.html",
+        {
+            "request": request,
+            "today": str(_date.today()),
+            "date": data.get("date", target_date),
+            "strategies": data.get("strategies", []),
+            "warning": data.get("warning"),
+            "disclaimer": data.get("disclaimer"),
+            "current_user": profile,
+        },
+    )
+
+
+@app.get("/sentinel/detail", response_class=HTMLResponse)
+def sentinel_detail_page(
+    request: Request,
+    strategy: str,
+    stock_code: str,
+    date: str = "",
+) -> HTMLResponse:
+    """单标的经典策略规则详情页。"""
+    from datetime import date as _date
+    target_date = date or _date.today().isoformat()
+    profile = get_current_profile(request)
+    signals_data = sentinel_get_signals(strategy, target_date)
+    detail_data = sentinel_get_detail(strategy, stock_code, target_date)
+    return templates.TemplateResponse(
+        request,
+        "sentinel_detail.html",
+        {
+            "request": request,
+            "today": str(_date.today()),
+            "date": detail_data.get("date", signals_data.get("date", target_date)),
+            "strategy": strategy,
+            "display_name": signals_data.get("display_name", strategy),
+            "signals": signals_data.get("signals", []),
+            "env_match": signals_data.get("env_match", {}),
+            "warning": detail_data.get("warning") or signals_data.get("warning"),
+            "disclaimer": detail_data.get("disclaimer"),
+            "selected_stock": stock_code,
+            "detail": detail_data,
+            "current_user": profile,
+        },
+    )
+
+
+@app.get("/sentinel/{strategy}", response_class=HTMLResponse)
+def sentinel_strategy_page(
+    request: Request,
+    strategy: str,
+    date: str = "",
+    stock_code: str = "",
+) -> HTMLResponse:
+    """单策略信号列表页；若附带 stock_code 则展开单标的详情。"""
+    from datetime import date as _date
+    target_date = date or _date.today().isoformat()
+    profile = get_current_profile(request)
+    signals_data = sentinel_get_signals(strategy, target_date)
+    detail_data = {}
+    if stock_code:
+        detail_data = sentinel_get_detail(strategy, stock_code, target_date)
+    return templates.TemplateResponse(
+        request,
+        "sentinel_detail.html",
+        {
+            "request": request,
+            "today": str(_date.today()),
+            "date": signals_data.get("date", target_date),
+            "strategy": strategy,
+            "display_name": signals_data.get("display_name", strategy),
+            "signals": signals_data.get("signals", []),
+            "env_match": signals_data.get("env_match", {}),
+            "warning": signals_data.get("warning"),
+            "disclaimer": signals_data.get("disclaimer"),
+            "selected_stock": stock_code,
+            "detail": detail_data,
+            "current_user": profile,
+        },
+    )
+
+
+@app.get("/api/sentinel/overview")
+def api_sentinel_overview(date: str = "") -> JSONResponse:
+    """经典策略哨兵当日概览 API。"""
+    from datetime import date as _date
+    target_date = date or _date.today().isoformat()
+    return JSONResponse(content=sentinel_get_overview(target_date))
+
+
+@app.get("/api/sentinel/signals")
+def api_sentinel_signals(strategy: str, date: str = "") -> JSONResponse:
+    """单策略信号列表 API。"""
+    from datetime import date as _date
+    target_date = date or _date.today().isoformat()
+    return JSONResponse(content=sentinel_get_signals(strategy, target_date))
+
+
+@app.get("/api/sentinel/detail")
+def api_sentinel_detail(
+    strategy: str,
+    stock_code: str,
+    date: str = "",
+) -> JSONResponse:
+    """单标的经典策略规则详情 API。"""
+    from datetime import date as _date
+    target_date = date or _date.today().isoformat()
+    return JSONResponse(content=sentinel_get_detail(strategy, stock_code, target_date))
 
 
 def _agent_debate_data(stock_code: str = "") -> dict[str, Any]:

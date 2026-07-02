@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>经典策略哨兵 - Hermass</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <style>
+      .sentinel-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+      .sentinel-card {
+        padding: 20px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: #fff;
+        text-decoration: none;
+        color: var(--ink);
+        transition: transform .1s, box-shadow .1s;
+      }
+      .sentinel-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 14px rgba(0,0,0,.06);
+      }
+      .sentinel-card.empty {
+        opacity: .65;
+        background: #fafafa;
+      }
+      .sentinel-card.empty:hover {
+        transform: none;
+        box-shadow: none;
+      }
+      .sentinel-name {
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
+      .sentinel-count {
+        font-size: 32px;
+        font-weight: 800;
+        margin-bottom: 4px;
+      }
+      .sentinel-label {
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .sentinel-label.entry { color: var(--good); }
+      .sentinel-label.exit { color: var(--accent); }
+      .sentinel-label.risk { color: var(--bad); }
+      .disclaimer {
+        padding: 14px 16px;
+        border-radius: 8px;
+        background: #f8fafc;
+        border: 1px solid var(--line);
+        font-size: 13px;
+        color: var(--muted);
+        line-height: 1.6;
+        margin-bottom: 24px;
+      }
+      .signal-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      .signal-table th,
+      .signal-table td {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+      }
+      .signal-table th {
+        color: var(--muted);
+        font-weight: 600;
+        font-size: 12px;
+      }
+      .signal-table tr:hover td {
+        background: #f8fafc;
+      }
+      .empty-state {
+        padding: 48px 24px;
+        text-align: center;
+        color: var(--muted);
+        background: #fafafa;
+        border-radius: 10px;
+        border: 1px dashed var(--line);
+      }
+      @media (max-width: 860px) {
+        .sentinel-grid { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Classic Strategy Sentinel</p>
+        <h1>经典策略哨兵</h1>
+      </div>
+      <div class="date">
+        {% set nav_active = 'toolbox' %}{% include '_top_nav.html' %}
+        <span>{{ date }}</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel span-2">
+        <div class="disclaimer">
+          {{ disclaimer }}
+        </div>
+      </section>
+
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>当日规则信号概览</h2>
+        </div>
+        {% if strategies %}
+        <div class="sentinel-grid">
+          {% for s in strategies %}
+          <a class="sentinel-card" href="/sentinel/{{ s.strategy_name }}?date={{ date }}">
+            <div class="sentinel-name">{{ s.display_name }}</div>
+            <div class="sentinel-count">{{ s.signal_count }}</div>
+            <div class="sentinel-label {{ s.signal_type }}">{{ s.label }}</div>
+          </a>
+          {% endfor %}
+        </div>
+
+        <div class="panel-head">
+          <h2>全部触发标的</h2>
+        </div>
+        <table class="signal-table">
+          <thead>
+            <tr>
+              <th>策略</th>
+              <th>标的</th>
+              <th>信号</th>
+              <th>置信度</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in strategies %}
+              {% for sig in s.signals %}
+              <tr>
+                <td><a href="/sentinel/{{ s.strategy_name }}?date={{ date }}">{{ s.display_name }}</a></td>
+                <td><a href="/sentinel/detail?strategy={{ s.strategy_name }}&stock_code={{ sig.stock_code }}&date={{ date }}">{{ sig.stock_code }}</a></td>
+                <td>{{ sig.signal_display_text }}</td>
+                <td>{{ "%.2f"|format(sig.confidence) }}</td>
+              </tr>
+              {% endfor %}
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">
+          当日未检测到已允许策略的规则信号（entry / exit / risk）。<br />
+          <span style="font-size:12px">{{ warning or '结构类信号不在哨兵首页展示。' }}</span>
+        </div>
+        {% endif %}
+      </section>
+    </main>
+  </body>
+</html>
