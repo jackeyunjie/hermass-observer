@@ -5,6 +5,7 @@
     .venv/bin/python scripts/send_state_timeline_digest_email.py --date 2026-07-01
     .venv/bin/python scripts/send_state_timeline_digest_email.py --dry
     .venv/bin/python scripts/send_state_timeline_digest_email.py --date 2026-07-01 --user-key visitor_xxx
+    .venv/bin/python scripts/send_state_timeline_digest_email.py --dispatch-subscriptions --date 2026-07-01
 
 环境变量:
     HERMASS_SMTP_HOST / PORT / USER / PASS / REPORT_TO
@@ -312,13 +313,17 @@ def _family_emoji(family: str) -> str:
     return {"ef": "📈", "ab": "📊", "zero": "🎯"}.get(family, "•")
 
 
-def send_email(html_body: str, anchor_date: str) -> bool:
+def send_email(
+    html_body: str,
+    anchor_date: str,
+    to_addr: str | None = None,
+) -> bool:
     cfg = _smtp_config()
     if not cfg:
         print("SMTP 未配置 (HERMASS_SMTP_USER/PASS)，跳过发送", file=sys.stderr)
         return False
 
-    to_addr = os.environ.get("HERMASS_REPORT_TO", cfg["user"]).strip()
+    to_addr = (to_addr or os.environ.get("HERMASS_REPORT_TO", cfg["user"])).strip()
     subject = f"State Timeline Observer 每日摘要 — {anchor_date}"
 
     msg = MIMEMultipart("alternative")
@@ -340,6 +345,109 @@ def send_email(html_body: str, anchor_date: str) -> bool:
         return False
 
 
+def _load_subscriptions(ledger_path: Path | None = None) -> list[dict[str, Any]]:
+    """从 user_task_ledger 读取 active 的 state_timeline_digest 订阅。"""
+    try:
+        from agently_adapter.tools.user_tasks import load_user_task_ledger
+        ledger = load_user_task_ledger(ledger_path)
+    except Exception as exc:
+        print(f"读取订阅账本失败: {exc}", file=sys.stderr)
+        return []
+
+    subs: list[dict[str, Any]] = []
+    for task in ledger.get("tasks", []) or []:
+        if task.get("task_type") != "state_timeline_digest":
+            continue
+        if task.get("status") != "active":
+            continue
+        email = str(task.get("email") or "").strip()
+        if not email:
+            continue
+        subs.append(task)
+    return subs
+
+
+def _send_one_digest(
+    anchor_date: str,
+    symbol_set: str,
+    days: int,
+    user_key: str,
+    to_addr: str,
+    dry: bool,
+) -> bool:
+    """为单个订阅生成并发送邮件；dry 时输出 HTML。
+
+    返回 True 表示数据非空且已处理（dry 或真实发送）。
+    数据为空返回 False；发送失败抛异常。
+    """
+    all_rows = _load_timeline_rows(symbol_set, days, anchor_date, user_key)
+    if not all_rows:
+        return False
+
+    latest_rows = _latest_rows_for_anchor_date(all_rows, anchor_date)
+    changed_rows = sorted(
+        [r for r in latest_rows if r.get("state_change_flag")],
+        key=_change_strength,
+        reverse=True,
+    )
+
+    watchlist_rows: list[dict[str, Any]] = []
+    if user_key:
+        watchlist_rows = _load_timeline_rows("watchlist", 3, anchor_date, user_key)
+
+    html = build_html(anchor_date, latest_rows, changed_rows, watchlist_rows)
+
+    if dry:
+        print(html)
+        return True
+
+    if not send_email(html, anchor_date, to_addr=to_addr):
+        raise RuntimeError("邮件发送失败或 SMTP 未配置")
+    return True
+
+
+def _dispatch_subscriptions(
+    anchor_date: str,
+    dry: bool = False,
+    ledger_path: Path | None = None,
+) -> int:
+    """按订阅批量派发，单个失败不影响其他订阅。"""
+    subs = _load_subscriptions(ledger_path)
+    if not subs:
+        print(f"未找到 {anchor_date} 的 active state_timeline_digest 订阅")
+        return 0
+
+    total = len(subs)
+    success = 0
+    for idx, sub in enumerate(subs, 1):
+        task_id = sub.get("task_id", f"sub_{idx}")
+        email = sub["email"]
+        symbol_set = str(sub.get("symbol_set") or "all").strip() or "all"
+        days = int(sub.get("days") or 2)
+        user_key = str(sub.get("created_by") or "").strip()
+
+        label = f"{task_id} email={email} symbol_set={symbol_set} days={days}"
+        try:
+            ok = _send_one_digest(
+                anchor_date=anchor_date,
+                symbol_set=symbol_set,
+                days=days,
+                user_key=user_key,
+                to_addr=email,
+                dry=dry,
+            )
+            if ok:
+                print(f"[DISPATCH OK {idx}/{total}] {label}")
+                success += 1
+            else:
+                print(f"[DISPATCH EMPTY {idx}/{total}] {label}")
+        except Exception as exc:
+            print(f"[DISPATCH FAIL {idx}/{total}] {label}: {exc}", file=sys.stderr)
+
+    print(f"派发完成: {success}/{total} 成功")
+    return 0 if success == total else 1
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="State Timeline Observer 每日摘要邮件")
     parser.add_argument("--date", default=str(date.today()), help="数据日期 YYYY-MM-DD")
@@ -347,6 +455,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--symbol-set", default="all", help="股票集合: all / top50 / watchlist")
     parser.add_argument("--days", type=int, default=2, help="观察窗口天数，默认 2")
     parser.add_argument("--user-key", default="", help="watchlist 用户标识")
+    parser.add_argument(
+        "--dispatch-subscriptions",
+        action="store_true",
+        help="从 user_task_ledger 读取订阅并批量派发",
+    )
+    parser.add_argument(
+        "--subscription-ledger",
+        type=Path,
+        default=None,
+        help="（测试用）指定订阅账本路径",
+    )
     return parser.parse_args()
 
 
@@ -354,48 +473,26 @@ def main() -> int:
     args = parse_args()
     anchor_date = args.date
 
-    # 读取主数据
-    all_rows = _load_timeline_rows(
-        symbol_set=args.symbol_set,
-        days=max(2, args.days),
-        anchor_date=anchor_date,
-        user_key=args.user_key if args.symbol_set == "watchlist" else None,
-    )
-
-    if not all_rows:
-        print(f"未读取到 {anchor_date} 的 State Timeline 数据", file=sys.stderr)
-        if args.dry:
-            print(build_html(anchor_date, [], [], []))
-        return 0
-
-    # 只保留 anchor_date 当天的最新行
-    latest_rows = _latest_rows_for_anchor_date(all_rows, anchor_date)
-
-    # 变化排序
-    changed_rows = sorted(
-        [r for r in latest_rows if r.get("state_change_flag")],
-        key=_change_strength,
-        reverse=True,
-    )
-
-    # 自选池最近 3 天
-    watchlist_rows: list[dict[str, Any]] = []
-    if args.user_key:
-        watchlist_rows = _load_timeline_rows(
-            symbol_set="watchlist",
-            days=3,
+    if args.dispatch_subscriptions:
+        return _dispatch_subscriptions(
             anchor_date=anchor_date,
-            user_key=args.user_key,
+            dry=args.dry,
+            ledger_path=args.subscription_ledger,
         )
 
-    html = build_html(anchor_date, latest_rows, changed_rows, watchlist_rows)
-
-    if args.dry:
-        print(html)
-        return 0
-
-    ok = send_email(html, anchor_date)
-    return 0 if ok else 1
+    # 单次发送模式
+    ok = _send_one_digest(
+        anchor_date=anchor_date,
+        symbol_set=args.symbol_set,
+        days=max(2, args.days),
+        user_key=args.user_key if args.symbol_set == "watchlist" else "",
+        to_addr=os.environ.get("HERMASS_REPORT_TO", ""),
+        dry=args.dry,
+    )
+    if not ok and not args.dry:
+        print(f"未读取到 {anchor_date} 的 State Timeline 数据或发送失败", file=sys.stderr)
+        return 1
+    return 0
 
 
 if __name__ == "__main__":

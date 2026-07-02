@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -15,9 +16,11 @@ if str(ROOT) not in sys.path:
 from scripts.send_state_timeline_digest_email import (
     _change_strength,
     _compute_extra_changes,
+    _dispatch_subscriptions,
     _escape_html,
     _fmt_delta,
     _latest_rows_for_anchor_date,
+    _load_subscriptions,
     build_html,
 )
 
@@ -153,3 +156,88 @@ def test_build_html_watchlist_section() -> None:
     assert "自选池最近 3 天变化" in html
     assert "000021.SZ" in html
     assert "深科技" in html
+
+
+def _write_temp_ledger(tmp_path: Path, tasks: list[dict[str, Any]]) -> Path:
+    path = tmp_path / "test_subscriptions.json"
+    path.write_text(json.dumps({"version": "1.0.0", "tasks": tasks}, ensure_ascii=False), encoding="utf-8")
+    return path
+
+
+def test_load_subscriptions_filters_active_digest(tmp_path: Path) -> None:
+    ledger = _write_temp_ledger(
+        tmp_path,
+        [
+            {
+                "task_id": "digest_001",
+                "task_type": "state_timeline_digest",
+                "email": "a@example.com",
+                "symbol_set": "top50",
+                "days": 2,
+                "status": "active",
+                "created_by": "",
+            },
+            {
+                "task_id": "digest_002",
+                "task_type": "state_timeline_digest",
+                "email": "b@example.com",
+                "symbol_set": "all",
+                "days": 3,
+                "status": "cancelled",
+                "created_by": "",
+            },
+        ],
+    )
+    subs = _load_subscriptions(ledger)
+    assert len(subs) == 1
+    assert subs[0]["task_id"] == "digest_001"
+    assert subs[0]["email"] == "a@example.com"
+
+
+def test_load_subscriptions_ignores_other_task_types(tmp_path: Path) -> None:
+    ledger = _write_temp_ledger(
+        tmp_path,
+        [
+            {
+                "task_id": "watch_001",
+                "task_type": "watch_command",
+                "email": "a@example.com",
+                "status": "active",
+            },
+            {
+                "task_id": "digest_001",
+                "task_type": "state_timeline_digest",
+                "email": "b@example.com",
+                "symbol_set": "top50",
+                "days": 2,
+                "status": "active",
+                "created_by": "",
+            },
+        ],
+    )
+    subs = _load_subscriptions(ledger)
+    assert len(subs) == 1
+    assert subs[0]["task_id"] == "digest_001"
+
+
+def test_dispatch_subscriptions_dry_with_real_data(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    ledger = _write_temp_ledger(
+        tmp_path,
+        [
+            {
+                "task_id": "digest_top50",
+                "task_type": "state_timeline_digest",
+                "email": "to@example.com",
+                "symbol_set": "top50",
+                "days": 2,
+                "status": "active",
+                "created_by": "",
+            },
+        ],
+    )
+    rc = _dispatch_subscriptions("2026-07-02", dry=True, ledger_path=ledger)
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert "[DISPATCH OK 1/1]" in captured.out
+    assert "派发完成: 1/1 成功" in captured.out
+    assert "State Timeline Observer 每日摘要" in captured.out

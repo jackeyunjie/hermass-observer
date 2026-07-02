@@ -165,8 +165,8 @@
     {
       "name": "State Timeline 每日邮件摘要",
       "schedule": "30 16 * * 1-5",
-      "command": "cd /Users/lv111101/Documents/hermass-observer-product && .venv/bin/python scripts/send_state_timeline_digest_email.py --date $(date +%Y-%m-%d)",
-      "description": "每个交易日 16:30 发送 State Timeline 每日摘要邮件",
+      "command": "cd /Users/lv111101/Documents/hermass-observer-product && set -a && source .env && set +a && .venv/bin/python scripts/send_state_timeline_digest_email.py --dispatch-subscriptions --date $(date +%Y-%m-%d)",
+      "description": "每个交易日 16:30 按 user_task_ledger 中的 state_timeline_digest 订阅批量派发摘要邮件",
       "delivery": "terminal"
     },
     {

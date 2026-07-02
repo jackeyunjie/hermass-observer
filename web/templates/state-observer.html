@@ -145,6 +145,26 @@
       .observer-table tr:hover {
         background: #f8fafc;
       }
+      .materialized-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: #888;
+        margin-top: 6px;
+      }
+      .materialized-badge.active {
+        color: #059669;
+      }
+      .badge-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #ccc;
+      }
+      .materialized-badge.active .badge-dot {
+        background: #059669;
+      }
       .tag {
         display: inline-block;
         padding: 2px 6px;
@@ -202,6 +222,33 @@
         color: var(--muted);
         margin-top: 8px;
       }
+      .status-box {
+        margin-top: 12px;
+        padding: 12px;
+        border-radius: 8px;
+        font-size: 13px;
+        display: none;
+      }
+      .status-box.info {
+        background: #f8fafc;
+        color: #334155;
+      }
+      .status-box.success {
+        background: #ecfdf5;
+        color: #065f46;
+      }
+      .status-box.error {
+        background: #fef2f2;
+        color: #991b1b;
+      }
+      .small-btn {
+        padding: 5px 10px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #fff;
+        cursor: pointer;
+        font-size: 12px;
+      }
       @media (max-width: 860px) {
         .observer-hero { grid-template-columns: 1fr; }
         .control-panel { grid-template-columns: 1fr; }
@@ -213,6 +260,10 @@
       <div>
         <p class="eyebrow">Hermass 多周期观察</p>
         <h1>State Timeline Observer</h1>
+        <div id="materialized-status" class="materialized-badge" style="display:none;">
+          <span class="badge-dot"></span>
+          <span id="materialized-text">预计算表: 检测中...</span>
+        </div>
       </div>
       <div class="date">
         {% set nav_active = 'toolbox' %}{% include '_top_nav.html' %}
@@ -275,6 +326,14 @@
             <label for="page_size">每页行数</label>
             <input type="number" id="page_size" value="50" min="10" max="500" />
           </div>
+          <div class="control-group">
+            <label for="materialized_mode">查询模式</label>
+            <select id="materialized_mode">
+              <option value="" selected>跟随系统默认</option>
+              <option value="1">强制预计算表</option>
+              <option value="0">强制实时查询</option>
+            </select>
+          </div>
         </div>
 
         <div class="event-tabs" id="eventTabs">
@@ -336,10 +395,59 @@
           <button onclick="loadData()" style="margin-left:auto;">查询</button>
           <button onclick="exportCsv()">导出 CSV</button>
         </div>
-        <div id="exportStatusBox" style="margin-top:12px;padding:12px;border-radius:8px;background:#f8fafc;display:none;"></div>
+        <div id="exportStatusBox" class="status-box info"></div>
       </section>
 
-      {# ── 3. 统计 ── #}
+      {# ── 3. 邮件订阅 ── #}
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>邮件订阅</h2>
+          <span>交易日收盘后发送摘要</span>
+        </div>
+        <div class="control-panel">
+          <div class="control-group">
+            <label for="subscription_email">接收邮箱</label>
+            <input type="email" id="subscription_email" placeholder="例如 you@example.com" />
+          </div>
+          <div class="control-group">
+            <label for="subscription_symbol_set">订阅集合</label>
+            <select id="subscription_symbol_set">
+              <option value="top50" selected>Top50</option>
+              <option value="watchlist">自选池</option>
+              <option value="all">全市场</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label for="subscription_days">时间窗口</label>
+            <input type="number" id="subscription_days" value="3" min="1" max="120" />
+          </div>
+        </div>
+        <div class="filter-row">
+          <button onclick="createSubscription()">新增订阅</button>
+          <button class="small-btn" onclick="loadSubscriptions()">刷新列表</button>
+        </div>
+        <div id="subscriptionStatusBox" class="status-box info"></div>
+        <div class="table-wrap" style="margin-top:12px;">
+          <table class="observer-table">
+            <thead>
+              <tr>
+                <th>邮箱</th>
+                <th>集合</th>
+                <th>天数</th>
+                <th>状态</th>
+                <th>创建日</th>
+                <th>有效期至</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="subscriptionTableBody">
+              <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px;">加载中...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {# ── 4. 统计 ── #}
       <section class="panel span-2">
         <div class="panel-head">
           <h2>当前结果统计</h2>
@@ -354,7 +462,7 @@
         </div>
       </section>
 
-      {# ── 4. 表格 ── #}
+      {# ── 5. 表格 ── #}
       <section class="panel span-2">
         <div id="errorBox"></div>
         <div id="loadingBox" class="loading" style="display:none;">加载中...</div>
@@ -397,6 +505,7 @@
     <script>
       let currentPage = 1;
       let currentMeta = {};
+      const subscriptionEmailKey = 'hermass_state_timeline_digest_email';
 
       function getEventFamily() {
         const active = document.querySelector('#eventTabs .event-tab.active');
@@ -457,6 +566,7 @@
         const params = new URLSearchParams();
         const symbolSet = document.getElementById('symbol_set').value;
         const symbols = document.getElementById('symbols').value.trim();
+        const materializedMode = document.getElementById('materialized_mode').value;
 
         if (symbols) {
           params.set('symbols', symbols);
@@ -477,6 +587,9 @@
 
         const filters = getFilters();
         Object.entries(filters).forEach(([k, v]) => params.set(k, v));
+        if (materializedMode === '1' || materializedMode === '0') {
+          params.set('materialized', materializedMode);
+        }
 
         params.set('page', String(currentPage));
         params.set('page_size', document.getElementById('page_size').value || '50');
@@ -492,7 +605,7 @@
 
         loading.style.display = 'block';
         errorBox.innerHTML = '';
-        tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;color:var(--muted);padding:24px;">加载中...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="14" style="text-align:center;color:var(--muted);padding:24px;">加载中...</td></tr>';
 
         try {
           const url = buildQuery();
@@ -592,6 +705,7 @@
         const query = {};
         const symbolSet = document.getElementById('symbol_set').value;
         const symbols = document.getElementById('symbols').value.trim();
+        const materializedMode = document.getElementById('materialized_mode').value;
 
         if (symbols) {
           query.symbols = symbols;
@@ -612,6 +726,9 @@
 
         const filters = getFilters();
         Object.entries(filters).forEach(([k, v]) => query[k] = v);
+        if (materializedMode === '1' || materializedMode === '0') {
+          query.materialized = materializedMode === '1';
+        }
         query.format = 'csv';
         return query;
       }
@@ -625,7 +742,113 @@
       function renderExportStatus(html) {
         const box = document.getElementById('exportStatusBox');
         box.innerHTML = html;
+        box.className = 'status-box info';
         box.style.display = html ? 'block' : 'none';
+      }
+
+      function renderSubscriptionStatus(message, kind = 'info') {
+        const box = document.getElementById('subscriptionStatusBox');
+        box.textContent = message || '';
+        box.className = 'status-box ' + kind;
+        box.style.display = message ? 'block' : 'none';
+      }
+
+      function formatSymbolSetLabel(value) {
+        if (value === 'watchlist') return '自选池';
+        if (value === 'all') return '全市场';
+        return 'Top50';
+      }
+
+      function renderSubscriptions(rows) {
+        const tbody = document.getElementById('subscriptionTableBody');
+        if (!rows || !rows.length) {
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px;">当前没有有效订阅</td></tr>';
+          return;
+        }
+        tbody.innerHTML = rows.map(row => `
+          <tr>
+            <td>${escapeHtml(row.email || '-')}</td>
+            <td>${escapeHtml(formatSymbolSetLabel(row.symbol_set || 'top50'))}</td>
+            <td>${escapeHtml(row.days || '-')}</td>
+            <td>${escapeHtml(row.status || '-')}</td>
+            <td>${escapeHtml(row.created_at || '-')}</td>
+            <td>${escapeHtml(row.valid_to || '-')}</td>
+            <td><button class="small-btn" onclick="cancelSubscription('${escapeHtml(row.task_id || '')}')">取消</button></td>
+          </tr>
+        `).join('');
+      }
+
+      async function loadSubscriptions() {
+        try {
+          const res = await fetch('/api/state-observer/subscriptions');
+          const data = await res.json();
+          if (!data.ok) {
+            renderSubscriptionStatus('订阅列表加载失败：' + (data.error || '未知错误'), 'error');
+            return;
+          }
+          renderSubscriptions(data.subscriptions || []);
+        } catch (err) {
+          renderSubscriptionStatus('订阅列表请求异常：' + err.message, 'error');
+        }
+      }
+
+      async function createSubscription() {
+        const email = document.getElementById('subscription_email').value.trim();
+        const symbolSet = document.getElementById('subscription_symbol_set').value || 'top50';
+        const days = Number.parseInt(document.getElementById('subscription_days').value || '3', 10);
+
+        if (!email) {
+          renderSubscriptionStatus('请先填写接收邮箱', 'error');
+          return;
+        }
+        if (!Number.isFinite(days) || days < 1 || days > 120) {
+          renderSubscriptionStatus('订阅天数必须在 1 到 120 之间', 'error');
+          return;
+        }
+
+        try {
+          const res = await fetch('/api/state-observer/subscriptions', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              email,
+              symbol_set: symbolSet,
+              days,
+              page_context: '/state-observer'
+            })
+          });
+          const data = await res.json();
+          if (!res.ok || !data.created) {
+            const message = data.reason === 'duplicate_active_subscription'
+              ? '相同参数的有效订阅已存在'
+              : (data.reason || data.error || '创建失败');
+            renderSubscriptionStatus('订阅创建失败：' + message, 'error');
+            return;
+          }
+          localStorage.setItem(subscriptionEmailKey, email);
+          renderSubscriptionStatus('订阅已创建，交易日收盘后会按该参数发送摘要', 'success');
+          await loadSubscriptions();
+        } catch (err) {
+          renderSubscriptionStatus('订阅创建请求异常：' + err.message, 'error');
+        }
+      }
+
+      async function cancelSubscription(taskId) {
+        if (!taskId) return;
+        try {
+          const res = await fetch('/api/state-observer/subscriptions/' + encodeURIComponent(taskId) + '/cancel', {
+            method: 'POST'
+          });
+          const data = await res.json();
+          if (!res.ok || !data.ok) {
+            renderSubscriptionStatus('取消失败：' + (data.error || '未知错误'), 'error');
+            return;
+          }
+          renderSubscriptionStatus('订阅已取消', 'success');
+          await loadSubscriptions();
+        } catch (err) {
+          renderSubscriptionStatus('取消请求异常：' + err.message, 'error');
+        }
       }
 
       async function pollExportStatus(taskId, downloadPath) {
@@ -709,15 +932,42 @@
         });
       });
 
-      ['symbols', 'symbol_set', 'days', 'date_from', 'date_to', 'industry_l1', 'page_size',
+      ['symbols', 'symbol_set', 'days', 'date_from', 'date_to', 'industry_l1', 'page_size', 'materialized_mode',
        'ef_pattern_any', 'ab_pattern_any', 'zero_pattern_any'].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
         el.addEventListener('change', () => { currentPage = 1; loadData(); });
       });
 
+      async function loadMaterializedStatus() {
+        try {
+          const res = await fetch('/api/admin/data-sync-status');
+          const data = await res.json();
+          const info = data.state_timeline_materialized;
+          const el = document.getElementById('materialized-status');
+          const text = document.getElementById('materialized-text');
+          if (!info) {
+            el.style.display = 'none';
+            return;
+          }
+          el.style.display = 'inline-flex';
+          if (info.exists) {
+            text.textContent = `预计算表: ${info.date} / ${info.row_count} 行`;
+            el.classList.add('active');
+          } else {
+            text.textContent = '预计算表: 未生成';
+            el.classList.remove('active');
+          }
+        } catch (e) {
+          console.warn('物化表状态获取失败', e);
+        }
+      }
+
       // 默认加载
+      document.getElementById('subscription_email').value = localStorage.getItem(subscriptionEmailKey) || '';
       loadData();
+      loadMaterializedStatus();
+      loadSubscriptions();
     </script>
   </body>
 </html>

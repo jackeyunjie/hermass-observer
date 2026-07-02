@@ -664,6 +664,7 @@ def query_state_timeline(
     format: str = "json",
     user_key: str | None = None,
     fetch_all: bool = False,
+    materialized: bool | None = None,
 ) -> dict[str, Any]:
     """查询 State Timeline 长表。
 
@@ -677,6 +678,7 @@ def query_state_timeline(
       format: 'json' 或 'csv'
       user_key: 用于读取用户 watchlist（symbol_set=watchlist 时生效）
       fetch_all: 内部只读模式，返回全部匹配行，不受分页上限限制
+      materialized: True 强制使用物化表；False 强制使用实时 CTE；None 按环境变量
     """
     filters = filters or {}
     page = max(1, page)
@@ -710,8 +712,9 @@ def query_state_timeline(
             watchlist_codes = _resolve_watchlist_codes(user_key or "")
 
         # 预计算表切换：单日查询且开关打开时，优先走物化表
+        use_materialized = USE_STATE_TIMELINE_MATERIALIZED if materialized is None else materialized
         materialized_db: Path | None = None
-        if USE_STATE_TIMELINE_MATERIALIZED and from_date == to_date:
+        if use_materialized and from_date == to_date:
             materialized_db = _find_materialized_db(to_date)
 
         if materialized_db:
@@ -870,6 +873,7 @@ def query_stock_timeline(
     days: int = 30,
     date_from: str | None = None,
     date_to: str | None = None,
+    materialized: bool | None = None,
 ) -> dict[str, Any]:
     """查询单只股票最近 N 天 State 轨迹。"""
     return query_state_timeline(
@@ -880,4 +884,5 @@ def query_stock_timeline(
         page=1,
         page_size=10000,
         fetch_all=True,
+        materialized=materialized,
     )

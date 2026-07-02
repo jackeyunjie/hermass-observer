@@ -144,3 +144,137 @@ def test_user_tasks_api_rejects_invalid_create_payload(tmp_path, monkeypatch):
     assert bad_email.json() == {"ok": False, "error": "缺少或无效的邮箱"}
     assert bad_days.status_code == 400
     assert bad_days.json() == {"ok": False, "error": "valid_days 必须是数字"}
+
+
+# ── State Timeline 订阅 CRUD ──
+
+
+def test_state_timeline_subscriptions_guest_create_list_cancel(tmp_path, monkeypatch):
+    monkeypatch.setattr(user_tasks, "USER_TASK_LEDGER", tmp_path / "user_task_ledger.json")
+    client = TestClient(app)
+
+    created = client.post(
+        "/api/state-observer/subscriptions",
+        json={"email": "guest@example.com", "symbol_set": "watchlist", "days": 7, "note": "访客订阅"},
+    )
+    assert created.status_code == 200
+    payload = created.json()
+    assert payload["created"] is True
+    assert payload["task"]["task_type"] == "state_timeline_digest"
+    assert payload["task"]["created_by"].startswith("visitor_")
+
+    cookie_header = created.headers.get("set-cookie", "")
+    visitor_cookie = SimpleCookie()
+    visitor_cookie.load(cookie_header)
+    visitor_id = visitor_cookie["hermass_visitor_id"].value
+    client.cookies.set("hermass_visitor_id", visitor_id)
+
+    listed = client.get("/api/state-observer/subscriptions")
+    assert listed.status_code == 200
+    tasks = listed.json()["subscriptions"]
+    assert len(tasks) == 1
+    assert tasks[0]["task_id"] == payload["task"]["task_id"]
+
+    cancelled = client.post(f"/api/state-observer/subscriptions/{payload['task']['task_id']}/cancel")
+    assert cancelled.status_code == 200
+    assert cancelled.json()["task"]["status"] == "cancelled"
+
+
+def test_state_timeline_subscriptions_user_isolation(tmp_path, monkeypatch):
+    ledger = tmp_path / "user_task_ledger.json"
+    monkeypatch.setattr(user_tasks, "USER_TASK_LEDGER", ledger)
+
+    user_tasks.create_state_timeline_subscription(
+        email="alice@example.com",
+        symbol_set="top50",
+        days=3,
+        created_by="alice",
+    )
+    user_tasks.create_state_timeline_subscription(
+        email="bob@example.com",
+        symbol_set="top50",
+        days=3,
+        created_by="bob",
+    )
+
+    client = TestClient(app, headers=_basic_auth_header("alice"))
+    listed = client.get("/api/state-observer/subscriptions")
+    assert listed.status_code == 200
+    emails = {t["email"] for t in listed.json()["subscriptions"]}
+    assert emails == {"alice@example.com"}
+
+
+def test_state_timeline_subscriptions_cancel_forbidden_for_other_user(tmp_path, monkeypatch):
+    ledger = tmp_path / "user_task_ledger.json"
+    monkeypatch.setattr(user_tasks, "USER_TASK_LEDGER", ledger)
+
+    created = user_tasks.create_state_timeline_subscription(
+        email="alice@example.com",
+        symbol_set="top50",
+        days=3,
+        created_by="alice",
+    )
+    task_id = created["task"]["task_id"]
+
+    client = TestClient(app, headers=_basic_auth_header("bob"))
+    response = client.post(f"/api/state-observer/subscriptions/{task_id}/cancel")
+
+    assert response.status_code == 403
+    assert response.json()["error"] == "forbidden"
+
+
+def test_state_timeline_subscriptions_duplicate_returns_409(tmp_path, monkeypatch):
+    monkeypatch.setattr(user_tasks, "USER_TASK_LEDGER", tmp_path / "user_task_ledger.json")
+    client = TestClient(app, headers=_basic_auth_header("hermass-test"))
+    body = {"email": "dup@example.com", "symbol_set": "top50", "days": 3}
+
+    first = client.post("/api/state-observer/subscriptions", json=body)
+    second = client.post("/api/state-observer/subscriptions", json=body)
+
+    assert first.status_code == 200
+    assert first.json()["created"] is True
+    assert second.status_code == 409
+    assert second.json()["created"] is False
+    assert second.json()["reason"] == "duplicate_active_subscription"
+
+
+def test_state_timeline_subscriptions_invalid_email_returns_400(tmp_path, monkeypatch):
+    monkeypatch.setattr(user_tasks, "USER_TASK_LEDGER", tmp_path / "user_task_ledger.json")
+    client = TestClient(app, headers=_basic_auth_header("hermass-test"))
+
+    response = client.post(
+        "/api/state-observer/subscriptions",
+        json={"email": "not-an-email", "symbol_set": "top50", "days": 3},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["created"] is False
+    assert response.json()["reason"] == "invalid_email"
+
+
+def test_state_timeline_subscriptions_invalid_days_returns_400(tmp_path, monkeypatch):
+    monkeypatch.setattr(user_tasks, "USER_TASK_LEDGER", tmp_path / "user_task_ledger.json")
+    client = TestClient(app, headers=_basic_auth_header("hermass-test"))
+
+    response = client.post(
+        "/api/state-observer/subscriptions",
+        json={"email": "valid@example.com", "symbol_set": "top50", "days": "soon"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["created"] is False
+    assert response.json()["reason"] == "invalid_days"
+
+
+def test_state_timeline_subscriptions_invalid_symbol_set_returns_400(tmp_path, monkeypatch):
+    monkeypatch.setattr(user_tasks, "USER_TASK_LEDGER", tmp_path / "user_task_ledger.json")
+    client = TestClient(app, headers=_basic_auth_header("hermass-test"))
+
+    response = client.post(
+        "/api/state-observer/subscriptions",
+        json={"email": "valid@example.com", "symbol_set": "sector42", "days": 3},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["created"] is False
+    assert response.json()["reason"] == "invalid_symbol_set"

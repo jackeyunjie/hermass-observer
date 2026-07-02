@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
-import pytest
-
+import web.services.state_timeline_export_worker as export_worker
 from web.services.state_timeline_export_worker import (
     ASYNC_ROW_THRESHOLD,
     ROOT,
+    _build_sync_url,
     create_export_task,
     get_output_path,
     get_task_status,
@@ -78,3 +75,23 @@ class TestStateObserverExport:
         create_export_task({"symbols": "all", "days": 120, "format": "csv"})
         after = task_log.read_text(encoding="utf-8").count("\n")
         assert after > before
+
+    def test_build_sync_url_preserves_materialized_choice(self) -> None:
+        url = _build_sync_url({"symbols": "000001.SZ", "format": "csv", "materialized": False})
+        assert "materialized=0" in url
+
+    def test_create_export_task_passes_materialized_to_row_estimate(self, monkeypatch) -> None:
+        seen: list[dict] = []
+
+        def fake_query_state_timeline(**kwargs):
+            seen.append(kwargs)
+            return {"ok": True, "meta": {"row_count": 1}}
+
+        monkeypatch.setattr(export_worker, "query_state_timeline", fake_query_state_timeline)
+        result = create_export_task(
+            {"symbols": "000001.SZ", "days": 1, "format": "csv", "materialized": True}
+        )
+
+        assert result["status"] == "sync"
+        assert seen
+        assert seen[0]["materialized"] is True

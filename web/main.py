@@ -42,7 +42,11 @@ from hermass_platform.research import (
     format_quick_research_card,
 )
 from agently_adapter.tools.user_tasks import cancel_user_task, create_user_watch_task, list_user_tasks
-from web.services.state_timeline_observer import query_state_timeline, query_stock_timeline
+from web.services.state_timeline_observer import (
+    USE_STATE_TIMELINE_MATERIALIZED,
+    query_state_timeline,
+    query_stock_timeline,
+)
 
 # 启动时初始化用户 profile（读取环境变量 HERMASS_HTPASSWD_USERS 中的逗号分隔用户名）
 init_profiles([u.strip() for u in os.environ.get("HERMASS_HTPASSWD_USERS", "").split(",") if u.strip()])
@@ -4089,6 +4093,18 @@ def api_create_user_task(request: Request, body: dict | None = Body(default=None
     return JSONResponse(content=result)
 
 
+def _parse_tri_state_param(value: str | None) -> bool | None:
+    """解析 '1'/'true'/'0'/'false' 为三态 bool，其他值返回 None。"""
+    if value is None:
+        return None
+    text = str(value).strip().lower()
+    if text in ("1", "true", "yes", "on"):
+        return True
+    if text in ("0", "false", "no", "off"):
+        return False
+    return None
+
+
 @app.get("/api/state-observer")
 def state_observer_api(
     request: Request,
@@ -4113,12 +4129,14 @@ def state_observer_api(
     page: int = 1,
     page_size: int = 100,
     format: str = "json",
+    materialized: str | None = None,
 ) -> Response:
     """State Timeline Observer 查询 API。
 
     返回长表：一只股票 × 一个交易日 = 一行。
     支持 EF / A+B / 0 三类事件族筛选与 CSV 导出。
     symbol_set=watchlist 时读取当前用户的 active watch_command 任务。
+    materialized=1/0/true/false 可强制启用/禁用预计算表；不传按环境变量。
     """
     filters = {
         k: v
@@ -4154,6 +4172,7 @@ def state_observer_api(
         page_size=page_size,
         format=format,
         user_key=user_key,
+        materialized=_parse_tri_state_param(materialized),
     )
 
     if not result.get("ok"):
@@ -4176,6 +4195,7 @@ def state_observer_timeline_api(
     days: int = 30,
     date_from: str | None = None,
     date_to: str | None = None,
+    materialized: str | None = None,
 ) -> JSONResponse:
     """单只股票 State 轨迹查询。"""
     result = query_stock_timeline(
@@ -4183,8 +4203,27 @@ def state_observer_timeline_api(
         days=days,
         date_from=date_from,
         date_to=date_to,
+        materialized=_parse_tri_state_param(materialized),
     )
     return JSONResponse(content=result)
+
+
+def _check_export_ownership(request: Request, task_id: str) -> tuple[bool, JSONResponse | None]:
+    """校验当前用户是否为导出任务 owner。"""
+    from web.services.state_timeline_export_worker import get_task_owner
+
+    owner = get_task_owner(task_id)
+    if owner is None:
+        return False, JSONResponse(content={"ok": False, "error": "task not found"}, status_code=404)
+
+    identity = _request_user_identity(request)
+    user_key = str(identity.get("user_key") or "")
+    is_guest = bool(identity.get("is_guest"))
+    current_scope = "guest" if is_guest else "user"
+
+    if owner["owner_key"] != user_key or owner["owner_scope"] != current_scope:
+        return False, JSONResponse(content={"ok": False, "error": "forbidden"}, status_code=403)
+    return True, None
 
 
 @app.post("/api/state-observer/export")
@@ -4201,17 +4240,22 @@ def state_observer_export_api(
 
     identity = _request_user_identity(request)
     user_key = str(identity.get("user_key") or "")
+    owner_scope = "guest" if identity.get("is_guest") else "user"
 
     query = dict(body)
     query["user_key"] = user_key
-    result = create_export_task(query)
+    result = create_export_task(query, owner_key=user_key, owner_scope=owner_scope)
     return JSONResponse(content=result)
 
 
 @app.get("/api/state-observer/export/{task_id}")
-def state_observer_export_status_api(task_id: str) -> JSONResponse:
+def state_observer_export_status_api(request: Request, task_id: str) -> JSONResponse:
     """查询导出任务状态。"""
     from web.services.state_timeline_export_worker import get_task_status
+
+    allowed, error_response = _check_export_ownership(request, task_id)
+    if not allowed:
+        return error_response
 
     status = get_task_status(task_id)
     if status is None:
@@ -4220,10 +4264,14 @@ def state_observer_export_status_api(task_id: str) -> JSONResponse:
 
 
 @app.get("/api/state-observer/export/{task_id}/download")
-def state_observer_export_download_api(task_id: str) -> Response:
+def state_observer_export_download_api(request: Request, task_id: str) -> Response:
     """下载导出产物。"""
     from web.services.state_timeline_export_worker import get_output_path, get_task_status
     from datetime import date
+
+    allowed, error_response = _check_export_ownership(request, task_id)
+    if not allowed:
+        return error_response
 
     status = get_task_status(task_id)
     if status is None:
@@ -4244,6 +4292,68 @@ def state_observer_export_download_api(task_id: str) -> Response:
         media_type="text/csv; charset=utf-8",
         filename=filename,
     )
+
+
+@app.get("/api/state-observer/subscriptions")
+def state_observer_subscriptions_list_api(request: Request) -> JSONResponse:
+    """列出当前用户的 State Timeline 邮件订阅。"""
+    from agently_adapter.tools.user_tasks import list_state_timeline_subscriptions
+
+    identity = _request_user_identity(request)
+    user_key = str(identity.get("user_key") or "")
+    result = list_state_timeline_subscriptions(user=user_key)
+    return JSONResponse(content=result)
+
+
+@app.post("/api/state-observer/subscriptions")
+def state_observer_subscriptions_create_api(
+    request: Request,
+    body: dict[str, Any],
+) -> JSONResponse:
+    """创建 State Timeline 邮件订阅。"""
+    from agently_adapter.tools.user_tasks import create_state_timeline_subscription
+
+    identity = _request_user_identity(request)
+    user_key = str(identity.get("user_key") or "")
+
+    email = str(body.get("email") or "").strip()
+    symbol_set = str(body.get("symbol_set") or "top50").strip()
+    days = body.get("days", 3)
+    note = str(body.get("note") or "").strip()
+    page_context = str(body.get("page_context") or "/state-observer").strip()
+
+    result = create_state_timeline_subscription(
+        email=email,
+        symbol_set=symbol_set,
+        days=days,
+        note=note,
+        page_context=page_context,
+        created_by=user_key,
+    )
+    if not result.get("created"):
+        if result.get("reason") in {"invalid_email", "invalid_days", "invalid_symbol_set"}:
+            return JSONResponse(content=result, status_code=400)
+        return JSONResponse(content=result, status_code=409)
+    return JSONResponse(content=result)
+
+
+@app.post("/api/state-observer/subscriptions/{task_id}/cancel")
+def state_observer_subscriptions_cancel_api(
+    request: Request,
+    task_id: str,
+) -> JSONResponse:
+    """取消 State Timeline 邮件订阅。"""
+    from agently_adapter.tools.user_tasks import cancel_state_timeline_subscription
+
+    identity = _request_user_identity(request)
+    user_key = str(identity.get("user_key") or "")
+
+    result = cancel_state_timeline_subscription(task_id, user=user_key)
+    if not result.get("ok"):
+        if result.get("error") == "forbidden":
+            return JSONResponse(content=result, status_code=403)
+        return JSONResponse(content=result, status_code=404)
+    return JSONResponse(content=result)
 
 
 @app.get("/state-observer", response_class=HTMLResponse)
@@ -7110,6 +7220,31 @@ def _csv_status(path: Path, expected_date: str) -> dict[str, Any]:
     }
 
 
+def _state_timeline_materialized_status(normalized_date: str) -> dict[str, Any]:
+    """State Timeline 预计算表状态。"""
+    compact_date = normalized_date.replace("-", "")
+    path = ROOT / "outputs" / "state_timeline" / f"state_timeline_daily_{compact_date}.duckdb"
+    status: dict[str, Any] = {
+        "path": str(path),
+        "exists": path.exists(),
+        "size": path.stat().st_size if path.exists() else 0,
+        "date": normalized_date,
+        "row_count": 0,
+        "use_env_switch": USE_STATE_TIMELINE_MATERIALIZED,
+    }
+    if path.exists():
+        try:
+            con = duckdb.connect(str(path), read_only=True)
+            try:
+                row = con.execute("SELECT COUNT(*) FROM state_timeline_daily").fetchone()
+                status["row_count"] = row[0] if row else 0
+            finally:
+                con.close()
+        except Exception:
+            pass
+    return status
+
+
 def _foundation_status(date_str: str) -> dict[str, Any]:
     db_path = find_foundation_db(date_str) or find_foundation_db()
     status: dict[str, Any] = {
@@ -7183,6 +7318,7 @@ def admin_data_sync_status(date: str = "") -> JSONResponse:
             "size": delta_path.stat().st_size if delta_path.exists() else 0,
         },
         "foundation_db": _foundation_status(normalized_date),
+        "state_timeline_materialized": _state_timeline_materialized_status(normalized_date),
     }
     return JSONResponse(content=payload)
 

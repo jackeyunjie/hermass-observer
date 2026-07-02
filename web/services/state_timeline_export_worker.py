@@ -56,7 +56,7 @@ def _generate_task_id() -> str:
 def _normalize_query(query: dict[str, Any]) -> dict[str, Any]:
     """规范化查询参数，移除空值和格式参数。"""
     normalized: dict[str, Any] = {}
-    for key in ("symbols", "symbol_set", "date_from", "date_to", "days", "filters", "user_key"):
+    for key in ("symbols", "symbol_set", "date_from", "date_to", "days", "filters", "user_key", "async", "materialized"):
         if key in query:
             normalized[key] = query[key]
     # days 默认 20
@@ -111,6 +111,7 @@ def _estimate_rows(query: dict[str, Any]) -> int:
         page_size=1,
         format="json",
         user_key=query.get("user_key"),
+        materialized=query.get("materialized"),
     )
     if not result.get("ok"):
         raise RuntimeError(f"估算行数失败: {result.get('error')}")
@@ -150,11 +151,17 @@ def _build_sync_url(query: dict[str, Any]) -> str:
     filters = query.get("filters") or {}
     for k, v in filters.items():
         params[k] = v
+    if query.get("materialized") is not None:
+        params["materialized"] = "1" if query.get("materialized") else "0"
     params["format"] = query.get("format", "csv")
     return "/api/state-observer?" + urlencode(params)
 
 
-def create_export_task(query: dict[str, Any]) -> dict[str, Any]:
+def create_export_task(
+    query: dict[str, Any],
+    owner_key: str = "",
+    owner_scope: str = "guest",
+) -> dict[str, Any]:
     """创建导出任务。
 
     流程：
@@ -162,6 +169,10 @@ def create_export_task(query: dict[str, Any]) -> dict[str, Any]:
     2. 判断是否需要异步
     3. 异步则创建任务、启动后台线程
     4. 同步则返回 sync 标记，前端复用现有 /api/state-observer?format=csv
+
+    参数：
+      owner_key: 创建者标识（username 或 visitor_id）
+      owner_scope: "user" 或 "guest"
 
     返回：
       异步：{ok, task_id, status, format, estimated_rows, download_path}
@@ -197,6 +208,8 @@ def create_export_task(query: dict[str, Any]) -> dict[str, Any]:
         "output_path": str(output_path.relative_to(ROOT)),
         "row_count": 0,
         "error": "",
+        "owner_key": owner_key,
+        "owner_scope": owner_scope,
         "created_at": _now_iso(),
         "finished_at": "",
     }
@@ -243,6 +256,7 @@ def run_export_task(task_id: str) -> dict[str, Any]:
             page_size=10000,
             format=fmt,
             user_key=query.get("user_key"),
+            materialized=query.get("materialized"),
         )
         if not result.get("ok"):
             raise RuntimeError(f"查询失败: {result.get('error')}")
@@ -276,6 +290,17 @@ def run_export_task(task_id: str) -> dict[str, Any]:
         }
         _append_task_record(failed_record)
         return {"ok": False, "task_id": task_id, "status": "failed", "error": str(exc)}
+
+
+def get_task_owner(task_id: str) -> dict[str, Any] | None:
+    """获取任务 owner 信息。"""
+    record = _read_latest_record(task_id)
+    if record is None:
+        return None
+    return {
+        "owner_key": record.get("owner_key", ""),
+        "owner_scope": record.get("owner_scope", "guest"),
+    }
 
 
 def get_task_status(task_id: str) -> dict[str, Any] | None:
