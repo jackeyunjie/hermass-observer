@@ -314,13 +314,152 @@
         .route-grid { grid-template-columns: 1fr; }
         .route-side { grid-template-columns: 1fr; }
       }
+      .deck-command {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        gap: 10px;
+        align-items: center;
+      }
+      .deck-title-line {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      .deck-subtitle {
+        margin: 8px 0 0;
+        color: var(--muted);
+        line-height: 1.55;
+        font-size: 14px;
+      }
+      .deck-pulse {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 12px;
+      }
+      .pulse-item {
+        min-width: 126px;
+        padding: 9px 11px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fbfcfb;
+      }
+      .pulse-label {
+        display: block;
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .pulse-value {
+        display: block;
+        margin-top: 3px;
+        color: var(--ink);
+        font-size: 15px;
+        font-weight: 800;
+      }
+      .radar-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .radar-table th,
+      .radar-table td {
+        padding: 10px 9px;
+        border-bottom: 1px solid #edf1ef;
+        text-align: left;
+        font-size: 13px;
+        vertical-align: top;
+      }
+      .radar-table th {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .radar-code {
+        color: var(--ink);
+        font-weight: 800;
+        text-decoration: none;
+      }
+      .window-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .window-cell {
+        min-height: 118px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px;
+        background: #fff;
+      }
+      .window-name {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .window-label {
+        margin-top: 8px;
+        font-size: 18px;
+        font-weight: 800;
+      }
+      .window-evidence {
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+      .window-cell.strong { border-color: rgba(14,124,102,0.35); background: #f7fcfa; }
+      .window-cell.risk { border-color: rgba(184,74,58,0.35); background: #fffafa; }
+      .sentinel-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .sentinel-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        color: var(--ink);
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 800;
+      }
+      .sentinel-tag.strong { border-color: rgba(14,124,102,0.35); color: var(--good); }
+      .sentinel-tag.risk { border-color: rgba(184,74,58,0.35); color: var(--bad); }
+      .top-list {
+        display: grid;
+        gap: 10px;
+      }
+      .top-item {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid #edf1ef;
+      }
+      .system-strip {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+      }
+      @media (max-width: 860px) {
+        .deck-command { grid-template-columns: 1fr; }
+        .window-grid { grid-template-columns: 1fr; }
+        .system-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .radar-table { min-width: 760px; }
+      }
     </style>
   </head>
   <body>
     <header class="topbar">
       <div>
-        <p class="eyebrow">Hermass 多周期观察</p>
-        <h1>量化工作室</h1>
+        <p class="eyebrow">Hermass Observation Deck</p>
+        <h1>我的观察台</h1>
       </div>
       <div class="date">
         {% set nav_active = 'home' %}{% include '_top_nav.html' %}
@@ -329,234 +468,204 @@
     </header>
 
     <main class="layout">
-      {# ── 0. 观象 AI 助手 ── #}
+      {# ── 0. 观象指令栏 ── #}
       <section class="panel span-2 hero-ai-panel">
-        <div class="hero-ai-row">
-          <div class="hero-ai-title-group">
-            <span class="hero-ai-name">观象</span>
-            <span class="hero-ai-subtitle">多周期研究助手 · 提问或输入股票代码</span>
+        <div class="deck-title-line">
+          <div>
+            <h2>观象指令栏</h2>
+            <p class="deck-subtitle">输入股票代码、State 条件或观察问题。系统只呈现状态、证据与风险，不给交易动作。</p>
           </div>
-          <div class="hero-ai-input-group">
-            <input type="text" id="ai-hero-input" class="input hero-ai-search" placeholder="问观象：今天先看什么方向？"
-              onkeydown="if(event.key==='Enter'){heroAsk();}" />
-            <button class="btn btn-primary btn-sm" onclick="heroAsk()">提问</button>
-            <button class="btn btn-sm btn-nowrap" onclick="aiToggle()">打开面板</button>
-          </div>
+          <span class="tag tag-gray">Research Only</span>
+        </div>
+        <div class="deck-command" style="margin-top:14px;">
+          <input type="text" id="ai-hero-input" class="input hero-ai-search" placeholder="例如：000021 / D1 zero / 我的自选池 3 周变化"
+            onkeydown="if(event.key==='Enter'){heroAsk();}" />
+          <button class="btn btn-primary btn-sm" onclick="heroAsk()">观察</button>
+          <button class="btn btn-sm btn-nowrap" onclick="aiToggle()">打开观象</button>
         </div>
         <div class="hero-ai-chips">
-          <button class="btn btn-sm" onclick="heroAskChip('今天更适合先缩圈还是先追局部？只给结论')">定路径</button>
-          <button class="btn btn-sm" onclick="aiToggle()">问个股</button>
-          <button class="btn btn-sm" onclick="aiAsk('带我走一遍赚钱六步法')">赚钱秘籍</button>
+          <button class="btn btn-sm" onclick="heroAskChip('我的自选池最近 3 天有哪些状态变化')">我的自选</button>
+          <button class="btn btn-sm" onclick="heroAskChip('列出今天转强早期的标的，只说状态和证据')">今日转折</button>
+          <button class="btn btn-sm" onclick="heroAskChip('解释 D1 zero 和 W1 转强的观察含义')">状态说明</button>
         </div>
       </section>
 
-      {# ── 1. 顶部行动路由 ── #}
+      {# ── 1. 状态脉冲 ── #}
       <section class="panel span-2">
-        <div class="route-grid">
-          <div class="route-main">
-            <span class="route-kicker">今天从哪条路径进 ← 赚钱秘籍第一步：先定入口</span>
-            <div class="route-title">{{ observation_brief.decision.routing_label }}</div>
-            <div class="route-copy">{{ observation_brief.decision.next_step }}</div>
-            <div class="route-actions">
-              {% if observation_brief.decision.routing_mode == 'top_down' %}
-              <a class="route-action primary" href="/market">先看市场，再缩圈选个股</a>
-              <a class="route-action" href="/recommend">直跳机会池</a>
-              {% elif observation_brief.decision.routing_mode == 'bottom_up' %}
-              <a class="route-action primary" href="/recommend">先看局部机会，再反查市场</a>
-              <a class="route-action" href="/market">查看市场环境</a>
-              {% else %}
-              <a class="route-action primary" href="/market">先看市场页</a>
-              <a class="route-action" href="/research">直接查个股</a>
-              {% endif %}
-            </div>
+        <div class="deck-title-line">
+          <div>
+            <h2>状态脉冲</h2>
+            <p class="deck-subtitle">{{ observation_deck.market.conclusion or '当前数据正在读取中。' }}</p>
           </div>
-          <div class="route-side">
-            <div class="route-note">
-              <div class="route-note-label">当前姿态</div>
-              <div class="route-note-value">{{ observation_brief.decision.label }}</div>
-              <div class="route-note-copy">市场不是开关，是地图。决定了今天从哪里开始看。</div>
-            </div>
-            <div class="route-note">
-              <div class="route-note-label">今天的关注池</div>
-              <div class="route-note-value">
-                候选观察 {{ observation_brief.watch_candidates | length }} 个
-              </div>
-              <div class="route-note-copy">
-              {% if observation_brief.external_clue_count %}
-                外部线索 {{ observation_brief.external_clue_count }} 条
-              {% endif %}
-                ，我的观察任务 <span id="userTaskCounter">{{ observation_brief.active_user_tasks | length }}</span> 个
-              </div>
-            </div>
-          </div>
+          <a class="route-action" href="/state-observer">打开完整 State 表</a>
+        </div>
+        <div class="deck-pulse">
+          <div class="pulse-item"><span class="pulse-label">数据日期</span><span class="pulse-value">{{ observation_deck.date }}</span></div>
+          <div class="pulse-item"><span class="pulse-label">全市场</span><span class="pulse-value">{{ observation_deck.market.total_stocks or 0 }} 只</span></div>
+          <div class="pulse-item"><span class="pulse-label">EF</span><span class="pulse-value">{{ observation_deck.market.ef2_count or 0 }} 只</span></div>
+          <div class="pulse-item"><span class="pulse-label">我的观察</span><span class="pulse-value"><span id="userTaskCounter">{{ observation_deck.health.user_task_count }}</span> 个</span></div>
+          <div class="pulse-item"><span class="pulse-label">外部线索</span><span class="pulse-value">{{ observation_brief.external_clue_count or 0 }} 条</span></div>
+          <div class="pulse-item"><span class="pulse-label">经典规则</span><span class="pulse-value">{{ observation_deck.classic_signals.tags | length }} 类</span></div>
         </div>
       </section>
 
-      {# ── 2. 主任务区：路径入口 ── #}
+      {# ── 2. 我的标的转折雷达 ── #}
       <section class="panel span-2">
         <div class="panel-head">
-          <h2>从哪条路径进入</h2>
-          <span>先选路线，再看对象</span>
+          <h2>我的标的转折雷达</h2>
+          <span>默认展示自选 / 候选标的；无自选时展示全市场参考池</span>
         </div>
-        <div class="entry-bar">
-          <a class="entry-item" href="/market">
-            <div class="entry-icon strategy">🌐</div>
-            <div>
-              <div class="entry-label">顺风日先缩圈</div>
-              <div class="entry-desc">市场与方向共振强时，先看环境再往下钻</div>
-            </div>
-          </a>
-          <a class="entry-item" href="/recommend">
-            <div class="entry-icon backtest">🎯</div>
-            <div>
-              <div class="entry-label">逆风日抓局部</div>
-              <div class="entry-desc">大盘一般时，先看局部强结构和集中机会</div>
-            </div>
-          </a>
-          <a class="entry-item" href="javascript:void(0)" onclick="aiToggle()">
-            <div class="entry-icon debate">💬</div>
-            <div>
-              <div class="entry-label">问观象</div>
-              <div class="entry-desc">让观象直接告诉你今天该从哪里开始</div>
-            </div>
-          </a>
-          <a class="entry-item" href="/guide">
-            <div class="entry-icon track">✍</div>
-            <div>
-              <div class="entry-label">使用说明</div>
-              <div class="entry-desc">一页看懂网站怎么用、观象怎么问</div>
-            </div>
-          </a>
-        </div>
-      </section>
-
-      {# ── 3. 今日关注池 ── #}
-      <section class="panel span-2">
-        <div class="panel-head">
-          <h2>今天先看这几组</h2>
-          <span>不是只看一只，也不是平铺几十只，而是先分清哪类该先处理</span>
-        </div>
-        {% if observation_brief.watch_groups %}
-        <div class="candidate-groups">
-          {% for group in observation_brief.watch_groups %}
-          <div class="candidate-group">
-            <div class="candidate-group-head">
-              <div>
-                <div class="candidate-group-title">{{ group.title }}</div>
-                <div class="candidate-group-desc">{{ group.desc }}</div>
-              </div>
-              <span class="tag {{ group.tag_class }}">{{ group.tag_label }} {{ group.count }} 个</span>
-            </div>
-            <div class="candidate-group-summary">{{ group.summary }}</div>
-            <div class="candidate-list">
-              {% for row in group.rows %}
-              {% set row_id = (group.key ~ '-' ~ row.stock_code|replace('.', '-')|replace(' ', '-') ) %}
-              <div class="candidate-item candidate-row" id="candidate-{{ row_id }}">
-                <div class="candidate-item-top">
-                  <div>
-                    <a class="candidate-name" href="{{ row.research_url }}">{{ row.stock_code }} {{ row.stock_name }}</a>
-                    <div class="candidate-meta">
-                      <span class="tag {% if row.bucket == 'priority' %}tag-green{% else %}tag-amber{% endif %}">{{ row.resonance_label or row.current_state or '观察' }}</span>
-                      {% if row.strategy_label %}
-                      <span style="margin-left:6px;">{{ row.strategy_label }}</span>
-                      {% endif %}
-                    </div>
-                  </div>
-                  <div>
-                    {% if row.rr_ratio %}
-                    <span class="tag tag-amber">RR {{ row.rr_ratio }}</span>
-                    {% else %}
-                    <span class="tag tag-gray">待评估</span>
-                    {% endif %}
-                  </div>
-                </div>
-                <div class="candidate-why">{{ row.reason or '-' }}</div>
-                <div class="candidate-risk">{{ row.risk }}</div>
-                <div class="candidate-actions">
-                  <span style="color:var(--muted);font-size:12px;">{{ row.next_action or '持续观察' }}</span>
-                  {% set stock_upper = row.stock_code.upper() %}
-                  {% if observation_brief.tracked_stock_codes and stock_upper in observation_brief.tracked_stock_codes %}
-                    <span class="tag tag-green" style="font-size:12px;cursor:default;">已在追踪</span>
+        {% if observation_deck.focus_rows %}
+        <div style="overflow:auto;">
+          <table class="radar-table">
+            <thead>
+              <tr>
+                <th>标的</th>
+                <th>当前状态</th>
+                <th>3D</th>
+                <th>3W</th>
+                <th>3M</th>
+                <th>6M</th>
+                <th>风险</th>
+                <th>入口</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for row in observation_deck.focus_rows %}
+              {% set row_id = ('deck-' ~ row.stock_code|replace('.', '-')|replace(' ', '-') ) %}
+              <tr class="candidate-row" id="candidate-{{ row_id }}">
+                <td><a class="radar-code" href="{{ row.research_url }}">{{ row.stock_code }}</a><br><span class="muted">{{ row.stock_name or '-' }}</span></td>
+                <td><span class="tag {% if row.bucket == 'priority' %}tag-green{% elif row.bucket == 'observe' %}tag-amber{% else %}tag-gray{% endif %}">{{ row.current_state or '观察中' }}</span></td>
+                {% for win in ['3D','3W','3M','6M'] %}
+                <td><span class="tag {% if row.windows[win].tone == 'strong' %}tag-green{% elif row.windows[win].tone == 'risk' %}tag-red{% else %}tag-gray{% endif %}">{{ row.windows[win].label }}</span></td>
+                {% endfor %}
+                <td>{{ row.risk or '无明显风险标记' }}</td>
+                <td>
+                  {% if row.is_tracked %}
+                    <span class="tag tag-green">已在观察</span>
                   {% else %}
-                  <button class="btn btn-sm btn-primary btn-create-task"
-                    data-stock="{{ row.stock_code }}"
-                    data-name="{{ row.stock_name }}"
-                    data-trigger="{{ row.task_suggestion.trigger_type }}"
-                    data-note="{{ row.task_suggestion.note }}"
-                    data-valid-days="{{ row.task_suggestion.valid_days }}"
-                    data-row-id="candidate-{{ row_id }}"
-                  >创建观察</button>
+                    <button class="btn btn-sm btn-primary btn-create-task"
+                      data-stock="{{ row.stock_code }}"
+                      data-name="{{ row.stock_name }}"
+                      data-trigger="{{ row.task_suggestion.trigger_type }}"
+                      data-note="{{ row.task_suggestion.note }}"
+                      data-valid-days="{{ row.task_suggestion.valid_days }}"
+                      data-row-id="candidate-{{ row_id }}"
+                    >加入观察</button>
                   {% endif %}
-                  <button class="ask-ai-chip" data-stock="{{ row.stock_code }}" data-name="{{ row.stock_name or '' }}">
-                    <span class="dot"></span>问观象
-                  </button>
-                </div>
-              </div>
-              <div class="task-form-row" id="task-form-{{ row_id }}" style="display:none;">
-                <div style="padding:10px 12px;background:#f8fbf9;border:1px dashed var(--line);border-radius:8px;">
-                  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px;">
-                    <span style="font-weight:700;white-space:nowrap;">创建观察任务</span>
-                    <span style="color:var(--muted);white-space:nowrap;">{{ row.stock_code }} {{ row.stock_name }}</span>
-                    <span class="tag tag-amber" style="white-space:nowrap;">{{ row.task_suggestion.trigger_type }}</span>
-                    <span style="color:var(--muted);font-size:12px;flex:1;min-width:160px;">{{ row.task_suggestion.note[:60] }}{% if row.task_suggestion.note|length > 60 %}...{% endif %}</span>
-                    <input type="email" class="task-email-input" placeholder="你的邮箱" style="width:180px;padding:4px 8px;font-size:13px;border:1px solid var(--line);border-radius:4px;" />
-                    <button class="btn btn-sm btn-primary task-confirm-btn" data-row-id="{{ row_id }}">确认创建</button>
-                    <button class="btn btn-sm task-cancel-btn" data-row-id="{{ row_id }}" style="background:#fff;color:var(--ink);border:1px solid var(--line);">取消</button>
+                  <button class="ask-ai-chip" data-stock="{{ row.stock_code }}" data-name="{{ row.stock_name or '' }}"><span class="dot"></span>问观象</button>
+                </td>
+              </tr>
+              <tr class="task-form-row" id="task-form-{{ row_id }}" style="display:none;">
+                <td colspan="8">
+                  <div style="padding:10px 12px;background:#f8fbf9;border:1px dashed var(--line);border-radius:8px;">
+                    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px;">
+                      <span style="font-weight:700;white-space:nowrap;">创建观察任务</span>
+                      <span style="color:var(--muted);white-space:nowrap;">{{ row.stock_code }} {{ row.stock_name }}</span>
+                      <span style="color:var(--muted);font-size:12px;flex:1;min-width:160px;">{{ row.task_suggestion.note[:60] }}{% if row.task_suggestion.note|length > 60 %}...{% endif %}</span>
+                      <input type="email" class="task-email-input" placeholder="你的邮箱" style="width:180px;padding:4px 8px;font-size:13px;border:1px solid var(--line);border-radius:4px;" />
+                      <button class="btn btn-sm btn-primary task-confirm-btn" data-row-id="{{ row_id }}">确认创建</button>
+                      <button class="btn btn-sm task-cancel-btn" data-row-id="{{ row_id }}" style="background:#fff;color:var(--ink);border:1px solid var(--line);">取消</button>
+                    </div>
+                    <div class="task-result-msg" id="task-result-{{ row_id }}" style="margin-top:6px;font-size:13px;"></div>
                   </div>
-                  <div class="task-result-msg" id="task-result-{{ row_id }}" style="margin-top:6px;font-size:13px;"></div>
-                </div>
-              </div>
-              {% endfor %}
-            </div>
-          </div>
-          {% endfor %}
+                </td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
         </div>
-        <p class="hero-note" style="margin-top:8px;">全站页面默认免登录可用。需要持续提醒时，直接创建观察任务；已有任务去 <a href="/watchlist">观察账本</a> 管理。</p>
         {% else %}
-        <p class="muted">当前没有强优先对象。建议先 <a href="/market" style="color:var(--accent);text-decoration:underline;">看市场环境</a> 判断今天是顺风还是逆风，再去 <a href="/recommend" style="color:var(--accent);text-decoration:underline;">机会池</a> 看局部机会是否集中。</p>
+        <p class="muted">当前没有可展示的自选或候选标的。可先通过观象输入股票代码，或进入 State Workbench 查看完整状态表。</p>
         {% endif %}
       </section>
 
-      {# ── 4. 系统健康与数据新鲜度 ── #}
-      <section class="panel span-2" style="padding:12px 18px;">
-        <details>
-          <summary style="font-size:13px;">数据与术语说明</summary>
-          <div class="health-grid" style="margin-top:12px;">
-            <div class="health-item">
-              <span class="health-label">数据日期</span>
-              <span class="health-value">{{ daily_brief.date or today }}</span>
-            </div>
-            <div class="health-item">
-              <span class="health-label">State Cube</span>
-              <span class="health-value">
-                {% if outputs and outputs.state_cube %}
-                  <span class="status-dot dot-ok"></span>正常
-                {% else %}
-                  <span class="status-dot dot-warn"></span>待检查
-                {% endif %}
-              </span>
-            </div>
-            <div class="health-item">
-              <span class="health-label">Agent 复盘</span>
-              <span class="health-value">
-                {% if cron_rows %}
-                  <span class="status-dot dot-ok"></span>运行中
-                {% else %}
-                  <span class="status-dot dot-warn"></span>未启动
-                {% endif %}
-              </span>
-            </div>
-            <div class="health-item">
-              <span class="health-label">最近一次同步</span>
-              <span class="health-value">
-                {% if alert_rows %}
-                  <span class="status-dot dot-ok"></span>正常
-                {% else %}
-                  <span class="status-dot dot-warn"></span>暂无告警
-                {% endif %}
-              </span>
-            </div>
+      {# ── 3. 多时间窗矩阵 ── #}
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>3D / 3W / 3M / 6M 时间窗矩阵</h2>
+          <span>{% if observation_deck.selected.stock_code %}选中：{{ observation_deck.selected.stock_code }} {{ observation_deck.selected.stock_name }}{% else %}等待标的选择{% endif %}</span>
+        </div>
+        {% if observation_deck.selected.windows %}
+        <div class="window-grid">
+          {% for win in ['3D','3W','3M','6M'] %}
+          {% set cell = observation_deck.selected.windows[win] %}
+          <div class="window-cell {{ cell.tone }}">
+            <div class="window-name">{{ win }}</div>
+            <div class="window-label">{{ cell.label }}</div>
+            <div class="window-evidence">{{ cell.evidence }}</div>
+            {% if cell.risk %}
+            <div class="tag tag-red" style="margin-top:10px;">{{ cell.risk }}</div>
+            {% endif %}
           </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">暂无时间窗矩阵数据。</p>
+        {% endif %}
+      </section>
+
+      {# ── 4. 经典策略信号灯 + 全市场参考 ── #}
+      <section class="panel">
+        <div class="panel-head">
+          <h2>经典策略信号灯</h2>
+          <span>平时静默，触发时只亮标签</span>
+        </div>
+        {% if observation_deck.classic_signals.tags %}
+        <div class="sentinel-row">
+          {% for tag in observation_deck.classic_signals.tags %}
+          <a class="sentinel-tag {{ tag.tone }}" href="{{ tag.href }}">{{ tag.label }} · {{ tag.count }}</a>
+          {% endfor %}
+        </div>
+        <p class="deck-subtitle">经典策略信号仅展示原始规则触发状态，不参与 State 主系统判断。</p>
+        {% else %}
+        <p class="muted">当前无经典策略规则信号。</p>
+        {% endif %}
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>全市场转折 Top</h2>
+          <span>参考池，不替代我的标的</span>
+        </div>
+        {% if observation_deck.market_top %}
+        <div class="top-list">
+          {% for row in observation_deck.market_top %}
+          <div class="top-item">
+            <div>
+              <a class="radar-code" href="{{ row.research_url }}">{{ row.stock_code }}</a>
+              <div class="muted">{{ row.stock_name or '-' }} · {{ row.current_state }}</div>
+            </div>
+            <span class="tag {% if row.bucket == 'priority' %}tag-green{% elif row.bucket == 'observe' %}tag-amber{% else %}tag-gray{% endif %}">{{ row.windows['3W'].label }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">暂无全市场参考池。</p>
+        {% endif %}
+      </section>
+
+      {# ── 5. 系统健康 ── #}
+      <section class="panel span-2">
+        <div class="panel-head">
+          <h2>系统健康</h2>
+          <span>数据状态只作可用性提示</span>
+        </div>
+        <div class="system-strip">
+          <div class="pulse-item"><span class="pulse-label">数据日期</span><span class="pulse-value">{{ observation_deck.health.data_date }}</span></div>
+          <div class="pulse-item"><span class="pulse-label">State Timeline</span><span class="pulse-value">{% if observation_deck.health.state_timeline.exists %}<span class="status-dot dot-ok"></span>已就绪{% else %}<span class="status-dot dot-warn"></span>读取中{% endif %}</span></div>
+          <div class="pulse-item"><span class="pulse-label">State Cube</span><span class="pulse-value">{% if observation_deck.health.state_cube %}<span class="status-dot dot-ok"></span>可用{% else %}<span class="status-dot dot-warn"></span>待检查{% endif %}</span></div>
+          <div class="pulse-item"><span class="pulse-label">经典策略</span><span class="pulse-value">{{ observation_deck.classic_signals.date }}</span></div>
+        </div>
+        <details style="margin-top:14px;">
+          <summary style="font-size:13px;">术语说明</summary>
+          <table style="margin-top:12px;font-size:13px;">
+            <tbody>
+              <tr><td>State</td><td>结构状态，表示多周期环境，不等于交易动作。</td></tr>
+              <tr><td>EF</td><td>E/F 共振，表示多周期达到较强结构状态的数量，不等于结果承诺。</td></tr>
+              <tr><td>3D / 3W / 3M / 6M</td><td>不同观察时间窗，用来区分短期变化、结构形成、中期延续和长期迁移。</td></tr>
+            </tbody>
+          </table>
           {% if alert_rows %}
           <div style="margin-top:12px;">
             {% for alert in alert_rows[:3] %}
@@ -568,13 +677,6 @@
             {% endfor %}
           </div>
           {% endif %}
-          <table style="margin-top:12px;font-size:13px;">
-            <tbody>
-              <tr><td>State</td><td>结构状态，表示多周期结构环境，不等于直接买卖点。</td></tr>
-              <tr><td>EF</td><td>E/F 共振，表示多周期达到较强结构状态的数量，不等于盈利保证。</td></tr>
-              <tr><td>RR</td><td>Risk / Reward，风报比，表示潜在风险与潜在收益的对比。</td></tr>
-            </tbody>
-          </table>
         </details>
       </section>
     </main>
@@ -708,7 +810,7 @@
         if (!input) return;
         var formRow = input.closest('.task-form-row');
         if (!formRow) return;
-        var match = formRow.id.match(/^task-form-(\d+)$/);
+        var match = formRow.id.match(/^task-form-(.+)$/);
         if (!match) return;
         e.preventDefault();
         submitTaskForm(match[1]);

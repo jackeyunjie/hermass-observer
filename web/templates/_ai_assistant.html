@@ -88,7 +88,7 @@
           <button onclick="aiAsk('提炼当前核心矛盾')">提炼矛盾</button>
           <button onclick="aiAsk('给我反证条件')">反证条件</button>
           <button onclick="aiAsk('用后验思维复盘这个判断')">后验复盘</button>
-          <button onclick="aiAsk('我现在在哪一步？下一步该点哪里')">流程定位</button>
+          <button onclick="aiAsk('我现在在哪一步？下一步看哪个观察入口')">流程定位</button>
         </div>
         <div class="ai-messages" id="ai-messages"></div>
       </div>
@@ -234,7 +234,7 @@
             html += '<div class="ai-risk-card"><span>风险边界</span><p>' + escapeHtml(data.avoid) + '</p></div>';
           }
           if (data.next_actions && data.next_actions.length) {
-            html += '<div class="ai-action-label">建议下一步</div>';
+            html += '<div class="ai-action-label">下一步观察</div>';
             html += '<div class="ai-actions">';
             data.next_actions.forEach(function(a) {
               html += '<a href="' + escapeHtml(a.url) + '">' + escapeHtml(a.label) + '</a>';
@@ -362,7 +362,7 @@
           aiSession.stock_code = code;
           aiUpdateCtx();
           var label = name ? (code + ' ' + name) : code;
-          aiAsk('帮我分析 ' + label + ' 当前多周期状态和操作建议');
+          aiAsk('帮我分析 ' + label + ' 当前多周期状态、证据和风险');
         }, true);
 
         function aiAsk(text) {

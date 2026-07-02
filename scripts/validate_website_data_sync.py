@@ -179,6 +179,40 @@ def validate_market_page(html: str, expected_date: str) -> list[str]:
     return errors
 
 
+def validate_home_observation_deck(html: str, expected_date: str) -> list[str]:
+    """首页观察台最小验收：页面结构、日期与 Research-Only 文案边界。"""
+    errors: list[str] = []
+    required_phrases = [
+        "我的观察台",
+        "观象指令栏",
+        "状态脉冲",
+        "我的标的转折雷达",
+        "3D / 3W / 3M / 6M",
+        "经典策略信号灯",
+        "全市场转折 Top",
+        "系统健康",
+    ]
+    for phrase in required_phrases:
+        if phrase in html:
+            ok(f"home observation deck contains '{phrase}'")
+        else:
+            fail(errors, f"home observation deck missing '{phrase}'")
+    if expected_date in html:
+        ok(f"home observation deck contains date={expected_date}")
+    else:
+        fail(errors, f"home observation deck missing date={expected_date}")
+
+    forbidden = [
+        "推荐买", "推荐卖", "适合交易", "目标价", "收益承诺", "加杠杆",
+    ]
+    leaked = [word for word in forbidden if word in html]
+    if leaked:
+        fail(errors, f"home observation deck forbidden words present: {leaked}")
+    else:
+        ok("home observation deck forbidden words absent")
+    return errors
+
+
 def validate_state_observer_page(html: str) -> list[str]:
     """State Timeline Observer 页面最小验收：页面可打开且包含核心文案。"""
     errors: list[str] = []
@@ -281,6 +315,12 @@ def main() -> int:
         return 1
 
     errors.extend(validate_status(status, expected_date))
+
+    try:
+        home_html = get_text("/")
+        errors.extend(validate_home_observation_deck(home_html, expected_date))
+    except Exception as exc:
+        fail(errors, f"home page request failed: {exc}")
 
     signal_count = int((status.get("strategy_signal_daily") or {}).get("signal_count") or 0)
     try:

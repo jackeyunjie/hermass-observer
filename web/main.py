@@ -2452,6 +2452,152 @@ def _daily_observation_brief(user_key: str = "", task_scope: str = "not_authenti
     }
 
 
+def _observation_window_labels(candidate: dict[str, Any]) -> dict[str, dict[str, str]]:
+    current_state = str(candidate.get("current_state") or "").strip()
+    risk_text = str(candidate.get("risk") or "").strip()
+    has_risk = bool(risk_text and risk_text != "-")
+
+    if current_state in {"刚突破待确认"}:
+        labels = {
+            "3D": ("确认转强", "D1 结构变化"),
+            "3W": ("转强早期", "等待 W1 继续确认"),
+            "3M": ("结构未破坏", "中期证据待补充"),
+            "6M": ("证据不足", "长期样本不足"),
+        }
+    elif current_state in {"推进中段", "高位延展"}:
+        labels = {
+            "3D": ("强势延续", "短期结构保持"),
+            "3W": ("确认转强", "W1 结构改善"),
+            "3M": ("结构未破坏", "中期仍在观察"),
+            "6M": ("证据不足", "长期证据待补充"),
+        }
+    elif current_state in {"收缩蓄力"}:
+        labels = {
+            "3D": ("结构未破坏", "短期仍在收缩"),
+            "3W": ("转强早期", "等待收缩释放"),
+            "3M": ("证据不足", "中期方向待确认"),
+            "6M": ("证据不足", "长期证据待补充"),
+        }
+    elif current_state in {"失效回落", "等待修复"}:
+        labels = {
+            "3D": ("转弱预警", "短期结构弱化"),
+            "3W": ("确认转弱", "W1 证据偏弱"),
+            "3M": ("证据不足", "中期等待修复"),
+            "6M": ("证据不足", "长期证据待补充"),
+        }
+    else:
+        labels = {
+            "3D": ("结构未破坏", "短期无明显破坏"),
+            "3W": ("证据不足", "等待更多数据确认"),
+            "3M": ("证据不足", "中期证据待补充"),
+            "6M": ("证据不足", "长期证据待补充"),
+        }
+
+    return {
+        window: {
+            "label": label,
+            "evidence": evidence,
+            "tone": "risk" if ("弱" in label or "转弱" in label) else ("strong" if "转强" in label or "延续" in label else "neutral"),
+            "risk": "假突破风险" if has_risk and window in {"3D", "3W"} else "",
+        }
+        for window, (label, evidence) in labels.items()
+    }
+
+
+def _classic_strategy_signal_summary(limit: int = 6) -> dict[str, Any]:
+    payload = _read_json(ROOT / "outputs/strategy_signals/strategy_signal_daily_latest.json")
+    if not isinstance(payload, dict):
+        return {"ok": False, "date": "-", "tags": [], "rows": []}
+
+    rows = payload.get("rows", []) or []
+    strategy_meta = {
+        "vcp": "VCP",
+        "ma2560": "2560",
+        "bollinger_bandit": "布林",
+    }
+    type_label = {
+        "entry": "规则信号",
+        "exit": "失效信号",
+        "risk": "风险信号",
+    }
+    grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for row in rows:
+        strategy_id = str(row.get("strategy_id") or row.get("strategy") or "").strip()
+        signal_type = str(row.get("signal_type") or "").strip()
+        if strategy_id not in strategy_meta or signal_type not in type_label:
+            continue
+        key = (strategy_id, signal_type)
+        grouped.setdefault(key, []).append(row)
+
+    tags: list[dict[str, Any]] = []
+    detail_rows: list[dict[str, Any]] = []
+    for (strategy_id, signal_type), items in sorted(grouped.items(), key=lambda item: (-len(item[1]), item[0][0])):
+        display = f"{strategy_meta[strategy_id]} {type_label[signal_type]}"
+        tone = "risk" if signal_type in {"exit", "risk"} else "strong"
+        tags.append({
+            "label": display,
+            "count": len(items),
+            "tone": tone,
+            "href": "/mystrategies",
+        })
+        for item in items[:2]:
+            detail_rows.append({
+                "stock_code": item.get("stock_code", ""),
+                "stock_name": item.get("stock_name", ""),
+                "label": display,
+                "tone": tone,
+                "research_url": f"/research?stock_code={item.get('stock_code', '')}",
+            })
+        if len(tags) >= limit:
+            break
+
+    return {
+        "ok": True,
+        "date": str(payload.get("date") or "-"),
+        "tags": tags,
+        "rows": detail_rows[:limit],
+    }
+
+
+def _observation_deck_data(user_key: str = "", task_scope: str = "not_authenticated") -> dict[str, Any]:
+    brief = _daily_observation_brief(user_key, task_scope)
+    candidates = list(brief.get("watch_candidates", []) or [])
+    active_codes = set(brief.get("tracked_stock_codes", []) or [])
+
+    focus_rows: list[dict[str, Any]] = []
+    for candidate in candidates:
+        code = str(candidate.get("stock_code") or "").strip().upper()
+        focus_rows.append({
+            **candidate,
+            "is_tracked": code in active_codes,
+            "windows": _observation_window_labels(candidate),
+        })
+
+    if not focus_rows:
+        focus_rows = []
+
+    selected = focus_rows[0] if focus_rows else {}
+    market = brief.get("market", {}) or {}
+    health = {
+        "data_date": brief.get("date") or str(date.today()),
+        "state_timeline": _state_timeline_materialized_status(str(brief.get("date") or date.today())),
+        "state_cube": bool((ROOT / "outputs/state_cube/state_cube.duckdb").exists()),
+        "user_task_count": len(brief.get("active_user_tasks", []) or []),
+    }
+
+    return {
+        "ok": True,
+        "date": brief.get("date") or str(date.today()),
+        "market": market,
+        "focus_rows": focus_rows[:8],
+        "selected": selected,
+        "classic_signals": _classic_strategy_signal_summary(),
+        "market_top": focus_rows[:5],
+        "health": health,
+        "sources": brief.get("sources", []),
+    }
+
+
 def _research_lane(default_code: str) -> dict[str, Any]:
     quant = _quant_summary()
     signals = quant["signals"]["rows"]
@@ -3404,6 +3550,7 @@ def index(request: Request, mode: str = "") -> HTMLResponse:
     # 若未传 mode，按 user_type 映射到对应首页视角
     mode_map = {"方向型": "direction", "研究型": "research", "执行型": "execution"}
     mode = mode or mode_map.get(user_type, "direction")
+    observation_deck = _observation_deck_data(identity["user_key"], identity["task_scope"])
     return templates.TemplateResponse(
         request,
         "index.html",
@@ -3424,6 +3571,7 @@ def index(request: Request, mode: str = "") -> HTMLResponse:
             "render_profile": "full",
             "daily_brief": _daily_brief(),
             "observation_brief": _daily_observation_brief(identity["user_key"], identity["task_scope"]),
+            "observation_deck": observation_deck,
             "current_user": profile,
         },
     )
@@ -3481,6 +3629,7 @@ def preview_cards(
     profile = get_current_profile(request)
     identity = _request_user_identity(request, profile)
     cards = _render_cards(stock_code, render_profile)
+    observation_deck = _observation_deck_data(identity["user_key"], identity["task_scope"])
     return templates.TemplateResponse(
         request,
         "index.html",
@@ -3501,6 +3650,7 @@ def preview_cards(
             "render_profile": render_profile,
             "daily_brief": _daily_brief(),
             "observation_brief": _daily_observation_brief(identity["user_key"], identity["task_scope"]),
+            "observation_deck": observation_deck,
             "current_user": profile,
         },
     )
