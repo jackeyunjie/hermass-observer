@@ -67,6 +67,7 @@ def _filter_signal_fields(row: dict[str, Any]) -> dict[str, Any]:
         "prob_false_breakout",
         "confidence",
         "evidence_score",
+        "evidence_items",
         "risk_flags",
         "bucket_sample_size",
         "market_regime",

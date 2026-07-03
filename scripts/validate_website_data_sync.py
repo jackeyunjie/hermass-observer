@@ -187,9 +187,8 @@ def validate_home_observation_deck(html: str, expected_date: str) -> list[str]:
         "观象指令栏",
         "状态脉冲",
         "我的标的转折雷达",
-        "3D / 3W / 3M / 6M",
         "经典策略信号灯",
-        "全市场转折 Top",
+        "市场转折信号",
         "系统健康",
     ]
     for phrase in required_phrases:

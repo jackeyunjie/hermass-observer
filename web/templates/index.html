@@ -478,7 +478,7 @@
           <span class="tag tag-gray">Research Only</span>
         </div>
         <div class="deck-command" style="margin-top:14px;">
-          <input type="text" id="ai-hero-input" class="input hero-ai-search" placeholder="例如：000021 / D1 zero / 我的自选池 3 周变化"
+          <input type="text" id="ai-hero-input" class="input hero-ai-search" placeholder="输入股票代码、State 条件，或点击下方快捷指令"
             onkeydown="if(event.key==='Enter'){heroAsk();}" />
           <button class="btn btn-primary btn-sm" onclick="heroAsk()">观察</button>
           <button class="btn btn-sm btn-nowrap" onclick="aiToggle()">打开观象</button>
@@ -487,6 +487,8 @@
           <button class="btn btn-sm" onclick="heroAskChip('我的自选池最近 3 天有哪些状态变化')">我的自选</button>
           <button class="btn btn-sm" onclick="heroAskChip('列出今天转强早期的标的，只说状态和证据')">今日转折</button>
           <button class="btn btn-sm" onclick="heroAskChip('解释 D1 zero 和 W1 转强的观察含义')">状态说明</button>
+          <button class="btn btn-sm" onclick="heroAskChip('扫描我自选池中 D1/W1 结构出现转强或转弱的标的，列出状态变化和风险')">结构扫描</button>
+          <button class="btn btn-sm" onclick="heroAskChip('检查我自选池中是否存在 W1/MN1 逆风风险、ADX 衰竭或 BB 带宽异常收缩的标的')">风险扫描</button>
         </div>
       </section>
 
@@ -580,32 +582,7 @@
         {% endif %}
       </section>
 
-      {# ── 3. 多时间窗矩阵 ── #}
-      <section class="panel span-2">
-        <div class="panel-head">
-          <h2>3D / 3W / 3M / 6M 时间窗矩阵</h2>
-          <span>{% if observation_deck.selected.stock_code %}选中：{{ observation_deck.selected.stock_code }} {{ observation_deck.selected.stock_name }}{% else %}等待标的选择{% endif %}</span>
-        </div>
-        {% if observation_deck.selected.windows %}
-        <div class="window-grid">
-          {% for win in ['3D','3W','3M','6M'] %}
-          {% set cell = observation_deck.selected.windows[win] %}
-          <div class="window-cell {{ cell.tone }}">
-            <div class="window-name">{{ win }}</div>
-            <div class="window-label">{{ cell.label }}</div>
-            <div class="window-evidence">{{ cell.evidence }}</div>
-            {% if cell.risk %}
-            <div class="tag tag-red" style="margin-top:10px;">{{ cell.risk }}</div>
-            {% endif %}
-          </div>
-          {% endfor %}
-        </div>
-        {% else %}
-        <p class="muted">暂无时间窗矩阵数据。</p>
-        {% endif %}
-      </section>
-
-      {# ── 4. 经典策略信号灯 + 全市场参考 ── #}
+      {# ── 3. 经典策略信号灯 ── #}
       <section class="panel">
         <div class="panel-head">
           <h2>经典策略信号灯</h2>
@@ -623,12 +600,36 @@
         {% endif %}
       </section>
 
+      {# ── 4. 市场转折信号 ── #}
       <section class="panel">
         <div class="panel-head">
-          <h2>全市场转折 Top</h2>
-          <span>参考池，不替代我的标的</span>
+          <h2>市场转折信号</h2>
+          <span>仅作研究观察</span>
         </div>
-        {% if observation_deck.market_top %}
+        {% set prob_sig = observation_deck.probability_signals or {} %}
+        {% set prob_items = prob_sig.get('items', []) %}
+        {% if prob_sig.ok and prob_items %}
+        {% if prob_sig.warning %}
+        <p class="muted" style="margin-bottom:10px;">{{ prob_sig.warning }}</p>
+        {% endif %}
+        <div class="top-list">
+          {% for item in prob_items[:10] %}
+          <div class="top-item">
+            <div>
+              <a class="radar-code" href="{{ item.research_url }}">{{ item.stock_code }}</a>
+              <div class="muted">{{ item.stock_name or '-' }}{% if item.industry_l1 %} · {{ item.industry_l1 }}{% endif %}</div>
+              <div class="muted" style="font-size:12px;">{{ item.window }} · {{ item.evidence_count or 0 }} 项证据</div>
+            </div>
+            <div style="text-align:right;">
+              <span class="tag {% if item.tone == 'strong' %}tag-green{% elif item.tone == 'risk' %}tag-red{% elif item.tone == 'muted' %}tag-gray{% else %}tag-amber{% endif %}">{{ item.label }}</span>
+              {% if item.risk_label %}
+              <div class="muted" style="font-size:12px;">{{ item.risk_label }}</div>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% elif observation_deck.market_top %}
         <div class="top-list">
           {% for row in observation_deck.market_top %}
           <div class="top-item">
@@ -641,17 +642,18 @@
           {% endfor %}
         </div>
         {% else %}
-        <p class="muted">暂无全市场参考池。</p>
+        <p class="muted">暂无市场转折信号数据。</p>
         {% endif %}
       </section>
 
       {# ── 5. 系统健康 ── #}
       <section class="panel span-2">
-        <div class="panel-head">
-          <h2>系统健康</h2>
-          <span>数据状态只作可用性提示</span>
-        </div>
-        <div class="system-strip">
+        <details>
+          <summary style="font-size:15px;font-weight:700;cursor:pointer;padding:4px 0;">系统健康 ▸</summary>
+          <div class="panel-head" style="margin-top:10px;">
+            <span>数据状态只作可用性提示</span>
+          </div>
+          <div class="system-strip">
           <div class="pulse-item"><span class="pulse-label">数据日期</span><span class="pulse-value">{{ observation_deck.health.data_date }}</span></div>
           <div class="pulse-item"><span class="pulse-label">State Timeline</span><span class="pulse-value">{% if observation_deck.health.state_timeline.exists %}<span class="status-dot dot-ok"></span>已就绪{% else %}<span class="status-dot dot-warn"></span>读取中{% endif %}</span></div>
           <div class="pulse-item"><span class="pulse-label">State Cube</span><span class="pulse-value">{% if observation_deck.health.state_cube %}<span class="status-dot dot-ok"></span>可用{% else %}<span class="status-dot dot-warn"></span>待检查{% endif %}</span></div>

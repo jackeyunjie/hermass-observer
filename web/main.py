@@ -57,6 +57,9 @@ from web.services.turning_point_probability_reader import (
     get_stock as tpp_get_stock,
     get_summary as tpp_get_summary,
 )
+from web.services.observation_deck_probability import (
+    build_observation_deck_probability_signals,
+)
 
 # 启动时初始化用户 profile（读取环境变量 HERMASS_HTPASSWD_USERS 中的逗号分隔用户名）
 init_profiles([u.strip() for u in os.environ.get("HERMASS_HTPASSWD_USERS", "").split(",") if u.strip()])
@@ -2588,7 +2591,13 @@ def _observation_deck_data(user_key: str = "", task_scope: str = "not_authentica
         focus_rows = []
 
     selected = focus_rows[0] if focus_rows else {}
-    market = brief.get("market", {}) or {}
+    market = dict(brief.get("market", {}) or {})
+    if market.get("conclusion"):
+        market["conclusion"] = re.sub(
+            r"\d+(?:\.\d+)?%",
+            "占比已收录",
+            str(market.get("conclusion") or ""),
+        )
     health = {
         "data_date": brief.get("date") or str(date.today()),
         "state_timeline": _state_timeline_materialized_status(str(brief.get("date") or date.today())),
@@ -2603,6 +2612,7 @@ def _observation_deck_data(user_key: str = "", task_scope: str = "not_authentica
         "focus_rows": focus_rows[:8],
         "selected": selected,
         "classic_signals": _classic_strategy_signal_summary(),
+        "probability_signals": build_observation_deck_probability_signals(limit=5),
         "market_top": focus_rows[:5],
         "health": health,
         "sources": brief.get("sources", []),
