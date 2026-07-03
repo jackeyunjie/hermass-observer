@@ -2573,6 +2573,17 @@ def _classic_strategy_signal_summary(limit: int = 6) -> dict[str, Any]:
     }
 
 
+def _observation_deck_safe_text(value: Any) -> Any:
+    """Remove raw percentage literals from homepage-facing text values."""
+    if isinstance(value, str):
+        return re.sub(r"\d+(?:\.\d+)?%", "占比已收录", value)
+    if isinstance(value, dict):
+        return {k: _observation_deck_safe_text(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_observation_deck_safe_text(v) for v in value]
+    return value
+
+
 def _observation_deck_data(user_key: str = "", task_scope: str = "not_authenticated") -> dict[str, Any]:
     brief = _daily_observation_brief(user_key, task_scope)
     candidates = list(brief.get("watch_candidates", []) or [])
@@ -2580,6 +2591,7 @@ def _observation_deck_data(user_key: str = "", task_scope: str = "not_authentica
 
     focus_rows: list[dict[str, Any]] = []
     for candidate in candidates:
+        candidate = _observation_deck_safe_text(candidate)
         code = str(candidate.get("stock_code") or "").strip().upper()
         focus_rows.append({
             **candidate,
@@ -2591,13 +2603,7 @@ def _observation_deck_data(user_key: str = "", task_scope: str = "not_authentica
         focus_rows = []
 
     selected = focus_rows[0] if focus_rows else {}
-    market = dict(brief.get("market", {}) or {})
-    if market.get("conclusion"):
-        market["conclusion"] = re.sub(
-            r"\d+(?:\.\d+)?%",
-            "占比已收录",
-            str(market.get("conclusion") or ""),
-        )
+    market = _observation_deck_safe_text(dict(brief.get("market", {}) or {}))
     health = {
         "data_date": brief.get("date") or str(date.today()),
         "state_timeline": _state_timeline_materialized_status(str(brief.get("date") or date.today())),
